@@ -881,25 +881,6 @@ function StoreContent({ shopId }) {
             } ${!isDesktopOpen ? 'md:-ml-56' : 'md:ml-0'
             }`}
         >
-          {/* Company Brand Logo & Title */}
-          <div className="mx-4 mt-3 mb-1 rounded-2xl flex items-center gap-2.5 px-3 py-2 bg-white/10 border border-white/15 shadow-sm">
-            <div className="w-8 h-8 rounded-xl overflow-hidden bg-white shrink-0 border border-white/30 p-0.5">
-              <img src={companyLogo} alt="Yousafzai Agri Foods" className="w-full h-full object-contain" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[11px] font-black text-yellow-300 uppercase tracking-tight leading-none truncate">
-                {user?.role === 'super_admin'
-                  ? 'SUPER ADMIN'
-                  : shop?.name
-                  ? shop.name.toUpperCase()
-                  : user?.fullName
-                  ? user.fullName.toUpperCase()
-                  : 'YOUSAFZAI AGRI'}
-              </span>
-              <span className="text-[8px] font-bold text-white/70 uppercase tracking-widest leading-tight mt-0.5">EGGS TRADERS</span>
-            </div>
-          </div>
-
           {/* User Profile Box */}
           <div className="mx-4 mb-6 mt-4 rounded-2xl flex items-center px-3.5 py-3 gap-3 border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner">
             <div className="relative flex-shrink-0">
