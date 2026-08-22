@@ -823,6 +823,17 @@ function StoreContent({ shopId }) {
 
           {/* Right Cart & User Badges */}
           <div className="flex items-center gap-3">
+            {canBuy && (
+              <button
+                onClick={() => setOrderOpen(true)}
+                className="relative p-2.5 sm:px-4 bg-[#1B3817] hover:bg-[#0C1D08] text-white rounded-full transition-all border-t border-white/20 border-b-4 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] flex items-center justify-center gap-2"
+                title="View My Orders & Payment Status"
+              >
+                <Truck className="w-5 h-5 text-emerald-400" />
+                <span className="text-xs font-black uppercase tracking-wider hidden sm:inline">My Orders</span>
+              </button>
+            )}
+
             {canBuy ? (
               <button
                 onClick={() => setCartOpen(true)}

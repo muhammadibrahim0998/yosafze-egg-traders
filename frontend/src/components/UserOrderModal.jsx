@@ -1,43 +1,40 @@
-// UserOrderModal.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
+import { Package, Truck, CreditCard, Clock, CheckCircle2, XCircle, X, MapPin, Phone, User } from 'lucide-react';
 
-// ---------- Helpers ----------
 const PAYMENT_STATUS_COLORS = {
-  PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
-  PAID: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  FAILED: 'bg-rose-100 text-rose-800 border-rose-200',
+  PENDING: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+  PAID: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+  FAILED: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
 };
 
 const ORDER_STATUS_COLORS = {
-  PROCESSING: 'bg-blue-100 text-blue-800 border-blue-200',
-  SHIPPED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  CANCELLED: 'bg-rose-100 text-rose-800 border-rose-200',
+  PROCESSING: 'bg-blue-100 text-blue-800 border-blue-300 font-bold',
+  SHIPPED: 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold',
+  DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+  CANCELLED: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
 };
 
 const getBadgeClass = (map, value) =>
-  map[value] || 'bg-slate-100 text-slate-800 border-slate-200';
+  map[value] || 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 const formatCurrency = (amount) => 'Rs. ' + (amount || 0).toLocaleString('en-PK');
 
 const getProductSummary = (items) => {
   if (!items || items.length === 0) return '—';
-  return items.map((p) => `${p.name} (${p.quantity})`).join(', ');
+  return items.map((p) => `${p.name} (x${p.quantity})`).join(', ');
 };
 
-// ---------- Main Component ----------
 export default function UserOrderModal({ setOrderOpen }) {
   const { getMyOrders } = useCustomerAuth();
-  const [isOpen, setIsOpen] = useState(false);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -46,252 +43,214 @@ export default function UserOrderModal({ setOrderOpen }) {
     setError(null);
     try {
       const data = await getMyOrders();
-      setOrders(data);
+      setOrders(data || []);
     } catch (err) {
-      setError(err.message || 'Failed to load orders. Please try again.');
+      setError(err.message || 'Failed to load your orders.');
     } finally {
       setLoading(false);
     }
   }, [getMyOrders]);
 
-  const openModal = () => {
-    setIsOpen(true);
+  useEffect(() => {
     fetchOrders();
-  };
+  }, [fetchOrders]);
 
   const closeModal = () => {
-    setIsOpen(false);
-    setSelectedOrder(null);
-    document.body.style.overflow = '';
+    if (setOrderOpen) setOrderOpen(false);
   };
 
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) closeModal();
+      if (e.key === 'Escape') closeModal();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen]);
+  }, []);
 
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  const renderModal = () => {
-    if (!isOpen) return null;
-
-    let tableRows = null;
-    if (!loading && !error && orders.length > 0) {
-      tableRows = orders.map((order) => (
-        <tr
-          key={order._id}
-          className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors cursor-pointer"
-          onClick={() => setSelectedOrder(order)}
-        >
-          <td className="px-4 py-3 text-sm font-mono font-medium text-slate-700 whitespace-nowrap">
-            #{order._id.slice(-6).toUpperCase()}
-          </td>
-          <td
-            className="px-4 py-3 text-sm text-slate-600 max-w-[180px] truncate"
-            title={getProductSummary(order.items)}
+  return (
+    <div
+      className="fixed inset-0 z-[999] overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+      onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+    >
+      <div className="relative w-full max-w-4xl rounded-3xl bg-slate-900 text-white shadow-2xl border border-slate-700 overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-900/90 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-500/20 rounded-2xl border border-emerald-500/30 text-emerald-400">
+              <Truck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black uppercase tracking-tight text-white">My Orders & Payment Status</h2>
+              <p className="text-xs font-bold text-slate-400">
+                Track your EasyPaisa & online order statuses ({orders.length} orders found)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={closeModal}
+            className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            aria-label="Close modal"
           >
-            {getProductSummary(order.items)}
-          </td>
-          <td className="px-4 py-3 text-sm font-semibold text-slate-800 whitespace-nowrap">
-            {formatCurrency(order.totalAmount)}
-          </td>
-          <td className="px-4 py-3">
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getBadgeClass(PAYMENT_STATUS_COLORS, order.paymentStatus)}`}>
-              {order.paymentStatus}
-            </span>
-          </td>
-          <td className="px-4 py-3">
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${getBadgeClass(ORDER_STATUS_COLORS, order.orderStatus)}`}>
-              {order.orderStatus}
-            </span>
-          </td>
-          <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
-            {formatDate(order.createdAt)}
-          </td>
-        </tr>
-      ));
-    }
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
-    return (
-      <div
-        className="fixed inset-0 z-[999] overflow-y-auto modal-backdrop"
-        onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
-      >
-        <div className="fixed inset-0 bg-black/40 transition-opacity"></div>
-
-        <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-          <div className="modal-enter relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl shadow-black/20 border border-slate-200/60">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 sm:px-6">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </span>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-800">My Orders</h2>
-                  <p className="text-xs text-slate-400">
-                    {orders.length} order{orders.length !== 1 ? 's' : ''} found
-                  </p>
-                </div>
-              </div>
+        {/* Content */}
+        <div className="p-6 max-h-[75vh] overflow-y-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500/30 border-t-emerald-500"></div>
+              <p className="mt-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Loading your orders…</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+              <XCircle className="w-12 h-12 text-rose-500" />
+              <p className="text-sm font-bold text-rose-400">{error}</p>
               <button
-                onClick={closeModal}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Close modal"
+                onClick={fetchOrders}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-lg"
               >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Try again
+              </button>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+              <Package className="w-14 h-14 text-slate-600" />
+              <p className="text-base font-black text-white uppercase tracking-tight">No orders placed yet</p>
+              <p className="text-xs text-slate-400 max-w-sm">Your checked-out orders will appear here with live payment status updates (PAID, PENDING, or FAILED).</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((order) => (
+                <div
+                  key={order._id}
+                  onClick={() => setSelectedOrder(order)}
+                  className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 rounded-2xl p-5 shadow-lg transition-all cursor-pointer hover:border-emerald-500/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                >
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-xs font-black px-3 py-1 bg-slate-950 text-emerald-400 rounded-lg border border-slate-800">
+                        #{order._id.slice(-6).toUpperCase()}
+                      </span>
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-slate-700 text-slate-200 border border-slate-600">
+                        {order.paymentMethod || 'COD'}
+                      </span>
+                      <span className={`text-[10px] font-black uppercase px-3 py-0.5 rounded-full border ${getBadgeClass(PAYMENT_STATUS_COLORS, order.paymentStatus)}`}>
+                        {order.paymentStatus === 'PAID' ? 'PAID ✅' : order.paymentStatus === 'FAILED' ? 'UNPAID / FAILED ❌' : 'PENDING ⏳'}
+                      </span>
+                      <span className={`text-[10px] font-black uppercase px-3 py-0.5 rounded-full border ${getBadgeClass(ORDER_STATUS_COLORS, order.orderStatus)}`}>
+                        {order.orderStatus}
+                      </span>
+                    </div>
+
+                    <div className="text-xs font-bold text-slate-300 truncate" title={getProductSummary(order.items)}>
+                      Items: <span className="text-white">{getProductSummary(order.items)}</span>
+                    </div>
+
+                    <div className="text-[11px] font-medium text-slate-400">
+                      Date: {formatDate(order.createdAt)}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-row sm:flex-col items-end justify-between w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/60">
+                    <div className="text-right">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Amount</span>
+                      <span className="text-lg font-black text-emerald-400">{formatCurrency(order.totalAmount)}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider underline mt-1">
+                      View Details →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-slate-800 px-6 py-3 bg-slate-900/90 flex justify-between items-center text-xs text-slate-400">
+          <span>Click any order for full breakdown</span>
+          <button onClick={closeModal} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider transition">
+            Close
+          </button>
+        </div>
+      </div>
+
+      {/* Single Order Detail Modal */}
+      {selectedOrder && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrder(null); }}
+        >
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-4 text-white animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-black text-base text-emerald-400 uppercase tracking-tight">
+                Order #{selectedOrder._id.slice(-6).toUpperCase()} Details
+              </h3>
+              <button onClick={() => setSelectedOrder(null)} className="p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Body */}
-            <div className="px-5 py-4 sm:px-6 sm:py-5">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div>
-                  <p className="mt-4 text-sm text-slate-500">Loading your orders…</p>
+            <div className="space-y-3 text-xs font-bold">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Payment Status</span>
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${getBadgeClass(PAYMENT_STATUS_COLORS, selectedOrder.paymentStatus)}`}>
+                  {selectedOrder.paymentStatus}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Delivery Status</span>
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${getBadgeClass(ORDER_STATUS_COLORS, selectedOrder.orderStatus)}`}>
+                  {selectedOrder.orderStatus}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Payment Method</span>
+                <span className="text-slate-200 uppercase font-black">{selectedOrder.paymentMethod}</span>
+              </div>
+
+              {selectedOrder.transactionId && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 uppercase tracking-wider text-[10px]">Transaction Ref</span>
+                  <span className="text-amber-400 font-mono font-bold">{selectedOrder.transactionId}</span>
                 </div>
-              ) : error ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <span className="text-4xl">⚠️</span>
-                  <p className="mt-3 text-sm text-rose-600">{error}</p>
-                  <button
-                    onClick={fetchOrders}
-                    className="mt-4 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-100 transition"
-                  >
-                    Try again
-                  </button>
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <span className="text-5xl">📭</span>
-                  <p className="mt-4 text-sm font-medium text-slate-700">No orders yet</p>
-                  <p className="text-xs text-slate-400">Your checked‑out orders will appear here.</p>
-                </div>
-              ) : (
-                <div className="order-table-wrap overflow-x-auto rounded-xl border border-slate-200/80">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200/80">
-                      <tr>
-                        <th className="px-4 py-3 font-medium">Order ID</th>
-                        <th className="px-4 py-3 font-medium">Products</th>
-                        <th className="px-4 py-3 font-medium">Total</th>
-                        <th className="px-4 py-3 font-medium">Payment</th>
-                        <th className="px-4 py-3 font-medium">Delivery</th>
-                        <th className="px-4 py-3 font-medium">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>{tableRows}</tbody>
-                  </table>
+              )}
+
+              <div className="pt-3 border-t border-slate-800 space-y-2">
+                <p className="text-slate-400 uppercase tracking-widest text-[10px]">Ordered Items</p>
+                {selectedOrder.items?.map((it, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+                    <span className="text-slate-200">{it.name} × {it.quantity}</span>
+                    <span className="text-emerald-400 font-black">{formatCurrency(it.price * it.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-sm font-black">
+                <span className="text-slate-400 uppercase tracking-wider text-xs">Total Amount</span>
+                <span className="text-emerald-400 text-base">{formatCurrency(selectedOrder.totalAmount)}</span>
+              </div>
+
+              {selectedOrder.paymentProof && (
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <p className="text-slate-400 uppercase tracking-widest text-[10px]">Payment Proof Screenshot</p>
+                  <img src={selectedOrder.paymentProof} alt="Payment Proof" className="w-full max-h-56 object-contain rounded-2xl border border-slate-700 bg-black/40" />
                 </div>
               )}
             </div>
 
-            <div className="border-t border-slate-200/80 px-5 py-3 sm:px-6 flex justify-end">
-              <span className="text-xs text-slate-400">
-                Showing {orders.length} order{orders.length !== 1 ? 's' : ''} • Click a row for details
-              </span>
-            </div>
+            <button
+              onClick={() => setSelectedOrder(null)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition shadow-lg mt-2"
+            >
+              Close
+            </button>
           </div>
         </div>
-
-        {/* Single Order Detail Overlay */}
-        {selectedOrder && (
-          <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50"
-            onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrder(null); }}
-          >
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <h3 className="font-semibold text-slate-800">
-                  Order #{selectedOrder._id.slice(-6).toUpperCase()}
-                </h3>
-                <button onClick={() => setSelectedOrder(null)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="px-5 py-4 space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Payment Status</span>
-                  <span className={`px-2.5 py-0.5 rounded-full border text-xs font-medium ${getBadgeClass(PAYMENT_STATUS_COLORS, selectedOrder.paymentStatus)}`}>{selectedOrder.paymentStatus}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Delivery Status</span>
-                  <span className={`px-2.5 py-0.5 rounded-full border text-xs font-medium ${getBadgeClass(ORDER_STATUS_COLORS, selectedOrder.orderStatus)}`}>{selectedOrder.orderStatus}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Payment Method</span>
-                  <span className="font-medium text-slate-800">{selectedOrder.paymentMethod}</span>
-                </div>
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-slate-500 mb-1">Items</p>
-                  {selectedOrder.items?.map((it, idx) => (
-                    <div key={idx} className="flex justify-between text-slate-700">
-                      <span>{it.name} × {it.quantity}</span>
-                      <span>{formatCurrency(it.price * it.quantity)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="pt-2 border-t border-slate-100 flex justify-between font-semibold text-slate-800">
-                  <span>Total</span>
-                  <span>{formatCurrency(selectedOrder.totalAmount)}</span>
-                </div>
-                {selectedOrder.shippingDetails && (
-                  <div className="pt-2 border-t border-slate-100 text-slate-600">
-                    <p>{selectedOrder.shippingDetails.fullName} • {selectedOrder.shippingDetails.phone}</p>
-                    <p>{selectedOrder.shippingDetails.address}, {selectedOrder.shippingDetails.city}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <>
-      <div className="max-w-md w-full absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center">
-        <button onClick={() => setOrderOpen(false)}
-          className="rounded-lg p-1.5 float-end text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          aria-label="Close modal"
-        >
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        <div className="mb-4 flex justify-center">
-          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 text-3xl">
-            🛒
-          </span>
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800">Your Orders</h2>
-        <p className="mt-1 text-sm text-slate-500">View all your checked‑out orders</p>
-        <button
-          onClick={openModal}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-8 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700 hover:shadow-indigo-300"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-          </svg>
-          Order
-        </button>
-        <p className="mt-4 text-xs text-slate-400">Click to open order modal</p>
-      </div>
-
-      {renderModal()}
-    </>
+      )}
+    </div>
   );
 }
