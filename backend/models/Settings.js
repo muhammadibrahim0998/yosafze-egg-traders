@@ -12,6 +12,8 @@ const SettingsSchema = new mongoose.Schema({
   ownerFullName: { type: String, default: '' },
   ownerEmail: { type: String, default: '' },
   ownerPhone: { type: String, default: '' },
+  easypaisaNumber: { type: String, default: '' },
+  easypaisaEnabled: { type: Boolean, default: false },
   shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true, unique: true }
 }, { timestamps: true });
 

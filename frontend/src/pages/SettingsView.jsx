@@ -86,7 +86,9 @@ export function SettingsView() {
       logoUrl: '',
       ownerFullName: '',
       ownerEmail: '',
-      ownerPhone: ''
+      ownerPhone: '',
+      easypaisaNumber: '',
+      easypaisaEnabled: false
     }
   });
 
@@ -125,6 +127,8 @@ export function SettingsView() {
         ownerFullName: settings.ownerFullName || user?.fullName || '',
         ownerEmail: settings.ownerEmail || user?.email || '',
         ownerPhone: settings.ownerPhone || '',
+        easypaisaNumber: settings.easypaisaNumber || '',
+        easypaisaEnabled: settings.easypaisaEnabled || false,
       });
       initialResetDone.current = true;
     }
@@ -141,6 +145,8 @@ export function SettingsView() {
               ownerFullName: data.ownerFullName || user?.fullName || '',
               ownerEmail: data.ownerEmail || user?.email || '',
               ownerPhone: data.ownerPhone || '',
+              easypaisaNumber: data.easypaisaNumber || '',
+              easypaisaEnabled: data.easypaisaEnabled || false,
             });
             initialResetDone.current = true;
           }
@@ -508,6 +514,33 @@ export function SettingsView() {
                     className="block w-full pl-12 pr-5 py-4 bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] rounded-2xl text-[var(--color-text-primary)] focus:border-green-500/40 focus:ring-1 focus:ring-green-500/40 transition-all font-bold placeholder:text-slate-400 outline-none"
                     placeholder="+1 234 567 890"
                   />
+                </div>
+              </div>
+              {/* EasyPaisa Section */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-[var(--color-text-muted)] uppercase tracking-widest pl-1">EasyPaisa Number</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[var(--color-text-muted)] group-focus-within:text-emerald-500 transition-colors">
+                    <Phone className="w-5 h-5" />
+                  </div>
+                  <input
+                    {...register('easypaisaNumber')}
+                    type="tel"
+                    className="block w-full pl-12 pr-5 py-4 bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] rounded-2xl text-[var(--color-text-primary)] focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/40 transition-all font-bold placeholder:text-slate-400 outline-none"
+                    placeholder="03001234567"
+                  />
+                  {errors.easypaisaNumber && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.easypaisaNumber.message}</p>}
+                </div>
+                <div className="flex items-center gap-3 pl-1 mt-2">
+                  <input
+                    type="checkbox"
+                    id="easypaisaEnabled"
+                    {...register('easypaisaEnabled')}
+                    className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                  />
+                  <label htmlFor="easypaisaEnabled" className="text-[11px] font-bold text-[var(--color-text-secondary)] cursor-pointer">
+                    Enable EasyPaisa payments for customers
+                  </label>
                 </div>
               </div>
             </div>

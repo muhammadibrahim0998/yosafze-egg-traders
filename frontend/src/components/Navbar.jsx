@@ -57,8 +57,8 @@ export function Navbar({
             <Menu className="w-6 h-6" />
           </button>
 
-          <div 
-            className="flex items-center gap-3 group cursor-pointer hover:scale-105 transition-transform duration-300" 
+          <div
+            className="flex items-center gap-3 group cursor-pointer hover:scale-105 transition-transform duration-300"
             onClick={() => {
               if (isSuperAdmin() || isShopAdmin()) {
                 navigate('/');
@@ -76,13 +76,13 @@ export function Navbar({
             </div>
             <div className="hidden md:flex flex-col">
               <h1 className="text-base font-black tracking-tight text-yellow-300 uppercase italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] leading-none">
-                {user?.role === 'super_admin'
-                  ? 'SUPER ADMIN'
-                  : shopName
-                  ? shopName.toUpperCase()
-                  : 'YOUSAFZAI AGRI'}
+                {user?.role === 'super_admin' || !shopName || shopName === 'Egg Station POS'
+                  ? 'YOUSAFZAI EGGS TRADERS'
+                  : shopName.toUpperCase()}
               </h1>
-              <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest leading-tight">Eggs Traders</span>
+              <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest leading-tight">
+                {user?.role === 'super_admin' ? 'SUPER ADMIN' : 'EGGS TRADERS'}
+              </span>
             </div>
           </div>
         </div>

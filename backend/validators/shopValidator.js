@@ -25,6 +25,10 @@ export const shopSchema = z.object({
   adminEmail: z.string().email({ message: "Invalid email address" }).optional().or(z.literal('')),
   adminPhone: z.string().optional().or(z.literal('')),
   logoUrl: z.string().url({ message: "Invalid URL format" }).optional().or(z.literal('')),
+  easypaisaNumber: z.string()
+    .regex(/^0[0-9]{10}$/, { message: "EasyPaisa number must be 11 digits starting with 0 (e.g. 03001234567)" })
+    .optional()
+    .or(z.literal('')),
 });
 
 export const validateShop = (req, res, next) => {

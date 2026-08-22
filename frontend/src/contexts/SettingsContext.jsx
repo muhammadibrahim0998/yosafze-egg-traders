@@ -18,7 +18,9 @@ export function SettingsProvider({ children }) {
     logoUrl: '',
     ownerFullName: '',
     ownerEmail: '',
-    ownerPhone: ''
+    ownerPhone: '',
+    easypaisaNumber: '',
+    easypaisaEnabled: false
   });
   const [loading, setLoading] = useState(true);
 

@@ -31,6 +31,11 @@ export const settingsSchema = z.object({
   ownerFullName: z.string().optional().or(z.literal('')),
   ownerEmail: z.string().email({ message: "Invalid email" }).optional().or(z.literal('')),
   ownerPhone: z.string().optional().or(z.literal('')),
+  easypaisaNumber: z.string()
+    .regex(/^0[0-9]{10}$/, { message: "EasyPaisa number must be 11 digits (e.g. 03001234567)" })
+    .optional()
+    .or(z.literal('')),
+  easypaisaEnabled: z.boolean().optional(),
 });
 
 export const validateSettings = (req, res, next) => {

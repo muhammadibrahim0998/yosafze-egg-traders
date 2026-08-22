@@ -22,4 +22,8 @@ export const shopSchema = z.object({
   adminFullName: z.string()
     .min(3, { message: "Full name must be at least 3 characters" })
     .optional(),
+  easypaisaNumber: z.string()
+    .regex(/^0[0-9]{10}$/, { message: "EasyPaisa number must be 11 digits (e.g. 03001234567)" })
+    .optional()
+    .or(z.literal('')),
 });

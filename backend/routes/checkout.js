@@ -4,6 +4,7 @@ import Order from '../models/Order.js';
 import Customer from '../models/Customer.js';
 import Sale from '../models/Sale.js';
 import Item from '../models/Item.js';
+import Settings from '../models/Settings.js';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { authenticate, requireShopAdmin } from '../middleware/auth.js';
@@ -91,11 +92,27 @@ router.post('/', authenticateCustomer, async (req, res) => {
       return res.json({ success: true, sessionId: session.id, url: session.url });
     }
     else if (paymentMethod === 'EASYPAISA') {
-      const superAdminNumber = process.env.SUPERADMIN_EASYPAISA_NUMBER || '03098216202';
+      // Fetch this shop's EasyPaisa number from Settings
+      let easypaisaNumber = process.env.SUPERADMIN_EASYPAISA_NUMBER || '03098216202';
+      let accountTitle = 'Super Admin';
+      let easypaisaEnabled = true;
+
+      if (shopId) {
+        const shopSettings = await Settings.findOne({ shopId });
+        if (shopSettings && shopSettings.easypaisaNumber) {
+          easypaisaNumber = shopSettings.easypaisaNumber;
+          easypaisaEnabled = shopSettings.easypaisaEnabled !== false;
+          accountTitle = shopSettings.ownerFullName || shopSettings.shopName || 'Shop Admin';
+        }
+      }
+
+      if (!easypaisaEnabled) {
+        return res.status(400).json({ message: 'EasyPaisa payment is not enabled for this shop' });
+      }
 
       const easyPaisaData = {
-        superAdminNumber,
-        accountTitle: 'Super Admin',
+        superAdminNumber: easypaisaNumber,
+        accountTitle,
         orderId: order._id.toString(),
         transactionAmount: totalAmount,
       };

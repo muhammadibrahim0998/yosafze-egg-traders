@@ -50,7 +50,8 @@ export function SuperAdminDashboard() {
             contactNumber: '',
             adminFullName: '',
             adminUsername: '',
-            adminPassword: ''
+            adminPassword: '',
+            easypaisaNumber: ''
         }
     });
 
@@ -535,6 +536,23 @@ export function SuperAdminDashboard() {
                                         className={`w-full px-5 py-3 rounded-xl border ${errors.adminPassword ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold outline-none focus:bg-white focus:border-blue-500/40 transition-all`}
                                         placeholder="password"
                                     />
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-zinc-50">
+                                <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    EasyPaisa Payment
+                                </h3>
+                                <div>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">EasyPaisa Number</label>
+                                    <input
+                                        {...register('easypaisaNumber')}
+                                        type="tel"
+                                        className={`w-full px-5 py-3 rounded-xl border ${errors.easypaisaNumber ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold placeholder:text-zinc-300 outline-none focus:bg-white focus:border-emerald-500/40 transition-all`}
+                                        placeholder="03001234567"
+                                    />
+                                    {errors.easypaisaNumber && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.easypaisaNumber.message}</p>}
+                                    <p className="text-[9px] text-zinc-400 font-bold mt-1 pl-1">Customers will send EasyPaisa payments to this number.</p>
                                 </div>
                             </div>
                             <button

@@ -20,7 +20,7 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
 // Create shop (Super Admin only)
 router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res) => {
   try {
-    const { name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, logoUrl } = req.body;
+    const { name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, logoUrl, easypaisaNumber } = req.body;
     
     // Check if username is taken
     if (adminUsername) {
@@ -48,7 +48,9 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       shopId: shop._id,
       shopName: name,
       address: address || '',
-      phone: contactNumber || ''
+      phone: contactNumber || '',
+      easypaisaNumber: easypaisaNumber || '',
+      easypaisaEnabled: easypaisaNumber ? true : false,
     });
     await settings.save();
 
