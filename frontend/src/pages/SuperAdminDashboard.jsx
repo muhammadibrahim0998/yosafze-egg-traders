@@ -57,6 +57,7 @@ export function SuperAdminDashboard() {
 
     const [orders, setOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
+    const [selectedShopFilter, setSelectedShopFilter] = useState('ALL');
     const [selectedProofImage, setSelectedProofImage] = useState(null);
     const [deleteOrderModal, setDeleteOrderModal] = useState({
         isOpen: false,
@@ -458,6 +459,9 @@ export function SuperAdminDashboard() {
                                             </span>
                                             {/* Card Action Overlay */}
                                             <div className="absolute top-0 right-0 flex items-center gap-1.5 opacity-0 group-hover/card:opacity-100 transition-all scale-75 group-hover/card:scale-100 origin-right">
+                                                <button onClick={() => { setSelectedShopFilter(shop._id); setActiveTab('orders'); }} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1" title="Inspect & Approve EasyPaisa Orders">
+                                                    <Truck className="w-3.5 h-3.5" /> Approve Orders
+                                                </button>
                                                 <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-white text-zinc-400 hover:text-green-600 rounded-xl border border-zinc-100 shadow-sm transition-all" title="View Details"><Eye className="w-4 h-4" /></button>
                                                 <button onClick={() => startEdit(shop)} className="p-2.5 bg-white text-zinc-400 hover:text-amber-600 rounded-xl border border-zinc-100 shadow-sm transition-all" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
                                                 <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-white text-zinc-400 hover:text-rose-600 rounded-xl border border-zinc-100 shadow-sm transition-all" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>
@@ -705,20 +709,32 @@ export function SuperAdminDashboard() {
                             <h2 className="text-2xl font-black uppercase text-[var(--color-text-primary)] tracking-tight">Customer EasyPaisa & Orders Verification</h2>
                             <p className="text-xs text-[var(--color-text-secondary)] font-bold mt-1 uppercase tracking-wider">Inspect transaction screenshot proofs & manage payment statuses</p>
                         </div>
-                        <button onClick={fetchOrders} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
-                            Refresh Orders
-                        </button>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <select
+                                value={selectedShopFilter}
+                                onChange={(e) => setSelectedShopFilter(e.target.value)}
+                                className="px-4 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-900 shadow-sm outline-none cursor-pointer"
+                            >
+                                <option value="ALL">All Shops</option>
+                                {shops.map(s => (
+                                    <option key={s._id} value={s._id}>{s.name}</option>
+                                ))}
+                            </select>
+                            <button onClick={fetchOrders} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95">
+                                Refresh Orders
+                            </button>
+                        </div>
                     </div>
 
                     {ordersLoading ? (
                         <div className="py-20 text-center text-slate-400 font-bold">Loading orders and payment receipts...</div>
-                    ) : orders.length === 0 ? (
+                    ) : orders.filter(o => selectedShopFilter === 'ALL' || String(o.shopId?._id || o.shopId) === String(selectedShopFilter)).length === 0 ? (
                         <div className="py-20 text-center bg-surface-card border border-[var(--color-border-subtle)] rounded-3xl text-slate-400 font-bold">
-                            No customer orders placed yet.
+                            No customer orders placed for this selection yet.
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
-                            {orders.map(ord => (
+                            {orders.filter(o => selectedShopFilter === 'ALL' || String(o.shopId?._id || o.shopId) === String(selectedShopFilter)).map(ord => (
                                 <div key={ord._id} className="bg-surface-card border border-[var(--color-border-subtle)] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
                                     <div className="space-y-2 flex-1">
                                         <div className="flex items-center gap-3 flex-wrap">

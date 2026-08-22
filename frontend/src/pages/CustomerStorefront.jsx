@@ -17,6 +17,7 @@ import UserOrderModal from '../components/UserOrderModal.jsx';
 import { ProductModal } from '../components/ProductModal.jsx';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal.jsx';
 import WalkInBillModal from '../components/WalkInBillModal.jsx';
+import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales } from '../services/api.js';
 
@@ -707,7 +708,7 @@ function StoreContent({ shopId }) {
 
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden bg-[#0f172a] text-white w-full tracking-tight">
+    <div className={`flex flex-col h-[100dvh] overflow-hidden ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'} w-full tracking-tight`}>
       {/* Cart Drawer */}
       <CartDrawer currency={currency} />
 
@@ -943,6 +944,17 @@ function StoreContent({ shopId }) {
                     <DollarSign className="w-5 h-5 text-amber-400" />
                     <span className="truncate">Sales & Bills</span>
                   </button>
+
+                  <button
+                    onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'orders'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <Truck className="w-5 h-5 text-emerald-400" />
+                    <span className="truncate">EasyPaisa & Orders</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1034,13 +1046,13 @@ function StoreContent({ shopId }) {
           </div>
         </aside>
 
-        {/* ─── Main Content Pane with Gray Background & Green Accents ──────── */}
-        <div className="flex-1 w-full min-w-0 flex flex-col overflow-hidden relative bg-[#0f172a]">
-          <main id="main-store-content" className="flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 bg-[#0f172a] text-white scroll-smooth">
+        {/* ─── Main Content Pane with White/Light Background for Admin ──────── */}
+        <div className={`flex-1 w-full min-w-0 flex flex-col overflow-hidden relative ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'}`}>
+          <main id="main-store-content" className={`flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 scroll-smooth ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'}`}>
             <div className="max-w-7xl mx-auto space-y-3">
 
               {/* ─── Header Banner (always visible) ─── */}
-              <div className="relative bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border border-slate-700/60 rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 overflow-hidden">
+              <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 overflow-hidden ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
                 <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
                   <ShoppingBag className="w-24 h-24 sm:w-32 sm:h-32 text-emerald-400" />
                 </div>
@@ -1053,7 +1065,7 @@ function StoreContent({ shopId }) {
                       {isAdminUser ? '🛡 SHOP ADMIN' : '🛒 CUSTOMER'}
                     </span>
                   </div>
-                  <h1 className="text-sm sm:text-base md:text-lg font-black text-white tracking-tight uppercase italic truncate">
+                  <h1 className={`text-sm sm:text-base md:text-lg font-black tracking-tight uppercase italic truncate ${isAdminUser ? 'text-zinc-900' : 'text-white'}`}>
                     {activeView === 'dashboard'
                       ? (isAdminUser ? 'Shop Admin Dashboard' : 'My Customer Dashboard')
                       : 'Fresh Inventory & Products Catalog'}
@@ -1087,202 +1099,106 @@ function StoreContent({ shopId }) {
               {activeView === 'dashboard' && (
                 <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                  {/* ─── SHOP ADMIN DASHBOARD ─── */}
+                  {/* ─── SHOP ADMIN DASHBOARD (CLEAN WHITE THEME) ─── */}
                   {isAdminUser ? (
-                    <>
-                      {/* Top Stat Cards */}
+                    <div className="space-y-6">
+                      {/* Top Stat Cards - White Theme */}
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                         {[
-                          { label: 'Registered Customers', value: dashStats.totalCustomers, icon: '👥', color: 'from-blue-900/60 to-blue-800/40 border-blue-700/60', textColor: 'text-blue-300', sub: 'Shop Accounts' },
-                          { label: 'Total Products', value: dashStats.totalProducts, icon: '📦', color: 'from-emerald-900/60 to-emerald-800/40 border-emerald-700/60', textColor: 'text-emerald-300', sub: 'In Catalog' },
-                          { label: 'Available Stock', value: dashStats.totalStock.toLocaleString('en-PK'), icon: '🏪', color: 'from-green-900/60 to-green-800/40 border-green-700/60', textColor: 'text-green-300', sub: 'Total Units' },
-                          { label: 'Total Sales Orders', value: dashStats.totalOrders, icon: '🛒', color: 'from-orange-900/60 to-orange-800/40 border-orange-700/60', textColor: 'text-orange-300', sub: 'All Time' },
-                          { label: 'Low Stock Items', value: dashStats.lowStock, icon: '⚠️', color: 'from-yellow-900/60 to-yellow-800/40 border-yellow-700/60', textColor: 'text-yellow-300', sub: 'Need Attention' },
-                          { label: 'Out of Stock', value: dashStats.outOfStock, icon: '🚫', color: 'from-rose-900/60 to-rose-800/40 border-rose-700/60', textColor: 'text-rose-300', sub: 'Restock Needed' },
+                          { label: 'Registered Customers', value: dashStats.totalCustomers, icon: '👥', color: 'bg-white border-zinc-200 text-blue-600', textColor: 'text-zinc-900', sub: 'Shop Accounts' },
+                          { label: 'Total Products', value: dashStats.totalProducts, icon: '📦', color: 'bg-white border-zinc-200 text-emerald-600', textColor: 'text-zinc-900', sub: 'In Catalog' },
+                          { label: 'Available Stock', value: dashStats.totalStock.toLocaleString('en-PK'), icon: '🏪', color: 'bg-white border-zinc-200 text-green-600', textColor: 'text-zinc-900', sub: 'Total Units' },
+                          { label: 'Total Sales Orders', value: dashStats.totalOrders, icon: '🛒', color: 'bg-white border-zinc-200 text-orange-600', textColor: 'text-zinc-900', sub: 'All Time' },
+                          { label: 'Low Stock Items', value: dashStats.lowStock, icon: '⚠️', color: 'bg-white border-zinc-200 text-amber-600', textColor: 'text-amber-600', sub: 'Need Attention' },
+                          { label: 'Out of Stock', value: dashStats.outOfStock, icon: '🚫', color: 'bg-white border-zinc-200 text-rose-600', textColor: 'text-rose-600', sub: 'Restock Needed' },
                         ].map(({ label, value, icon, color, textColor, sub }) => (
-                          <div key={label} className={`bg-gradient-to-br ${color} border rounded-2xl p-5 flex flex-col gap-2`}>
+                          <div key={label} className={`${color} border rounded-3xl p-5 shadow-xl flex flex-col gap-2`}>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</span>
+                              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</span>
                               <span className="text-xl">{icon}</span>
                             </div>
                             <p className={`text-2xl font-black ${textColor} tracking-tight`}>
                               <CountUpNumber value={value} />
                             </p>
-                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-wider">{sub}</span>
+                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">{sub}</span>
                           </div>
                         ))}
                       </div>
 
-                      {/* Expired / Damaged Products Panel */}
-                      <div className={`border rounded-2xl p-5 transition-all ${dashStats.expiredProducts > 0 ? 'bg-gradient-to-br from-rose-950/80 to-red-900/40 border-rose-700/60' : 'bg-[#1E293B] border-slate-700/60'}`}>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                            <span className="text-2xl">🛑</span>
-                            <span className={dashStats.expiredProducts > 0 ? 'text-rose-300' : 'text-white/60'}>
-                              Expired / Damaged Products
-                            </span>
-                            {dashStats.expiredProducts > 0 && (
-                              <span className="ml-2 px-2.5 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full">
-                                {dashStats.expiredProducts} ITEMS
-                              </span>
-                            )}
-                          </h3>
-                          {dashStats.expiredProducts > 0 && (
-                            <button
-                              onClick={() => setShowExpiredList(prev => !prev)}
-                              className="text-[10px] font-bold text-rose-300 hover:text-rose-200 uppercase tracking-widest border border-rose-700/60 px-3 py-1.5 rounded-xl transition-all"
-                            >
-                              {showExpiredList ? 'Hide List' : 'View All'}
-                            </button>
-                          )}
-                        </div>
-
-                        {dashStats.expiredProducts === 0 ? (
-                          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center py-4">
-                            ✅ No expired products found — All good!
-                          </p>
-                        ) : (
-                          <>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                              <div className="bg-rose-950/60 border border-rose-800/60 rounded-xl p-3">
-                                <p className="text-[9px] font-black text-rose-300/60 uppercase tracking-widest">Expired Count</p>
-                                <p className="text-2xl font-black text-rose-400">
-                                  <CountUpNumber value={dashStats.expiredProducts} />
-                                </p>
-                                <p className="text-[9px] text-rose-300/40 uppercase">Products</p>
-                              </div>
-                              <div className="bg-rose-950/60 border border-rose-800/60 rounded-xl p-3">
-                                <p className="text-[9px] font-black text-rose-300/60 uppercase tracking-widest">Stock Wasted</p>
-                                <p className="text-2xl font-black text-rose-400">
-                                  <CountUpNumber value={dashStats.expiredProductsList.reduce((s, i) => s + (i.stock || 0), 0)} />
-                                </p>
-                                <p className="text-[9px] text-rose-300/40 uppercase">Units</p>
-                              </div>
-                              <div className="col-span-2 bg-rose-950/60 border border-rose-800/60 rounded-xl p-3">
-                                <p className="text-[9px] font-black text-rose-300/60 uppercase tracking-widest">Estimated Loss Value</p>
-                                <p className="text-2xl font-black text-rose-400">
-                                  <CountUpNumber value={`${currency} ${dashStats.expiredProductsList.reduce((s, i) => s + ((i.costPrice || i.price || 0) * (i.stock || 0)), 0)}`} />
-                                </p>
-                                <p className="text-[9px] text-rose-300/40 uppercase">Cost × Remaining Stock</p>
-                              </div>
-                            </div>
-
-                            {showExpiredList && (
-                              <div className="space-y-2 mt-3">
-                                {dashStats.expiredProductsList.map(product => (
-                                  <div key={product._id} className="flex items-center justify-between p-3 bg-rose-950/40 border border-rose-800/40 rounded-xl gap-3">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-rose-800/60">
-                                        {product.images?.[0]
-                                          ? <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                                          : <Package className="w-6 h-6 m-2 text-rose-700" />}
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="font-black text-white text-xs uppercase truncate">{product.name}</p>
-                                        <p className="text-[9px] text-rose-300 font-bold">
-                                          Expired: {new Date(product.expiryDate).toLocaleDateString()}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                      <p className="text-xs font-black text-rose-300">{product.stock} units left</p>
-                                      <p className="text-[9px] text-rose-400/60">
-                                        Loss ≈ {currency} {((product.costPrice || product.price || 0) * (product.stock || 0)).toLocaleString()}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-
                       {/* Profit & Loss Summary */}
-                      <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-5">
-                        <h3 className="text-xs font-black text-white/60 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
+                        <h3 className="text-xs font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                           <span>💹</span> Profit & Loss Summary
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="bg-emerald-950/60 border border-emerald-800/60 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-emerald-300/60 uppercase tracking-widest mb-1">Total Profit Earned</p>
-                            <p className="text-2xl font-black text-emerald-400">
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-1">Total Profit Earned</p>
+                            <p className="text-2xl font-black text-emerald-600">
                               <CountUpNumber value={`${currency} ${dashStats.totalProfit || 0}`} />
                             </p>
-                            <p className="text-[9px] text-emerald-300/40 uppercase mt-1">From all completed POS sales</p>
+                            <p className="text-[9px] text-emerald-600/70 uppercase mt-1">From completed sales</p>
                           </div>
-                          <div className="bg-rose-950/60 border border-rose-800/60 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-rose-300/60 uppercase tracking-widest mb-1">Returned / Cancelled Loss</p>
-                            <p className="text-2xl font-black text-rose-400">
+                          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-1">Returned / Cancelled Loss</p>
+                            <p className="text-2xl font-black text-rose-600">
                               <CountUpNumber value={`${currency} ${dashStats.totalLoss || 0}`} />
                             </p>
-                            <p className="text-[9px] text-rose-300/40 uppercase mt-1">From returned or cancelled orders</p>
+                            <p className="text-[9px] text-rose-600/70 uppercase mt-1">From returned sales</p>
                           </div>
-                          <div className={`border rounded-2xl p-4 ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'bg-emerald-950/40 border-emerald-800/40' : 'bg-rose-950/40 border-rose-800/40'}`}>
-                            <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Net Profit / Loss</p>
-                            <p className={`text-2xl font-black ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <div className={`border rounded-2xl p-4 ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">Net Profit / Loss</p>
+                            <p className={`text-2xl font-black ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? '+' : '-'} <CountUpNumber value={`${currency} ${Math.abs(dashStats.totalProfit - dashStats.totalLoss)}`} />
-                            </p>
-                            <p className="text-[9px] text-white/30 uppercase mt-1">
-                              {(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? '✅ You are in profit' : '❌ You are in loss'}
                             </p>
                           </div>
                         </div>
                       </div>
 
                       {/* Revenue Analytics (Day / Month / Year) */}
-                      <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-5">
-                        <h3 className="text-xs font-black text-white/80 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-emerald-400" /> Revenue Analytics (Day / Month / Year)
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
+                        <h3 className="text-xs font-black text-zinc-700 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Analytics (Day / Month / Year)
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-700/40">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Today Sales (Day)</span>
-                            <h4 className="text-xl font-black text-emerald-400 tracking-tight">
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Today Sales (Day)</span>
+                            <h4 className="text-xl font-black text-emerald-600 tracking-tight">
                               <CountUpNumber value={`${currency} ${dashStats.todaySales || 0}`} />
                             </h4>
                             <span className="text-[9px] text-slate-400 font-bold uppercase">Daily Gross Sales</span>
                           </div>
 
-                          <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-700/40">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">This Month (Month)</span>
-                            <h4 className="text-xl font-black text-emerald-400 tracking-tight">
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">This Month (Month)</span>
+                            <h4 className="text-xl font-black text-emerald-600 tracking-tight">
                               <CountUpNumber value={`${currency} ${dashStats.monthlySales || 0}`} />
                             </h4>
                             <span className="text-[9px] text-slate-400 font-bold uppercase">Monthly Gross Sales</span>
                           </div>
 
-                          <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-700/40">
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">This Year (Year)</span>
-                            <h4 className="text-xl font-black text-blue-400 tracking-tight">
+                            <h4 className="text-xl font-black text-blue-600 tracking-tight">
                               <CountUpNumber value={`${currency} ${dashStats.yearlySales || 0}`} />
                             </h4>
                             <span className="text-[9px] text-slate-400 font-bold uppercase">Yearly Gross Sales</span>
                           </div>
 
-                          <div className="p-4 bg-slate-950 text-white rounded-xl border border-slate-700/80 shadow-lg">
-                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-1">Total Revenue</span>
+                          <div className="p-4 bg-[#1B3817] text-white rounded-2xl border border-green-800 shadow-lg">
+                            <span className="text-[10px] font-black text-yellow-300 uppercase tracking-widest block mb-1">Total Revenue</span>
                             <h4 className="text-xl font-black text-white tracking-tight">
                               <CountUpNumber value={`${currency} ${dashStats.totalRevenue || 0}`} />
                             </h4>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">All-Time Cumulative Sales</span>
+                            <span className="text-[9px] text-white/60 font-bold uppercase">All-Time Cumulative Sales</span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Quick Actions for Admin */}
-                      <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-5">
-                        <h3 className="text-xs font-black text-white/60 uppercase tracking-widest mb-4">⚡ Quick Actions</h3>
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            onClick={() => { setActiveView('products'); setActiveCategory('All'); }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-700/60 hover:bg-emerald-600/80 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-emerald-600/40 transition-all"
-                          >
-                            <Package className="w-4 h-4" /> Browse Products
-                          </button>
-                        </div>
+                      {/* EasyPaisa & Customer Orders Verification */}
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
+                        <OrdersManagement />
                       </div>
-                    </>
+                    </div>
                   ) : (
                     /* ─── CUSTOMER DASHBOARD ─── */
                     <>
@@ -1825,6 +1741,13 @@ function StoreContent({ shopId }) {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* ─── EASYPAISA & CUSTOMER ORDERS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'orders' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <OrdersManagement />
                 </div>
               )}
 

@@ -27,8 +27,8 @@ const getItem = async (req, res) => {
 // @desc    Create new item
 const createItem = async (req, res) => {
   try {
-    // Use shopId from user token; fallback to body shopId (for ShopAdmin via customer portal)
-    const shopId = req.user?.shopId || req.body.shopId;
+    // Use shopId from body (if specified, e.g. SuperAdmin), fallback to user's shopId
+    const shopId = req.body.shopId || req.user?.shopId;
     if (!shopId) {
       return res.status(400).json({ message: 'shopId is required to add a product' });
     }

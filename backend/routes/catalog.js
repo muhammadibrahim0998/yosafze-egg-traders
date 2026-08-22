@@ -18,7 +18,7 @@ router.get('/:shopId', async (req, res) => {
 
     const settings = await Settings.findOne({ shopId }).select('shopName logoUrl currency address phone');
 
-    const filter = { shopId, stock: { $gt: 0 } };
+    const filter = { shopId };
     if (search) {
       filter.name = { $regex: search, $options: 'i' };
     }
@@ -27,11 +27,11 @@ router.get('/:shopId', async (req, res) => {
     }
 
     const items = await Item.find(filter)
-      .select('name category price images description stock')
+      .select('name category price images description stock minStock costPrice expiryDate')
       .sort({ name: 1 });
 
     // Get unique categories
-    const allItems = await Item.find({ shopId, stock: { $gt: 0 } }).select('category');
+    const allItems = await Item.find({ shopId }).select('category');
     const categories = ['All', ...new Set(allItems.map(i => i.category))];
 
     res.json({
