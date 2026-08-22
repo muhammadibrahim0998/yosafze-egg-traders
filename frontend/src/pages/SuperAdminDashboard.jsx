@@ -6,7 +6,7 @@ import api from '../services/api';
 import {
     Store, Plus, Building2, Edit2, Trash2, X, Check,
     LayoutDashboard, Users, Activity, Eye, EyeOff,
-    Package, ShoppingBag, DollarSign, TrendingUp, Calendar, BarChart3
+    Package, ShoppingBag, DollarSign, TrendingUp, Calendar, BarChart3, Truck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProducts } from '../contexts/ProductContext';
