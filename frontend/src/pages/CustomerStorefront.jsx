@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp
+  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
@@ -520,6 +520,7 @@ function StoreContent({ shopId }) {
       setIsDeleting(false);
     }
   };
+  const [reportTimeframe, setReportTimeframe] = useState('ALL'); // 'DAY', 'MONTH', 'YEAR', 'ALL'
   const [dashStats, setDashStats] = useState({
     totalProducts: 0,
     totalStock: 0,
@@ -533,14 +534,463 @@ function StoreContent({ shopId }) {
     monthlySales: 0,
     yearlySales: 0,
     totalRevenue: 0,
-    // Expired / damaged product tracking
-    expiredProducts: 0,
-    expiredProductsList: [],
+    todayProfit: 0,
+    monthlyProfit: 0,
+    todayLoss: 0,
+    monthlyLoss: 0,
+    yearlyLoss: 0,
     // Profit / Loss
     totalProfit: 0,
     totalLoss: 0,
   });
-  const [showExpiredList, setShowExpiredList] = useState(false);
+
+  // Dynamic Manual Expenses Tracking State
+  const [expensesList, setExpensesList] = useState([]);
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [expenseFormData, setExpenseFormData] = useState({
+    title: '',
+    category: 'Utilities / Bills',
+    amount: '',
+    expenseDate: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
+
+  const fetchExpenses = async () => {
+    if (!shopId) return [];
+    try {
+      const res = await fetch(`/api/expenses/shop/${shopId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.data || [];
+        setExpensesList(list);
+        localStorage.setItem(`nexflow_expenses_${shopId}`, JSON.stringify(list));
+        return list;
+      }
+    } catch (e) {
+      console.error('Fetch expenses error:', e);
+    }
+    const local = localStorage.getItem(`nexflow_expenses_${shopId}`);
+    const parsed = local ? JSON.parse(local) : [];
+    setExpensesList(parsed);
+    return parsed;
+  };
+
+  const handleAddExpenseSubmit = async (e) => {
+    e.preventDefault();
+    if (!expenseFormData.title || !expenseFormData.amount) {
+      alert('Please enter expense title and amount');
+      return;
+    }
+
+    const newExpenseItem = {
+      _id: 'exp_' + Date.now(),
+      shopId,
+      title: expenseFormData.title,
+      category: expenseFormData.category,
+      amount: Number(expenseFormData.amount),
+      expenseDate: expenseFormData.expenseDate ? new Date(expenseFormData.expenseDate) : new Date(),
+      notes: expenseFormData.notes || '',
+      createdBy: user?.fullName || customer?.fullName || 'Shop Admin'
+    };
+
+    try {
+      const res = await fetch(`/api/expenses/shop/${shopId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newExpenseItem)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setExpensesList(prev => [data.data, ...prev]);
+        }
+      } else {
+        setExpensesList(prev => [newExpenseItem, ...prev]);
+      }
+    } catch (err) {
+      setExpensesList(prev => [newExpenseItem, ...prev]);
+    }
+
+    setShowAddExpenseModal(false);
+    setExpenseFormData({
+      title: '',
+      category: 'Utilities / Bills',
+      amount: '',
+      expenseDate: new Date().toISOString().split('T')[0],
+      notes: ''
+    });
+    setTimeout(fetchDashboardStats, 300);
+  };
+
+  const handleDeleteExpense = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
+    try {
+      await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    } catch (e) {}
+    setExpensesList(prev => prev.filter(x => String(x._id) !== String(id)));
+    setTimeout(fetchDashboardStats, 300);
+  };
+
+  // Damaged Products Loss Tracking State
+  const [damagedProductsList, setDamagedProductsList] = useState([]);
+  const [showAddDamagedModal, setShowAddDamagedModal] = useState(false);
+  const [damagedFormData, setDamagedFormData] = useState({
+    productName: '',
+    productId: '',
+    quantity: '1',
+    unitPrice: '',
+    reason: 'Egg Breakage / Crack',
+    damageDate: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
+
+  const fetchDamagedProducts = async () => {
+    if (!shopId) return [];
+    try {
+      const res = await fetch(`/api/damaged-products/shop/${shopId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.data || [];
+        setDamagedProductsList(list);
+        localStorage.setItem(`nexflow_damaged_${shopId}`, JSON.stringify(list));
+        return list;
+      }
+    } catch (e) {
+      console.error('Fetch damaged products error:', e);
+    }
+    const local = localStorage.getItem(`nexflow_damaged_${shopId}`);
+    const parsed = local ? JSON.parse(local) : [];
+    setDamagedProductsList(parsed);
+    return parsed;
+  };
+
+  const handleAddDamagedSubmit = async (e) => {
+    e.preventDefault();
+    if (!damagedFormData.productName || !damagedFormData.quantity) {
+      alert('Please enter product name and damaged quantity');
+      return;
+    }
+
+    const qty = Number(damagedFormData.quantity) || 1;
+    const price = Number(damagedFormData.unitPrice) || 0;
+    const loss = qty * price;
+
+    const newDamagedItem = {
+      _id: 'dmg_' + Date.now(),
+      shopId,
+      productName: damagedFormData.productName,
+      productId: damagedFormData.productId || '',
+      quantity: qty,
+      unitPrice: price,
+      totalLoss: loss,
+      reason: damagedFormData.reason,
+      damageDate: damagedFormData.damageDate ? new Date(damagedFormData.damageDate) : new Date(),
+      notes: damagedFormData.notes || '',
+      reportedBy: user?.fullName || customer?.fullName || 'Shop Admin'
+    };
+
+    try {
+      const res = await fetch(`/api/damaged-products/shop/${shopId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDamagedItem)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setDamagedProductsList(prev => [data.data, ...prev]);
+        }
+      } else {
+        setDamagedProductsList(prev => [newDamagedItem, ...prev]);
+      }
+    } catch (err) {
+      setDamagedProductsList(prev => [newDamagedItem, ...prev]);
+    }
+
+    setShowAddDamagedModal(false);
+    setDamagedFormData({
+      productName: '',
+      productId: '',
+      quantity: '1',
+      unitPrice: '',
+      reason: 'Egg Breakage / Crack',
+      damageDate: new Date().toISOString().split('T')[0],
+      notes: ''
+    });
+    setTimeout(fetchDashboardStats, 300);
+  };
+
+  const handleDeleteDamaged = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this damaged product record?')) return;
+    try {
+      await fetch(`/api/damaged-products/${id}`, { method: 'DELETE' });
+    } catch (e) {}
+    setDamagedProductsList(prev => prev.filter(x => String(x._id) !== String(id)));
+    setTimeout(fetchDashboardStats, 300);
+  };
+
+  const handleWhatsAppReportShare = (type = 'sales', timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Peshawar Shop';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let title = 'Sales Revenue Report';
+    let val = dashStats.totalRevenue;
+    if (type === 'sales') {
+      title = 'Sales Revenue Report';
+      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
+    } else if (type === 'profit') {
+      title = 'Net Profit Report';
+      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
+    } else if (type === 'expenses') {
+      title = 'Expenses & Loss Report';
+      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
+    } else if (type === 'damaged') {
+      title = 'Damaged Products Loss Report';
+      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
+    }
+
+    const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+
+    let message = `*${shopName} - Financial Report*\n`;
+    message += `📅 Period: *${timeLabel}*\n`;
+    message += `📊 Report Type: *${title}*\n`;
+    message += `💰 Total Amount: *RS ${val.toLocaleString('en-PK')}*\n`;
+    message += `🕒 Date: ${dateStr}\n\n`;
+    message += `_Generated by Yosafze Egg Traders System_`;
+
+    const encodedText = encodeURIComponent(message);
+    window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+  };
+
+  const handlePrintSingleReport = (type = 'sales', timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Peshawar Shop';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let typeTitle = 'Sales Revenue';
+    let val = dashStats.totalRevenue;
+    let themeColor = '#059669';
+
+    if (type === 'sales') {
+      typeTitle = 'Sales Revenue';
+      themeColor = '#059669';
+      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
+    } else if (type === 'profit') {
+      typeTitle = 'Net Profit';
+      themeColor = '#16a34a';
+      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
+    } else if (type === 'expenses') {
+      typeTitle = 'Expenses & Return Losses';
+      themeColor = '#e11d48';
+      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
+    } else if (type === 'damaged') {
+      typeTitle = 'Damaged Products Loss';
+      themeColor = '#d97706';
+      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
+    }
+
+    const timeTitle = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to view and print the report');
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${timeTitle} ${typeTitle} Report - ${shopName}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double ${themeColor}; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { margin: 0; color: ${themeColor}; text-transform: uppercase; font-size: 26px; letter-spacing: 1px; }
+            .header p { margin: 6px 0 0; color: #475569; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; }
+            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 25px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            .hero-card { border: 2px solid ${themeColor}; border-radius: 20px; padding: 25px; background: #f8fafc; text-align: center; margin-bottom: 30px; }
+            .hero-card label { font-size: 12px; font-weight: 900; text-transform: uppercase; color: #64748b; letter-spacing: 1.5px; }
+            .hero-card .val { font-size: 36px; font-weight: 900; color: ${themeColor}; margin-top: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px 16px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; }
+            .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 220px; text-align: center; padding-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${shopName}</h1>
+            <p>${timeTitle} ${typeTitle} Report</p>
+          </div>
+          <div class="meta">
+            <span>Generated Date: ${dateStr}</span>
+            <span>Period Filter: ${timeframe}</span>
+            <span>Report Category: ${typeTitle}</span>
+          </div>
+          <div class="hero-card">
+            <label>Total ${timeTitle} ${typeTitle}</label>
+            <div class="val">RS ${val.toLocaleString('en-PK')}</div>
+          </div>
+          <div class="table-sec">
+            <h3>Selected Period (${timeTitle}) Statement</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Period Timeframe</th>
+                  <th>Metric Amount (RS)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:#f0fdf4; font-weight:bold;">
+                  <td>${timeTitle}</td>
+                  <td>RS ${val.toLocaleString('en-PK')}</td>
+                  <td>Active Filtered Statement</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="footer">
+            <div class="sign">Manager Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  const handlePrintSummaryReport = (timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Peshawar Shop';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let title = 'Total Financial & Sales Summary Report';
+    let salesVal = dashStats.totalRevenue;
+    let profitVal = dashStats.totalProfit;
+    let lossVal = dashStats.totalLoss;
+
+    if (timeframe === 'DAY') {
+      title = 'Daily (Today) Sales & Financial Report';
+      salesVal = dashStats.todaySales;
+      profitVal = dashStats.todayProfit || 0;
+      lossVal = dashStats.todayLoss || 0;
+    } else if (timeframe === 'MONTH') {
+      title = 'Monthly Sales & Financial Report';
+      salesVal = dashStats.monthlySales;
+      profitVal = dashStats.monthlyProfit || 0;
+      lossVal = dashStats.monthlyLoss || 0;
+    } else if (timeframe === 'YEAR') {
+      title = 'Yearly Sales & Financial Report';
+      salesVal = dashStats.yearlySales;
+      profitVal = dashStats.yearlyProfit || 0;
+      lossVal = dashStats.yearlyLoss || 0;
+    }
+
+    const netVal = profitVal - lossVal;
+    const timeLabel = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month (Month)' : timeframe === 'YEAR' ? 'This Year (Year)' : 'All-Time Cumulative';
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to view and print the report');
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title} - ${shopName}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 20px; margin-bottom: 30px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 26px; letter-spacing: 1px; }
+            .header p { margin: 6px 0 0; color: #475569; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; }
+            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 25px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 30px; }
+            .card { border: 1px solid #cbd5e1; border-radius: 16px; padding: 20px; background: #fafafa; }
+            .card label { display: block; font-size: 11px; font-weight: 900; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 1px; }
+            .card .val { font-size: 24px; font-weight: 900; color: #0f172a; }
+            .card.green { background: #ecfdf5; border-color: #a7f3d0; }
+            .card.green .val { color: #059669; }
+            .card.red { background: #fff1f2; border-color: #fecdd3; }
+            .card.red .val { color: #e11d48; }
+            .card.blue { background: #eff6ff; border-color: #bfdbfe; }
+            .card.blue .val { color: #2563eb; }
+            .table-sec { margin-top: 30px; }
+            .table-sec h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #334155; margin-bottom: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px 16px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; }
+            .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 220px; text-align: center; padding-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${shopName}</h1>
+            <p>${title}</p>
+          </div>
+          <div class="meta">
+            <span>Generated Date: ${dateStr}</span>
+            <span>Period Filter: ${timeframe}</span>
+            <span>Shop ID: ${shopId}</span>
+          </div>
+          <div class="grid">
+            <div class="card blue">
+              <label>Gross Sales Revenue (${timeframe})</label>
+              <div class="val">RS ${salesVal.toLocaleString('en-PK')}</div>
+            </div>
+            <div class="card green">
+              <label>Total Profit Earned (${timeframe})</label>
+              <div class="val">RS ${profitVal.toLocaleString('en-PK')}</div>
+            </div>
+            <div class="card red">
+              <label>Expenses & Return Loss (${timeframe})</label>
+              <div class="val">RS ${lossVal.toLocaleString('en-PK')}</div>
+            </div>
+            <div class="card ${netVal >= 0 ? 'green' : 'red'}">
+              <label>Net Earnings / Net Liquidity</label>
+              <div class="val">RS ${netVal.toLocaleString('en-PK')}</div>
+            </div>
+          </div>
+          <div class="table-sec">
+            <h3>${timeLabel} Itemized Statement</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Period Timeframe</th>
+                  <th>Gross Sales</th>
+                  <th>Profit Earned</th>
+                  <th>Expenses & Returns</th>
+                  <th>Net Liquidity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:#f0fdf4; font-weight:bold;">
+                  <td><b>${timeLabel}</b></td>
+                  <td>RS ${salesVal.toLocaleString('en-PK')}</td>
+                  <td>RS ${profitVal.toLocaleString('en-PK')}</td>
+                  <td>RS ${lossVal.toLocaleString('en-PK')}</td>
+                  <td><b>RS ${netVal.toLocaleString('en-PK')}</b></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="footer">
+            <div class="sign">Shop Admin / Manager Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
 
   const fetchCatalog = async () => {
     setLoading(true);
@@ -622,20 +1072,62 @@ function StoreContent({ shopId }) {
           .filter(x => new Date(x.saleDate) >= dateFrom)
           .reduce((sum, x) => sum + (x.totalAmount || 0), 0);
 
+        const posProfit = (dateFrom) => validPOS
+          .filter(x => new Date(x.saleDate) >= dateFrom)
+          .reduce((sum, x) => sum + (x.totalProfit || 0), 0);
+
         // Valid EasyPaisa orders: PAID only (approved by admin) for revenue
         const paidOrders = checkoutOrders.filter(o => o.paymentStatus === 'PAID');
         const orderRevenue = (dateFrom) => paidOrders
           .filter(x => new Date(x.createdAt) >= dateFrom)
           .reduce((sum, x) => sum + (x.totalAmount || 0), 0);
 
+        const orderProfit = (dateFrom) => paidOrders
+          .filter(x => new Date(x.createdAt) >= dateFrom)
+          .reduce((sum, x) => sum + Math.round((x.totalAmount || 0) * 0.2), 0);
+
         const totalPosRevenue = validPOS.reduce((s, x) => s + (x.totalAmount || 0), 0);
         const totalOrderRevenue = paidOrders.reduce((s, x) => s + (x.totalAmount || 0), 0);
 
-        // Profit & Loss: from POS sales (totalProfit stored per sale)
-        const totalProfit = validPOS.reduce((s, x) => s + (x.totalProfit || 0), 0);
-        // Loss = estimated from returned/cancelled sales cost
+        // Profit & Loss
         const returnedSales = posSalesList.filter(s => s.status === 'returned' || s.status === 'cancelled');
-        const totalLoss = returnedSales.reduce((s, x) => s + (x.totalAmount || 0), 0);
+        const posLoss = (dateFrom) => returnedSales
+          .filter(x => new Date(x.saleDate || x.createdAt) >= dateFrom)
+          .reduce((sum, x) => sum + (x.totalAmount || 0), 0);
+
+        const failedOrders = checkoutOrders.filter(o => o.paymentStatus === 'FAILED');
+        const orderLoss = (dateFrom) => failedOrders
+          .filter(x => new Date(x.createdAt) >= dateFrom)
+          .reduce((sum, x) => sum + (x.totalAmount || 0), 0);
+
+        const totalProfitSum = validPOS.reduce((s, x) => s + (x.totalProfit || 0), 0) + paidOrders.reduce((s, x) => s + Math.round((x.totalAmount || 0) * 0.2), 0);
+        const totalLossSum = returnedSales.reduce((s, x) => s + (x.totalAmount || 0), 0) + failedOrders.reduce((s, x) => s + (x.totalAmount || 0), 0);
+
+        // ── Manual Expenses Calculation ──
+        let currentExpList = expensesList;
+        if (!currentExpList || currentExpList.length === 0) {
+          const local = localStorage.getItem(`nexflow_expenses_${shopId}`);
+          currentExpList = local ? JSON.parse(local) : [];
+        }
+
+        const manualExpenseSum = (dateFrom) => (currentExpList || [])
+          .filter(x => new Date(x.expenseDate || x.createdAt) >= dateFrom)
+          .reduce((sum, x) => sum + (Number(x.amount) || 0), 0);
+
+        const totalManualExpensesSum = (currentExpList || []).reduce((sum, x) => sum + (Number(x.amount) || 0), 0);
+
+        // ── Damaged Products Calculation ──
+        let currentDmgList = damagedProductsList;
+        if (!currentDmgList || currentDmgList.length === 0) {
+          const local = localStorage.getItem(`nexflow_damaged_${shopId}`);
+          currentDmgList = local ? JSON.parse(local) : [];
+        }
+
+        const damagedLossSum = (dateFrom) => (currentDmgList || [])
+          .filter(x => new Date(x.damageDate || x.createdAt) >= dateFrom)
+          .reduce((sum, x) => sum + (Number(x.totalLoss) || 0), 0);
+
+        const totalDamagedLossSum = (currentDmgList || []).reduce((sum, x) => sum + (Number(x.totalLoss) || 0), 0);
 
         setDashStats(prev => ({
           ...prev,
@@ -644,8 +1136,18 @@ function StoreContent({ shopId }) {
           todaySales: posRevenue(today) + orderRevenue(today),
           monthlySales: posRevenue(thisMonth) + orderRevenue(thisMonth),
           yearlySales: posRevenue(thisYear) + orderRevenue(thisYear),
-          totalProfit,
-          totalLoss,
+          todayProfit: posProfit(today) + orderProfit(today),
+          monthlyProfit: posProfit(thisMonth) + orderProfit(thisMonth),
+          yearlyProfit: posProfit(thisYear) + orderProfit(thisYear),
+          todayLoss: posLoss(today) + orderLoss(today) + manualExpenseSum(today),
+          monthlyLoss: posLoss(thisMonth) + orderLoss(thisMonth) + manualExpenseSum(thisMonth),
+          yearlyLoss: posLoss(thisYear) + orderLoss(thisYear) + manualExpenseSum(thisYear),
+          todayDamagedLoss: damagedLossSum(today),
+          monthlyDamagedLoss: damagedLossSum(thisMonth),
+          yearlyDamagedLoss: damagedLossSum(thisYear),
+          totalDamagedLoss: totalDamagedLossSum,
+          totalProfit: totalProfitSum,
+          totalLoss: totalLossSum + totalManualExpensesSum,
         }));
 
       } else if (!isAdminUser) {
@@ -671,6 +1173,8 @@ function StoreContent({ shopId }) {
 
   useEffect(() => { fetchCatalog(); }, [shopId, search, activeCategory]);
   useEffect(() => {
+    fetchExpenses();
+    fetchDamagedProducts();
     fetchDashboardStats();
     const timer = setInterval(fetchDashboardStats, 8000);
     return () => clearInterval(timer);
@@ -955,6 +1459,50 @@ function StoreContent({ shopId }) {
                     <Truck className="w-5 h-5 text-emerald-400" />
                     <span className="truncate">EasyPaisa & Orders</span>
                   </button>
+
+                  <button
+                    onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-sales'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-emerald-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    <span className="truncate">Sales Report</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-profit'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-green-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <DollarSign className="w-5 h-5 text-green-400" />
+                    <span className="truncate">Profit Report</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-expenses'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-rose-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <FileText className="w-5 h-5 text-rose-400" />
+                    <span className="truncate">Expenses Report</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'damaged-products'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-amber-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <PackageX className="w-5 h-5 text-amber-400" />
+                    <span className="truncate">Damaged Stock</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1130,7 +1678,7 @@ function StoreContent({ shopId }) {
                         <h3 className="text-xs font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                           <span>💹</span> Profit & Loss Summary
                         </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
                             <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-1">Total Profit Earned</p>
                             <p className="text-2xl font-black text-emerald-600">
@@ -1139,14 +1687,21 @@ function StoreContent({ shopId }) {
                             <p className="text-[9px] text-emerald-600/70 uppercase mt-1">From completed sales</p>
                           </div>
                           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-1">Returned / Cancelled Loss</p>
+                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-1">Shop Expenses & Loss</p>
                             <p className="text-2xl font-black text-rose-600">
                               <CountUpNumber value={`${currency} ${dashStats.totalLoss || 0}`} />
                             </p>
-                            <p className="text-[9px] text-rose-600/70 uppercase mt-1">From returned sales</p>
+                            <p className="text-[9px] text-rose-600/70 uppercase mt-1">Expenses & Returns</p>
+                          </div>
+                          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Damaged Stock Loss</p>
+                            <p className="text-2xl font-black text-amber-600">
+                              <CountUpNumber value={`${currency} ${dashStats.totalDamagedLoss || 0}`} />
+                            </p>
+                            <p className="text-[9px] text-amber-700/80 uppercase mt-1">Egg Breakage & Loss</p>
                           </div>
                           <div className={`border rounded-2xl p-4 ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">Net Profit / Loss</p>
+                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">Net Earnings / Balance</p>
                             <p className={`text-2xl font-black ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? '+' : '-'} <CountUpNumber value={`${currency} ${Math.abs(dashStats.totalProfit - dashStats.totalLoss)}`} />
                             </p>
@@ -1190,6 +1745,129 @@ function StoreContent({ shopId }) {
                               <CountUpNumber value={`${currency} ${dashStats.totalRevenue || 0}`} />
                             </h4>
                             <span className="text-[9px] text-white/60 font-bold uppercase">All-Time Cumulative Sales</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ─── TOTAL FINANCIAL & SALES REPORTS CENTER ─── */}
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                          <div>
+                            <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-emerald-600" />
+                              Total Summary Reports Center (Sales, Profit & Expenses)
+                            </h3>
+                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                              Generate, inspect & print itemized financial reports for Day, Month, Year & All-Time
+                            </p>
+                          </div>
+
+                          {/* Timeframe selector buttons */}
+                          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                            {[
+                              { id: 'ALL', label: 'All-Time' },
+                              { id: 'DAY', label: 'Today (Day)' },
+                              { id: 'MONTH', label: 'This Month' },
+                              { id: 'YEAR', label: 'This Year' },
+                            ].map(t => (
+                              <button
+                                key={t.id}
+                                onClick={() => setReportTimeframe(t.id)}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                  reportTimeframe === t.id
+                                    ? 'bg-emerald-600 text-white shadow-md'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                }`}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Active Filter Metrics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                            <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block mb-1">
+                              {reportTimeframe === 'DAY' ? 'Today Gross Sales' : reportTimeframe === 'MONTH' ? 'Monthly Gross Sales' : reportTimeframe === 'YEAR' ? 'Yearly Gross Sales' : 'Total Revenue'}
+                            </span>
+                            <h4 className="text-2xl font-black text-emerald-600 tracking-tight">
+                              {currency} {(
+                                reportTimeframe === 'DAY' ? dashStats.todaySales :
+                                reportTimeframe === 'MONTH' ? dashStats.monthlySales :
+                                reportTimeframe === 'YEAR' ? dashStats.yearlySales :
+                                dashStats.totalRevenue
+                              ).toLocaleString('en-PK')}
+                            </h4>
+                            <span className="text-[9px] text-emerald-600/70 font-bold uppercase">Sales Revenue</span>
+                          </div>
+
+                          <div className="p-4 bg-green-50/70 border border-green-200/80 rounded-2xl">
+                            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest block mb-1">
+                              {reportTimeframe === 'DAY' ? 'Today Profit' : reportTimeframe === 'MONTH' ? 'Monthly Profit' : reportTimeframe === 'YEAR' ? 'Yearly Profit' : 'Total Profit Earned'}
+                            </span>
+                            <h4 className="text-2xl font-black text-green-600 tracking-tight">
+                              {currency} {(
+                                reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
+                                reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
+                                reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
+                                dashStats.totalProfit
+                              ).toLocaleString('en-PK')}
+                            </h4>
+                            <span className="text-[9px] text-green-600/70 font-bold uppercase">Net Profit</span>
+                          </div>
+
+                          <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-2xl">
+                            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
+                              {reportTimeframe === 'DAY' ? 'Today Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'Total Loss / Returns'}
+                            </span>
+                            <h4 className="text-2xl font-black text-rose-600 tracking-tight">
+                              {currency} {(
+                                reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
+                                reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
+                                reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
+                                dashStats.totalLoss
+                              ).toLocaleString('en-PK')}
+                            </h4>
+                            <span className="text-[9px] text-rose-600/70 font-bold uppercase">Expenses & Returns</span>
+                          </div>
+
+                          <div className="p-4 bg-slate-900 text-white border border-slate-800 rounded-2xl shadow-lg">
+                            <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest block mb-1">
+                              Net Liquidity / Balance
+                            </span>
+                            <h4 className="text-2xl font-black text-white tracking-tight">
+                              {currency} {(
+                                (reportTimeframe === 'DAY' ? ((dashStats.todayProfit || 0) - (dashStats.todayLoss || 0)) :
+                                reportTimeframe === 'MONTH' ? ((dashStats.monthlyProfit || 0) - (dashStats.monthlyLoss || 0)) :
+                                reportTimeframe === 'YEAR' ? ((dashStats.yearlyProfit || 0) - (dashStats.yearlyLoss || 0)) :
+                                (dashStats.totalProfit - dashStats.totalLoss))
+                              ).toLocaleString('en-PK')}
+                            </h4>
+                            <span className="text-[9px] text-white/60 font-bold uppercase">Net Profit - Expenses</span>
+                          </div>
+                        </div>
+
+                        {/* Generate & Print Action Buttons */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-100">
+                          <div className="text-xs text-zinc-500 font-bold flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Showing <span className="font-black text-zinc-800">{reportTimeframe}</span> report summary for {shop?.name || 'Shop'}.
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => handlePrintSummaryReport(reportTimeframe)}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg hover:shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-2"
+                            >
+                              <Printer className="w-4 h-4" /> Print / Download {reportTimeframe} Report
+                            </button>
+                            <button
+                              onClick={() => handlePrintSummaryReport('ALL')}
+                              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center gap-2"
+                            >
+                              <FileText className="w-4 h-4" /> Print All-Time Total Summary
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1751,6 +2429,763 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
+              {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'report-sales' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest mb-1">
+                        <TrendingUp className="w-4 h-4" /> Customer & POS Sales Report
+                      </div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Sales Revenue Analytics Report</h2>
+                      <p className="text-slate-300 text-xs mt-1">
+                        View itemized gross sales filtered strictly by Days (Today), Months, Years, or All-Time.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                      >
+                        <Printer className="w-4 h-4" /> Print PDF Report
+                      </button>
+                      <button
+                        onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                      >
+                        <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                          Sales Timeframe Selector (Days / Months / Year)
+                        </h3>
+                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                          Select time filter to isolate and display only that period's sales report
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        {[
+                          { id: 'DAY', label: 'Today (Day)' },
+                          { id: 'MONTH', label: 'This Month' },
+                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All-Time' },
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setReportTimeframe(t.id)}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                              reportTimeframe === t.id
+                                ? 'bg-emerald-600 text-white shadow-md'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block mb-1">
+                          {reportTimeframe === 'DAY' ? 'Today (Day) Sales Revenue' : reportTimeframe === 'MONTH' ? 'Monthly Sales Revenue' : reportTimeframe === 'YEAR' ? 'Yearly Sales Revenue' : 'All-Time Cumulative Sales'}
+                        </span>
+                        <h4 className="text-3xl font-black text-emerald-600 tracking-tight">
+                          {currency} {(
+                            reportTimeframe === 'DAY' ? dashStats.todaySales :
+                            reportTimeframe === 'MONTH' ? dashStats.monthlySales :
+                            reportTimeframe === 'YEAR' ? dashStats.yearlySales :
+                            dashStats.totalRevenue
+                          ).toLocaleString('en-PK')}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                        >
+                          Print PDF Sheet
+                        </button>
+                        <button
+                          onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Sales Period Statement</h4>
+                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                        <table className="w-full text-left text-xs text-zinc-800">
+                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                            <tr>
+                              <th className="p-3.5">Selected Period</th>
+                              <th className="p-3.5">Sales Revenue (RS)</th>
+                              <th className="p-3.5 text-right">Filter Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200">
+                            {reportTimeframe === 'DAY' && (
+                              <tr className="bg-emerald-100/80 font-bold">
+                                <td className="p-3.5 font-bold">Today (Daily Sales Report)</td>
+                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.todaySales.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'MONTH' && (
+                              <tr className="bg-emerald-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Month (Monthly Sales Report)</td>
+                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.monthlySales.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'YEAR' && (
+                              <tr className="bg-emerald-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Year (Yearly Sales Report)</td>
+                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.yearlySales.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'ALL' && (
+                              <tr className="bg-slate-900 text-white font-bold">
+                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Sales</td>
+                                <td className="p-3.5 text-emerald-300 font-black text-sm">{currency} {dashStats.totalRevenue.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME TOTAL</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'report-profit' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-green-400 text-xs font-black uppercase tracking-widest mb-1">
+                        <DollarSign className="w-4 h-4" /> Shop Net Profit Report
+                      </div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Net Profit Analytics Report</h2>
+                      <p className="text-slate-300 text-xs mt-1">
+                        View itemized profit earned filtered strictly by Days (Today), Months, Years, or All-Time.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
+                        className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                      >
+                        <Printer className="w-4 h-4" /> Print PDF Report
+                      </button>
+                      <button
+                        onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                      >
+                        <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-green-600" />
+                          Profit Timeframe Selector (Days / Months / Year)
+                        </h3>
+                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                          Select time filter to isolate and display only that period's profit report
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        {[
+                          { id: 'DAY', label: 'Today (Day)' },
+                          { id: 'MONTH', label: 'This Month' },
+                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All-Time' },
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setReportTimeframe(t.id)}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                              reportTimeframe === t.id
+                                ? 'bg-green-600 text-white shadow-md'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-green-50/80 border border-green-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-black text-green-700 uppercase tracking-widest block mb-1">
+                          {reportTimeframe === 'DAY' ? 'Today (Day) Profit Earned' : reportTimeframe === 'MONTH' ? 'Monthly Profit Earned' : reportTimeframe === 'YEAR' ? 'Yearly Profit Earned' : 'All-Time Total Profit'}
+                        </span>
+                        <h4 className="text-3xl font-black text-green-600 tracking-tight">
+                          {currency} {(
+                            reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
+                            reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
+                            reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
+                            dashStats.totalProfit
+                          ).toLocaleString('en-PK')}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
+                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                        >
+                          Print PDF Sheet
+                        </button>
+                        <button
+                          onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Profit Period Statement</h4>
+                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                        <table className="w-full text-left text-xs text-zinc-800">
+                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                            <tr>
+                              <th className="p-3.5">Selected Period</th>
+                              <th className="p-3.5">Profit Earned (RS)</th>
+                              <th className="p-3.5 text-right">Filter Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200">
+                            {reportTimeframe === 'DAY' && (
+                              <tr className="bg-green-100/80 font-bold">
+                                <td className="p-3.5 font-bold">Today (Daily Profit Report)</td>
+                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.todayProfit || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-green-500/10 text-green-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'MONTH' && (
+                              <tr className="bg-green-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Month (Monthly Profit Report)</td>
+                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.monthlyProfit || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'YEAR' && (
+                              <tr className="bg-green-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Year (Yearly Profit Report)</td>
+                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.yearlyProfit || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'ALL' && (
+                              <tr className="bg-slate-900 text-white font-bold">
+                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Profit</td>
+                                <td className="p-3.5 text-green-300 font-black text-sm">{currency} {dashStats.totalProfit.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME PROFIT</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── 3. EXPENSES & LOSS REPORT VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'report-expenses' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-rose-400 text-xs font-black uppercase tracking-widest mb-1">
+                        <FileText className="w-4 h-4" /> Shop Expenses & Returns Loss Report
+                      </div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Expenses & Loss Analytics Report</h2>
+                      <p className="text-slate-300 text-xs mt-1">
+                        Log custom manual expenses (Rent, Bills, Packaging, Transport, Egg Damage) dynamically.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setShowAddExpenseModal(true)}
+                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> + Add Manual Expense
+                      </button>
+                      <button
+                        onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
+                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                      >
+                        <Printer className="w-4 h-4" /> Print PDF Report
+                      </button>
+                      <button
+                        onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                      >
+                        <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-rose-600" />
+                          Expenses Timeframe Selector (Days / Months / Year)
+                        </h3>
+                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                          Select time filter to isolate and display only that period's expenses report
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        {[
+                          { id: 'DAY', label: 'Today (Day)' },
+                          { id: 'MONTH', label: 'This Month' },
+                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All-Time' },
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setReportTimeframe(t.id)}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                              reportTimeframe === t.id
+                                ? 'bg-rose-600 text-white shadow-md'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-rose-50/80 border border-rose-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
+                          {reportTimeframe === 'DAY' ? 'Today (Day) Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'All-Time Total Expenses'}
+                        </span>
+                        <h4 className="text-3xl font-black text-rose-600 tracking-tight">
+                          {currency} {(
+                            reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
+                            reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
+                            reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
+                            dashStats.totalLoss
+                          ).toLocaleString('en-PK')}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAddExpenseModal(true)}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
+                        >
+                          + Add Expense
+                        </button>
+                        <button
+                          onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                        >
+                          Print PDF Sheet
+                        </button>
+                        <button
+                          onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Expenses Period Statement</h4>
+                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                        <table className="w-full text-left text-xs text-zinc-800">
+                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                            <tr>
+                              <th className="p-3.5">Selected Period</th>
+                              <th className="p-3.5">Expenses & Loss (RS)</th>
+                              <th className="p-3.5 text-right">Filter Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200">
+                            {reportTimeframe === 'DAY' && (
+                              <tr className="bg-rose-100/80 font-bold">
+                                <td className="p-3.5 font-bold">Today (Daily Expenses Report)</td>
+                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.todayLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'MONTH' && (
+                              <tr className="bg-rose-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Month (Monthly Expenses Report)</td>
+                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.monthlyLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'YEAR' && (
+                              <tr className="bg-rose-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Year (Yearly Expenses Report)</td>
+                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.yearlyLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'ALL' && (
+                              <tr className="bg-slate-900 text-white font-bold">
+                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Expenses & Loss</td>
+                                <td className="p-3.5 text-rose-300 font-black text-sm">{currency} {dashStats.totalLoss.toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME EXPENSES</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* ─── DYNAMIC LOGGED MANUAL EXPENSES TABLE ─── */}
+                    <div className="space-y-3 pt-6 border-t border-zinc-100">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-rose-600" />
+                          Dynamic Logged Shop Expenses List ({expensesList.length})
+                        </h4>
+                        <button
+                          onClick={() => setShowAddExpenseModal(true)}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Log Expense Entry
+                        </button>
+                      </div>
+
+                      {expensesList.length === 0 ? (
+                        <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">No manual shop expenses logged yet.</p>
+                          <p className="text-[10px] text-slate-400 mt-1">Click "+ Add Manual Expense" to enter shop rent, electricity, packaging, or egg damage expenses.</p>
+                          <button
+                            onClick={() => setShowAddExpenseModal(true)}
+                            className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add First Expense
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                          <table className="w-full text-left text-xs text-zinc-800">
+                            <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                              <tr>
+                                <th className="p-3.5">Date & Time</th>
+                                <th className="p-3.5">Expense Title</th>
+                                <th className="p-3.5">Category</th>
+                                <th className="p-3.5">Amount (RS)</th>
+                                <th className="p-3.5">Logged By / Notes</th>
+                                <th className="p-3.5 text-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-200">
+                              {expensesList.map(exp => (
+                                <tr key={exp._id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-3.5 font-bold text-slate-500">
+                                    {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </td>
+                                  <td className="p-3.5 font-black text-slate-900">
+                                    {exp.title}
+                                  </td>
+                                  <td className="p-3.5">
+                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                      exp.category === 'Rent' ? 'bg-blue-100 text-blue-700' :
+                                      exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
+                                      exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
+                                      exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
+                                      exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
+                                      'bg-emerald-100 text-emerald-700'
+                                    }`}>
+                                      {exp.category}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5 font-black text-rose-600 text-sm">
+                                    {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
+                                  </td>
+                                  <td className="p-3.5 text-slate-500 text-[11px]">
+                                    {exp.notes || exp.createdBy || 'Shop Admin'}
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <button
+                                      onClick={() => handleDeleteExpense(exp._id)}
+                                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all"
+                                      title="Delete Expense"
+                                    >
+                                      Delete
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+              {/* ─── 4. DAMAGED PRODUCTS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'damaged-products' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest mb-1">
+                        <PackageX className="w-4 h-4" /> Damaged Stock & Inventory Loss Tracking
+                      </div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Damaged Products Loss Report</h2>
+                      <p className="text-slate-300 text-xs mt-1">
+                        Log egg breakages, cracked eggs, expired inventory, and transport losses dynamically.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setShowAddDamagedModal(true)}
+                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> + Log Damaged Product
+                      </button>
+                      <button
+                        onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
+                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                      >
+                        <Printer className="w-4 h-4" /> Print PDF Report
+                      </button>
+                      <button
+                        onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                      >
+                        <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                          <PackageX className="w-4 h-4 text-amber-600" />
+                          Damaged Timeframe Selector (Days / Months / Year)
+                        </h3>
+                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
+                          Select time filter to isolate and display only that period's damaged stock report
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        {[
+                          { id: 'DAY', label: 'Today (Day)' },
+                          { id: 'MONTH', label: 'This Month' },
+                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All-Time' },
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setReportTimeframe(t.id)}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                              reportTimeframe === t.id
+                                ? 'bg-amber-600 text-white shadow-md'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">
+                          {reportTimeframe === 'DAY' ? 'Today (Day) Damaged Stock Loss' : reportTimeframe === 'MONTH' ? 'Monthly Damaged Stock Loss' : reportTimeframe === 'YEAR' ? 'Yearly Damaged Stock Loss' : 'All-Time Total Damaged Loss'}
+                        </span>
+                        <h4 className="text-3xl font-black text-amber-600 tracking-tight">
+                          {currency} {(
+                            reportTimeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
+                            reportTimeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
+                            reportTimeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
+                            (dashStats.totalDamagedLoss || 0)
+                          ).toLocaleString('en-PK')}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowAddDamagedModal(true)}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
+                        >
+                          + Log Damaged Product
+                        </button>
+                        <button
+                          onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
+                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                        >
+                          Print PDF Sheet
+                        </button>
+                        <button
+                          onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Damaged Stock Period Statement</h4>
+                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                        <table className="w-full text-left text-xs text-zinc-800">
+                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                            <tr>
+                              <th className="p-3.5">Selected Period</th>
+                              <th className="p-3.5">Damaged Loss Amount (RS)</th>
+                              <th className="p-3.5 text-right">Filter Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200">
+                            {reportTimeframe === 'DAY' && (
+                              <tr className="bg-amber-100/80 font-bold">
+                                <td className="p-3.5 font-bold">Today (Daily Damaged Report)</td>
+                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dashStats.todayDamagedLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-amber-500/10 text-amber-700 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'MONTH' && (
+                              <tr className="bg-amber-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Month (Monthly Damaged Report)</td>
+                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dashStats.monthlyDamagedLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'YEAR' && (
+                              <tr className="bg-amber-100/80 font-bold">
+                                <td className="p-3.5 font-bold">This Year (Yearly Damaged Report)</td>
+                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dashStats.yearlyDamagedLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
+                              </tr>
+                            )}
+                            {reportTimeframe === 'ALL' && (
+                              <tr className="bg-slate-900 text-white font-bold">
+                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Damaged Loss</td>
+                                <td className="p-3.5 text-amber-300 font-black text-sm">{currency} {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME DAMAGED LOSS</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* ─── DYNAMIC LOGGED DAMAGED PRODUCTS TABLE ─── */}
+                    <div className="space-y-3 pt-6 border-t border-zinc-100">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
+                          <PackageX className="w-4 h-4 text-amber-600" />
+                          Dynamic Logged Damaged Products List ({damagedProductsList.length})
+                        </h4>
+                        <button
+                          onClick={() => setShowAddDamagedModal(true)}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Log Damaged Entry
+                        </button>
+                      </div>
+
+                      {damagedProductsList.length === 0 ? (
+                        <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">No damaged products or stock losses logged yet.</p>
+                          <p className="text-[10px] text-slate-400 mt-1">Click "+ Log Damaged Product" to record egg breakage, cracked eggs, or spoiled stock losses.</p>
+                          <button
+                            onClick={() => setShowAddDamagedModal(true)}
+                            className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Log First Damaged Product
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                          <table className="w-full text-left text-xs text-zinc-800">
+                            <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                              <tr>
+                                <th className="p-3.5">Date & Time</th>
+                                <th className="p-3.5">Product Name</th>
+                                <th className="p-3.5">Reason / Cause</th>
+                                <th className="p-3.5 text-center">Damaged Qty</th>
+                                <th className="p-3.5">Unit Price</th>
+                                <th className="p-3.5">Total Loss (RS)</th>
+                                <th className="p-3.5">Logged By / Notes</th>
+                                <th className="p-3.5 text-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-200">
+                              {damagedProductsList.map(dmg => (
+                                <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-3.5 font-bold text-slate-500">
+                                    {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </td>
+                                  <td className="p-3.5 font-black text-slate-900">
+                                    {dmg.productName}
+                                  </td>
+                                  <td className="p-3.5">
+                                    <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                      {dmg.reason || 'Egg Breakage'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5 text-center font-black text-slate-900">
+                                    {dmg.quantity} Units
+                                  </td>
+                                  <td className="p-3.5 font-bold text-slate-600">
+                                    {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
+                                  </td>
+                                  <td className="p-3.5 font-black text-amber-700 text-sm">
+                                    {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                  </td>
+                                  <td className="p-3.5 text-slate-500 text-[11px]">
+                                    {dmg.notes || dmg.reportedBy || 'Shop Admin'}
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <button
+                                      onClick={() => handleDeleteDamaged(dmg._id)}
+                                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all"
+                                      title="Delete Entry"
+                                    >
+                                      Delete
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
             </div>
           </main>
         </div>
@@ -1868,6 +3303,252 @@ function StoreContent({ shopId }) {
         onClose={() => setCompletedBill(null)}
         currency={currency}
       />
+
+      {/* ─── ADD MANUAL EXPENSE MODAL ─── */}
+      {showAddExpenseModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-600 font-black text-sm uppercase tracking-wider">
+                <Plus className="w-5 h-5" /> Add New Manual Expense
+              </div>
+              <button
+                onClick={() => setShowAddExpenseModal(false)}
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-rose-100 text-zinc-500 hover:text-rose-600 flex items-center justify-center font-bold text-sm transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddExpenseSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Expense Title / Description *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Shop Rent, Electricity Bill, Packaging Bags..."
+                  value={expenseFormData.title}
+                  onChange={e => setExpenseFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Category</label>
+                  <select
+                    value={expenseFormData.category}
+                    onChange={e => setExpenseFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                  >
+                    <option value="Rent">Shop Rent</option>
+                    <option value="Utilities / Bills">Utilities / Bills</option>
+                    <option value="Packaging & Bags">Packaging & Bags</option>
+                    <option value="Transport & Freight">Transport & Freight</option>
+                    <option value="Salaries">Worker Salaries</option>
+                    <option value="Egg Damage / Loss">Egg Damage / Loss</option>
+                    <option value="Other">Other Expenses</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Amount (RS) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="e.g. 5000"
+                    value={expenseFormData.amount}
+                    onChange={e => setExpenseFormData(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Expense Date</label>
+                <input
+                  type="date"
+                  value={expenseFormData.expenseDate}
+                  onChange={e => setExpenseFormData(prev => ({ ...prev, expenseDate: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                <textarea
+                  rows="2"
+                  placeholder="Additional details..."
+                  value={expenseFormData.notes}
+                  onChange={e => setExpenseFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-rose-500"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpenseModal(false)}
+                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Save Expense
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ADD DAMAGED PRODUCT MODAL ─── */}
+      {showAddDamagedModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2 text-amber-600 font-black text-sm uppercase tracking-wider">
+                <PackageX className="w-5 h-5" /> Log Damaged Product / Stock Loss
+              </div>
+              <button
+                onClick={() => setShowAddDamagedModal(false)}
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDamagedSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
+                <select
+                  onChange={e => {
+                    const selected = items.find(i => String(i._id) === String(e.target.value));
+                    if (selected) {
+                      setDamagedFormData(prev => ({
+                        ...prev,
+                        productId: selected._id,
+                        productName: selected.name,
+                        unitPrice: selected.price || selected.salePrice || ''
+                      }));
+                    } else if (e.target.value === 'CUSTOM') {
+                      setDamagedFormData(prev => ({ ...prev, productId: '', productName: '' }));
+                    }
+                  }}
+                  className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
+                >
+                  <option value="">-- Select Catalog Item (Optional) --</option>
+                  {(items || []).map(i => (
+                    <option key={i._id} value={i._id}>{i.name} (RS {i.price || i.salePrice || 0})</option>
+                  ))}
+                  <option value="CUSTOM">Custom Product Name</option>
+                </select>
+
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Loman Brown Eggs, China Eggs..."
+                  value={damagedFormData.productName}
+                  onChange={e => setDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
+                  <select
+                    value={damagedFormData.reason}
+                    onChange={e => setDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
+                    <option value="Spoiled / Expired">Spoiled / Expired</option>
+                    <option value="Transport Damage">Transport Damage</option>
+                    <option value="Storage Loss">Storage Loss</option>
+                    <option value="Other">Other Cause</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damaged Qty (Units) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="e.g. 30"
+                    value={damagedFormData.quantity}
+                    onChange={e => setDamagedFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Unit Price / Cost (RS)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 30"
+                    value={damagedFormData.unitPrice}
+                    onChange={e => setDamagedFormData(prev => ({ ...prev, unitPrice: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
+                  <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700">
+                    RS {((Number(damagedFormData.quantity) || 0) * (Number(damagedFormData.unitPrice) || 0)).toLocaleString('en-PK')}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
+                <input
+                  type="date"
+                  value={damagedFormData.damageDate}
+                  onChange={e => setDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                <textarea
+                  rows="2"
+                  placeholder="e.g. Cracked during transport tray unloading..."
+                  value={damagedFormData.notes}
+                  onChange={e => setDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDamagedModal(false)}
+                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Save Damaged Log
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

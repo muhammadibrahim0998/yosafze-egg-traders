@@ -22,6 +22,8 @@ import updatesRoutes from './routes/updates.js';
 import catalogRoutes from './routes/catalog.js';
 import customersRoutes from './routes/customers.js';
 import checkoutRoutes from './routes/checkout.js';
+import expensesRoutes from './routes/expenses.js';
+import damagedProductsRoutes from './routes/damagedProducts.js';
 
 dotenv.config();
 
@@ -78,6 +80,8 @@ app.use('/api/updates', updatesRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/customers', customersRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/expenses', expensesRoutes);
+app.use('/api/damaged-products', damagedProductsRoutes);
 
 // Root route
 app.get('/', (req, res) => {
