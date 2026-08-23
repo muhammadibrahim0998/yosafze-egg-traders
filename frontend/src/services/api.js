@@ -16,6 +16,15 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const savedUser = localStorage.getItem('nexflow_user') || sessionStorage.getItem('nexflow_user');
+  if (savedUser) {
+    try {
+      const parsedUser = JSON.parse(savedUser);
+      if (parsedUser?.role) {
+        config.headers['x-user-role'] = parsedUser.role;
+      }
+    } catch (e) {}
+  }
   console.log(`[Request] ${config.method.toUpperCase()} ${config.url}`);
   return config;
 }, (error) => {

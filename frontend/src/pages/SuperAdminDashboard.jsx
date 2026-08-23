@@ -706,8 +706,8 @@ export function SuperAdminDashboard() {
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-card p-6 rounded-3xl border border-[var(--color-border-subtle)] shadow-xl">
                         <div>
-                            <h2 className="text-2xl font-black uppercase text-[var(--color-text-primary)] tracking-tight">Customer EasyPaisa & Orders Verification</h2>
-                            <p className="text-xs text-[var(--color-text-secondary)] font-bold mt-1 uppercase tracking-wider">Inspect transaction screenshot proofs & manage payment statuses</p>
+                            <h2 className="text-2xl font-black uppercase text-zinc-900 tracking-tight">EasyPaisa Orders — Monitor View</h2>
+                            <p className="text-xs text-zinc-500 font-bold mt-1 uppercase tracking-wider">🔒 Read-Only • Shop Admins Approve Orders for Their Own Shops</p>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
                             <select
@@ -735,80 +735,74 @@ export function SuperAdminDashboard() {
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
                             {orders.filter(o => selectedShopFilter === 'ALL' || String(o.shopId?._id || o.shopId) === String(selectedShopFilter)).map(ord => (
-                                <div key={ord._id} className="bg-surface-card border border-[var(--color-border-subtle)] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                                <div key={ord._id} className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
                                     <div className="space-y-2 flex-1">
                                         <div className="flex items-center gap-3 flex-wrap">
-                                            <span className="text-xs font-black px-3 py-1 bg-slate-800 text-white rounded-lg">#{ord._id.slice(-6).toUpperCase()}</span>
-                                            <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${ord.paymentMethod === 'EASYPAISA' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                                            <span className="text-xs font-black px-3 py-1 bg-zinc-900 text-white rounded-lg">#{ord._id.slice(-6).toUpperCase()}</span>
+                                            <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full border ${ord.paymentMethod === 'EASYPAISA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
                                                 {ord.paymentMethod}
                                             </span>
-                                            <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${ord.paymentStatus === 'PAID' ? 'bg-emerald-600 text-white' : ord.paymentStatus === 'FAILED' ? 'bg-rose-600 text-white' : 'bg-amber-500/20 text-amber-400'}`}>
-                                                {ord.paymentStatus}
+                                            {/* Payment Status Badge - READ ONLY for SuperAdmin */}
+                                            <span className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-full flex items-center gap-1.5 ${
+                                                ord.paymentStatus === 'PAID'
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : ord.paymentStatus === 'FAILED'
+                                                    ? 'bg-rose-600 text-white'
+                                                    : 'bg-amber-100 text-amber-700 border border-amber-200'
+                                            }`}>
+                                                {ord.paymentStatus === 'PAID' ? '✅ PAID — Approved by Shop Admin' :
+                                                 ord.paymentStatus === 'FAILED' ? '❌ REJECTED by Shop Admin' :
+                                                 '⏳ PENDING — Awaiting Shop Admin Approval'}
                                             </span>
-                                            <span className="text-xs font-bold text-slate-400">{new Date(ord.createdAt).toLocaleString()}</span>
+                                            <span className="text-xs font-bold text-zinc-400">{new Date(ord.createdAt).toLocaleString()}</span>
                                         </div>
 
-                                        <div className="text-sm font-bold text-[var(--color-text-primary)]">
-                                            Customer: <span className="text-emerald-400">{ord.customerId?.fullName || ord.shippingDetails?.fullName || 'Customer'}</span> ({ord.shippingDetails?.phone || ord.customerId?.phone || 'No phone'})
+                                        {/* Shop Name */}
+                                        <div className="text-xs font-black text-zinc-500 uppercase tracking-widest">
+                                            🏪 Shop: <span className="text-emerald-700">{ord.shopId?.name || 'Unknown Shop'}</span>
+                                        </div>
+
+                                        <div className="text-sm font-bold text-zinc-800">
+                                            Customer: <span className="text-emerald-700">{ord.customerId?.fullName || ord.shippingDetails?.fullName || 'Customer'}</span>
+                                            {' '}
+                                            <span className="text-zinc-500 text-xs">({ord.shippingDetails?.phone || ord.customerId?.phone || 'No phone'})</span>
                                         </div>
 
                                         {ord.transactionId && (
-                                            <div className="text-xs font-bold text-slate-300">
-                                                Transaction ID / Sender: <span className="text-amber-300">{ord.transactionId}</span>
+                                            <div className="text-xs font-bold text-zinc-600">
+                                                Transaction ID / Sender: <span className="text-amber-600 font-black">{ord.transactionId}</span>
                                             </div>
                                         )}
 
-                                        <div className="text-xs text-slate-400">
-                                            Items: {ord.items?.map(i => `${i.name} x${i.quantity}`).join(', ')} | Total: <span className="font-black text-emerald-400 text-sm">RS {ord.totalAmount?.toLocaleString()}</span>
+                                        <div className="text-xs text-zinc-400">
+                                            Items: {ord.items?.map(i => `${i.name} x${i.quantity}`).join(', ')} | Total: <span className="font-black text-emerald-600 text-sm">RS {ord.totalAmount?.toLocaleString()}</span>
                                         </div>
                                     </div>
 
-                                    {/* Proof Screenshot Section */}
+                                    {/* Proof Screenshot - VIEW ONLY, No Delete for SuperAdmin */}
                                     <div className="flex items-center gap-4">
                                         {ord.paymentProof ? (
-                                            <div className="relative group">
-                                                <div 
-                                                    onClick={() => setSelectedProofImage({ url: ord.paymentProof, orderId: ord._id })} 
-                                                    className="cursor-pointer group relative border-2 border-emerald-500/60 rounded-2xl overflow-hidden shadow-lg bg-black/40 hover:scale-105 transition-all"
-                                                >
-                                                    <img src={ord.paymentProof} alt="Payment Proof" className="w-24 h-24 object-cover" />
-                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-wider transition-all">
-                                                        View Proof
-                                                    </div>
+                                            <div
+                                                onClick={() => setSelectedProofImage({ url: ord.paymentProof, orderId: ord._id })}
+                                                className="cursor-pointer group relative border-2 border-emerald-400/60 rounded-2xl overflow-hidden shadow-lg hover:scale-105 transition-all"
+                                                title="Click to view screenshot"
+                                            >
+                                                <img src={ord.paymentProof} alt="Payment Proof" className="w-24 h-24 object-cover" />
+                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-wider transition-all">
+                                                    👁 View
                                                 </div>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteProof(ord._id); }}
-                                                    title="Delete Screenshot"
-                                                    className="absolute -top-2 -right-2 p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full shadow-lg transition-all z-10 hover:scale-110"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
                                             </div>
                                         ) : (
-                                            <div className="w-24 h-24 rounded-2xl border border-dashed border-slate-700 flex flex-col items-center justify-center p-2 text-center text-slate-500 text-[10px] font-bold">
-                                                No Screenshot Uploaded
+                                            <div className="w-24 h-24 rounded-2xl border border-dashed border-zinc-300 flex flex-col items-center justify-center p-2 text-center text-zinc-400 text-[10px] font-bold">
+                                                No Screenshot Yet
                                             </div>
                                         )}
 
-                                        <div className="flex flex-col gap-2">
-                                            {ord.paymentStatus !== 'PAID' && (
-                                                <button onClick={() => handleUpdateOrderStatus(ord._id, 'PAID')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase shadow-lg active:scale-95">
-                                                    Approve (PAID)
-                                                </button>
-                                            )}
-                                            {ord.paymentStatus !== 'FAILED' && (
-                                                <button onClick={() => handleUpdateOrderStatus(ord._id, 'FAILED')} className="px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase shadow-lg active:scale-95">
-                                                    Reject Payment
-                                                </button>
-                                            )}
-                                            {ord.paymentProof && (
-                                                <button onClick={() => handleDeleteProof(ord._id)} className="px-3 py-2 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 flex items-center justify-center gap-1.5">
-                                                    <Trash2 className="w-3.5 h-3.5" /> Delete Screenshot
-                                                </button>
-                                            )}
-                                            <button onClick={() => handleDeleteOrder(ord._id)} className="px-3 py-2 bg-zinc-800/80 hover:bg-rose-900/60 text-slate-300 hover:text-rose-300 border border-slate-700/60 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 flex items-center justify-center gap-1.5">
-                                                <Trash2 className="w-3.5 h-3.5" /> Delete Order
-                                            </button>
+                                        {/* SuperAdmin READ-ONLY note — No action buttons */}
+                                        <div className="flex flex-col items-center justify-center text-center gap-1.5 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl min-w-[130px]">
+                                            <span className="text-xl">🔒</span>
+                                            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest leading-tight">Shop Admin<br />Approval Only</p>
+                                            <p className="text-[8px] text-zinc-400 font-bold">SuperAdmin is Monitor</p>
                                         </div>
                                     </div>
                                 </div>
@@ -818,30 +812,26 @@ export function SuperAdminDashboard() {
                 </div>
             )}
 
-            {/* Lightbox Screenshot Modal */}
+
+
+            {/* Lightbox Screenshot Modal - VIEW ONLY for SuperAdmin */}
             {selectedProofImage && (
                 <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setSelectedProofImage(null)}>
-                    <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-700 rounded-3xl p-4 shadow-2xl flex flex-col items-center" onClick={e => e.stopPropagation()}>
-                        <div className="w-full flex justify-between items-center pb-3 mb-3 border-b border-slate-800 gap-4">
-                            <h3 className="text-sm font-black text-emerald-400 uppercase tracking-wider">Transaction Payment Screenshot Proof</h3>
-                            <div className="flex items-center gap-2">
-                                {selectedProofImage.orderId && (
-                                    <button 
-                                        onClick={() => handleDeleteProof(selectedProofImage.orderId)} 
-                                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" /> Delete Screenshot
-                                    </button>
-                                )}
-                                <button onClick={() => setSelectedProofImage(null)} className="p-2 hover:bg-white/10 rounded-full text-white">
-                                    <X className="w-5 h-5" />
-                                </button>
+                    <div className="relative max-w-4xl max-h-[90vh] bg-white border border-zinc-200 rounded-3xl p-4 shadow-2xl flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                        <div className="w-full flex justify-between items-center pb-3 mb-3 border-b border-zinc-100 gap-4">
+                            <div>
+                                <h3 className="text-sm font-black text-emerald-700 uppercase tracking-wider">Transaction Payment Screenshot</h3>
+                                <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">🔒 View-Only — SuperAdmin Monitor</p>
                             </div>
+                            <button onClick={() => setSelectedProofImage(null)} className="p-2 hover:bg-zinc-100 rounded-full text-zinc-700 transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
-                        <img src={selectedProofImage.url || selectedProofImage} alt="Full Payment Proof" className="max-h-[75vh] w-auto object-contain rounded-2xl border border-slate-800" />
+                        <img src={selectedProofImage.url || selectedProofImage} alt="Full Payment Proof" className="max-h-[75vh] w-auto object-contain rounded-2xl border border-zinc-200" />
                     </div>
                 </div>
             )}
+
 
             {/* Order / Screenshot Delete Confirmation Modal */}
             <DeleteConfirmationModal

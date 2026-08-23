@@ -177,7 +177,7 @@ router.get('/orders', authenticate, requireShopAdmin, async (req, res) => {
     const query = {};
 
     // Shop Admins can only ever see their own shop's orders
-    if (req.user.role === 'shop_admin') {
+    if (req.user?.role === 'shop_admin') {
       query.shopId = req.user.shopId;
     } else if (shopId) {
       query.shopId = shopId;
@@ -206,7 +206,7 @@ router.get('/order/:orderId', authenticate, requireShopAdmin, async (req, res) =
       .populate('customerId', 'fullName email phone');
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (req.user.role === 'shop_admin' && String(order.shopId?._id) !== String(req.user.shopId)) {
+    if (req.user?.role === 'shop_admin' && String(order.shopId?._id) !== String(req.user?.shopId)) {
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
@@ -223,7 +223,7 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
     const order = await Order.findById(req.params.orderId).populate('customerId', 'fullName email');
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (req.user.role === 'shop_admin' && String(order.shopId) !== String(req.user.shopId)) {
+    if (req.user?.role === 'shop_admin' && String(order.shopId) !== String(req.user?.shopId)) {
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
@@ -282,7 +282,7 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
         totalProfit,
         saleDate: new Date(),
         status: 'completed',
-        cashierName: req.user.fullName || 'EasyPaisa Online',
+        cashierName: req.user?.fullName || 'EasyPaisa Online',
         customerName: order.customerId?.fullName || order.shippingDetails?.fullName || 'Online Customer'
       });
 
@@ -302,7 +302,7 @@ router.delete('/order/:orderId/proof', authenticate, requireShopAdmin, async (re
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (req.user.role === 'shop_admin' && String(order.shopId) !== String(req.user.shopId)) {
+    if (req.user?.role === 'shop_admin' && String(order.shopId) !== String(req.user?.shopId)) {
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
@@ -320,7 +320,7 @@ router.delete('/order/:orderId', authenticate, requireShopAdmin, async (req, res
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (req.user.role === 'shop_admin' && String(order.shopId) !== String(req.user.shopId)) {
+    if (req.user?.role === 'shop_admin' && String(order.shopId) !== String(req.user?.shopId)) {
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
