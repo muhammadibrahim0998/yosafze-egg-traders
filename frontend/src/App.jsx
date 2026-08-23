@@ -284,24 +284,7 @@ export default function App() {
                   isSuperAdmin() ? (
                     <SuperAdminDashboard />
                   ) : isShopAdmin() ? (
-                    <ShopAdminDashboard
-                      onAddProduct={() => openModal("addProduct")}
-                      onEditProduct={(p) => openModal("editProduct", p)}
-                      onDeleteProduct={handleDeleteProduct}
-                      onViewProduct={(p) => openModal("viewProduct", p)}
-                      onExport={() => openModal("export")}
-                      onEditSale={(sale) => openModal("editSale", sale)}
-                      onDeleteSale={handleDeleteSale}
-                      onReturnSale={handleReturnSale}
-                      onViewSale={(sale) => openModal("receipt", sale)}
-                      dailySales={dailySalesTotal}
-                      monthlySales={monthlySalesTotal}
-                      yearlySales={yearlySalesTotal}
-                      totalRevenue={totalRevenue}
-                      dailyProfit={sumProfit(dailySalesList)}
-                      monthlyProfit={sumProfit(monthlySalesList)}
-                      yearlyProfit={sumProfit(yearlySalesList)}
-                    />
+                    <Navigate to={`/shop/${user?.shopId || '6a741138253a8863f58ae4a4'}`} replace />
                   ) : (
                     <Navigate to="/shop" replace />
                   )
@@ -311,24 +294,7 @@ export default function App() {
                   isSuperAdmin() ? (
                     <SuperAdminDashboard />
                   ) : isShopAdmin() ? (
-                    <ShopAdminDashboard
-                      onAddProduct={() => openModal("addProduct")}
-                      onEditProduct={(p) => openModal("editProduct", p)}
-                      onDeleteProduct={handleDeleteProduct}
-                      onViewProduct={(p) => openModal("viewProduct", p)}
-                      onExport={() => openModal("export")}
-                      onEditSale={(sale) => openModal("editSale", sale)}
-                      onDeleteSale={handleDeleteSale}
-                      onReturnSale={handleReturnSale}
-                      onViewSale={(sale) => openModal("receipt", sale)}
-                      dailySales={dailySalesTotal}
-                      monthlySales={monthlySalesTotal}
-                      yearlySales={yearlySalesTotal}
-                      totalRevenue={totalRevenue}
-                      dailyProfit={sumProfit(dailySalesList)}
-                      monthlyProfit={sumProfit(monthlySalesList)}
-                      yearlyProfit={sumProfit(yearlySalesList)}
-                    />
+                    <Navigate to={`/shop/${user?.shopId || '6a741138253a8863f58ae4a4'}`} replace />
                   ) : (
                     <Navigate to="/shop" replace />
                   )

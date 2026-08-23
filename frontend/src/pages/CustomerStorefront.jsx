@@ -626,7 +626,7 @@ function StoreContent({ shopId }) {
     if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
     try {
       await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
-    } catch (e) {}
+    } catch (e) { }
     setExpensesList(prev => prev.filter(x => String(x._id) !== String(id)));
     setTimeout(fetchDashboardStats, 300);
   };
@@ -724,7 +724,7 @@ function StoreContent({ shopId }) {
     if (!window.confirm('Are you sure you want to delete this damaged product record?')) return;
     try {
       await fetch(`/api/damaged-products/${id}`, { method: 'DELETE' });
-    } catch (e) {}
+    } catch (e) { }
     setDamagedProductsList(prev => prev.filter(x => String(x._id) !== String(id)));
     setTimeout(fetchDashboardStats, 300);
   };
@@ -1037,8 +1037,8 @@ function StoreContent({ shopId }) {
         // Fetch all three data sources in parallel
         const [custRes, salesRes, ordersRes] = await Promise.all([
           fetch(`/api/customers/all?shopId=${shopId}`).catch(() => null),
-          fetch('/api/sales', { headers: authHeaders }).catch(() => null),
-          fetch('/api/checkout/orders', { headers: authHeaders }).catch(() => null),
+          fetch(`/api/sales?shopId=${shopId}`, { headers: authHeaders }).catch(() => null),
+          fetch(`/api/checkout/orders?shopId=${shopId}`, { headers: authHeaders }).catch(() => null),
         ]);
 
         // ── Customers ──
@@ -1051,14 +1051,16 @@ function StoreContent({ shopId }) {
         let posSalesList = [];
         if (salesRes?.ok) {
           const salesData = await salesRes.json();
-          posSalesList = Array.isArray(salesData) ? salesData : [];
+          const rawSales = Array.isArray(salesData) ? salesData : [];
+          posSalesList = rawSales.filter(s => !s.shopId || String(s.shopId) === String(shopId));
         }
 
         // ── EasyPaisa / Customer Orders ──
         let checkoutOrders = [];
         if (ordersRes?.ok) {
           const ordData = await ordersRes.json();
-          checkoutOrders = Array.isArray(ordData.orders) ? ordData.orders : [];
+          const rawOrders = Array.isArray(ordData.orders) ? ordData.orders : [];
+          checkoutOrders = rawOrders.filter(o => !o.shopId || String(o.shopId) === String(shopId));
         }
 
         // ── Combine & Compute Revenue ──
@@ -1625,6 +1627,13 @@ function StoreContent({ shopId }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => navigate('/shop')}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-[10px] font-black uppercase tracking-widest transition-all shadow border border-slate-700 cursor-pointer active:scale-95"
+                    title="Switch or Select Shop Branch"
+                  >
+                    <Store className="w-3.5 h-3.5 text-amber-400" /> Switch Branch
+                  </button>
                   {isAdminUser && (
                     <button
                       onClick={() => setAddProductModal(true)}
@@ -1773,11 +1782,10 @@ function StoreContent({ shopId }) {
                               <button
                                 key={t.id}
                                 onClick={() => setReportTimeframe(t.id)}
-                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                  reportTimeframe === t.id
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
                                     ? 'bg-emerald-600 text-white shadow-md'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                                }`}
+                                  }`}
                               >
                                 {t.label}
                               </button>
@@ -1794,9 +1802,9 @@ function StoreContent({ shopId }) {
                             <h4 className="text-2xl font-black text-emerald-600 tracking-tight">
                               {currency} {(
                                 reportTimeframe === 'DAY' ? dashStats.todaySales :
-                                reportTimeframe === 'MONTH' ? dashStats.monthlySales :
-                                reportTimeframe === 'YEAR' ? dashStats.yearlySales :
-                                dashStats.totalRevenue
+                                  reportTimeframe === 'MONTH' ? dashStats.monthlySales :
+                                    reportTimeframe === 'YEAR' ? dashStats.yearlySales :
+                                      dashStats.totalRevenue
                               ).toLocaleString('en-PK')}
                             </h4>
                             <span className="text-[9px] text-emerald-600/70 font-bold uppercase">Sales Revenue</span>
@@ -1809,9 +1817,9 @@ function StoreContent({ shopId }) {
                             <h4 className="text-2xl font-black text-green-600 tracking-tight">
                               {currency} {(
                                 reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
-                                reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
-                                reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
-                                dashStats.totalProfit
+                                  reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
+                                    reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
+                                      dashStats.totalProfit
                               ).toLocaleString('en-PK')}
                             </h4>
                             <span className="text-[9px] text-green-600/70 font-bold uppercase">Net Profit</span>
@@ -1824,9 +1832,9 @@ function StoreContent({ shopId }) {
                             <h4 className="text-2xl font-black text-rose-600 tracking-tight">
                               {currency} {(
                                 reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
-                                reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
-                                reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
-                                dashStats.totalLoss
+                                  reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
+                                    reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
+                                      dashStats.totalLoss
                               ).toLocaleString('en-PK')}
                             </h4>
                             <span className="text-[9px] text-rose-600/70 font-bold uppercase">Expenses & Returns</span>
@@ -1839,9 +1847,9 @@ function StoreContent({ shopId }) {
                             <h4 className="text-2xl font-black text-white tracking-tight">
                               {currency} {(
                                 (reportTimeframe === 'DAY' ? ((dashStats.todayProfit || 0) - (dashStats.todayLoss || 0)) :
-                                reportTimeframe === 'MONTH' ? ((dashStats.monthlyProfit || 0) - (dashStats.monthlyLoss || 0)) :
-                                reportTimeframe === 'YEAR' ? ((dashStats.yearlyProfit || 0) - (dashStats.yearlyLoss || 0)) :
-                                (dashStats.totalProfit - dashStats.totalLoss))
+                                  reportTimeframe === 'MONTH' ? ((dashStats.monthlyProfit || 0) - (dashStats.monthlyLoss || 0)) :
+                                    reportTimeframe === 'YEAR' ? ((dashStats.yearlyProfit || 0) - (dashStats.yearlyLoss || 0)) :
+                                      (dashStats.totalProfit - dashStats.totalLoss))
                               ).toLocaleString('en-PK')}
                             </h4>
                             <span className="text-[9px] text-white/60 font-bold uppercase">Net Profit - Expenses</span>
@@ -2181,10 +2189,10 @@ function StoreContent({ shopId }) {
                                 onClick={() => addToWalkInCart(product)}
                                 disabled={product.stock <= 0}
                                 className={`p-2.5 rounded-xl font-black text-xs transition-all ${inCart
-                                    ? 'bg-emerald-600 text-white shadow-lg'
-                                    : product.stock > 0
-                                      ? 'bg-slate-800 hover:bg-emerald-700 text-white border border-slate-600'
-                                      : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                                  ? 'bg-emerald-600 text-white shadow-lg'
+                                  : product.stock > 0
+                                    ? 'bg-slate-800 hover:bg-emerald-700 text-white border border-slate-600'
+                                    : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
                                   }`}
                                 title="Add to Bill"
                               >
@@ -2480,11 +2488,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                              reportTimeframe === t.id
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
                                 ? 'bg-emerald-600 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                            }`}
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -2500,9 +2507,9 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-emerald-600 tracking-tight">
                           {currency} {(
                             reportTimeframe === 'DAY' ? dashStats.todaySales :
-                            reportTimeframe === 'MONTH' ? dashStats.monthlySales :
-                            reportTimeframe === 'YEAR' ? dashStats.yearlySales :
-                            dashStats.totalRevenue
+                              reportTimeframe === 'MONTH' ? dashStats.monthlySales :
+                                reportTimeframe === 'YEAR' ? dashStats.yearlySales :
+                                  dashStats.totalRevenue
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -2621,11 +2628,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                              reportTimeframe === t.id
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
                                 ? 'bg-green-600 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                            }`}
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -2641,9 +2647,9 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-green-600 tracking-tight">
                           {currency} {(
                             reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
-                            reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
-                            reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
-                            dashStats.totalProfit
+                              reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
+                                reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
+                                  dashStats.totalProfit
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -2768,11 +2774,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                              reportTimeframe === t.id
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
                                 ? 'bg-rose-600 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                            }`}
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -2788,9 +2793,9 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-rose-600 tracking-tight">
                           {currency} {(
                             reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
-                            reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
-                            reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
-                            dashStats.totalLoss
+                              reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
+                                reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
+                                  dashStats.totalLoss
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -2866,7 +2871,7 @@ function StoreContent({ shopId }) {
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
                           <FileText className="w-4 h-4 text-rose-600" />
-                          Dynamic Logged Shop Expenses List ({expensesList.length})
+                          Shop Expenses List ({expensesList.length})
                         </h4>
                         <button
                           onClick={() => setShowAddExpenseModal(true)}
@@ -2910,14 +2915,13 @@ function StoreContent({ shopId }) {
                                     {exp.title}
                                   </td>
                                   <td className="p-3.5">
-                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                      exp.category === 'Rent' ? 'bg-blue-100 text-blue-700' :
-                                      exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
-                                      exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
-                                      exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
-                                      exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
-                                      'bg-emerald-100 text-emerald-700'
-                                    }`}>
+                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-100 text-blue-700' :
+                                        exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
+                                          exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
+                                            exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
+                                              exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
+                                                'bg-emerald-100 text-emerald-700'
+                                      }`}>
                                       {exp.category}
                                     </span>
                                   </td>
@@ -3005,11 +3009,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                              reportTimeframe === t.id
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
                                 ? 'bg-amber-600 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                            }`}
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -3025,9 +3028,9 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-amber-600 tracking-tight">
                           {currency} {(
                             reportTimeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
-                            reportTimeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
-                            reportTimeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
-                            (dashStats.totalDamagedLoss || 0)
+                              reportTimeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
+                                reportTimeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
+                                  (dashStats.totalDamagedLoss || 0)
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -3103,7 +3106,7 @@ function StoreContent({ shopId }) {
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
                           <PackageX className="w-4 h-4 text-amber-600" />
-                          Dynamic Logged Damaged Products List ({damagedProductsList.length})
+                          Damaged Products List ({damagedProductsList.length})
                         </h4>
                         <button
                           onClick={() => setShowAddDamagedModal(true)}
@@ -3572,10 +3575,10 @@ function ShopsList() {
             <img src={companyLogo} alt="Attock Shop" className="h-20 w-auto object-contain drop-shadow-xl" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white uppercase italic">
-            ATTOCK SHOP
+            YOSAFZE EGG TRADERS
           </h1>
           <p className="text-emerald-400 font-black uppercase tracking-[0.3em] text-xs">
-            Select Your Preferred Store
+            Multi-Branch Portal (Peshawar, Attock, Mardan & All Branches)
           </p>
         </div>
 
@@ -3585,27 +3588,40 @@ function ShopsList() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {allShops.map(s => (
+            {allShops.map((s, idx) => (
               <button
                 key={s._id}
                 onClick={() => navigate(`/shop/${s._id}`)}
-                className="group bg-[#1E293B] hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-[2rem] p-7 text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl"
+                className="group bg-[#1E293B] hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-[2rem] p-7 text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl relative overflow-hidden"
               >
-                <div className="flex items-center gap-5 mb-4">
+                <div className="absolute top-4 right-4 bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Branch #{idx + 1}
+                </div>
+                <div className="flex items-center gap-5 mb-3">
                   <div className="p-4 bg-white rounded-2xl group-hover:scale-110 transition-transform shadow-md">
                     {s.logoUrl ? (
                       <img src={s.logoUrl} alt={s.name} className="w-10 h-10 object-contain rounded-xl" />
                     ) : (
-                      <img src={companyLogo} alt="Hayaseri Super Store" className="w-10 h-10 object-contain rounded-xl" />
+                      <img src={companyLogo} alt="Yosafze Egg Traders" className="w-10 h-10 object-contain rounded-xl" />
                     )}
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-white tracking-tight uppercase italic group-hover:text-emerald-300 transition-colors">{s.name}</h2>
-                    {s.address && <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-wider">{s.address}</p>}
+                    {s.address && <p className="text-slate-400 text-xs font-bold mt-0.5 uppercase tracking-wider">{s.address}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] pt-4 border-t border-slate-700/60">
-                  <span>Enter Customer Portal</span>
+                <div className="space-y-1 mb-4">
+                  <p className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                    <span className="text-emerald-400 font-mono">Unique ID:</span>
+                    <span className="font-mono text-white text-[10px] bg-slate-900 px-2 py-0.5 rounded border border-slate-700/80">{s._id}</span>
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-500">
+                    Shortcut URL: <span className="text-amber-300 font-mono">/shop/{idx + 1}</span>
+                  </p>
+                </div>
+                <div className="flex items-center justify-between text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] pt-4 border-t border-slate-700/60">
+                  <span>Enter {s.name} Portal</span>
                   <ChevronDown className="w-4 h-4 -rotate-90 group-hover:translate-x-1 transition-transform" />
                 </div>
               </button>
@@ -3625,10 +3641,14 @@ function ShopsList() {
 // ─── Root Export ─────────────────────────────────────────────────────────────
 export function CustomerStorefront() {
   const { shopId } = useParams();
-  if (!shopId) return <ShopsList />;
+  const { user } = useUser();
+
+  const activeShopId = shopId || (user?.shopId ? String(user.shopId) : null);
+  if (!activeShopId) return <ShopsList />;
+
   return (
-    <CustomerAuthProvider shopId={shopId}>
-      <StoreContent shopId={shopId} />
+    <CustomerAuthProvider shopId={activeShopId}>
+      <StoreContent shopId={activeShopId} />
     </CustomerAuthProvider>
   );
 }

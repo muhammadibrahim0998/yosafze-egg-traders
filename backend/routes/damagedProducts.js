@@ -1,5 +1,6 @@
 import express from 'express';
 import DamagedProduct from '../models/DamagedProduct.js';
+import { resolveShopId } from '../utils/shopResolver.js';
 
 const router = express.Router();
 
@@ -7,7 +8,8 @@ const router = express.Router();
 router.get('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
-    const records = await DamagedProduct.find({ shopId }).sort({ damageDate: -1 });
+    const realShopId = await resolveShopId(shopId);
+    const records = await DamagedProduct.find({ shopId: realShopId }).sort({ damageDate: -1 });
     res.json({ success: true, count: records.length, data: records });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -18,6 +20,7 @@ router.get('/shop/:shopId', async (req, res) => {
 router.post('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
+    const realShopId = await resolveShopId(shopId);
     const { productName, productId, quantity, unitPrice, totalLoss, reason, damageDate, notes, reportedBy } = req.body;
 
     if (!productName || !quantity) {
@@ -29,7 +32,7 @@ router.post('/shop/:shopId', async (req, res) => {
     const loss = totalLoss !== undefined ? Number(totalLoss) : (qty * price);
 
     const newRecord = new DamagedProduct({
-      shopId,
+      shopId: realShopId,
       productName,
       productId: productId || '',
       quantity: qty,

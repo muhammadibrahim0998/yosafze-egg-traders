@@ -459,7 +459,10 @@ export function SuperAdminDashboard() {
                                             </span>
                                             {/* Card Action Overlay */}
                                             <div className="absolute top-0 right-0 flex items-center gap-1.5 opacity-0 group-hover/card:opacity-100 transition-all scale-75 group-hover/card:scale-100 origin-right">
-                                                <button onClick={() => { setSelectedShopFilter(shop._id); setActiveTab('orders'); }} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1" title="Inspect & Approve EasyPaisa Orders">
+                                                <button onClick={() => window.open(`/shop/${shop._id}`, '_blank')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Open Branch Admin Portal">
+                                                    <Store className="w-3.5 h-3.5" /> Open Store Portal
+                                                </button>
+                                                <button onClick={() => { setSelectedShopFilter(shop._id); setActiveTab('orders'); }} className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1" title="Inspect & Approve EasyPaisa Orders">
                                                     <Truck className="w-3.5 h-3.5" /> Approve Orders
                                                 </button>
                                                 <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-white text-zinc-400 hover:text-green-600 rounded-xl border border-zinc-100 shadow-sm transition-all" title="View Details"><Eye className="w-4 h-4" /></button>
@@ -468,7 +471,14 @@ export function SuperAdminDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    <h4 className="text-xl font-black text-zinc-900 mb-2 truncate tracking-tight uppercase group-hover/card:text-green-600 transition-colors">{shop.name}</h4>
+                                    <h4
+                                        onClick={() => window.open(`/shop/${shop._id}`, '_blank')}
+                                        className="text-xl font-black text-zinc-900 mb-2 truncate tracking-tight uppercase group-hover/card:text-green-600 transition-colors cursor-pointer flex items-center justify-between"
+                                        title="Click to Open Store Portal"
+                                    >
+                                        <span>{shop.name}</span>
+                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Open Portal ↗</span>
+                                    </h4>
                                     <p className="text-[11px] font-black text-zinc-400 truncate tracking-[0.1em] uppercase">{shop.address || "Global Access"}</p>
                                 </div>
                             ))}
@@ -612,6 +622,9 @@ export function SuperAdminDashboard() {
                                                     {shop.status}
                                                 </span>
                                                 <div className="flex items-center gap-2 opacity-0 group-hover/shop:opacity-100 absolute right-5 transition-all translate-x-4 group-hover/shop:translate-x-0">
+                                                    <button onClick={() => window.open(`/shop/${shop._id}`, '_blank')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Open Store Portal">
+                                                        <Store className="w-3.5 h-3.5" /> Open Portal
+                                                    </button>
                                                     <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-100" title="View Details"><Eye className="w-4 h-4" /></button>
                                                     <button onClick={() => startEdit(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all border border-zinc-100" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
                                                     <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-zinc-100" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>

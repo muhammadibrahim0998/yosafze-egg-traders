@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename);
 
 import Settings from '../models/Settings.js';
 import { authenticate, requireShopAdmin, preventSuperAdmin } from '../middleware/auth.js';
+import { resolveShopId } from '../utils/shopResolver.js';
 
 // Helper to verify Owner Password (Anti-Theft)
 // We now use `authenticate` and `requireShopAdmin` standard RBAC for powerful actions
@@ -57,7 +58,8 @@ router.get('/all', authenticate, async (req, res) => {
 // Get all sales (shop admin - their shop only)
 router.get('/', authenticate, requireShopAdmin, async (req, res) => {
   try {
-    const targetShopId = req.user.shopId || req.query.shopId;
+    const rawShopId = req.query.shopId || req.user.shopId;
+    const targetShopId = await resolveShopId(rawShopId);
     const filter = targetShopId ? { shopId: targetShopId } : {};
     const sales = await Sale.find(filter).sort({ saleDate: -1 });
     res.json(sales);
@@ -69,7 +71,8 @@ router.get('/', authenticate, requireShopAdmin, async (req, res) => {
 // Create a new sale
 router.post('/', authenticate, requireShopAdmin, async (req, res) => {
   const { items, totalAmount, totalProfit, cashierName, customerName, shopId } = req.body;
-  const targetShopId = req.user.shopId || shopId;
+  const rawShopId = req.user.shopId || shopId;
+  const targetShopId = await resolveShopId(rawShopId);
   
   try {
     if (!targetShopId) {

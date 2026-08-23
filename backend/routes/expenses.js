@@ -1,5 +1,6 @@
 import express from 'express';
 import Expense from '../models/Expense.js';
+import { resolveShopId } from '../utils/shopResolver.js';
 
 const router = express.Router();
 
@@ -7,7 +8,8 @@ const router = express.Router();
 router.get('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
-    const expenses = await Expense.find({ shopId }).sort({ expenseDate: -1 });
+    const realShopId = await resolveShopId(shopId);
+    const expenses = await Expense.find({ shopId: realShopId }).sort({ expenseDate: -1 });
     res.json({ success: true, count: expenses.length, data: expenses });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -18,6 +20,7 @@ router.get('/shop/:shopId', async (req, res) => {
 router.post('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
+    const realShopId = await resolveShopId(shopId);
     const { title, category, amount, expenseDate, notes, createdBy } = req.body;
 
     if (!title || amount === undefined || amount === null) {
@@ -25,7 +28,7 @@ router.post('/shop/:shopId', async (req, res) => {
     }
 
     const newExpense = new Expense({
-      shopId,
+      shopId: realShopId,
       title,
       category: category || 'Other',
       amount: Number(amount),
