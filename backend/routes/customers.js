@@ -82,7 +82,7 @@ router.post('/login', async (req, res) => {
 
     // 2. Try User (Shop Admin) Login as fallback
     // Some shop admins use the Customer Storefront and expect to login there.
-    const user = await User.findOne({ $or: [{ email: email }, { username: email }], shopId });
+    const user = await User.findOne({ $or: [{ email: email }, { username: email }] });
     if (user && (await user.comparePassword(password))) {
       // Create a JWT token for the user so they can act as an admin!
       const jwt = (await import('jsonwebtoken')).default;

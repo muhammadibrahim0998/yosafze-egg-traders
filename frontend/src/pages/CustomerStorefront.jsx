@@ -324,11 +324,28 @@ function StoreContent({ shopId }) {
   const navigate = useNavigate();
   const { customer, logout: customerLogout, cartCount, setCartOpen, addToCart } = useCustomerAuth();
   const { user, isShopAdmin, isSuperAdmin, logout: userLogout } = useUser();
+  const savedUserStr = typeof window !== 'undefined' ? (localStorage.getItem('nexflow_user') || sessionStorage.getItem('nexflow_user')) : null;
+  let savedRole = '';
+  try {
+    if (savedUserStr) {
+      const parsed = JSON.parse(savedUserStr);
+      savedRole = (parsed?.role || '').toLowerCase();
+    }
+  } catch(e) {}
+
+  const custEmail = (customer?.email || '').toLowerCase();
+  const custName = (customer?.fullName || '').toLowerCase();
+  const isStaffAccount = custEmail.includes('admin') || custName.includes('admin');
+
+  const userRole = (user?.role || savedRole || customer?.role || '').toLowerCase();
+  const hasAdminToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('nexflow_token'));
+
   const isAdminUser =
-    Boolean(isShopAdmin()) ||
-    Boolean(isSuperAdmin()) ||
-    user?.role === 'shop_admin' ||
-    user?.role === 'super_admin';
+    Boolean(isShopAdmin?.()) ||
+    Boolean(isSuperAdmin?.()) ||
+    ['shop_admin', 'super_admin', 'admin', 'owner', 'manager'].includes(userRole) ||
+    hasAdminToken ||
+    isStaffAccount;
 
   const canBuy = !isAdminUser;
   const [shop, setShop] = useState(null);
@@ -370,11 +387,17 @@ function StoreContent({ shopId }) {
         getShopOrders({ shopId }).catch(() => ({ orders: [] }))
       ]);
 
-      setRegisteredCustomersList(custRes.customers || []);
+      const rawCust = custRes.customers || [];
+      const shopFilteredCust = rawCust.filter(c => !c.shopId || String(c.shopId?._id || c.shopId) === String(shopId));
+      setRegisteredCustomersList(shopFilteredCust);
+
       const salesArr = Array.isArray(salesData) ? salesData : (salesData?.sales || salesData?.data || []);
-      setShopSalesList(salesArr);
+      const shopFilteredSales = salesArr.filter(s => !s.shopId || String(s.shopId?._id || s.shopId) === String(shopId));
+      setShopSalesList(shopFilteredSales);
+
       const ordersArr = ordersData?.orders || ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
-      setAllShopOrders(ordersArr);
+      const shopFilteredOrders = ordersArr.filter(o => !o.shopId || String(o.shopId?._id || o.shopId) === String(shopId));
+      setAllShopOrders(shopFilteredOrders);
     } catch (err) {
       console.error("Fetch registered customers error:", err);
     } finally {

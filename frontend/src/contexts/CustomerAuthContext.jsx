@@ -44,14 +44,13 @@ export function CustomerAuthProvider({ shopId, children }) {
     // If a staff member (Shop Admin) logs into the customer portal
     if (data.token && data.role !== 'customer') {
       localStorage.setItem('nexflow_token', data.token);
-      window.location.replace('/');
-      return data;
     }
 
     const customerData = {
       customerId: data.customerId,
       fullName: data.fullName,
-      email: data.email
+      email: data.email,
+      role: data.role || 'customer'
     };
     setCustomer(customerData);
     setCart(data.cart || []);
