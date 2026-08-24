@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle
+  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
@@ -325,15 +325,10 @@ function StoreContent({ shopId }) {
   const { customer, logout: customerLogout, cartCount, setCartOpen, addToCart } = useCustomerAuth();
   const { user, isShopAdmin, isSuperAdmin, logout: userLogout } = useUser();
   const isAdminUser =
-    isShopAdmin() ||
-    isSuperAdmin() ||
+    Boolean(isShopAdmin()) ||
+    Boolean(isSuperAdmin()) ||
     user?.role === 'shop_admin' ||
-    user?.role === 'super_admin' ||
-    customer?.role === 'shop_admin' ||
-    customer?.role === 'super_admin' ||
-    Boolean(customer?.fullName && customer.fullName.toLowerCase().includes('admin')) ||
-    Boolean(customer?.email && customer.email.toLowerCase().includes('admin')) ||
-    Boolean(localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token'));
+    user?.role === 'super_admin';
 
   const canBuy = !isAdminUser;
   const [shop, setShop] = useState(null);
@@ -852,6 +847,145 @@ function StoreContent({ shopId }) {
           </div>
           <div class="footer">
             <div class="sign">Manager Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  const handleExportExcelReport = (timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Peshawar Shop';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let salesVal = dashStats.totalRevenue;
+    let profitVal = dashStats.totalProfit;
+    let lossVal = dashStats.totalLoss;
+
+    if (timeframe === 'DAY') {
+      salesVal = dashStats.todaySales;
+      profitVal = dashStats.todayProfit || 0;
+      lossVal = dashStats.todayLoss || 0;
+    } else if (timeframe === 'MONTH') {
+      salesVal = dashStats.monthlySales;
+      profitVal = dashStats.monthlyProfit || 0;
+      lossVal = dashStats.monthlyLoss || 0;
+    } else if (timeframe === 'YEAR') {
+      salesVal = dashStats.yearlySales;
+      profitVal = dashStats.yearlyProfit || 0;
+      lossVal = dashStats.yearlyLoss || 0;
+    }
+
+    const netVal = profitVal - lossVal;
+    const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+
+    let csvRows = [];
+    csvRows.push([`"YOSAFZE EGG TRADERS - FINANCIAL REPORT"`]);
+    csvRows.push([`"Store Branch"`, `"${shopName}"`]);
+    csvRows.push([`"Report Period"`, `"${timeLabel}"`]);
+    csvRows.push([`"Generated Date"`, `"${dateStr}"`]);
+    csvRows.push([`"Shop ID"`, `"${shopId}"`]);
+    csvRows.push([]); // Blank row
+    csvRows.push([`"Financial Metric"`, `"Amount (RS)"`]);
+    csvRows.push([`"Gross Sales Revenue"`, salesVal]);
+    csvRows.push([`"Total Net Profit Earned"`, profitVal]);
+    csvRows.push([`"Total Expenses & Returns Losses"`, lossVal]);
+    csvRows.push([`"Net Liquidity / Final Balance"`, netVal]);
+    csvRows.push([]);
+    csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
+
+    const csvString = csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_Financial_Report_${timeframe}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintCustomerSingleRecord = (sale) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const customerName = sale.customerName || 'Walk-in Customer';
+    const customerPhone = sale.customerPhone || '';
+    const saleDate = new Date(sale.saleDate || sale.createdAt).toLocaleString();
+    const totalAmount = sale.totalAmount || 0;
+    const items = sale.items || [];
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print the customer record');
+      return;
+    }
+
+    let itemsHtml = items.map((item, idx) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold;">${item.name}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#059669;">${item.quantity}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right;">RS ${(item.price || 0).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold;">RS ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Customer Bill Statement - ${customerName}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 15px; margin-bottom: 25px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 24px; font-weight: 900; }
+            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 20px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; padding: 10px; border: 1px solid #cbd5e1; text-align: left; }
+            .total-bar { margin-top: 20px; padding: 15px 20px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 12px; display: flex; justify-content: space-between; font-weight: 900; font-size: 16px; color: #047857; }
+            .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 200px; text-align: center; padding-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${shopName}</h1>
+            <p>Customer Sales Record & Bill Statement</p>
+          </div>
+          <div class="meta">
+            <div>
+              <span style="color:#059669; text-transform:uppercase;">Customer Name:</span> <strong style="font-size:14px;">${customerName}</strong><br/>
+              ${customerPhone ? `<span style="color:#475569;">Phone / Contact: ${customerPhone}</span>` : ''}
+            </div>
+            <div style="text-align:right;">
+              <span>Date: ${saleDate}</span><br/>
+              <span>Invoice ID: #${(sale._id || '').slice(-8).toUpperCase()}</span>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center;">#</th>
+                <th>Item Description</th>
+                <th style="text-align:center;">Qty</th>
+                <th style="text-align:right;">Unit Price</th>
+                <th style="text-align:right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div class="total-bar">
+            <span>GRAND TOTAL AMOUNT PAID:</span>
+            <span>RS ${totalAmount.toLocaleString('en-PK')}</span>
+          </div>
+          <div class="footer">
+            <div class="sign">Customer Signature</div>
             <div class="sign">Yosafze Egg Traders Stamp</div>
           </div>
           <script>
@@ -1407,22 +1541,24 @@ function StoreContent({ shopId }) {
           {/* Navigation Links */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-2 space-y-6">
 
-            {/* Dashboard Link */}
-            <div>
-              <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Overview</p>
-              <div className="space-y-1">
-                <button
-                  onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'dashboard'
-                    ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                    : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
-                    }`}
-                >
-                  <LayoutDashboard className="w-5 h-5 text-white" />
-                  <span>Dashboard</span>
-                </button>
+            {/* Dashboard Link - Admin Only */}
+            {isAdminUser && (
+              <div>
+                <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Overview</p>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'dashboard'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <LayoutDashboard className="w-5 h-5 text-white" />
+                    <span>Dashboard</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Shop Admin POS & Sales Section */}
             {isAdminUser && (
@@ -1863,18 +1999,41 @@ function StoreContent({ shopId }) {
                             Showing <span className="font-black text-zinc-800">{reportTimeframe}</span> report summary for {shop?.name || 'Shop'}.
                           </div>
 
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handlePrintSummaryReport(reportTimeframe)}
-                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg hover:shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-2"
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Direct Print Report"
                             >
-                              <Printer className="w-4 h-4" /> Print / Download {reportTimeframe} Report
+                              <Printer className="w-4 h-4" /> Print
+                            </button>
+                            <button
+                              onClick={() => handlePrintSummaryReport(reportTimeframe)}
+                              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-rose-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Save Report as PDF"
+                            >
+                              <FileText className="w-4 h-4" /> Save PDF
+                            </button>
+                            <button
+                              onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
+                              className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-emerald-700/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Share Financial Summary on WhatsApp"
+                            >
+                              <Send className="w-4 h-4" /> WhatsApp
+                            </button>
+                            <button
+                              onClick={() => handleExportExcelReport(reportTimeframe)}
+                              className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-green-700/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Export Financial Report to Excel"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" /> Generate Excel
                             </button>
                             <button
                               onClick={() => handlePrintSummaryReport('ALL')}
-                              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center gap-2"
+                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Print All-Time Cumulative Summary"
                             >
-                              <FileText className="w-4 h-4" /> Print All-Time Total Summary
+                              <FileText className="w-4 h-4" /> All-Time Summary
                             </button>
                           </div>
                         </div>
@@ -2412,12 +2571,20 @@ function StoreContent({ shopId }) {
                                 <td className="p-4 text-right font-black text-emerald-400 text-sm">
                                   {currency} {(sale.totalAmount || 0).toLocaleString()}
                                 </td>
-                                <td className="p-4 text-center">
+                                <td className="p-4 text-center flex items-center justify-center gap-2">
                                   <button
                                     onClick={() => setCompletedBill(sale)}
-                                    className="px-3 py-1.5 bg-slate-800 hover:bg-emerald-800 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider border border-slate-700 transition-all flex items-center gap-1.5 mx-auto"
+                                    className="px-3 py-1.5 bg-slate-800 hover:bg-emerald-800 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider border border-slate-700 transition-all flex items-center gap-1.5"
+                                    title="View Bill (PDF, WhatsApp, Print)"
                                   >
                                     <Receipt className="w-3.5 h-3.5" /> View Bill
+                                  </button>
+                                  <button
+                                    onClick={() => handlePrintCustomerSingleRecord(sale)}
+                                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                                    title="Direct Print Single Customer Record"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" /> Print Record
                                   </button>
                                 </td>
                               </tr>
@@ -2450,18 +2617,24 @@ function StoreContent({ shopId }) {
                         View itemized gross sales filtered strictly by Days (Today), Months, Years, or All-Time.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
                         <Printer className="w-4 h-4" /> Print PDF Report
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
                       >
                         <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleExportExcelReport(reportTimeframe)}
+                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
                       </button>
                     </div>
                   </div>
@@ -2513,18 +2686,24 @@ function StoreContent({ shopId }) {
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
-                          Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleExportExcelReport(reportTimeframe)}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
                         </button>
                       </div>
                     </div>
@@ -3532,7 +3711,6 @@ function StoreContent({ shopId }) {
                   className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
                 ></textarea>
               </div>
-
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
                 <button
                   type="button"
@@ -3569,60 +3747,87 @@ function ShopsList() {
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white flex flex-col justify-center items-center p-4 sm:p-6 selection:bg-emerald-500/30 relative overflow-hidden">
-      <div className="max-w-4xl w-full z-10 py-12">
-        <div className="text-center mb-12 space-y-3">
-          <div className="inline-flex p-2 bg-white rounded-[2rem] mb-2 shadow-2xl">
-            <img src={companyLogo} alt="Attock Shop" className="h-20 w-auto object-contain drop-shadow-xl" />
+      {/* Background Decorative Glow */}
+      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-slate-800/40 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="max-w-5xl w-full z-10 py-6 sm:py-10">
+        {/* Top Header Navigation with Back Button */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 text-xs font-black text-emerald-400 hover:text-emerald-300 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer group"
+          >
+            <ArrowLeft className="w-4 h-4 text-emerald-400 group-hover:-translate-x-1 transition-transform" />
+            <span className="uppercase tracking-wider">Back to SuperAdmin</span>
+          </button>
+        </div>
+
+        <div className="text-center mb-8 space-y-2">
+          <div className="inline-flex p-2 bg-white rounded-2xl mb-1 shadow-xl">
+            <img src={companyLogo} alt="Yosafze Egg Traders" className="h-14 sm:h-16 w-auto object-contain drop-shadow-md" />
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white uppercase italic">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white uppercase italic">
             YOSAFZE EGG TRADERS
           </h1>
-          <p className="text-emerald-400 font-black uppercase tracking-[0.3em] text-xs">
+          <p className="text-emerald-400 font-black uppercase tracking-[0.25em] text-[11px]">
             Multi-Branch Portal (Peshawar, Attock, Mardan & All Branches)
           </p>
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-12 h-12 rounded-full border-4 border-emerald-400 border-t-transparent animate-spin" />
+          <div className="flex justify-center py-16">
+            <div className="w-10 h-10 rounded-full border-4 border-emerald-400 border-t-transparent animate-spin" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {allShops.map((s, idx) => (
               <button
                 key={s._id}
                 onClick={() => navigate(`/shop/${s._id}`)}
-                className="group bg-[#1E293B] hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-[2rem] p-7 text-left transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl relative overflow-hidden"
+                className="group bg-[#1E293B]/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/70 rounded-2xl p-4 sm:p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10 relative overflow-hidden flex flex-col justify-between"
               >
-                <div className="absolute top-4 right-4 bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  Branch #{idx + 1}
-                </div>
-                <div className="flex items-center gap-5 mb-3">
-                  <div className="p-4 bg-white rounded-2xl group-hover:scale-110 transition-transform shadow-md">
-                    {s.logoUrl ? (
-                      <img src={s.logoUrl} alt={s.name} className="w-10 h-10 object-contain rounded-xl" />
-                    ) : (
-                      <img src={companyLogo} alt="Yosafze Egg Traders" className="w-10 h-10 object-contain rounded-xl" />
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="p-2.5 bg-white rounded-xl group-hover:scale-105 transition-transform shadow-md flex-shrink-0">
+                      {s.logoUrl ? (
+                        <img src={s.logoUrl} alt={s.name} className="w-7 h-7 object-contain rounded-lg" />
+                      ) : (
+                        <img src={companyLogo} alt="Yosafze Egg Traders" className="w-7 h-7 object-contain rounded-lg" />
+                      )}
+                    </div>
+                    <div className="bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Branch #{idx + 1}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h2 className="text-base font-black text-white tracking-tight uppercase italic group-hover:text-emerald-300 transition-colors line-clamp-1">
+                      {s.name}
+                    </h2>
+                    {s.address && (
+                      <p className="text-slate-400 text-[11px] font-semibold mt-0.5 uppercase tracking-wider line-clamp-1">
+                        {s.address}
+                      </p>
                     )}
                   </div>
-                  <div>
-                    <h2 className="text-xl font-black text-white tracking-tight uppercase italic group-hover:text-emerald-300 transition-colors">{s.name}</h2>
-                    {s.address && <p className="text-slate-400 text-xs font-bold mt-0.5 uppercase tracking-wider">{s.address}</p>}
+
+                  <div className="space-y-1 mb-4 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                      <span className="text-emerald-400 font-mono text-[9px] uppercase">Unique ID</span>
+                      <span className="font-mono text-white text-[9px] truncate max-w-[140px]">{s._id}</span>
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                      <span className="text-slate-500 text-[9px] uppercase">Shortcut</span>
+                      <span className="text-amber-300 font-mono text-[9px]">/shop/{idx + 1}</span>
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-1 mb-4">
-                  <p className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                    <span className="text-emerald-400 font-mono">Unique ID:</span>
-                    <span className="font-mono text-white text-[10px] bg-slate-900 px-2 py-0.5 rounded border border-slate-700/80">{s._id}</span>
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-500">
-                    Shortcut URL: <span className="text-amber-300 font-mono">/shop/{idx + 1}</span>
-                  </p>
-                </div>
-                <div className="flex items-center justify-between text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] pt-4 border-t border-slate-700/60">
-                  <span>Enter {s.name} Portal</span>
-                  <ChevronDown className="w-4 h-4 -rotate-90 group-hover:translate-x-1 transition-transform" />
+
+                <div className="flex items-center justify-between text-emerald-400 text-[10px] font-black uppercase tracking-wider pt-2.5 border-t border-slate-700/60 mt-auto">
+                  <span>Enter Portal</span>
+                  <ChevronDown className="w-3.5 h-3.5 -rotate-90 group-hover:translate-x-1 transition-transform" />
                 </div>
               </button>
             ))}

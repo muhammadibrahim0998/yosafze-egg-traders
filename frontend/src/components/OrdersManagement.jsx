@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Package, Eye, Trash2, CheckCircle2, Clock, X, RefreshCw,
+  Package, Eye, Trash2, CheckCircle2, Clock, X, RefreshCw, Printer,
   Truck, Home, XCircle, CreditCard, MapPin, Phone, User as UserIcon
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
@@ -95,6 +95,96 @@ export function OrdersManagement() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handlePrintSingleOrder = (ord) => {
+    const customerName = ord.customerId?.fullName || ord.shippingDetails?.fullName || 'Registered Customer';
+    const customerPhone = ord.shippingDetails?.phone || ord.customerId?.phone || '';
+    const orderDate = new Date(ord.createdAt).toLocaleString();
+    const totalAmount = ord.totalAmount || 0;
+    const items = ord.items || [];
+    const paymentMethod = ord.paymentMethod || 'ONLINE';
+    const paymentStatus = ord.paymentStatus || 'PENDING';
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print the customer order record');
+      return;
+    }
+
+    let itemsHtml = items.map((item, idx) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold;">${item.name}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#059669;">${item.quantity}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right;">RS ${(item.price || 0).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold;">RS ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Customer Order Receipt - ${customerName}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 15px; margin-bottom: 25px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 24px; font-weight: 900; }
+            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 20px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; padding: 10px; border: 1px solid #cbd5e1; text-align: left; }
+            .total-bar { margin-top: 20px; padding: 15px 20px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 12px; display: flex; justify-content: space-between; font-weight: 900; font-size: 16px; color: #047857; }
+            .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 200px; text-align: center; padding-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>YOSAFZE EGG TRADERS</h1>
+            <p>Registered Customer Order Receipt</p>
+          </div>
+          <div class="meta">
+            <div>
+              <span style="color:#059669; text-transform:uppercase;">Customer Name:</span> <strong style="font-size:14px;">${customerName}</strong><br/>
+              ${customerPhone ? `<span>Phone: ${customerPhone}</span><br/>` : ''}
+              <span>Payment Method: <strong>${paymentMethod}</strong> (${paymentStatus})</span>
+            </div>
+            <div style="text-align:right;">
+              <span>Order Date: ${orderDate}</span><br/>
+              <span>Order ID: #${(ord._id || '').slice(-8).toUpperCase()}</span>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center;">#</th>
+                <th>Item Description</th>
+                <th style="text-align:center;">Qty</th>
+                <th style="text-align:right;">Unit Price</th>
+                <th style="text-align:right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div class="total-bar">
+            <span>TOTAL ORDER AMOUNT:</span>
+            <span>RS ${totalAmount.toLocaleString('en-PK')}</span>
+          </div>
+          <div class="footer">
+            <div class="sign">Customer Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   return (
@@ -244,6 +334,13 @@ export function OrdersManagement() {
                       <Trash2 className="w-3.5 h-3.5" /> Delete Screenshot
                     </button>
                   )}
+                  <button
+                    onClick={() => handlePrintSingleOrder(ord)}
+                    className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500/40 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Print Single Customer Order Record"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Print Order Record
+                  </button>
                   <button
                     onClick={() => setDeleteTarget(ord)}
                     disabled={busyId === ord._id}
