@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet
+  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
@@ -19,7 +19,7 @@ import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal.j
 import WalkInBillModal from '../components/WalkInBillModal.jsx';
 import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders } from '../services/api.js';
 
 const API_CATALOG = '/api/catalog';
 
@@ -356,6 +356,280 @@ function StoreContent({ shopId }) {
   const [isProcessingWalkIn, setIsProcessingWalkIn] = useState(false);
   const [shopSalesList, setShopSalesList] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
+  const [registeredCustomersList, setRegisteredCustomersList] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [allShopOrders, setAllShopOrders] = useState([]);
+
+  const fetchRegisteredCustomers = async () => {
+    if (!shopId) return;
+    setLoadingCustomers(true);
+    try {
+      const [custRes, salesData, ordersData] = await Promise.all([
+        fetch(`/api/customers/all?shopId=${shopId}`).then(r => r.ok ? r.json() : { customers: [] }),
+        getSales(shopId).catch(() => []),
+        getShopOrders({ shopId }).catch(() => ({ orders: [] }))
+      ]);
+
+      setRegisteredCustomersList(custRes.customers || []);
+      const salesArr = Array.isArray(salesData) ? salesData : (salesData?.sales || salesData?.data || []);
+      setShopSalesList(salesArr);
+      const ordersArr = ordersData?.orders || ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
+      setAllShopOrders(ordersArr);
+    } catch (err) {
+      console.error("Fetch registered customers error:", err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  const getCustomerStats = (cust) => {
+    const custId = String(cust._id || '').toLowerCase();
+    const name = (cust.fullName || cust.name || '').toLowerCase().trim();
+    const email = (cust.email || '').toLowerCase().trim();
+    const phone = (cust.phone || '').trim().replace(/\D/g, '');
+
+    const matchingSales = shopSalesList.filter(s => {
+      const sId = String(s.customerId || s.user || s.userId || '').toLowerCase();
+      const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
+      const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
+      const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+
+      if (custId && sId && custId === sId) return true;
+      if (email && cEmail && (email === cEmail || cEmail.includes(email) || email.includes(cEmail))) return true;
+      if (name && cName && (cName === name || cName.includes(name) || name.includes(cName))) return true;
+      if (phone && cPhone && phone.length >= 7 && cPhone.length >= 7 && (cPhone.includes(phone) || phone.includes(cPhone))) return true;
+      return false;
+    });
+
+    const matchingOrders = allShopOrders.filter(o => {
+      const oCustId = String(o.customerId || o.user || o.userId || '').toLowerCase();
+      const shipName = (o.shippingDetails?.fullName || o.shippingDetails?.name || o.customerName || o.fullName || '').toLowerCase().trim();
+      const shipEmail = (o.shippingDetails?.email || o.email || o.customerEmail || '').toLowerCase().trim();
+      const shipPhone = (o.shippingDetails?.phone || o.phone || o.customerPhone || '').trim().replace(/\D/g, '');
+
+      if (custId && oCustId && custId === oCustId) return true;
+      if (email && shipEmail && (email === shipEmail || shipEmail.includes(email) || email.includes(shipEmail))) return true;
+      if (name && shipName && (shipName === name || shipName.includes(name) || name.includes(shipName))) return true;
+      if (phone && shipPhone && phone.length >= 7 && shipPhone.length >= 7 && (shipPhone.includes(phone) || phone.includes(shipPhone))) return true;
+      return false;
+    });
+
+    const salesTotal = matchingSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const ordersTotal = matchingOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.grandTotal) || 0), 0);
+
+    const totalSpent = salesTotal + ordersTotal;
+    const ordersCount = matchingSales.length + matchingOrders.length;
+
+    const combinedHistory = [
+      ...matchingSales.map(s => ({
+        date: s.saleDate || s.createdAt,
+        items: (s.items || []).map(i => `${i.name} (${i.quantity})`).join(', '),
+        amount: Number(s.totalAmount) || 0,
+        type: 'POS Sale'
+      })),
+      ...matchingOrders.map(o => ({
+        date: o.createdAt || o.orderDate,
+        items: (o.items || []).map(i => `${i.name || i.title} (${i.quantity})`).join(', '),
+        amount: Number(o.totalAmount || o.grandTotal) || 0,
+        type: 'Online Order'
+      }))
+    ];
+
+    return { totalSpent, ordersCount, matchingSales, matchingOrders, combinedHistory };
+  };
+
+  const handleWhatsAppCustomerShare = (cust) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const name = cust.fullName || 'Registered Customer';
+    const phone = cust.phone || '';
+    const { totalSpent, ordersCount, matchingSales } = getCustomerStats(cust);
+
+    let text = `📄 *CUSTOMER ACCOUNT STATEMENT - ${shopName.toUpperCase()}*\n`;
+    text += `👤 *Customer Name:* ${name}\n`;
+    text += `📧 *Email:* ${cust.email || 'N/A'}\n`;
+    if (phone) text += `📞 *Phone:* ${phone}\n`;
+    text += `-----------------------------------\n`;
+    text += `📊 *Total Orders:* ${ordersCount}\n`;
+    text += `💰 *Total Shopping Spent:* RS ${totalSpent.toLocaleString('en-PK')}\n`;
+    text += `-----------------------------------\n`;
+
+    if (matchingSales.length > 0) {
+      text += `*PURCHASE BREAKDOWN:*\n`;
+      matchingSales.forEach((s, idx) => {
+        const dateStr = new Date(s.saleDate || s.createdAt).toLocaleDateString('en-PK');
+        text += `${idx + 1}. ${dateStr} - ${(s.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')} = RS ${(s.totalAmount || 0).toLocaleString('en-PK')}\n`;
+      });
+    } else {
+      text += `_No purchase history recorded yet._\n`;
+    }
+
+    text += `\nThank you for shopping with ${shopName}!`;
+
+    const encodedText = encodeURIComponent(text);
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
+
+    const whatsappUrl = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+      : `https://api.whatsapp.com/send?text=${encodedText}`;
+
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleExportCustomerExcel = (cust) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const name = cust.fullName || 'Registered Customer';
+    const email = cust.email || 'N/A';
+    const phone = cust.phone || 'N/A';
+    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK');
+    const { totalSpent, ordersCount, matchingSales } = getCustomerStats(cust);
+
+    let csvRows = [];
+    csvRows.push([`"YOSAFZE EGG TRADERS - INDIVIDUAL CUSTOMER ACCOUNT STATEMENT"`]);
+    csvRows.push([`"Store Branch"`, `"${shopName}"`]);
+    csvRows.push([`"Customer Name"`, `"${name}"`]);
+    csvRows.push([`"Email Address"`, `"${email}"`]);
+    csvRows.push([`"Contact Phone"`, `"${phone}"`]);
+    csvRows.push([`"Registration Date"`, `"${regDate}"`]);
+    csvRows.push([`"Total Orders Placed"`, ordersCount]);
+    csvRows.push([`"Total Money Spent"`, `RS ${totalSpent}`]);
+    csvRows.push([]);
+    csvRows.push([`"#"`, `"Transaction Date"`, `"Items Purchased"`, `"Total Amount Paid (RS)"`]);
+
+    if (matchingSales.length > 0) {
+      matchingSales.forEach((s, idx) => {
+        const dateStr = new Date(s.saleDate || s.createdAt).toLocaleString();
+        const itemsText = (s.items || []).map(i => `${i.name} (${i.quantity})`).join('; ');
+        csvRows.push([idx + 1, `"${dateStr}"`, `"${itemsText}"`, s.totalAmount || 0]);
+      });
+    } else {
+      csvRows.push([1, `"N/A"`, `"No transaction history recorded yet"`, 0]);
+    }
+
+    csvRows.push([]);
+    csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
+
+    const csvString = csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${name.replace(/\s+/g, '_')}_Account_Statement.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintRegisteredCustomerRecord = (cust) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const name = cust.fullName || 'Registered Customer';
+    const email = cust.email || 'N/A';
+    const phone = cust.phone || 'N/A';
+    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const customerSales = shopSalesList.filter(s =>
+      (s.customerName && s.customerName.toLowerCase() === name.toLowerCase()) ||
+      (s.customerPhone && phone && phone !== 'N/A' && s.customerPhone.includes(phone))
+    );
+
+    const totalPurchased = customerSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print customer statement');
+      return;
+    }
+
+    let salesRows = customerSales.length > 0 ? customerSales.map((s, idx) => `
+      <tr>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1;">${new Date(s.saleDate || s.createdAt).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold;">${(s.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:#059669;">RS ${(s.totalAmount || 0).toLocaleString()}</td>
+      </tr>
+    `).join('') : `
+      <tr>
+        <td colspan="4" style="padding:20px; text-align:center; color:#64748b; font-weight:bold;">No transaction history recorded yet for this customer.</td>
+      </tr>
+    `;
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Customer Profile & Statement - ${name}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 15px; margin-bottom: 25px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 24px; font-weight: 900; }
+            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
+            .card-box { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 25px; font-size: 12px; }
+            .card-box label { font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 3px; }
+            .card-box span { font-weight: 800; color: #0f172a; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; padding: 10px; border: 1px solid #cbd5e1; text-align: left; }
+            .total-bar { margin-top: 20px; padding: 15px 20px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 12px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #047857; }
+            .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 200px; text-align: center; padding-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${shopName}</h1>
+            <p>REGISTERED CUSTOMER PROFILE & TRANSACTION STATEMENT</p>
+          </div>
+
+          <div class="card-box">
+            <div>
+              <label>Customer Full Name</label>
+              <span>${name}</span>
+            </div>
+            <div>
+              <label>Email Address</label>
+              <span>${email}</span>
+            </div>
+            <div>
+              <label>Contact Phone</label>
+              <span>${phone}</span>
+            </div>
+            <div>
+              <label>Registration Date</label>
+              <span>${regDate}</span>
+            </div>
+          </div>
+
+          <h3 style="font-size:13px; text-transform:uppercase; color:#334155; margin-bottom:10px;">Purchases & Transaction History</h3>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center;">#</th>
+                <th>Transaction Date</th>
+                <th>Items Purchased</th>
+                <th style="text-align:right;">Paid Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${salesRows}
+            </tbody>
+          </table>
+
+          <div class="total-bar">
+            <span>TOTAL PURCHASES AMOUNT:</span>
+            <span>RS ${totalPurchased.toLocaleString('en-PK')}</span>
+          </div>
+
+          <div class="footer">
+            <div class="sign">Customer Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
 
   const addToWalkInCart = (product) => {
     if ((product.stock || 0) <= 0) {
@@ -858,43 +1132,39 @@ function StoreContent({ shopId }) {
     printWin.document.close();
   };
 
-  const handleExportExcelReport = (timeframe = reportTimeframe) => {
+  const handleExportExcelReport = (type = 'sales', timeframe = reportTimeframe) => {
     const shopName = shop?.name || 'Peshawar Shop';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    let salesVal = dashStats.totalRevenue;
-    let profitVal = dashStats.totalProfit;
-    let lossVal = dashStats.totalLoss;
+    let title = 'Sales Revenue Report';
+    let val = dashStats.totalRevenue;
 
-    if (timeframe === 'DAY') {
-      salesVal = dashStats.todaySales;
-      profitVal = dashStats.todayProfit || 0;
-      lossVal = dashStats.todayLoss || 0;
-    } else if (timeframe === 'MONTH') {
-      salesVal = dashStats.monthlySales;
-      profitVal = dashStats.monthlyProfit || 0;
-      lossVal = dashStats.monthlyLoss || 0;
-    } else if (timeframe === 'YEAR') {
-      salesVal = dashStats.yearlySales;
-      profitVal = dashStats.yearlyProfit || 0;
-      lossVal = dashStats.yearlyLoss || 0;
+    if (type === 'sales') {
+      title = 'Sales Revenue Report';
+      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
+    } else if (type === 'profit') {
+      title = 'Net Profit Report';
+      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
+    } else if (type === 'expenses') {
+      title = 'Expenses & Loss Report';
+      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
+    } else if (type === 'damaged') {
+      title = 'Damaged Products Loss Report';
+      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
     }
 
-    const netVal = profitVal - lossVal;
     const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
 
     let csvRows = [];
-    csvRows.push([`"YOSAFZE EGG TRADERS - FINANCIAL REPORT"`]);
+    csvRows.push([`"YOSAFZE EGG TRADERS - ${title.toUpperCase()}"`]);
     csvRows.push([`"Store Branch"`, `"${shopName}"`]);
+    csvRows.push([`"Report Type"`, `"${title}"`]);
     csvRows.push([`"Report Period"`, `"${timeLabel}"`]);
     csvRows.push([`"Generated Date"`, `"${dateStr}"`]);
     csvRows.push([`"Shop ID"`, `"${shopId}"`]);
     csvRows.push([]); // Blank row
-    csvRows.push([`"Financial Metric"`, `"Amount (RS)"`]);
-    csvRows.push([`"Gross Sales Revenue"`, salesVal]);
-    csvRows.push([`"Total Net Profit Earned"`, profitVal]);
-    csvRows.push([`"Total Expenses & Returns Losses"`, lossVal]);
-    csvRows.push([`"Net Liquidity / Final Balance"`, netVal]);
+    csvRows.push([`"Report Category"`, `"Amount (RS)"`]);
+    csvRows.push([`"${title}"`, val]);
     csvRows.push([]);
     csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
 
@@ -903,7 +1173,7 @@ function StoreContent({ shopId }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_Financial_Report_${timeframe}.csv`);
+    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_${title.replace(/\s+/g, '_')}_${timeframe}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1596,6 +1866,17 @@ function StoreContent({ shopId }) {
                   >
                     <Truck className="w-5 h-5 text-emerald-400" />
                     <span className="truncate">EasyPaisa & Orders</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'registered-customers'
+                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
+                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                      }`}
+                  >
+                    <Users className="w-5 h-5 text-indigo-400" />
+                    <span className="truncate">Registered Customers</span>
                   </button>
 
                   <button
@@ -2604,6 +2885,128 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
+              {/* ─── REGISTERED CUSTOMERS DIRECTORY VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'registered-customers' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase tracking-widest mb-1">
+                        <Users className="w-4 h-4" /> Customer Management Directory
+                      </div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Registered Customers Directory</h2>
+                      <p className="text-slate-300 text-xs mt-1">
+                        View all customer accounts registered to this shop and print individual customer statement records.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={fetchRegisteredCustomers}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Refresh Customers List
+                    </button>
+                  </div>
+
+                  <div className="bg-[#1E293B] border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl">
+                    <div className="p-4 bg-slate-900/80 border-b border-slate-700/60 flex items-center justify-between">
+                      <h3 className="text-xs font-black text-white uppercase tracking-wider">All Registered Customer Accounts ({registeredCustomersList.length})</h3>
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{shop?.name || 'Shop'} Portal</span>
+                    </div>
+
+                    {loadingCustomers ? (
+                      <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                        Loading registered customers directory...
+                      </div>
+                    ) : registeredCustomersList.length === 0 ? (
+                      <div className="p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
+                        No registered customer accounts found for this shop yet
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs text-white">
+                          <thead className="bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                            <tr>
+                              <th className="p-4">Customer Name</th>
+                              <th className="p-4">Email Address</th>
+                              <th className="p-4">Phone / Contact</th>
+                              <th className="p-4">Total Shopping Spent</th>
+                              <th className="p-4">Orders Count</th>
+                              <th className="p-4">Registration Date</th>
+                              <th className="p-4 text-center">Actions & Export Options</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/80">
+                            {registeredCustomersList.map((cust, idx) => {
+                              const { totalSpent, ordersCount } = getCustomerStats(cust);
+                              return (
+                                <tr key={cust._id} className="hover:bg-slate-800/40 transition-colors">
+                                  <td className="p-4 font-black uppercase text-white flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-black text-xs shrink-0">
+                                      {(cust.fullName || 'C')[0].toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <span className="block font-black text-white">{cust.fullName}</span>
+                                      <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mt-0.5">
+                                        Customer #{idx + 1}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="p-4 font-bold text-slate-300">{cust.email}</td>
+                                  <td className="p-4 font-bold text-emerald-400">{cust.phone || '—'}</td>
+                                  <td className="p-4 font-black text-emerald-400 text-sm">
+                                    {currency} {totalSpent.toLocaleString('en-PK')}
+                                  </td>
+                                  <td className="p-4 font-black text-amber-300">
+                                    <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs">
+                                      {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 font-semibold text-slate-400">
+                                    {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                                      <button
+                                        onClick={() => handlePrintRegisteredCustomerRecord(cust)}
+                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                                        title="Print Customer Record"
+                                      >
+                                        <Printer className="w-3 h-3" /> Print
+                                      </button>
+                                      <button
+                                        onClick={() => handlePrintRegisteredCustomerRecord(cust)}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                                        title="Save PDF Statement"
+                                      >
+                                        <FileText className="w-3 h-3" /> PDF
+                                      </button>
+                                      <button
+                                        onClick={() => handleWhatsAppCustomerShare(cust)}
+                                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                                        title="Share Statement on WhatsApp"
+                                      >
+                                        <Send className="w-3 h-3" /> WhatsApp
+                                      </button>
+                                      <button
+                                        onClick={() => handleExportCustomerExcel(cust)}
+                                        className="px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                                        title="Export Customer Statement to Excel"
+                                      >
+                                        <FileSpreadsheet className="w-3 h-3" /> Excel
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-sales' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2769,18 +3172,24 @@ function StoreContent({ shopId }) {
                         View itemized profit earned filtered strictly by Days (Today), Months, Years, or All-Time.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                        className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
                         <Printer className="w-4 h-4" /> Print PDF Report
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
                       >
                         <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleExportExcelReport('profit', reportTimeframe)}
+                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
                       </button>
                     </div>
                   </div>
@@ -2832,18 +3241,24 @@ function StoreContent({ shopId }) {
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
-                          Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleExportExcelReport('profit', reportTimeframe)}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
                         </button>
                       </div>
                     </div>
@@ -2912,21 +3327,27 @@ function StoreContent({ shopId }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => setShowAddExpenseModal(true)}
-                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> + Add Manual Expense
+                        <Plus className="w-4 h-4" /> + Add Expense
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
-                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
                         <Printer className="w-4 h-4" /> Print PDF Report
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
                       >
                         <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleExportExcelReport('expenses', reportTimeframe)}
+                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
                       </button>
                     </div>
                   </div>
@@ -2978,7 +3399,7 @@ function StoreContent({ shopId }) {
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setShowAddExpenseModal(true)}
                           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
@@ -2987,15 +3408,21 @@ function StoreContent({ shopId }) {
                         </button>
                         <button
                           onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
-                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
-                          Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleExportExcelReport('expenses', reportTimeframe)}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
                         </button>
                       </div>
                     </div>
@@ -3147,21 +3574,27 @@ function StoreContent({ shopId }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => setShowAddDamagedModal(true)}
-                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> + Log Damaged Product
+                        <Plus className="w-4 h-4" /> + Log Damaged
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
-                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
                         <Printer className="w-4 h-4" /> Print PDF Report
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 border border-emerald-500/40"
+                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
                       >
                         <Send className="w-4 h-4" /> Share WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleExportExcelReport('damaged', reportTimeframe)}
+                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
                       </button>
                     </div>
                   </div>
@@ -3213,24 +3646,30 @@ function StoreContent({ shopId }) {
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setShowAddDamagedModal(true)}
                           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
                         >
-                          + Log Damaged Product
+                          + Log Damaged
                         </button>
                         <button
                           onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
-                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase rounded-xl shadow-md"
+                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
-                          Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5"
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleExportExcelReport('damaged', reportTimeframe)}
+                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
                         </button>
                       </div>
                     </div>
