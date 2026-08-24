@@ -55,12 +55,19 @@ router.get('/all', authenticate, async (req, res) => {
   }
 });
 
+import mongoose from 'mongoose';
+
 // Get all sales (shop admin - their shop only)
 router.get('/', authenticate, requireShopAdmin, async (req, res) => {
   try {
-    const rawShopId = req.query.shopId || req.user.shopId;
-    const targetShopId = await resolveShopId(rawShopId);
-    const filter = targetShopId ? { shopId: targetShopId } : {};
+    const rawShopId = req.query.shopId || (req.user && req.user.shopId);
+    let filter = {};
+    if (rawShopId) {
+      const targetShopId = await resolveShopId(rawShopId);
+      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+        filter = { shopId: targetShopId };
+      }
+    }
     const sales = await Sale.find(filter).sort({ saleDate: -1 });
     res.json(sales);
   } catch (err) {
@@ -87,6 +94,9 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
     }
 
     // 2. Create the sale record
+    const method = req.body.paymentMethod || 'CASH';
+    const isBank = method === 'BANK_TRANSFER' || method === 'EASYPAISA' || method === 'ONLINE';
+
     const sale = new Sale({
       shopId: targetShopId,
       items,
@@ -94,7 +104,11 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
       totalProfit,
       cashierName: cashierName || req.user.fullName || "Shop Admin",
       customerName: customerName || "Walk-in Customer",
-      customerPhone: req.body.customerPhone || ""
+      customerPhone: req.body.customerPhone || "",
+      paymentMethod: method,
+      paymentProof: req.body.paymentProof || "",
+      transactionId: req.body.transactionId || "",
+      approvalStatus: req.body.approvalStatus || (isBank ? 'PENDING_APPROVAL' : 'APPROVED')
     });
     
     // 3. Update stock for each item
@@ -277,6 +291,20 @@ router.delete('/:id', authenticate, preventSuperAdmin, verifyOwnerPassword, asyn
     }
 
     res.json({ message: 'Sale deleted and stock reversed' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Approve or Reject Bank Transfer Sale
+router.patch('/:id/approve', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { approvalStatus = 'APPROVED' } = req.body;
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) return res.status(404).json({ message: 'Sale not found' });
+    sale.approvalStatus = approvalStatus;
+    await sale.save();
+    res.json({ success: true, message: `Sale ${approvalStatus.toLowerCase()} successfully`, sale });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

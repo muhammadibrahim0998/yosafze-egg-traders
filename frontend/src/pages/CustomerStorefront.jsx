@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw
+  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
@@ -369,6 +369,10 @@ function StoreContent({ shopId }) {
   const [walkInCart, setWalkInCart] = useState([]);
   const [walkInCustomerName, setWalkInCustomerName] = useState('');
   const [walkInCustomerPhone, setWalkInCustomerPhone] = useState('');
+  const [walkInPaymentMethod, setWalkInPaymentMethod] = useState('CASH');
+  const [walkInTransactionId, setWalkInTransactionId] = useState('');
+  const [walkInPaymentProof, setWalkInPaymentProof] = useState('');
+  const [viewingReceiptModal, setViewingReceiptModal] = useState(null);
   const [completedBill, setCompletedBill] = useState(null);
   const [isProcessingWalkIn, setIsProcessingWalkIn] = useState(false);
   const [shopSalesList, setShopSalesList] = useState([]);
@@ -376,6 +380,38 @@ function StoreContent({ shopId }) {
   const [registeredCustomersList, setRegisteredCustomersList] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [allShopOrders, setAllShopOrders] = useState([]);
+
+  const handleReceiptUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setWalkInPaymentProof(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApproveSale = async (saleId) => {
+    try {
+      const token = localStorage.getItem('nexflow_token');
+      const res = await fetch(`/api/sales/${saleId}/approve`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ approvalStatus: 'APPROVED' })
+      });
+      if (res.ok) {
+        setAddedMsg('Bank Transfer Payment Approved!');
+        setTimeout(() => setAddedMsg(''), 3000);
+        fetchShopSales();
+        fetchDashboardStats();
+      }
+    } catch (err) {
+      console.error("Approve sale error:", err);
+    }
+  };
 
   const fetchRegisteredCustomers = async () => {
     if (!shopId) return;
@@ -737,7 +773,11 @@ function StoreContent({ shopId }) {
         totalProfit,
         cashierName: user?.fullName || 'Shop Admin',
         customerName: walkInCustomerName.trim() || 'Walk-in Customer',
-        customerPhone: walkInCustomerPhone.trim()
+        customerPhone: walkInCustomerPhone.trim(),
+        paymentMethod: walkInPaymentMethod,
+        transactionId: walkInTransactionId.trim(),
+        paymentProof: walkInPaymentProof,
+        approvalStatus: walkInPaymentMethod === 'BANK_TRANSFER' ? 'PENDING_APPROVAL' : 'APPROVED'
       };
 
       const created = await createSale(saleData);
@@ -751,6 +791,9 @@ function StoreContent({ shopId }) {
       setWalkInCart([]);
       setWalkInCustomerName('');
       setWalkInCustomerPhone('');
+      setWalkInPaymentMethod('CASH');
+      setWalkInTransactionId('');
+      setWalkInPaymentProof('');
       fetchCatalog();
       fetchDashboardStats();
       fetchShopSales();
@@ -2158,6 +2201,57 @@ function StoreContent({ shopId }) {
                         </div>
                       </div>
 
+                      {/* Bank Account Transfers vs Cash Revenue Breakdown */}
+                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-black text-zinc-700 uppercase tracking-widest flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-indigo-600" />
+                            Bank Account Transfers & Payment Methods Breakdown
+                          </h3>
+                          <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
+                            Approved Bank Revenue
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Approved Bank / EasyPaisa Transfers</span>
+                              <Building2 className="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <p className="text-2xl font-black text-indigo-600">
+                              {currency} {(
+                                shopSalesList.filter(s => (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'EASYPAISA' || s.paymentMethod === 'ONLINE') && s.approvalStatus === 'APPROVED').reduce((sum, s) => sum + (s.totalAmount || 0), 0) +
+                                allShopOrders.filter(o => o.paymentStatus === 'PAID').reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+                              ).toLocaleString('en-PK')}
+                            </p>
+                            <p className="text-[9px] text-indigo-600/80 uppercase font-bold mt-1">Transferred directly to Shop Bank Account</p>
+                          </div>
+
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Hand Cash Sales</span>
+                              <DollarSign className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <p className="text-2xl font-black text-emerald-600">
+                              {currency} {shopSalesList.filter(s => !s.paymentMethod || s.paymentMethod === 'CASH').reduce((sum, s) => sum + (s.totalAmount || 0), 0).toLocaleString('en-PK')}
+                            </p>
+                            <p className="text-[9px] text-emerald-600/80 uppercase font-bold mt-1">Collected as physical cash in shop drawer</p>
+                          </div>
+
+                          <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-lg border border-slate-800">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">Total Combined Shop Revenue</span>
+                              <Sparkles className="w-4 h-4 text-yellow-400" />
+                            </div>
+                            <p className="text-2xl font-black text-white">
+                              {currency} {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}
+                            </p>
+                            <p className="text-[9px] text-slate-300 uppercase font-bold mt-1">Cash Sales + Approved Bank Transfers</p>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Revenue Analytics (Day / Month / Year) */}
                       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
                         <h3 className="text-xs font-black text-zinc-700 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -2705,6 +2799,131 @@ function StoreContent({ shopId }) {
                           </div>
                         </div>
 
+                        {/* Payment Method & Bank Transfer Receipt Attachment */}
+                        <div className="space-y-2.5 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/60">
+                          <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center justify-between">
+                            <span>Payment Method</span>
+                            <span className="text-slate-400 font-normal">Cash or Bank Transfer</span>
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setWalkInPaymentMethod('CASH')}
+                              className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${walkInPaymentMethod === 'CASH'
+                                ? 'bg-emerald-600 text-white shadow-lg border border-emerald-400/40'
+                                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                                }`}
+                            >
+                              <DollarSign className="w-3.5 h-3.5" /> Cash
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWalkInPaymentMethod('BANK_TRANSFER')}
+                              className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${walkInPaymentMethod === 'BANK_TRANSFER'
+                                ? 'bg-amber-600 text-white shadow-lg border border-amber-400/40'
+                                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                                }`}
+                            >
+                              <Building2 className="w-3.5 h-3.5" /> Bank Transfer
+                            </button>
+                          </div>
+
+                          {walkInPaymentMethod === 'BANK_TRANSFER' && (
+                            <div className="space-y-2.5 pt-2 border-t border-slate-800 animate-in fade-in duration-200">
+                              {/* Branch Specific Official Bank Account Box */}
+                              <div className="bg-amber-500/10 border border-amber-400/40 rounded-xl p-3 space-y-1 text-amber-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 flex items-center justify-between">
+                                  <span>🏦 Official {shop?.name || 'Branch'} Bank Account</span>
+                                  <span className="bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded text-[8px]">Send Payment Here</span>
+                                </p>
+                                {(() => {
+                                  const sName = (shop?.name || '').toLowerCase();
+                                  const sAddr = (shop?.address || '').toLowerCase();
+
+                                  if (sName.includes('peshawar') || sName.includes('peshawer') || sAddr.includes('peshawar')) {
+                                    return (
+                                      <div className="space-y-1">
+                                        <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
+                                          <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: Meezan Bank</p>
+                                          <p className="text-xs font-black text-white">Title: <span className="text-amber-300">RIZWAN ULLAH</span></p>
+                                          <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
+                                            07190104740373
+                                          </p>
+                                          <p className="text-[9px] font-mono text-slate-300 mt-0.5">IBAN: PK02MEZN0007190104740373</p>
+                                        </div>
+                                        <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[10px]">
+                                          <p className="text-slate-400 font-bold">Other Bank: <span className="text-white font-mono">UBL 2458-267520146 (Rizwan Ullah)</span></p>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (sName.includes('mardan') || sAddr.includes('mardan')) {
+                                    return (
+                                      <div className="space-y-1">
+                                        <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
+                                          <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: Bank Al Habib</p>
+                                          <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
+                                            2013008100773501
+                                          </p>
+                                        </div>
+                                        <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[9px] space-y-0.5">
+                                          <p className="text-slate-300 font-bold">UBL: <span className="text-amber-300 font-mono">UBL-010900316536105</span> | <span className="text-amber-300 font-mono">UBL-0109000259289278</span></p>
+                                          <p className="text-slate-300 font-bold">HBL: <span className="text-amber-300 font-mono">HBL-0012757900527403</span> | Bank Islami: <span className="text-amber-300 font-mono">0303500476780190</span></p>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // Attock Branch (Default)
+                                  return (
+                                    <div className="space-y-1">
+                                      <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
+                                        <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: UBL (United Bank Limited)</p>
+                                        <p className="text-xs font-black text-white">Title: <span className="text-amber-300">Yousafzai Eggs Traders</span></p>
+                                        <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
+                                          UBL-0109000306243543
+                                        </p>
+                                      </div>
+                                      <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[9px] space-y-0.5">
+                                        <p className="text-slate-300 font-bold">HBL (Yousafzai): <span className="text-amber-300 font-mono">HBL-0012757902845903</span></p>
+                                        <p className="text-slate-300 font-bold">HBL (Sana Ullah): <span className="text-amber-300 font-mono">HBL-0012757900520003</span></p>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              <input
+                                type="text"
+                                placeholder="Transaction / Ref ID (e.g. TRX-982173)"
+                                value={walkInTransactionId}
+                                onChange={e => setWalkInTransactionId(e.target.value)}
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-amber-500"
+                              />
+
+                              <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                                  Upload Payment Receipt Image / Screenshot Proof
+                                </label>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleReceiptUpload}
+                                  className="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer"
+                                />
+                                {walkInPaymentProof && (
+                                  <div className="mt-2 relative w-20 h-20 rounded-xl overflow-hidden border border-amber-400/40 shadow-md">
+                                    <img src={walkInPaymentProof} alt="Receipt Proof" className="w-full h-full object-cover" />
+                                    <span className="absolute bottom-0 inset-x-0 bg-emerald-600 text-[8px] font-black text-white text-center py-0.5 uppercase">Uploaded</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Items List in Bill */}
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                           {walkInCart.length === 0 ? (
@@ -2855,6 +3074,7 @@ function StoreContent({ shopId }) {
                             <tr>
                               <th className="p-4">Date & Time</th>
                               <th className="p-4">Customer</th>
+                              <th className="p-4">Payment & Receipt</th>
                               <th className="p-4">Items Breakdown</th>
                               <th className="p-4 text-right">Total Paid</th>
                               <th className="p-4 text-center">Action</th>
@@ -2868,6 +3088,41 @@ function StoreContent({ shopId }) {
                                 </td>
                                 <td className="p-4 font-black uppercase text-white">
                                   {sale.customerName || 'Walk-in Customer'}
+                                </td>
+                                <td className="p-4">
+                                  {sale.paymentMethod === 'BANK_TRANSFER' || sale.paymentMethod === 'EASYPAISA' || sale.paymentMethod === 'ONLINE' ? (
+                                    <div className="space-y-1">
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${sale.approvalStatus === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                                        <Building2 className="w-3 h-3" />
+                                        {sale.approvalStatus === 'APPROVED' ? '🏦 Bank Transfer (Approved)' : '⚠️ Bank Transfer (Pending)'}
+                                      </span>
+                                      {sale.transactionId && (
+                                        <p className="text-[9px] font-mono text-amber-300">Trx: {sale.transactionId}</p>
+                                      )}
+                                      <div className="flex items-center gap-1.5 pt-0.5">
+                                        {sale.paymentProof && (
+                                          <button
+                                            onClick={() => setViewingReceiptModal(sale.paymentProof)}
+                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Eye className="w-3 h-3" /> View Receipt
+                                          </button>
+                                        )}
+                                        {sale.approvalStatus !== 'APPROVED' && (
+                                          <button
+                                            onClick={() => handleApproveSale(sale._id)}
+                                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <CheckCircle className="w-3 h-3" /> Approve Transfer
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+                                      <DollarSign className="w-3 h-3 text-emerald-400" /> Cash Payment
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-4 text-slate-300">
                                   {(sale.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')}
@@ -4189,6 +4444,36 @@ function StoreContent({ shopId }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Screenshot Modal */}
+      {viewingReceiptModal && (
+        <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 text-white space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setViewingReceiptModal(null)}
+              className="absolute top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
+              <Building2 className="w-4 h-4" /> Bank Transfer Receipt / Screenshot Proof
+            </div>
+            <h3 className="text-base sm:text-lg font-black uppercase tracking-tight">Customer Payment Receipt Proof</h3>
+
+            <div className="rounded-2xl overflow-hidden border border-slate-700 max-h-[60vh] bg-black flex items-center justify-center p-2 shadow-inner">
+              <img src={viewingReceiptModal} alt="Bank Transfer Receipt" className="max-w-full max-h-[55vh] object-contain rounded-xl" />
+            </div>
+
+            <button
+              onClick={() => setViewingReceiptModal(null)}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer"
+            >
+              Close Receipt Preview
+            </button>
           </div>
         </div>
       )}

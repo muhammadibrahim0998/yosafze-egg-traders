@@ -22,11 +22,20 @@ const authenticateCustomer = async (req, res, next) => {
   }
 };
 
+import mongoose from 'mongoose';
+import { resolveShopId } from '../utils/shopResolver.js';
+
 // ─── GET ALL CUSTOMERS (FOR ADMIN DASHBOARD) ──────────────────────────────────
 router.get('/all', async (req, res) => {
   try {
     const { shopId } = req.query;
-    const filter = shopId ? { shopId } : {};
+    let filter = {};
+    if (shopId) {
+      const resolved = await resolveShopId(shopId);
+      if (resolved && mongoose.Types.ObjectId.isValid(resolved)) {
+        filter = { shopId: resolved };
+      }
+    }
     const customers = await Customer.find(filter).select('-password');
     res.json({ success: true, count: customers.length, customers });
   } catch (err) {

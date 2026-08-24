@@ -52,6 +52,24 @@ const SaleSchema = new mongoose.Schema({
   customerPhone: {
     type: String,
     default: ''
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['CASH', 'BANK_TRANSFER', 'EASYPAISA', 'ONLINE'],
+    default: 'CASH'
+  },
+  paymentProof: {
+    type: String,
+    default: ''
+  },
+  transactionId: {
+    type: String,
+    default: ''
+  },
+  approvalStatus: {
+    type: String,
+    enum: ['APPROVED', 'PENDING_APPROVAL', 'REJECTED'],
+    default: 'APPROVED'
   }
 }, { timestamps: true });
 

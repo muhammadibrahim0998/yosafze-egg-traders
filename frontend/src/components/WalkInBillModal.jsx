@@ -16,6 +16,22 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   const shopPhone = shop?.phone || '';
 
   // Generate PDF Invoice
+  const getBranchBank = () => {
+    const name = String(shopName || '').toLowerCase();
+    const address = String(shopAddress || '').toLowerCase();
+    if (name.includes('peshawar') || name.includes('peshawer') || address.includes('peshawar')) {
+      return { bank: 'Meezan Bank (RIZWAN ULLAH)', accountNo: '07190104740373' };
+    }
+    if (name.includes('mardan') || address.includes('mardan')) {
+      return { bank: 'Bank Al Habib', accountNo: '2013008100773501' };
+    }
+    if (name.includes('attock') || address.includes('attock')) {
+      return { bank: 'UBL (Yousafzai Eggs Traders)', accountNo: 'UBL-0109000306243543' };
+    }
+    return { bank: 'UBL / Meezan', accountNo: 'UBL-0109000306243543' };
+  };
+  const branchBank = getBranchBank();
+
   // Generate PDF Invoice
   const handleDownloadPDF = () => {
     try {
@@ -30,6 +46,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
       doc.setFont('helvetica', 'normal');
       if (shopAddress) doc.text(shopAddress, 14, 26);
       if (shopPhone) doc.text(`Phone: ${shopPhone}`, 14, 31);
+      doc.text(`Official Bank Account: ${branchBank.bank} - ${branchBank.accountNo}`, 14, 36);
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -72,7 +89,8 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
-      doc.text('Thank you for shopping with us!', 14, finalY + 15);
+      doc.text(`Branch Bank Account: ${branchBank.bank} (${branchBank.accountNo})`, 14, finalY + 10);
+      doc.text('Thank you for shopping with us!', 14, finalY + 16);
 
       // Open PDF preview directly in new tab and trigger download
       const pdfBlob = doc.output('blob');
@@ -91,6 +109,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     text += `📅 Date: ${saleDate}\n`;
     text += `👤 Customer: ${customerName}\n`;
     if (customerPhone) text += `📞 Phone: ${customerPhone}\n`;
+    text += `🏦 *Branch Bank Account:* ${branchBank.bank} (${branchBank.accountNo})\n`;
     text += `------------------------------\n`;
     text += `*ITEMS PURCHASED:*\n`;
 
@@ -154,11 +173,16 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                 {shopPhone && <p className="text-[11px] text-emerald-400 font-bold">{shopPhone}</p>}
               </div>
               <div className="text-right">
-                <span className="inline-block px-2.5 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                  PAID IN CASH
+                <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${bill.paymentMethod === 'BANK_TRANSFER' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}`}>
+                  {bill.paymentMethod === 'BANK_TRANSFER' ? '🏦 BANK TRANSFER' : '💵 PAID IN CASH'}
                 </span>
                 <p className="text-[9px] text-slate-400 mt-1">{saleDate}</p>
               </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-2 text-xs flex justify-between items-center text-amber-300 font-mono">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Branch Bank ({branchBank.bank}):</span>
+              <span className="font-bold bg-black/50 px-2 py-0.5 rounded border border-amber-500/30">{branchBank.accountNo}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">

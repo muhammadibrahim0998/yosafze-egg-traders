@@ -170,6 +170,8 @@ router.get('/my-orders', authenticateCustomer, async (req, res) => {
   }
 });
 
+import { resolveShopId } from '../utils/shopResolver.js';
+
 // Endpoint to fetch all orders for SuperAdmin / ShopAdmin inspection
 router.get('/orders', authenticate, requireShopAdmin, async (req, res) => {
   try {
@@ -177,10 +179,12 @@ router.get('/orders', authenticate, requireShopAdmin, async (req, res) => {
     const query = {};
 
     // Shop Admins can only ever see their own shop's orders
-    if (req.user?.role === 'shop_admin') {
-      query.shopId = req.user.shopId;
-    } else if (shopId) {
-      query.shopId = shopId;
+    const targetRaw = (req.user?.role === 'shop_admin') ? req.user.shopId : shopId;
+    if (targetRaw) {
+      const resolved = await resolveShopId(targetRaw);
+      if (resolved && mongoose.Types.ObjectId.isValid(resolved)) {
+        query.shopId = resolved;
+      }
     }
 
     if (paymentMethod) query.paymentMethod = paymentMethod;
