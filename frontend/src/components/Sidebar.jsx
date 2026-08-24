@@ -72,14 +72,14 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
           handleLinkClick();
           if (onClick) onClick(e);
         }}
-        className={`flex items-center group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 ease-out ${active
-          ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)] active:translate-y-[2px] active:border-b-0"
-          : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D] hover:shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] active:border-b-0"
-          } ${isCollapsed ? 'justify-center mx-auto w-12 h-12 px-0' : 'gap-4'}`}
+        className={`flex items-center group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out ${active
+          ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+          } ${isCollapsed ? 'justify-center mx-auto w-10 h-10 px-0' : 'gap-3'}`}
         title={isCollapsed ? label : undefined}
       >
         <div className="relative flex items-center justify-center">
-          <Icon className={`w-5 h-5 transition-all duration-300 ${active ? "text-white" : "text-white/60 group-hover:text-white group-hover:scale-110"}`} />
+          <Icon className={`w-4 h-4 transition-colors duration-300 ${active ? "text-zinc-950" : "text-white group-hover:text-zinc-950"}`} />
           {alert && (
             <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#111827] ${alert === 'low' ? 'bg-amber-400' : 'bg-red-500'}`}></div>
           )}
@@ -100,19 +100,19 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
       )}
 
       <aside
-        className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#2D5A27] via-[#24491F] to-[#1B3817] text-white backdrop-blur-xl transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0,2,1)] transform-gpu will-change-transform border-r border-white/10 z-[100] md:z-20 overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.3)] ${isCollapsed ? 'w-16' : 'w-56'
+        className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#2D5A27] via-[#24491F] to-[#1B3817] text-white backdrop-blur-xl transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0,2,1)] transform-gpu will-change-transform border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] ${isCollapsed ? 'w-16' : 'w-56'
           } ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
 
         {/* User Profile */}
-        <div className={`mx-4 mt-4 mb-6 rounded-2xl flex items-center ${isCollapsed ? 'justify-center mx-auto w-12 h-12' : 'px-4 py-3 gap-4'} transition-all duration-300 border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner`}>
-          <div className="relative">
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-[#111827] rounded-full shadow-sm"></div>
-            <UserCircle2 className="w-8 h-8 text-green-300" />
+        <div className={`mx-3 mt-3 mb-3 rounded-xl flex items-center ${isCollapsed ? 'justify-center mx-auto w-10 h-10' : 'px-3 py-2 gap-3'} transition-all duration-300 border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner`}>
+          <div className="relative shrink-0">
+            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#111827] rounded-full shadow-sm"></div>
+            <UserCircle2 className="w-7 h-7 text-emerald-300" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-              <span className="text-xs font-bold text-white truncate leading-tight" title={user?.fullName || user?.username || 'User'}>
+              <span className="text-xs font-black italic text-white truncate leading-tight" title={user?.fullName || user?.username || 'User'}>
                 {user?.fullName || user?.username || 'System User'}
               </span>
               <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mt-0.5 truncate">
@@ -124,10 +124,10 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
 
 
         {/* Navigation Main Block */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-2">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-1">
 
-          <div className="mb-6">
-            <div className="space-y-1">
+          <div className="mb-2">
+            <div className="space-y-0.5">
               {/* Everyone but pure cashier sees Dashboard */}
               {(isShopAdmin() || isSuperAdmin()) && (
                 <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
@@ -145,13 +145,13 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
             </div>
           </div>
 
-          {/* Categories Section (Only if filtering makes sense, mapped logically to "Order History/Sales" from img) */}
+          {/* Categories Section */}
           {!isSuperAdmin() && categories.filter(c => c !== "All").length > 0 && (
-            <div className="mb-6">
+            <div className="mb-2">
               {!isCollapsed && (
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-4 tracking-wider uppercase">Categories</p>
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Categories</p>
               )}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {categories.filter(c => c !== "All").map(cat => {
                   const active = isActive(`/store/category/${cat}`);
                   return (
@@ -159,16 +159,16 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
                       key={cat}
                       to={`/store/category/${cat}`}
                       onClick={handleLinkClick}
-                      className={`flex items-center group px-3 py-2.5 mx-4 rounded-xl text-[13px] font-bold transition-all duration-300 ease-out ${active
-                        ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)] active:translate-y-[2px] active:border-b-0"
-                        : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D] hover:shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] active:border-b-0"
-                        } ${isCollapsed ? 'justify-center mx-auto w-10 h-10 px-0' : 'gap-4'}`}
+                      className={`flex items-center group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out ${active
+                        ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                        : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                        } ${isCollapsed ? 'justify-center mx-auto w-10 h-10 px-0' : 'gap-3'}`}
                       title={isCollapsed ? cat : undefined}
                     >
-                      <div className="relative flex items-center justify-center w-5 h-5">
+                      <div className="relative flex items-center justify-center w-4 h-4">
                         {(() => {
                           const CategoryIcon = getCategoryIcon(cat);
-                          return <CategoryIcon className={`w-4 h-4 transition-all duration-300 ${active ? "text-white" : "text-white/60 group-hover:text-white group-hover:scale-110"}`} />;
+                          return <CategoryIcon className={`w-4 h-4 transition-colors duration-300 ${active ? "text-zinc-950" : "text-white group-hover:text-zinc-950"}`} />;
                         })()}
                       </div>
                       {!isCollapsed && <span className="capitalize whitespace-nowrap tracking-wide">{cat}</span>}
@@ -181,11 +181,11 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
 
           {/* Health / Notifications like in image */}
           {!isSuperAdmin() && (
-            <div className="mb-6">
+            <div className="mb-2">
               {!isCollapsed && (
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-4 tracking-wider uppercase">Notifications</p>
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Notifications</p>
               )}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <NavItem to="/store/status/low" icon={AlertTriangle} label="Low Stock" alert="low" />
                 <NavItem to="/store/status/out" icon={XCircle} label="Out of Stock" alert="high" />
               </div>
@@ -193,12 +193,12 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
           )}
 
           {/* Settings / Footer Area - now part of the scroll flow */}
-          <div className="pb-6 pt-4 border-t border-white/10 mt-4">
+          <div className="pb-3 pt-2 border-t border-white/10 mt-2 mx-3">
             {!isCollapsed && (
-              <p className="px-8 text-[11px] font-bold text-white/30 mb-4 tracking-wider uppercase">Settings</p>
+              <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Settings</p>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <NavItem to="/help" icon={HelpCircle} label="Help" />
               {(isShopAdmin() || isSuperAdmin()) && (
                 <NavItem to="/settings" icon={Settings} label="Settings" />

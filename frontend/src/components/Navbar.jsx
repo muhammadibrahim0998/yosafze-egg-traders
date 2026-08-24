@@ -38,7 +38,7 @@ export function Navbar({
   const logoUrl = settings?.logoUrl || null;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-[#2D5A27]/90 backdrop-blur-md border-b border-green-800/50 shadow-md transition-all duration-300">
+    <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-4 border-b-blue-500 shadow-[0_15px_50px_rgba(37,99,235,0.9),_0_10px_30px_rgba(59,130,246,0.85)] transition-all duration-300">
       <div className="flex items-center justify-between h-20 gap-2 sm:gap-4 px-4 sm:px-6 max-w-[1600px] mx-auto">
 
         {/* Left: Branding */}
@@ -51,14 +51,14 @@ export function Navbar({
                 if (onMenuClick) onMenuClick();
               }
             }}
-            className="p-2.5 -ml-2 text-white/90 hover:text-white hover:bg-white/15 rounded-full transition-all shadow-md border border-white/10"
+            className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer"
             aria-label="Toggle Menu"
           >
             <Menu className="w-6 h-6" />
           </button>
 
           <div
-            className="flex items-center gap-3 group cursor-pointer hover:scale-105 transition-transform duration-300"
+            className="flex items-center gap-3 group cursor-pointer"
             onClick={() => {
               if (isSuperAdmin() || isShopAdmin()) {
                 navigate('/');
@@ -67,20 +67,20 @@ export function Navbar({
               }
             }}
           >
-            <div className="relative bg-white rounded-xl w-12 h-12 flex items-center justify-center shrink-0 shadow-[0_8px_15px_rgba(0,0,0,0.4)] overflow-hidden border-2 border-white/40 ring-2 ring-black/20">
+            <div className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_6px_16px_rgba(0,0,0,0.5)] overflow-hidden border-2 border-white/60 ring-2 ring-emerald-400/40 group-hover:scale-110 group-hover:rotate-3 group-hover:border-amber-300 group-hover:ring-amber-400/60 group-hover:shadow-[0_10px_24px_rgba(245,158,11,0.6)] transition-all duration-300 ease-out p-0.5">
               {logoUrl ? (
-                <img src={logoUrl} alt={shopName} className="w-full h-full object-contain" />
+                <img src={logoUrl} alt={shopName} className="w-full h-full object-cover rounded-lg" />
               ) : (
-                <img src={companyLogo} alt="Attock Shop" className="w-full h-full object-contain" />
+                <img src={companyLogo} alt="Attock Shop" className="w-full h-full object-cover rounded-lg" />
               )}
             </div>
             <div className="hidden md:flex flex-col">
-              <h1 className="text-base font-black tracking-tight text-yellow-300 uppercase italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] leading-none">
+              <h1 className="text-base font-black tracking-tight text-yellow-300 group-hover:text-amber-200 uppercase italic drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] group-hover:drop-shadow-[0_0_12px_rgba(251,191,36,0.8)] leading-none transition-all duration-300">
                 {user?.role === 'super_admin' || !shopName || shopName === 'Egg Station POS'
                   ? 'YOUSAFZAI EGGS TRADERS'
                   : shopName.toUpperCase()}
               </h1>
-              <span className="text-[9px] font-bold text-white/70 uppercase tracking-widest leading-tight">
+              <span className="text-[9px] font-black text-emerald-300 group-hover:text-emerald-200 uppercase tracking-widest leading-tight mt-1 transition-all duration-300">
                 {user?.role === 'super_admin' ? 'SUPER ADMIN' : 'EGGS TRADERS'}
               </span>
             </div>
@@ -105,10 +105,10 @@ export function Navbar({
                 }
               }}
               placeholder={isSuperAdmin() ? "Search shops..." : "Search inventory..."}
-              className="w-full bg-white/90 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-800 placeholder:text-gray-400 focus:ring-4 focus:ring-orange-500/20 outline-none transition-all shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_10px_20px_rgba(0,0,0,0.25)] border-b-4 border-gray-300"
+              className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-emerald-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.2),_0_8px_20px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.4)] border-b-4 border-emerald-600 focus:border-emerald-500"
             />
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#1B3817] hover:bg-[#12290D] text-white p-2 rounded-full transition-all shadow-[0_5px_10px_rgba(0,0,0,0.4)] hover:scale-110 active:scale-95 active:shadow-none flex items-center justify-center border-t border-white/30"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.7)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer"
               onClick={() => {
                 if (searchTerm) navigate('/store');
               }}
@@ -122,7 +122,7 @@ export function Navbar({
         <div className="flex items-center gap-3">
           {!isSuperAdmin() && (
             <>
-              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/20 border-b-4 bg-[#1B3817] hover:bg-[#0C1D08] transition-all group shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] active:border-b-0 active:shadow-inner">
+              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#071306] bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-600 hover:to-[#1B3817] transition-all duration-300 ease-out shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(16,185,129,0.6)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] cursor-pointer">
                 <div className={`w-2.5 h-2.5 rounded-full ${currentSession ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]'}`} />
                 <span className="text-xs font-black text-white uppercase tracking-widest">
                   {currentSession?.shiftType || 'No Active Shift'}
@@ -137,7 +137,7 @@ export function Navbar({
                     if (onCartClick) onCartClick();
                     else navigate(user?.shopId?._id ? `/shop/${user.shopId._id}` : '/shop');
                   }}
-                  className="relative p-3 bg-[#1B3817] hover:bg-[#0C1D08] text-white rounded-full transition-all border-t border-white/20 border-b-4 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-110 active:translate-y-[2px] active:border-b-0 active:shadow-inner flex items-center justify-center"
+                  className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                   title={isShopAdmin() || isSuperAdmin() ? "View Customer Sale & POS Bill Cart" : "View Shopping Cart"}
                 >
                   {(isShopAdmin() || isSuperAdmin()) ? (
@@ -146,7 +146,7 @@ export function Navbar({
                     <ShoppingCart className="w-5 h-5 shadow-sm" />
                   )}
                   {cartCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#1B3817] shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                    <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                       {cartCount}
                     </span>
                   )}
@@ -156,11 +156,11 @@ export function Navbar({
           )}
 
           <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-white/30 ml-1 h-12">
-            <div className="hidden md:flex flex-col items-end justify-center">
-              <span className="text-sm font-black text-white leading-none drop-shadow-lg">{user?.fullName}</span>
-              <span className="text-[10px] font-black text-white/80 uppercase tracking-widest mt-1.5">{user?.role?.replace('_', ' ')}</span>
+            <div className="hidden md:flex flex-col items-end justify-center group cursor-pointer">
+              <span className="text-sm font-black text-white italic leading-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] group-hover:text-emerald-300 transition-colors duration-300">{user?.fullName}</span>
+              <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mt-1">{user?.role?.replace('_', ' ')}</span>
             </div>
-            <button onClick={logout} className="p-3 bg-[#1B3817] hover:bg-rose-700 text-white rounded-full transition-all border-t border-white/20 border-b-4 hover:border-rose-900 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-110 active:translate-y-[2px] active:border-b-0 active:shadow-inner">
+            <button onClick={logout} className="p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-rose-600 hover:to-rose-900 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-rose-300 border-b-4 border-b-[#071306] hover:border-b-rose-950 shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(244,63,94,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 cursor-pointer">
               <LogOut className="w-5 h-5" />
             </button>
           </div>

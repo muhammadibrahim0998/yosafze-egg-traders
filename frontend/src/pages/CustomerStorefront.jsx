@@ -331,7 +331,7 @@ function StoreContent({ shopId }) {
       const parsed = JSON.parse(savedUserStr);
       savedRole = (parsed?.role || '').toLowerCase();
     }
-  } catch(e) {}
+  } catch (e) { }
 
   const custEmail = (customer?.email || '').toLowerCase();
   const custName = (customer?.fullName || '').toLowerCase();
@@ -1696,8 +1696,8 @@ function StoreContent({ shopId }) {
         </div>
       )}
 
-      {/* Top Navbar — Gray/Green Theme matching main App Navbar */}
-      <nav className="sticky top-0 z-50 w-full bg-[#2D5A27]/90 backdrop-blur-md border-b border-green-800/50 shadow-md transition-all duration-300">
+      {/* Top Navbar — Luxury Dark Black-Green Gradient */}
+      <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-4 border-b-blue-500 shadow-[0_15px_50px_rgba(37,99,235,0.9),_0_10px_30px_rgba(59,130,246,0.85)] transition-all duration-300">
         <div className="flex items-center justify-between h-20 gap-4 px-4 sm:px-6 max-w-[1600px] mx-auto">
 
           {/* Left branding */}
@@ -1705,7 +1705,7 @@ function StoreContent({ shopId }) {
             {/* Mobile Toggle */}
             <button
               onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className="p-2.5 -ml-2 text-white/90 hover:text-white hover:bg-white/15 rounded-full transition-all shadow-md border border-white/10 md:hidden"
+              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer md:hidden"
               aria-label="Toggle Mobile Menu"
             >
               <Menu className="w-6 h-6" />
@@ -1714,36 +1714,36 @@ function StoreContent({ shopId }) {
             {/* Desktop Toggle */}
             <button
               onClick={() => setIsDesktopOpen(!isDesktopOpen)}
-              className="p-2.5 -ml-2 text-white/90 hover:text-white hover:bg-white/15 rounded-full transition-all shadow-md border border-white/10 hidden md:block"
+              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
               aria-label="Toggle Desktop Menu"
             >
               <Menu className="w-6 h-6" />
             </button>
 
-            <button onClick={() => navigate('/shop')} className="p-2 -ml-2 text-white/80 hover:text-white transition-colors hidden md:block" title="Back to Stores">
+            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
               <ArrowLeft className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 group cursor-pointer">
               <button
                 onClick={() => {
                   setActiveView('dashboard');
                   const mainContent = document.getElementById('main-store-content');
                   if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="relative bg-white rounded-xl w-12 h-12 flex items-center justify-center shrink-0 shadow-[0_8px_15px_rgba(0,0,0,0.4)] overflow-hidden border-2 border-white/40 ring-2 ring-black/20 hover:scale-105 transition-transform"
+                className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_6px_16px_rgba(0,0,0,0.5)] overflow-hidden border-2 border-white/60 ring-2 ring-emerald-400/40 group-hover:scale-110 group-hover:rotate-3 group-hover:border-amber-300 group-hover:ring-amber-400/60 group-hover:shadow-[0_10px_24px_rgba(245,158,11,0.6)] transition-all duration-300 ease-out p-0.5"
                 title={isAdminUser ? "Go to Shop Admin Dashboard" : "Go to Customer Dashboard"}
               >
                 {shop?.logoUrl ? (
-                  <img src={shop.logoUrl} alt={shop.name} className="w-full h-full object-contain" />
+                  <img src={shop.logoUrl} alt={shop.name} className="w-full h-full object-cover rounded-lg" />
                 ) : (
-                  <img src={companyLogo} alt="Yousafzai Agri Foods" className="w-full h-full object-contain" />
+                  <img src={companyLogo} alt="Yousafzai Agri Foods" className="w-full h-full object-cover rounded-lg" />
                 )}
               </button>
               <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-black tracking-tighter text-white uppercase italic drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] leading-none truncate max-w-[140px] sm:max-w-xs md:max-w-md">{shop?.name || 'Customer Store'}</h1>
+                <h1 className="text-lg sm:text-xl font-black tracking-tighter text-yellow-300 group-hover:text-amber-200 uppercase italic drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] group-hover:drop-shadow-[0_0_12px_rgba(251,191,36,0.8)] leading-none truncate max-w-[140px] sm:max-w-xs md:max-w-md transition-all duration-300">{shop?.name || 'Customer Store'}</h1>
                 {shop?.address && (
-                  <p className="text-[10px] font-bold text-emerald-300 flex items-center gap-1 mt-1 truncate max-w-[140px] sm:max-w-xs md:max-w-md">
+                  <p className="text-[10px] font-black text-emerald-300 group-hover:text-emerald-200 flex items-center gap-1 mt-1 truncate max-w-[140px] sm:max-w-xs md:max-w-md uppercase tracking-wider transition-all duration-300">
                     <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{shop.address}</span>
                   </p>
                 )}
@@ -1753,7 +1753,7 @@ function StoreContent({ shopId }) {
 
           {/* Center Search Input */}
           <div className="flex-1 flex justify-center max-w-md mx-auto hidden sm:flex">
-            <div className="relative w-full">
+            <div className="relative w-full group">
               <input
                 type="text"
                 value={search}
@@ -1761,9 +1761,9 @@ function StoreContent({ shopId }) {
                 onFocus={() => setShowSearchDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
                 placeholder="Search products..."
-                className="w-full bg-white/90 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-800 placeholder:text-gray-400 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_10px_20px_rgba(0,0,0,0.25)] border-b-4 border-gray-300"
+                className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-emerald-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.2),_0_8px_20px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.4)] border-b-4 border-emerald-600 focus:border-emerald-500"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#1B3817] text-white p-2 rounded-full shadow-md">
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.7)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer">
                 <Search className="w-4 h-4" />
               </button>
 
@@ -1778,19 +1778,26 @@ function StoreContent({ shopId }) {
                           onClick={() => { setSelectedItem(item); setSearch(''); setShowSearchDropdown(false); }}
                           className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors text-left border-b border-slate-700/50 last:border-0"
                         >
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-700">
-                            {item.images?.[0] ? <img src={item.images[0]} className="w-full h-full object-cover" /> : <Egg className="w-6 h-6 m-2 text-slate-600" />}
-                          </div>
+                          {item.images?.[0] ? (
+                            <img src={item.images[0]} alt={item.name} className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700" />
+                          ) : (
+                            <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center shrink-0">
+                              <Package className="w-5 h-5 text-slate-400" />
+                            </div>
+                          )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-white text-xs truncate uppercase tracking-tight">{item.name}</p>
-                            <p className="text-emerald-400 font-black text-[10px]">{currency} {item.price}</p>
+                            <p className="text-xs font-black text-white truncate uppercase italic">{item.name}</p>
+                            <p className="text-[10px] text-emerald-400 font-bold">{currency} {item.price.toLocaleString()}</p>
                           </div>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase bg-slate-800 px-2 py-1 rounded-full border border-slate-700">
+                            Stock: {item.stock}
+                          </span>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                      No products found
+                    <div className="p-4 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      No matching products found
                     </div>
                   )}
                 </div>
@@ -1803,7 +1810,7 @@ function StoreContent({ shopId }) {
             {canBuy && (
               <button
                 onClick={() => setOrderOpen(true)}
-                className="relative p-2.5 sm:px-4 bg-[#1B3817] hover:bg-[#0C1D08] text-white rounded-full transition-all border-t border-white/20 border-b-4 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] flex items-center justify-center gap-2"
+                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(16,185,129,0.6)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
                 title="View My Orders & Payment Status"
               >
                 <Truck className="w-5 h-5 text-emerald-400" />
@@ -1814,11 +1821,11 @@ function StoreContent({ shopId }) {
             {canBuy ? (
               <button
                 onClick={() => setCartOpen(true)}
-                className="relative p-3 bg-[#1B3817] hover:bg-[#0C1D08] text-white rounded-full transition-all border-t border-white/20 border-b-4 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px]"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
               >
                 <ShoppingCart className="w-5 h-5" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#1B3817] shadow-md">
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                     {cartCount}
                   </span>
                 )}
@@ -1826,12 +1833,12 @@ function StoreContent({ shopId }) {
             ) : isAdminUser ? (
               <button
                 onClick={() => setActiveView('walkin')}
-                className="relative p-3 bg-[#1B3817] hover:bg-[#0C1D08] text-white rounded-full transition-all border-t border-white/20 border-b-4 shadow-[0_8px_15px_rgba(0,0,0,0.3)] hover:scale-105 active:translate-y-[2px] flex items-center justify-center"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 title="View Walk-in Customer Bill Cart"
               >
                 <Receipt className="w-5 h-5 text-emerald-400" />
                 {walkInCart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#1B3817] shadow-md">
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                     {walkInCart.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 )}
@@ -1852,9 +1859,9 @@ function StoreContent({ shopId }) {
           />
         )}
 
-        {/* ─── Green Gradient Sidebar matching main app ─────────────────────── */}
+        {/* ─── Green Gradient Sidebar with Pure Intense 3D Blue Glowing Shadow ─────────────────────── */}
         <aside
-          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#2D5A27] via-[#24491F] to-[#1B3817] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r border-white/10 z-[100] md:z-20 overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.3)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#2D5A27] via-[#24491F] to-[#1B3817] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
             } ${!isDesktopOpen ? 'md:-ml-56' : 'md:ml-0'
             }`}
         >
@@ -1875,21 +1882,21 @@ function StoreContent({ shopId }) {
           </div>
 
           {/* Navigation Links */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-2 space-y-6">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-1 space-y-3">
 
             {/* Dashboard Link - Admin Only */}
             {isAdminUser && (
               <div>
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Overview</p>
-                <div className="space-y-1">
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Overview</p>
+                <div className="space-y-0.5">
                   <button
                     onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'dashboard'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'dashboard'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <LayoutDashboard className="w-5 h-5 text-white" />
+                    <LayoutDashboard className="w-4 h-4 transition-colors group-hover:text-zinc-950" />
                     <span>Dashboard</span>
                   </button>
                 </div>
@@ -1899,93 +1906,93 @@ function StoreContent({ shopId }) {
             {/* Shop Admin POS & Sales Section */}
             {isAdminUser && (
               <div>
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Shop POS & Billing</p>
-                <div className="space-y-1">
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Shop POS & Billing</p>
+                <div className="space-y-0.5">
                   <button
                     onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'walkin'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-emerald-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'walkin'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <Receipt className="w-5 h-5 text-emerald-400" />
+                    <Receipt className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Walk-in Sale / POS</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('sales'); fetchShopSales(); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'sales'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'sales'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <DollarSign className="w-5 h-5 text-amber-400" />
+                    <DollarSign className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Sales & Bills</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'orders'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'orders'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <Truck className="w-5 h-5 text-emerald-400" />
+                    <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">EasyPaisa & Orders</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'registered-customers'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'registered-customers'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <Users className="w-5 h-5 text-indigo-400" />
+                    <Users className="w-4 h-4 text-indigo-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Registered Customers</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-sales'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-emerald-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-sales'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    <TrendingUp className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Sales Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-profit'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-green-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-profit'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <DollarSign className="w-5 h-5 text-green-400" />
+                    <DollarSign className="w-4 h-4 text-green-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Profit Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'report-expenses'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-rose-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-expenses'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <FileText className="w-5 h-5 text-rose-400" />
+                    <FileText className="w-4 h-4 text-rose-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Expenses Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'damaged-products'
-                      ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                      : "text-amber-300 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'damaged-products'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
-                    <PackageX className="w-5 h-5 text-amber-400" />
+                    <PackageX className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
                     <span className="truncate">Damaged Stock</span>
                   </button>
                 </div>
@@ -1994,16 +2001,16 @@ function StoreContent({ shopId }) {
 
             {/* Products Section */}
             <div>
-              <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Catalog</p>
-              <div className="space-y-1">
+              <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Catalog</p>
+              <div className="space-y-0.5">
                 <button
                   onClick={() => { setActiveView('products'); setActiveCategory('All'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'products' && activeCategory === 'All'
-                    ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                    : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                  className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && activeCategory === 'All'
+                    ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                    : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                     }`}
                 >
-                  <Store className="w-5 h-5 text-white" />
+                  <Store className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
                   <span>All Products</span>
                 </button>
               </div>
@@ -2012,20 +2019,20 @@ function StoreContent({ shopId }) {
             {/* Categories */}
             {categories.filter(c => c !== 'All').length > 0 && (
               <div>
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Categories</p>
-                <div className="space-y-1">
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Categories</p>
+                <div className="space-y-0.5">
                   {categories.filter(c => c !== 'All').map(cat => {
                     const active = activeCategory === cat;
                     return (
                       <button
                         key={cat}
                         onClick={() => { setActiveView('products'); setActiveCategory(cat); setIsMobileOpen(false); }}
-                        className={`w-full flex items-center gap-3 group px-3 py-2 mx-4 rounded-xl text-[12px] font-bold transition-all duration-300 max-w-[192px] ${activeView === 'products' && active
-                          ? "bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-[0_8px_15px_rgba(0,0,0,0.3)]"
-                          : "text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D]"
+                        className={`w-full flex items-center gap-2.5 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && active
+                          ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                           }`}
                       >
-                        <img src="/egg.png" alt="egg" className={`w-5 h-5 object-contain shrink-0 transition-all ${active ? 'brightness-125 scale-110' : 'brightness-75'}`} />
+                        <img src="/egg.png" alt="egg" className={`w-4 h-4 object-contain shrink-0 transition-all ${active ? 'brightness-125 scale-110' : 'brightness-90 group-hover:brightness-0'}`} />
                         <span className="capitalize truncate">{cat}</span>
                       </button>
                     );
@@ -2034,44 +2041,40 @@ function StoreContent({ shopId }) {
               </div>
             )}
 
-
-
             {/* Cart Quick Access */}
             {canBuy && (
               <div>
-                <p className="px-8 text-[11px] font-bold text-white/30 mb-3 tracking-wider uppercase">Cart</p>
-                <div className="space-y-1">
+                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Cart</p>
+                <div className="space-y-0.5">
                   <button
                     onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D] max-w-[192px]"
+                    className="w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
                   >
-                    <ShoppingCart className="w-5 h-5 text-white" />
+                    <ShoppingCart className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
                     <span>My Cart ({cartCount})</span>
                   </button>
 
                   <button
                     onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-4 group px-3 py-3 mx-4 rounded-2xl text-[13px] font-bold text-white/60 hover:text-white hover:bg-[#1B3817] border-t border-t-transparent hover:border-t-white/20 border-b-4 border-b-transparent hover:border-b-[#12290D] max-w-[192px]"
+                    className="w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
                   >
-                    <Truck className="w-5 h-5 text-white" />
-                    <span>My Oders</span>
+                    <Truck className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
+                    <span>My Orders</span>
                   </button>
                 </div>
               </div>
             )}
 
-
-
             {/* Logout Footer */}
-            <div className="pb-6 pt-4 border-t border-white/10 mx-4">
+            <div className="pb-4 pt-3 border-t border-white/10 mx-3">
               <button
                 onClick={() => {
                   if (userLogout) userLogout();
                   if (customerLogout) customerLogout();
                 }}
-                className="w-full flex items-center gap-4 px-3 py-3 rounded-2xl text-[13px] font-bold text-rose-300 hover:bg-rose-950/40 border border-transparent hover:border-rose-500/20 transition-all"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black italic tracking-wide text-rose-300 hover:text-white hover:bg-gradient-to-r hover:from-rose-600 hover:to-rose-900 border border-transparent hover:border-rose-300 hover:shadow-[0_8px_22px_rgba(244,63,94,0.6)] hover:scale-105 transition-all duration-300 ease-out"
               >
-                <LogOut className="w-5 h-5 text-rose-400" />
+                <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white transition-colors" />
                 <span>Logout</span>
               </button>
             </div>
@@ -2317,8 +2320,8 @@ function StoreContent({ shopId }) {
                                 key={t.id}
                                 onClick={() => setReportTimeframe(t.id)}
                                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                    ? 'bg-emerald-600 text-white shadow-md'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                                  ? 'bg-emerald-600 text-white shadow-md'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                                   }`}
                               >
                                 {t.label}
@@ -3343,8 +3346,8 @@ function StoreContent({ shopId }) {
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
                             className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                ? 'bg-emerald-600 text-white shadow-md'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                              ? 'bg-emerald-600 text-white shadow-md'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                               }`}
                           >
                             {t.label}
@@ -3495,8 +3498,8 @@ function StoreContent({ shopId }) {
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
                             className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                ? 'bg-green-600 text-white shadow-md'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                              ? 'bg-green-600 text-white shadow-md'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                               }`}
                           >
                             {t.label}
@@ -3653,8 +3656,8 @@ function StoreContent({ shopId }) {
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
                             className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                ? 'bg-rose-600 text-white shadow-md'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                              ? 'bg-rose-600 text-white shadow-md'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                               }`}
                           >
                             {t.label}
@@ -3800,11 +3803,11 @@ function StoreContent({ shopId }) {
                                   </td>
                                   <td className="p-3.5">
                                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-100 text-blue-700' :
-                                        exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
-                                          exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
-                                            exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
-                                              exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
-                                                'bg-emerald-100 text-emerald-700'
+                                      exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
+                                        exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
+                                          exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
+                                            exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
+                                              'bg-emerald-100 text-emerald-700'
                                       }`}>
                                       {exp.category}
                                     </span>
@@ -3900,8 +3903,8 @@ function StoreContent({ shopId }) {
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
                             className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                ? 'bg-amber-600 text-white shadow-md'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                              ? 'bg-amber-600 text-white shadow-md'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                               }`}
                           >
                             {t.label}
