@@ -51,7 +51,7 @@ export function Navbar({
                 if (onMenuClick) onMenuClick();
               }
             }}
-            className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer"
+            className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer"
             aria-label="Toggle Menu"
           >
             <Menu className="w-6 h-6" />
@@ -67,7 +67,7 @@ export function Navbar({
               }
             }}
           >
-            <div className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_6px_16px_rgba(0,0,0,0.5)] overflow-hidden border-2 border-white/60 ring-2 ring-emerald-400/40 group-hover:scale-110 group-hover:rotate-3 group-hover:border-amber-300 group-hover:ring-amber-400/60 group-hover:shadow-[0_10px_24px_rgba(245,158,11,0.6)] transition-all duration-300 ease-out p-0.5">
+            <div className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_8px_20px_rgba(37,99,235,0.6),_0_2px_6px_rgba(30,58,138,0.5)] overflow-hidden border-2 border-white/80 ring-2 ring-blue-500/60 group-hover:scale-110 group-hover:rotate-3 group-hover:border-blue-300 group-hover:ring-blue-400 group-hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] transition-all duration-300 ease-out p-0.5">
               {logoUrl ? (
                 <img src={logoUrl} alt={shopName} className="w-full h-full object-cover rounded-lg" />
               ) : (
@@ -105,10 +105,10 @@ export function Navbar({
                 }
               }}
               placeholder={isSuperAdmin() ? "Search shops..." : "Search inventory..."}
-              className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-emerald-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.2),_0_8px_20px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.4)] border-b-4 border-emerald-600 focus:border-emerald-500"
+              className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-blue-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_8px_24px_rgba(37,99,235,0.55),_0_2px_8px_rgba(30,58,138,0.4)] hover:shadow-[0_12px_36px_rgba(59,130,246,0.85)] border-b-4 border-blue-600 focus:border-blue-500"
             />
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.7)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(37,99,235,0.6)] hover:shadow-[0_10px_25px_rgba(59,130,246,0.85)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer"
               onClick={() => {
                 if (searchTerm) navigate('/store');
               }}
@@ -122,7 +122,7 @@ export function Navbar({
         <div className="flex items-center gap-3">
           {!isSuperAdmin() && (
             <>
-              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#071306] bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-600 hover:to-[#1B3817] transition-all duration-300 ease-out shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(16,185,129,0.6)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] cursor-pointer">
+              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] transition-all duration-300 ease-out shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] cursor-pointer">
                 <div className={`w-2.5 h-2.5 rounded-full ${currentSession ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]'}`} />
                 <span className="text-xs font-black text-white uppercase tracking-widest">
                   {currentSession?.shiftType || 'No Active Shift'}
@@ -137,7 +137,7 @@ export function Navbar({
                     if (onCartClick) onCartClick();
                     else navigate(user?.shopId?._id ? `/shop/${user.shopId._id}` : '/shop');
                   }}
-                  className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                  className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                   title={isShopAdmin() || isSuperAdmin() ? "View Customer Sale & POS Bill Cart" : "View Shopping Cart"}
                 >
                   {(isShopAdmin() || isSuperAdmin()) ? (

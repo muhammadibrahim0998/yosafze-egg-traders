@@ -73,9 +73,9 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
           handleLinkClick();
           if (onClick) onClick(e);
         }}
-        className={`flex items-center group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out ${active
-          ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+        className={`flex items-center group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out ${active
+          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
           } ${isCollapsed ? 'justify-center mx-auto w-10 h-10 px-0' : 'gap-3'}`}
         title={isCollapsed ? label : undefined}
       >
@@ -85,7 +85,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
             <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#111827] ${alert === 'low' ? 'bg-amber-400' : 'bg-red-500'}`}></div>
           )}
         </div>
-        <span className={`flex-1 whitespace-nowrap tracking-wide ${isCollapsed ? 'hidden' : ''}`}>{label}</span>
+        <span className={`flex-1 whitespace-nowrap tracking-wide text-white ${isCollapsed ? 'hidden' : ''}`}>{label}</span>
       </Link>
     );
   };

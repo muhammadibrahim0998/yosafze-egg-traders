@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box
+  Truck, Edit2, Edit, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box, MoreVertical
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
@@ -508,101 +508,183 @@ function StoreContent({ shopId }) {
     return { totalSpent, ordersCount, matchingSales, matchingOrders, combinedHistory };
   };
 
-  const handleWhatsAppCustomerShare = (cust) => {
+  const handleWhatsAppCustomerShare = (cust, index = 0) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const name = cust.fullName || 'Registered Customer';
     const phone = cust.phone || '';
-    const { totalSpent, ordersCount, matchingSales } = getCustomerStats(cust);
+    const email = cust.email || 'N/A';
+    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+    const serialNo = index + 1;
+    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
 
     let text = `📄 *CUSTOMER ACCOUNT STATEMENT - ${shopName.toUpperCase()}*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🔢 *Serial No:* #${serialNo} (${uniqueId})\n`;
     text += `👤 *Customer Name:* ${name}\n`;
-    text += `📧 *Email:* ${cust.email || 'N/A'}\n`;
     if (phone) text += `📞 *Phone:* ${phone}\n`;
-    text += `-----------------------------------\n`;
-    text += `📊 *Total Orders:* ${ordersCount}\n`;
+    text += `📧 *Email:* ${email}\n`;
+    text += `📅 *Registration Date:* ${regDate}\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `📊 *Total Orders:* ${ordersCount} ${ordersCount === 1 ? 'Order' : 'Orders'}\n`;
     text += `💰 *Total Shopping Spent:* RS ${totalSpent.toLocaleString('en-PK')}\n`;
-    text += `-----------------------------------\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (matchingSales.length > 0) {
-      text += `*PURCHASE BREAKDOWN:*\n`;
-      matchingSales.forEach((s, idx) => {
-        const dateStr = new Date(s.saleDate || s.createdAt).toLocaleDateString('en-PK');
-        text += `${idx + 1}. ${dateStr} - ${(s.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')} = RS ${(s.totalAmount || 0).toLocaleString('en-PK')}\n`;
+    if (combinedHistory.length > 0) {
+      text += `📦 *TRANSACTION BREAKDOWN:*\n`;
+      combinedHistory.forEach((item, idx) => {
+        const dateStr = new Date(item.date).toLocaleDateString('en-PK');
+        text += `${idx + 1}. [${dateStr}] ${item.items} = RS ${item.amount.toLocaleString('en-PK')} (${item.type})\n`;
       });
     } else {
       text += `_No purchase history recorded yet._\n`;
     }
 
-    text += `\nThank you for shopping with ${shopName}!`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🙏 *Thank you for shopping with ${shopName}!*`;
 
     const encodedText = encodeURIComponent(text);
     let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
+    if (cleanPhone.startsWith('0092')) cleanPhone = '92' + cleanPhone.slice(4);
+    else if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
+    else if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) cleanPhone = '92' + cleanPhone;
 
     const whatsappUrl = cleanPhone
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
-      : `https://api.whatsapp.com/send?text=${encodedText}`;
+      ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+      : `https://web.whatsapp.com/send?text=${encodedText}`;
 
     window.open(whatsappUrl, '_blank');
   };
 
-  const handleExportCustomerExcel = (cust) => {
+  const handleExportCustomerExcel = (cust, index = 0) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const name = cust.fullName || 'Registered Customer';
     const email = cust.email || 'N/A';
     const phone = cust.phone || 'N/A';
     const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK');
-    const { totalSpent, ordersCount, matchingSales } = getCustomerStats(cust);
+    const serialNo = index + 1;
+    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
 
-    let csvRows = [];
-    csvRows.push([`"YOSAFZE EGG TRADERS - INDIVIDUAL CUSTOMER ACCOUNT STATEMENT"`]);
-    csvRows.push([`"Store Branch"`, `"${shopName}"`]);
-    csvRows.push([`"Customer Name"`, `"${name}"`]);
-    csvRows.push([`"Email Address"`, `"${email}"`]);
-    csvRows.push([`"Contact Phone"`, `="${phone}"`]);
-    csvRows.push([`"Registration Date"`, `"${regDate}"`]);
-    csvRows.push([`"Total Orders Placed"`, ordersCount]);
-    csvRows.push([`"Total Money Spent"`, `RS ${totalSpent}`]);
-    csvRows.push([]);
-    csvRows.push([`"#"`, `"Transaction Date"`, `"Items Purchased"`, `"Total Amount Paid (RS)"`]);
+    const formattedRowsHtml = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1;">${new Date(item.date).toLocaleString()}</td>
+        <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7;">${item.type}</td>
+        <td style="border: 1px solid #cbd5e1; font-weight: bold;">${item.items}</td>
+        <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #15803d;">RS ${item.amount.toLocaleString()}</td>
+      </tr>
+    `).join('') : `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 15px; border: 1px solid #cbd5e1; color: #64748b;">No transaction history recorded yet</td>
+      </tr>
+    `;
 
-    if (matchingSales.length > 0) {
-      matchingSales.forEach((s, idx) => {
-        const dateStr = new Date(s.saleDate || s.createdAt).toLocaleString();
-        const itemsText = (s.items || []).map(i => `${i.name} (${i.quantity})`).join('; ');
-        csvRows.push([idx + 1, `"${dateStr}"`, `"${itemsText}"`, s.totalAmount || 0]);
-      });
-    } else {
-      csvRows.push([1, `"N/A"`, `"No transaction history recorded yet"`, 0]);
-    }
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Customer_${uniqueId}</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; }
+          .header-banner { background-color: #15803d; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 35px; }
+          .sub-banner { background-color: #166534; color: #dcfce7; font-size: 9pt; text-align: center; font-weight: bold; }
+          .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
+          .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
+          .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9pt; border: 1px solid #334155; }
+          .total-row { background-color: #dcfce7; font-weight: 900; font-size: 11pt; color: #15803d; border: 2px solid #22c55e; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
+          </tr>
+          <tr>
+            <td colspan="5" class="sub-banner">REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</td>
+          </tr>
+          <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+          <tr>
+            <td class="info-label">Customer Serial / ID:</td>
+            <td class="info-val" style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} (${uniqueId})</td>
+            <td style="border:none;"></td>
+            <td class="info-label">Registration Date:</td>
+            <td class="info-val">${regDate}</td>
+          </tr>
+          <tr>
+            <td class="info-label">Customer Full Name:</td>
+            <td class="info-val">${name}</td>
+            <td style="border:none;"></td>
+            <td class="info-label">Total Orders Placed:</td>
+            <td class="info-val" style="color: #0284c7;">${ordersCount} Orders</td>
+          </tr>
+          <tr>
+            <td class="info-label">Contact Phone:</td>
+            <td class="info-val" style="mso-number-format:'\\@';">${phone}</td>
+            <td style="border:none;"></td>
+            <td class="info-label">Total Money Spent:</td>
+            <td class="info-val" style="color: #15803d; font-weight: 900;">RS ${totalSpent.toLocaleString()}</td>
+          </tr>
+          <tr>
+            <td class="info-label">Email Address:</td>
+            <td class="info-val">${email}</td>
+            <td style="border:none;"></td>
+            <td class="info-label">Store Branch:</td>
+            <td class="info-val">${shopName}</td>
+          </tr>
+          <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
+          <tr style="height: 30px;">
+            <th class="col-header" style="width: 50px;">#</th>
+            <th class="col-header" style="width: 170px;">Transaction Date</th>
+            <th class="col-header" style="width: 120px;">Order Type</th>
+            <th class="col-header" style="width: 280px; text-align: left;">Items Purchased</th>
+            <th class="col-header" style="width: 160px; text-align: right;">Total Amount Paid (RS)</th>
+          </tr>
+          ${formattedRowsHtml}
+          <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+          <tr class="total-row">
+            <td colspan="4" style="text-align: right; padding-right: 15px; border: 1px solid #86efac;">TOTAL PURCHASES AMOUNT:</td>
+            <td style="text-align: right; padding-right: 12px; border: 1px solid #86efac;">RS ${totalSpent.toLocaleString()}</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
 
-    csvRows.push([]);
-    csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
-
-    const csvString = csvRows.map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${name.replace(/\s+/g, '_')}_Account_Statement.csv`);
+    link.setAttribute("download", `Customer_${uniqueId}_${name.replace(/\s+/g, '_')}_Statement.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success(`Customer #${serialNo} statement exported to Excel!`);
   };
 
-  const handlePrintRegisteredCustomerRecord = (cust) => {
+  const handlePrintRegisteredCustomerRecord = (cust, index = 0) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const name = cust.fullName || 'Registered Customer';
     const email = cust.email || 'N/A';
     const phone = cust.phone || 'N/A';
     const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    const customerSales = shopSalesList.filter(s =>
-      (s.customerName && s.customerName.toLowerCase() === name.toLowerCase()) ||
-      (s.customerPhone && phone && phone !== 'N/A' && s.customerPhone.includes(phone))
-    );
-
-    const totalPurchased = customerSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const serialNo = index + 1;
+    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
 
     const printWin = window.open('', '_blank');
     if (!printWin) {
@@ -610,16 +692,17 @@ function StoreContent({ shopId }) {
       return;
     }
 
-    let salesRows = customerSales.length > 0 ? customerSales.map((s, idx) => `
-      <tr>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1;">${new Date(s.saleDate || s.createdAt).toLocaleString()}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold;">${(s.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:#059669;">RS ${(s.totalAmount || 0).toLocaleString()}</td>
+    let salesRows = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1;">${new Date(item.date).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#0284c7;">${item.type}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; text-transform:uppercase;">${item.items}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:#059669;">RS ${item.amount.toLocaleString()}</td>
       </tr>
     `).join('') : `
       <tr>
-        <td colspan="4" style="padding:20px; text-align:center; color:#64748b; font-weight:bold;">No transaction history recorded yet for this customer.</td>
+        <td colspan="5" style="padding:20px; text-align:center; color:#64748b; font-weight:bold;">No transaction history recorded yet for this customer.</td>
       </tr>
     `;
 
@@ -627,55 +710,71 @@ function StoreContent({ shopId }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Customer Profile & Statement - ${name}</title>
+          <title>Customer Profile & Statement - ${uniqueId} - ${name}</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
-            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 15px; margin-bottom: 25px; }
-            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 24px; font-weight: 900; }
-            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
-            .card-box { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 25px; font-size: 12px; }
+            .header-banner { background: #15803d; color: #ffffff; padding: 18px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+            .header-banner h1 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header-banner p { margin: 4px 0 0; font-size: 10px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; }
+            .serial-badge { background: #d97706; color: #ffffff; padding: 8px 16px; border-radius: 8px; font-weight: 900; font-size: 13px; text-align: center; letter-spacing: 1px; }
+            .card-box { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; padding: 18px 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; font-size: 12px; }
             .card-box label { font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 3px; }
             .card-box span { font-weight: 800; color: #0f172a; font-size: 13px; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; padding: 10px; border: 1px solid #cbd5e1; text-align: left; }
-            .total-bar { margin-top: 20px; padding: 15px 20px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 12px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #047857; }
-            .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
-            .sign { border-top: 2px solid #cbd5e1; width: 200px; text-align: center; padding-top: 6px; }
+            th { background: #15803d; text-transform: uppercase; font-weight: 900; font-size: 10px; color: #ffffff; padding: 10px; border: 1px solid #15803d; text-align: left; }
+            .total-bar { margin-top: 20px; padding: 14px 20px; background: #dcfce7; border: 2px solid #22c55e; border-radius: 10px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #15803d; }
+            .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 220px; text-align: center; padding-top: 6px; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>${shopName}</h1>
-            <p>REGISTERED CUSTOMER PROFILE & TRANSACTION STATEMENT</p>
+          <div class="header-banner">
+            <div>
+              <h1>${shopName}</h1>
+              <p>OFFICIAL REGISTERED CUSTOMER PROFILE &amp; TRANSACTION STATEMENT</p>
+            </div>
+            <div class="serial-badge">
+              SERIAL #${serialNo}<br/>
+              <span style="font-size:9px; font-weight:600;">${uniqueId}</span>
+            </div>
           </div>
 
           <div class="card-box">
             <div>
               <label>Customer Full Name</label>
-              <span>${name}</span>
+              <span>${name.toUpperCase()}</span>
             </div>
             <div>
-              <label>Email Address</label>
-              <span>${email}</span>
+              <label>Customer Serial / ID</label>
+              <span style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} (${uniqueId})</span>
             </div>
             <div>
-              <label>Contact Phone</label>
+              <label>Contact Phone / WhatsApp</label>
               <span>${phone}</span>
             </div>
             <div>
               <label>Registration Date</label>
               <span>${regDate}</span>
             </div>
+            <div>
+              <label>Email Address</label>
+              <span>${email}</span>
+            </div>
+            <div>
+              <label>Total Orders Placed</label>
+              <span style="color: #0284c7; font-weight: 900;">${ordersCount} Orders</span>
+            </div>
           </div>
 
-          <h3 style="font-size:13px; text-transform:uppercase; color:#334155; margin-bottom:10px;">Purchases & Transaction History</h3>
+          <h3 style="font-size:13px; text-transform:uppercase; font-weight:900; color:#334155; margin-bottom:8px;">All Purchases &amp; Transaction History</h3>
           <table>
             <thead>
               <tr>
-                <th style="text-align:center;">#</th>
-                <th>Transaction Date</th>
+                <th style="text-align:center; width:40px;">#</th>
+                <th style="width:160px;">Transaction Date</th>
+                <th style="width:120px; text-align:center;">Type</th>
                 <th>Items Purchased</th>
-                <th style="text-align:right;">Paid Amount</th>
+                <th style="text-align:right; width:150px;">Paid Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -685,12 +784,12 @@ function StoreContent({ shopId }) {
 
           <div class="total-bar">
             <span>TOTAL PURCHASES AMOUNT:</span>
-            <span>RS ${totalPurchased.toLocaleString('en-PK')}</span>
+            <span>RS ${totalSpent.toLocaleString('en-PK')}</span>
           </div>
 
           <div class="footer">
             <div class="sign">Customer Signature</div>
-            <div class="sign">Yosafze Egg Traders Stamp</div>
+            <div class="sign">${shopName} Authorized Stamp</div>
           </div>
           <script>
             window.onload = function() { window.print(); }
@@ -1054,6 +1153,8 @@ function StoreContent({ shopId }) {
   // Dynamic Manual Expenses Tracking State
   const [expensesList, setExpensesList] = useState([]);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [activeExpenseMenuId, setActiveExpenseMenuId] = useState(null);
   const [expenseFormData, setExpenseFormData] = useState({
     title: '',
     category: 'Utilities / Bills',
@@ -1082,10 +1183,57 @@ function StoreContent({ shopId }) {
     return parsed;
   };
 
-  const handleAddExpenseSubmit = async (e) => {
+  const handleEditExpense = (exp) => {
+    setEditingExpenseId(exp._id);
+    setExpenseFormData({
+      title: exp.title || '',
+      category: exp.category || 'Utilities / Bills',
+      amount: exp.amount || '',
+      expenseDate: exp.expenseDate ? new Date(exp.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      notes: exp.notes || ''
+    });
+    setActiveExpenseMenuId(null);
+    setShowAddExpenseModal(true);
+  };
+
+  const handleSaveExpenseSubmit = async (e) => {
     e.preventDefault();
     if (!expenseFormData.title || !expenseFormData.amount) {
       alert('Please enter expense title and amount');
+      return;
+    }
+
+    if (editingExpenseId) {
+      const updatedExpenseItem = {
+        _id: editingExpenseId,
+        shopId,
+        title: expenseFormData.title,
+        category: expenseFormData.category,
+        amount: Number(expenseFormData.amount),
+        expenseDate: expenseFormData.expenseDate ? new Date(expenseFormData.expenseDate) : new Date(),
+        notes: expenseFormData.notes || '',
+        createdBy: user?.fullName || customer?.fullName || 'Shop Admin'
+      };
+
+      setExpensesList(prev => prev.map(item => String(item._id) === String(editingExpenseId) ? { ...item, ...updatedExpenseItem } : item));
+      try {
+        await fetch(`/api/expenses/${editingExpenseId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedExpenseItem)
+        });
+      } catch (err) { }
+
+      setShowAddExpenseModal(false);
+      setEditingExpenseId(null);
+      setExpenseFormData({
+        title: '',
+        category: 'Utilities / Bills',
+        amount: '',
+        expenseDate: new Date().toISOString().split('T')[0],
+        notes: ''
+      });
+      setTimeout(fetchDashboardStats, 300);
       return;
     }
 
@@ -1129,7 +1277,190 @@ function StoreContent({ shopId }) {
     setTimeout(fetchDashboardStats, 300);
   };
 
+  const handlePrintSingleExpense = (exp, idx = 0) => {
+    setActiveExpenseMenuId(null);
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const dateStr = new Date(exp.expenseDate || exp.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const voucherNo = `#EXP-${String(idx + 1).padStart(4, '0')}`;
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print the expense voucher');
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Expense Payment Voucher - ${voucherNo}</title>
+          <style>
+            @page { size: portrait; margin: 10mm 15mm; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 12px; margin: 0; }
+            .voucher-card { border: 2px solid #dc2626; border-radius: 16px; padding: 24px; background: #ffffff; }
+            .header-banner { background: #dc2626; color: #ffffff; padding: 14px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+            .header-banner h1 { margin: 0; font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header-banner p { margin: 2px 0 0; font-size: 9px; font-weight: 600; opacity: 0.9; text-transform: uppercase; }
+            .voucher-badge { background: #ffffff; color: #dc2626; padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 12px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px; }
+            .info-box label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 3px; }
+            .info-box span { font-size: 12px; font-weight: 800; color: #0f172a; }
+            .amount-banner { background: #fee2e2; border: 2px solid #ef4444; padding: 18px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin: 20px 0; }
+            .amount-banner .lbl { font-size: 11px; font-weight: 900; color: #991b1b; text-transform: uppercase; }
+            .amount-banner .val { font-size: 24px; font-weight: 900; color: #dc2626; }
+            .footer-grid { margin-top: 40px; display: flex; justify-content: space-between; padding-top: 20px; border-top: 1px dashed #cbd5e1; font-size: 10px; font-weight: 800; color: #64748b; }
+            .sign-box { border-top: 1.5px solid #94a3b8; width: 160px; text-align: center; padding-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="voucher-card">
+            <div class="header-banner">
+              <div>
+                <h1>${shopName.toUpperCase()}</h1>
+                <p>OFFICIAL EXPENSE PAYMENT RECEIPT / VOUCHER</p>
+              </div>
+              <div class="voucher-badge">${voucherNo}</div>
+            </div>
+
+            <div class="info-grid">
+              <div class="info-box">
+                <label>Date &amp; Time</label>
+                <span>${dateStr}</span>
+              </div>
+              <div class="info-box">
+                <label>Expense Category</label>
+                <span style="color: #dc2626;">${exp.category || 'General Expense'}</span>
+              </div>
+              <div class="info-box" style="grid-column: span 2;">
+                <label>Expense Title / Reason</label>
+                <span style="text-transform: uppercase; font-size: 13px;">${exp.title}</span>
+              </div>
+              <div class="info-box" style="grid-column: span 2;">
+                <label>Paid To / Logged By / Notes</label>
+                <span>${exp.notes || exp.createdBy || 'Shop Admin'}</span>
+              </div>
+            </div>
+
+            <div class="amount-banner">
+              <div class="lbl">TOTAL AMOUNT PAID:</div>
+              <div class="val">Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}</div>
+            </div>
+
+            <div class="footer-grid">
+              <div class="sign-box">Prepared By (Admin)</div>
+              <div class="sign-box">Received By / Paid To</div>
+              <div class="sign-box">Authorized Stamp</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => printWin.print(), 300);
+  };
+
+  const handleWhatsAppSingleExpense = (exp, idx = 0) => {
+    setActiveExpenseMenuId(null);
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const dateStr = new Date(exp.expenseDate || exp.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const voucherNo = `#EXP-${String(idx + 1).padStart(4, '0')}`;
+
+    let msg = `🧾 *OFFICIAL EXPENSE RECEIPT - ${shopName.toUpperCase()}*\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🔢 *Voucher No:* ${voucherNo}\n`;
+    msg += `📅 *Date:* ${dateStr}\n`;
+    msg += `🏢 *Store Branch:* ${shopName}\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `📌 *Category:* ${exp.category || 'Expense'}\n`;
+    msg += `📝 *Expense Title:* ${exp.title}\n`;
+    msg += `👤 *Notes / Paid To:* ${exp.notes || exp.createdBy || 'Shop Admin'}\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💵 *TOTAL AMOUNT PAID: Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}*\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🙏 *Official Expense Payment Voucher Recorded.*`;
+
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://web.whatsapp.com/send?text=${encoded}`, '_blank');
+  };
+
+  const handleExportSingleExpenseExcel = (exp, idx = 0) => {
+    setActiveExpenseMenuId(null);
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const dateStr = new Date(exp.expenseDate || exp.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+    const voucherNo = `#EXP-${String(idx + 1).padStart(4, '0')}`;
+
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Expense_${voucherNo.replace('#', '')}</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; }
+          .header-banner { background-color: #dc2626; color: #ffffff; font-size: 15pt; font-weight: bold; text-align: center; height: 35px; }
+          .sub-banner { background-color: #991b1b; color: #fee2e2; font-size: 9pt; text-align: center; font-weight: bold; }
+          .info-lbl { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
+          .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
+          .total-row { background-color: #fee2e2; font-weight: 900; font-size: 12pt; color: #991b1b; border: 2px solid #ef4444; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="4" class="header-banner">${shopName.toUpperCase()}</td></tr>
+          <tr><td colspan="4" class="sub-banner">OFFICIAL EXPENSE PAYMENT VOUCHER</td></tr>
+          <tr style="height: 10px;"><td colspan="4"></td></tr>
+          <tr>
+            <td class="info-lbl">Voucher No:</td>
+            <td class="info-val" style="color:#dc2626; font-weight:900;">${voucherNo}</td>
+            <td class="info-lbl">Expense Date:</td>
+            <td class="info-val">${dateStr}</td>
+          </tr>
+          <tr>
+            <td class="info-lbl">Category:</td>
+            <td class="info-val">${exp.category || 'General'}</td>
+            <td class="info-lbl">Logged By:</td>
+            <td class="info-val">${exp.notes || exp.createdBy || 'Shop Admin'}</td>
+          </tr>
+          <tr>
+            <td class="info-lbl">Expense Title:</td>
+            <td colspan="3" class="info-val" style="font-weight:900;">${exp.title}</td>
+          </tr>
+          <tr style="height: 10px;"><td colspan="4"></td></tr>
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right;">TOTAL AMOUNT PAID:</td>
+            <td style="text-align:right;">Rs. ${(Number(exp.amount) || 0).toLocaleString()}</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Expense_${voucherNo.replace('#', '')}_${shopName.replace(/\s+/g, '_')}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleDeleteExpense = async (id) => {
+    setActiveExpenseMenuId(null);
     if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
     try {
       await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
@@ -1517,6 +1848,54 @@ function StoreContent({ shopId }) {
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const periodName = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
 
+    if (type === 'expenses') {
+      // Filter expenses based on timeframe
+      const now = new Date();
+      const filteredExp = expensesList.filter(exp => {
+        const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
+        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
+          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
+            (dashStats.totalDamagedLoss || 0);
+      const grandTotalExp = totalManualExp + damagedLossVal;
+
+      let message = `📑 *EXPENSES & LOSS REPORT - ${shopName.toUpperCase()}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📅 *Period:* ${periodName} (${dateStr})\n`;
+      message += `🏢 *Store Branch:* ${shopName}\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📊 *SUMMARY STATS:*\n`;
+      message += `• Manual Expenses: Rs. ${totalManualExp.toLocaleString('en-PK')} (${filteredExp.length} Entries)\n`;
+      message += `• Damaged Egg Losses: Rs. ${damagedLossVal.toLocaleString('en-PK')}\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `💵 *TOTAL EXPENSES & LOSS: Rs. ${grandTotalExp.toLocaleString('en-PK')}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (filteredExp.length > 0) {
+        message += `📦 *ITEMIZED EXPENSES LIST:*\n`;
+        filteredExp.forEach((e, idx) => {
+          const eDate = new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK');
+          message += `${idx + 1}. [${e.category}] ${e.title} = Rs. ${(Number(e.amount) || 0).toLocaleString('en-PK')} (${eDate})\n`;
+        });
+      } else {
+        message += `_No manual expenses logged for this period._\n`;
+      }
+
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `🙏 *Thank you! Generated via Yosafze Egg Traders System*`;
+
+      const encodedText = encodeURIComponent(message);
+      window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+      return;
+    }
+
     if (type === 'profit') {
       // 1. Generate & download official PDF file
       const pdfFileName = generateProfitReportPDF(timeframe);
@@ -1584,6 +1963,114 @@ function StoreContent({ shopId }) {
     const printWin = window.open('', '_blank');
     if (!printWin) {
       alert('Please allow popups to view and print the report');
+      return;
+    }
+
+    if (type === 'expenses') {
+      const now = new Date();
+      const filteredExp = expensesList.filter(exp => {
+        const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
+        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
+          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
+            (dashStats.totalDamagedLoss || 0);
+      const grandTotalExp = totalManualExp + damagedLossVal;
+
+      let expRows = filteredExp.length > 0 ? filteredExp.map((e, idx) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align:center; font-weight:bold; border:1px solid #cbd5e1; padding:8px;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1; padding:8px;">${new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+          <td style="border:1px solid #cbd5e1; padding:8px; font-weight:bold; text-transform:uppercase;">${e.title}</td>
+          <td style="border:1px solid #cbd5e1; padding:8px; text-align:center;"><span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:8.5pt;">${e.category}</span></td>
+          <td style="border:1px solid #cbd5e1; padding:8px; color:#64748b;">${e.notes || e.createdBy || 'Shop Admin'}</td>
+          <td style="border:1px solid #cbd5e1; padding:8px; text-align:right; font-weight:bold; color:#dc2626;">Rs. ${(Number(e.amount) || 0).toLocaleString('en-PK')}</td>
+        </tr>
+      `).join('') : `
+        <tr>
+          <td colspan="6" style="text-align:center; padding:20px; color:#64748b; font-weight:bold;">No expenses recorded for this period.</td>
+        </tr>
+      `;
+
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${timeTitle} Expenses &amp; Loss Report - ${shopName}</title>
+            <style>
+              @page { size: portrait; margin: 8mm 10mm; }
+              body { font-family: 'Segoe UI', Arial, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
+              .header-banner { background: #dc2626; color: #ffffff; padding: 18px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+              .header-banner h1 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+              .header-banner p { margin: 4px 0 0; font-size: 10px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; }
+              .badge { background: #fee2e2; color: #991b1b; padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 11px; }
+              .stats-grid { display: flex; gap: 12px; margin-bottom: 20px; }
+              .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 10px; text-align: center; }
+              .stat-card label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px; }
+              .stat-card .val { font-size: 15px; font-weight: 900; color: #dc2626; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th { background: #dc2626; color: #ffffff; font-weight: 900; text-transform: uppercase; font-size: 9pt; padding: 9px; border: 1px solid #dc2626; text-align: left; }
+              .total-bar { margin-top: 20px; padding: 14px 20px; background: #fee2e2; border: 2px solid #ef4444; border-radius: 10px; display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; color: #991b1b; }
+              .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; }
+              .sign { border-top: 1.5px solid #cbd5e1; width: 180px; text-align: center; padding-top: 4px; }
+            </style>
+          </head>
+          <body>
+            <div class="header-banner">
+              <div>
+                <h1>${shopName.toUpperCase()}</h1>
+                <p>OFFICIAL BUSINESS EXPENSES &amp; LOSS ANALYTICS STATEMENT</p>
+              </div>
+              <div class="badge">
+                PERIOD: ${timeTitle.toUpperCase()}<br/>
+                <span style="font-size:8px; opacity:0.8;">${dateStr}</span>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-card"><label>Operational Expenses</label><div class="val">Rs. ${totalManualExp.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Damaged Egg Losses</label><div class="val" style="color:#d97706;">Rs. ${damagedLossVal.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Grand Total Losses</label><div class="val" style="color:#991b1b;">Rs. ${grandTotalExp.toLocaleString('en-PK')}</div></div>
+            </div>
+
+            <h3 style="font-size:12px; text-transform:uppercase; font-weight:900; color:#334155; margin-bottom:6px;">Itemized Logged Expenses (${filteredExp.length} Entries)</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px; text-align:center;">#</th>
+                  <th style="width:110px;">Date</th>
+                  <th>Expense Title / Reason</th>
+                  <th style="width:130px; text-align:center;">Category</th>
+                  <th style="width:140px;">Notes / User</th>
+                  <th style="width:120px; text-align:right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${expRows}
+              </tbody>
+            </table>
+
+            <div class="total-bar">
+              <span>TOTAL EXPENSES &amp; LOSSES:</span>
+              <span>Rs. ${grandTotalExp.toLocaleString('en-PK')}</span>
+            </div>
+
+            <div class="footer">
+              <div>Generated via Yosafze Egg Traders Admin System</div>
+              <div class="sign">Authorized Signature &amp; Stamp</div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => printWin.print(), 300);
       return;
     }
 
@@ -1782,11 +2269,120 @@ function StoreContent({ shopId }) {
     setTimeout(() => printWin.print(), 300);
   };
 
-
-
   const handleExportExcelReport = (type = 'sales', timeframe = reportTimeframe) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+
+    if (type === 'expenses') {
+      const now = new Date();
+      const filteredExp = expensesList.filter(exp => {
+        const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
+        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
+          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
+            (dashStats.totalDamagedLoss || 0);
+
+      const formattedRowsHtml = filteredExp.map((e, idx) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align:center; border:1px solid #cbd5e1; font-weight:bold;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1;">${new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK')}</td>
+          <td style="border:1px solid #cbd5e1; font-weight:bold;">${e.title}</td>
+          <td style="border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#dc2626;">${e.category}</td>
+          <td style="border:1px solid #cbd5e1;">${e.notes || e.createdBy || 'Shop Admin'}</td>
+          <td style="text-align:right; border:1px solid #cbd5e1; font-weight:bold; color:#dc2626;">Rs. ${(Number(e.amount) || 0).toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Expenses_${timeframe}</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; }
+            .header-banner { background-color: #dc2626; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 35px; }
+            .sub-banner { background-color: #991b1b; color: #fee2e2; font-size: 9pt; text-align: center; font-weight: bold; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
+            .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
+            .col-header { background-color: #dc2626; color: #ffffff; font-weight: bold; font-size: 9pt; border: 1px solid #991b1b; }
+            .total-row { background-color: #fee2e2; font-weight: 900; font-size: 11pt; color: #991b1b; border: 2px solid #ef4444; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <tr>
+              <td colspan="6" class="header-banner">${shopName.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="sub-banner">OFFICIAL BUSINESS EXPENSES &amp; LOSS REPORT (${timeLabel.toUpperCase()})</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="6" style="border:none;"></td></tr>
+            <tr>
+              <td class="info-label">Report Period:</td>
+              <td class="info-val" style="color: #dc2626; font-weight: 900;">${timeLabel}</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Generated Date:</td>
+              <td colspan="2" class="info-val">${dateStr}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Total Expense Entries:</td>
+              <td class="info-val">${filteredExp.length} Entries</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Damaged Egg Loss:</td>
+              <td colspan="2" class="info-val" style="color: #d97706; font-weight: bold;">Rs. ${damagedLossVal.toLocaleString()}</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="6" style="border:none;"></td></tr>
+            <tr style="height: 30px;">
+              <th class="col-header" style="width: 50px;">#</th>
+              <th class="col-header" style="width: 120px;">Expense Date</th>
+              <th class="col-header" style="width: 250px; text-align: left;">Expense Title / Description</th>
+              <th class="col-header" style="width: 140px; text-align: center;">Category</th>
+              <th class="col-header" style="width: 160px;">Logged By / Notes</th>
+              <th class="col-header" style="width: 150px; text-align: right;">Amount (RS)</th>
+            </tr>
+            ${formattedRowsHtml || '<tr><td colspan="6" style="text-align:center; padding:15px;">No expenses logged for this period</td></tr>'}
+            <tr style="height: 10px;"><td colspan="6" style="border:none;"></td></tr>
+            <tr class="total-row">
+              <td colspan="5" style="text-align: right; padding-right: 15px; border: 1px solid #f87171;">COMBINED TOTAL EXPENSES &amp; LOSSES:</td>
+              <td style="text-align: right; padding-right: 12px; border: 1px solid #f87171;">Rs. ${(totalManualExp + damagedLossVal).toLocaleString()}</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Expenses_${timeframe}_${shopName.replace(/\s+/g, '_')}_Report.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`${timeLabel} expenses report exported to Excel!`);
+      return;
+    }
 
     let salesVal = type === 'profit' ? (profitReportStats.totalRevenue || 0) : (dashStats.totalRevenue || 0);
     let grossProfitVal = type === 'profit' ? (profitReportStats.grossProfit || 0) : (dashStats.totalProfit || 0);
@@ -1807,8 +2403,6 @@ function StoreContent({ shopId }) {
       grossProfitVal = dashStats.yearlyProfit || 0;
       expensesVal = dashStats.yearlyLoss || 0;
     }
-
-    const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
 
     let csvRows = [];
     csvRows.push([`"YOSAFZE EGG TRADERS - OFFICIAL NET PROFIT & FINANCIAL REPORT"`]);
@@ -2488,7 +3082,7 @@ function StoreContent({ shopId }) {
             {/* Mobile Toggle */}
             <button
               onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer md:hidden"
+              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer md:hidden"
               aria-label="Toggle Mobile Menu"
             >
               <Menu className="w-6 h-6" />
@@ -2497,13 +3091,13 @@ function StoreContent({ shopId }) {
             {/* Desktop Toggle */}
             <button
               onClick={() => setIsDesktopOpen(!isDesktopOpen)}
-              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
+              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
               aria-label="Toggle Desktop Menu"
             >
               <Menu className="w-6 h-6" />
             </button>
 
-            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-emerald-600 hover:to-[#1B3817] hover:border-t-emerald-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.6)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
+            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
               <ArrowLeft className="w-5 h-5" />
             </button>
 
@@ -2514,7 +3108,7 @@ function StoreContent({ shopId }) {
                   const mainContent = document.getElementById('main-store-content');
                   if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_6px_16px_rgba(0,0,0,0.5)] overflow-hidden border-2 border-white/60 ring-2 ring-emerald-400/40 group-hover:scale-110 group-hover:rotate-3 group-hover:border-amber-300 group-hover:ring-amber-400/60 group-hover:shadow-[0_10px_24px_rgba(245,158,11,0.6)] transition-all duration-300 ease-out p-0.5"
+                className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_8px_20px_rgba(37,99,235,0.6),_0_2px_6px_rgba(30,58,138,0.5)] overflow-hidden border-2 border-white/80 ring-2 ring-blue-500/60 group-hover:scale-110 group-hover:rotate-3 group-hover:border-blue-300 group-hover:ring-blue-400 group-hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] transition-all duration-300 ease-out p-0.5"
                 title={isAdminUser ? "Go to Shop Admin Dashboard" : "Go to Customer Dashboard"}
               >
                 {shop?.logoUrl ? (
@@ -2544,9 +3138,9 @@ function StoreContent({ shopId }) {
                 onFocus={() => setShowSearchDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
                 placeholder="Search products..."
-                className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-emerald-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.2),_0_8px_20px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.4)] border-b-4 border-emerald-600 focus:border-emerald-500"
+                className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-blue-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_8px_24px_rgba(37,99,235,0.55),_0_2px_8px_rgba(30,58,138,0.4)] hover:shadow-[0_12px_36px_rgba(59,130,246,0.85)] border-b-4 border-blue-600 focus:border-blue-500"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_10px_25px_rgba(16,185,129,0.7)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer">
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(37,99,235,0.6)] hover:shadow-[0_10px_25px_rgba(59,130,246,0.85)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer">
                 <Search className="w-4 h-4" />
               </button>
 
@@ -2593,10 +3187,10 @@ function StoreContent({ shopId }) {
             {canBuy && (
               <button
                 onClick={() => setOrderOpen(true)}
-                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-emerald-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(16,185,129,0.6)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
+                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
                 title="View My Orders & Payment Status"
               >
-                <Truck className="w-5 h-5 text-emerald-400" />
+                <Truck className="w-5 h-5 text-blue-400" />
                 <span className="text-xs font-black uppercase tracking-wider hidden sm:inline">My Orders</span>
               </button>
             )}
@@ -2604,7 +3198,7 @@ function StoreContent({ shopId }) {
             {canBuy ? (
               <button
                 onClick={() => setCartOpen(true)}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
               >
                 <ShoppingCart className="w-5 h-5" />
                 {cartCount > 0 && (
@@ -2616,7 +3210,7 @@ function StoreContent({ shopId }) {
             ) : isAdminUser ? (
               <button
                 onClick={() => setActiveView('walkin')}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-amber-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-amber-200 border-b-4 border-b-[#071306] shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(245,158,11,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                 title="View Walk-in Customer Bill Cart"
               >
                 <Receipt className="w-5 h-5 text-emerald-400" />
@@ -2670,13 +3264,13 @@ function StoreContent({ shopId }) {
             {/* Dashboard Link - Admin Only */}
             {isAdminUser && (
               <div>
-                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Overview</p>
-                <div className="space-y-0.5">
+                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Overview</p>
+                <div className="space-y-1">
                   <button
                     onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'dashboard'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'dashboard'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <LayoutDashboard className="w-4 h-4 transition-colors group-hover:text-zinc-950" />
@@ -2689,13 +3283,13 @@ function StoreContent({ shopId }) {
             {/* Shop Admin POS & Sales Section */}
             {isAdminUser && (
               <div>
-                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Shop POS & Billing</p>
-                <div className="space-y-0.5">
+                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Shop POS & Billing</p>
+                <div className="space-y-1">
                   <button
                     onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'walkin'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'walkin'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <Receipt className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
@@ -2704,9 +3298,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('sales'); fetchShopSales(); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'sales'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'sales'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <DollarSign className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
@@ -2715,9 +3309,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'orders'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'orders'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
@@ -2726,9 +3320,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchases'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchases'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <Truck className="w-4 h-4 text-teal-400 group-hover:text-zinc-950 transition-colors" />
@@ -2737,9 +3331,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'registered-customers'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'registered-customers'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <Users className="w-4 h-4 text-indigo-400 group-hover:text-zinc-950 transition-colors" />
@@ -2748,9 +3342,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-sales'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-sales'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <TrendingUp className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
@@ -2759,9 +3353,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-profit'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-profit'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <DollarSign className="w-4 h-4 text-green-400 group-hover:text-zinc-950 transition-colors" />
@@ -2770,9 +3364,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-expenses'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-expenses'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <FileText className="w-4 h-4 text-rose-400 group-hover:text-zinc-950 transition-colors" />
@@ -2781,9 +3375,9 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'damaged-products'
-                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'damaged-products'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                       }`}
                   >
                     <PackageX className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
@@ -2795,13 +3389,13 @@ function StoreContent({ shopId }) {
 
             {/* Products Section */}
             <div>
-              <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Catalog</p>
-              <div className="space-y-0.5">
+              <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Catalog</p>
+              <div className="space-y-1">
                 <button
                   onClick={() => { setActiveView('products'); setActiveCategory('All'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && activeCategory === 'All'
-                    ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                    : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                  className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && activeCategory === 'All'
+                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                    : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                     }`}
                 >
                   <Store className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
@@ -2813,21 +3407,21 @@ function StoreContent({ shopId }) {
             {/* Categories */}
             {categories.filter(c => c !== 'All').length > 0 && (
               <div>
-                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Categories</p>
-                <div className="space-y-0.5">
+                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Categories</p>
+                <div className="space-y-1">
                   {categories.filter(c => c !== 'All').map(cat => {
                     const active = activeCategory === cat;
                     return (
                       <button
                         key={cat}
                         onClick={() => { setActiveView('products'); setActiveCategory(cat); setIsMobileOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && active
-                          ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                        className={`w-full flex items-center gap-2.5 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && active
+                          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                           }`}
                       >
                         <img src="/egg.png" alt="egg" className={`w-4 h-4 object-contain shrink-0 transition-all ${active ? 'brightness-125 scale-110' : 'brightness-90 group-hover:brightness-0'}`} />
-                        <span className="capitalize truncate">{cat}</span>
+                        <span className="capitalize truncate text-white">{cat}</span>
                       </button>
                     );
                   })}
@@ -2838,11 +3432,11 @@ function StoreContent({ shopId }) {
             {/* Cart Quick Access */}
             {canBuy && (
               <div>
-                <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Cart</p>
-                <div className="space-y-0.5">
+                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Cart</p>
+                <div className="space-y-1">
                   <button
                     onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
+                    className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
                   >
                     <ShoppingCart className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
                     <span>My Cart ({cartCount})</span>
@@ -2850,7 +3444,7 @@ function StoreContent({ shopId }) {
 
                   <button
                     onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
+                    className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
                   >
                     <Truck className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
                     <span>My Orders</span>
@@ -2866,7 +3460,7 @@ function StoreContent({ shopId }) {
                   if (userLogout) userLogout();
                   if (customerLogout) customerLogout();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black italic tracking-wide text-rose-300 hover:text-white hover:bg-gradient-to-r hover:from-rose-600 hover:to-rose-900 border border-transparent hover:border-rose-300 hover:shadow-[0_8px_22px_rgba(244,63,94,0.6)] hover:scale-105 transition-all duration-300 ease-out"
+                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13.5px] font-bold tracking-wide text-rose-300 hover:text-white hover:bg-gradient-to-r hover:from-rose-600 hover:to-rose-900 border border-transparent hover:border-rose-300 hover:shadow-[0_8px_22px_rgba(244,63,94,0.6)] hover:scale-105 transition-all duration-300 ease-out"
               >
                 <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white transition-colors" />
                 <span>Logout</span>
@@ -2942,75 +3536,75 @@ function StoreContent({ shopId }) {
                     <div className="space-y-4">
 
                       {/* ─── EXECUTIVE BUSINESS DASHBOARD (CLEAN & MINIMAL) ─── */}
-                      <div className="bg-slate-100 border border-slate-200/90 rounded-2xl p-3.5 sm:p-5 shadow-xl text-slate-900 space-y-3.5">
+                      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-5 shadow-xl text-slate-900 space-y-4">
 
-                        {/* ─── LINE 1: 💰 REALIZED NET PROFIT & LOSS (خالصه ګټه او تاوان) ─── */}
+                        {/* ─── LINE 1: 💰 REALIZED NET PROFIT & LOSS ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-emerald-800 flex items-center gap-1.5 tracking-wider">
-                              <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> 1. Realized Net Profit / Loss (خالصه ګټه - تفریق مصارف او تاوان)
+                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
+                              <DollarSign className="w-3.5 h-3.5 text-slate-700" /> 1. Realized Net Profit / Loss
                             </span>
-                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">
+                            <span className="text-[9px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full uppercase">
                               Sales Profit - Expenses - Damaged Loss
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                             {/* Today Net Profit */}
-                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.todayNet >= 0 ? 'bg-gradient-to-br from-emerald-600 to-teal-700 border-emerald-500' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
                                   Today Net {netStats.todayNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.todayNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                   {currency} {netStats.todayNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
                                   Gross: Rs.{netStats.todayGrossProfit} | Exp: Rs.{netStats.todayExp} | Loss: Rs.{netStats.todayDmg}
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Monthly Net Profit */}
-                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.monthlyNet >= 0 ? 'bg-gradient-to-br from-teal-600 to-emerald-700 border-teal-500' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
                                   Month Net {netStats.monthlyNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.monthlyNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                   {currency} {netStats.monthlyNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
                                   Gross: Rs.{netStats.monthlyGrossProfit} | Exp: Rs.{netStats.monthlyExp}
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <DollarSign className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Yearly Net Profit */}
-                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.yearlyNet >= 0 ? 'bg-gradient-to-br from-blue-700 to-indigo-800 border-blue-600' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
                                   Year Net {netStats.yearlyNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.yearlyNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                   {currency} {netStats.yearlyNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
                                   This Year Realized
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Calendar className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* All-Time Cumulative Net Profit */}
-                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.totalNet >= 0 ? 'bg-slate-900 border-emerald-500/50' : 'bg-slate-900 border-rose-500/50'}`}>
+                            {/* All-Time Cumulative Net Profit (Black Theme As Requested) */}
+                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
                               <div>
                                 <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wide block">
                                   All-Time Net Profit
@@ -3032,8 +3626,8 @@ function StoreContent({ shopId }) {
                         {/* ─── LINE 2: 🛒 SALES & REVENUE ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-teal-800 flex items-center gap-1.5 tracking-wider">
-                              <ShoppingBag className="w-3.5 h-3.5 text-teal-600" /> 2. Sales &amp; Revenue
+                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
+                              <ShoppingBag className="w-3.5 h-3.5 text-slate-700" /> 2. Sales &amp; Revenue
                             </span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase">
                               Sales Volume &amp; Invoices
@@ -3041,50 +3635,50 @@ function StoreContent({ shopId }) {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                             {/* Today */}
-                            <div className="p-3 bg-teal-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Today</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Calendar className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* This Month */}
-                            <div className="p-3 bg-emerald-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">This Month</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">This Month</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* This Year */}
-                            <div className="p-3 bg-blue-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">This Year</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">This Year</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <ShoppingBag className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Total Sales */}
-                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wide block">Total Sales</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-zinc-300 font-bold block">{dashStats.totalOrders || 0} Orders</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Total Sales</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.totalOrders || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
-                                <DollarSign className="w-4 h-4 text-amber-400" />
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                                <DollarSign className="w-4 h-4 text-slate-700" />
                               </div>
                             </div>
                           </div>
@@ -3093,8 +3687,8 @@ function StoreContent({ shopId }) {
                         {/* ─── LINE 3: 📦 AVAILABLE STOCK ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-amber-800 flex items-center gap-1.5 tracking-wider">
-                              <Box className="w-3.5 h-3.5 text-amber-600" /> 3. Available Stock
+                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
+                              <Box className="w-3.5 h-3.5 text-slate-700" /> 3. Available Stock
                             </span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase">
                               Inventory Count &amp; Worth
@@ -3102,49 +3696,49 @@ function StoreContent({ shopId }) {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                             {/* Petis */}
-                            <div className="p-3 bg-amber-500 rounded-xl text-slate-950 shadow-sm flex items-center justify-between border border-amber-600">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-black uppercase tracking-wide block text-slate-900">Petis</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-900 font-bold block">{dashStats.totalProducts || 0} Products</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Petis</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.totalProducts || 0} Products</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-black/10 border border-black/20 flex items-center justify-center text-slate-950 shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Box className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Trays */}
-                            <div className="p-3 bg-amber-100 rounded-xl text-amber-950 shadow-sm flex items-center justify-between border border-amber-200">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-black uppercase tracking-wide block text-amber-800">Trays</span>
-                                <h4 className="text-lg sm:text-xl font-black text-amber-950 mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
-                                <span className="text-[8.5px] text-amber-700 font-bold block">Available</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Trays</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">Available</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-900 shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Package className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Eggs */}
-                            <div className="p-3 bg-amber-50 rounded-xl text-amber-900 shadow-sm flex items-center justify-between border border-amber-200">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-black uppercase tracking-wide block text-amber-700">Eggs</span>
-                                <h4 className="text-lg sm:text-xl font-black text-amber-900 mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
-                                <span className="text-[8.5px] text-amber-600 font-bold block">Available</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Eggs</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">Available</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <ShoppingBag className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Stock Worth */}
-                            <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Stock Worth</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">Total Valuation</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Stock Worth</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">Total Valuation</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
@@ -3154,8 +3748,8 @@ function StoreContent({ shopId }) {
                         {/* ─── LINE 4: 🚚 PURCHASES & RESTOCK ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-purple-800 flex items-center gap-1.5 tracking-wider">
-                              <Truck className="w-3.5 h-3.5 text-purple-600" /> 4. Purchases &amp; Restock
+                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
+                              <Truck className="w-3.5 h-3.5 text-slate-700" /> 4. Purchases &amp; Restock
                             </span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase">
                               Restock Summary
@@ -3163,56 +3757,56 @@ function StoreContent({ shopId }) {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                             {/* Stock Bought */}
-                            <div className="p-3 bg-purple-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Purchased</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(Number(dashStats.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Purchased</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(Number(dashStats.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Truck className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Purchase Cost */}
-                            <div className="p-3 bg-purple-900 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-amber-300 uppercase tracking-wide block">Total Cost</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">Total Investment</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Total Cost</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">Total Investment</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
-                                <DollarSign className="w-4 h-4 text-amber-300" />
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                                <DollarSign className="w-4 h-4 text-slate-700" />
                               </div>
                             </div>
 
                             {/* Cash Paid to Supplier */}
-                            <div className="p-3 bg-emerald-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Cash Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">Paid to Supplier</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Cash Paid</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-400 font-bold block">Paid to Supplier</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                                 <Banknote className="w-4 h-4" />
                               </div>
                             </div>
 
                             {/* Due Supplier Debt */}
-                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
+                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
                               <div>
-                                <span className="text-[9px] font-bold text-rose-300 uppercase tracking-wide block">Due Balance</span>
-                                <h4 className="text-lg sm:text-xl font-black text-rose-400 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-rose-300 font-bold block">Owed Debt</span>
+                                <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wide block">Due Balance</span>
+                                <h4 className="text-lg sm:text-xl font-black text-rose-600 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-rose-400 font-bold block">Owed Debt</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
                                 <AlertCircle className="w-4 h-4" />
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* ─── LINE 5: 💸 SHOP EXPENSES ─── */}
+                        {/* ─── LINE 5: 💸 SHOP EXPENSES (Red Theme As Requested) ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                             <span className="text-[11px] font-black uppercase text-rose-800 flex items-center gap-1.5 tracking-wider">
@@ -3261,7 +3855,7 @@ function StoreContent({ shopId }) {
                           </div>
                         </div>
 
-                        {/* ─── LINE 6: 🥚 DAMAGED STOCK & LOSS ─── */}
+                        {/* ─── LINE 6: 🥚 DAMAGED STOCK & LOSS (Red Theme As Requested) ─── */}
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                             <span className="text-[11px] font-black uppercase text-red-800 flex items-center gap-1.5 tracking-wider">
@@ -4143,8 +4737,8 @@ function StoreContent({ shopId }) {
                     </button>
                   </div>
 
-                  <div className="bg-[#1E293B] border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="p-4 bg-slate-900/80 border-b border-slate-700/60 flex items-center justify-between">
+                  <div className="bg-slate-800 border border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl">
+                    <div className="p-4 bg-slate-900/90 border-b border-slate-700/80 flex items-center justify-between">
                       <h3 className="text-xs font-black text-white uppercase tracking-wider">All Registered Customer Accounts ({registeredCustomersList.length})</h3>
                       <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{shop?.name || 'Shop'} Portal</span>
                     </div>
@@ -4154,7 +4748,7 @@ function StoreContent({ shopId }) {
                         Loading registered customers directory...
                       </div>
                     ) : registeredCustomersList.length === 0 ? (
-                      <div className="p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
+                      <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
                         No registered customer accounts found for this shop yet
                       </div>
                     ) : (
@@ -4162,6 +4756,7 @@ function StoreContent({ shopId }) {
                         <table className="w-full text-left text-xs text-white">
                           <thead className="bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-700">
                             <tr>
+                              <th className="p-4 text-center">Serial #</th>
                               <th className="p-4">Customer Name</th>
                               <th className="p-4">Email Address</th>
                               <th className="p-4">Phone / Contact</th>
@@ -4171,19 +4766,26 @@ function StoreContent({ shopId }) {
                               <th className="p-4 text-center">Actions & Export Options</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/80">
+                          <tbody className="divide-y divide-slate-700/60">
                             {registeredCustomersList.map((cust, idx) => {
                               const { totalSpent, ordersCount } = getCustomerStats(cust);
+                              const serialNo = idx + 1;
+                              const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
                               return (
-                                <tr key={cust._id} className="hover:bg-slate-800/40 transition-colors">
+                                <tr key={cust._id} className="hover:bg-slate-700/40 transition-colors">
+                                  <td className="p-4 text-center">
+                                    <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-black">
+                                      #{serialNo}
+                                    </span>
+                                  </td>
                                   <td className="p-4 font-black uppercase text-white flex items-center gap-2.5">
                                     <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-black text-xs shrink-0">
                                       {(cust.fullName || 'C')[0].toUpperCase()}
                                     </div>
                                     <div>
                                       <span className="block font-black text-white">{cust.fullName}</span>
-                                      <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mt-0.5">
-                                        Customer #{idx + 1}
+                                      <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest block mt-0.5">
+                                        {uniqueId}
                                       </span>
                                     </div>
                                   </td>
@@ -4197,34 +4799,34 @@ function StoreContent({ shopId }) {
                                       {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
                                     </span>
                                   </td>
-                                  <td className="p-4 font-semibold text-slate-400">
+                                  <td className="p-4 font-semibold text-slate-300">
                                     {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </td>
                                   <td className="p-4 text-center">
                                     <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                                       <button
-                                        onClick={() => handlePrintRegisteredCustomerRecord(cust)}
+                                        onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
                                         className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
                                         title="Print Customer Record"
                                       >
                                         <Printer className="w-3 h-3" /> Print
                                       </button>
                                       <button
-                                        onClick={() => handlePrintRegisteredCustomerRecord(cust)}
+                                        onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
                                         className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
                                         title="Save PDF Statement"
                                       >
                                         <FileText className="w-3 h-3" /> PDF
                                       </button>
                                       <button
-                                        onClick={() => handleWhatsAppCustomerShare(cust)}
+                                        onClick={() => handleWhatsAppCustomerShare(cust, idx)}
                                         className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
                                         title="Share Statement on WhatsApp"
                                       >
                                         <Send className="w-3 h-3" /> WhatsApp
                                       </button>
                                       <button
-                                        onClick={() => handleExportCustomerExcel(cust)}
+                                        onClick={() => handleExportCustomerExcel(cust, idx)}
                                         className="px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
                                         title="Export Customer Statement to Excel"
                                       >
@@ -4794,22 +5396,33 @@ function StoreContent({ shopId }) {
               {/* ─── 3. EXPENSES & LOSS REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-expenses' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 text-rose-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <FileText className="w-4 h-4" /> Shop Expenses & Returns Loss Report
+                  {/* Executive Slate-Gray Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 sm:p-7 rounded-[2rem] border border-slate-700 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-rose-400">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 text-rose-300 text-xs font-black uppercase tracking-widest">
+                            Shop Expenses &amp; Returns Loss Analytics
+                          </div>
+                          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-0.5">
+                            Business Expenses &amp; Loss Report
+                          </h2>
+                          <p className="text-slate-300 text-xs font-medium mt-1">
+                            Track and analyze operating overheads, rent, utilities, transport, and egg breakage losses.
+                          </p>
+                        </div>
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Expenses & Loss Analytics Report</h2>
-                      <p className="text-slate-300 text-xs mt-1">
-                        Log custom manual expenses (Rent, Bills, Packaging, Transport, Egg Damage) dynamically.
-                      </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         onClick={() => setShowAddExpenseModal(true)}
                         className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> + Add Expense
+                        <Plus className="w-4 h-4" /> Log Expense
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
@@ -4832,19 +5445,67 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                  {/* 4 Clean White & Gray KPI Stat Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">
+                        <span>Today's Expenses</span>
+                        <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[9px] font-black">DAILY</span>
+                      </div>
+                      <h4 className="text-2xl font-black text-rose-600 tracking-tight">
+                        {currency} {(dashStats.todayLoss || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Logged operational overheads today</p>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">
+                        <span>This Month Expenses</span>
+                        <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[9px] font-black">MONTHLY</span>
+                      </div>
+                      <h4 className="text-2xl font-black text-amber-600 tracking-tight">
+                        {currency} {(dashStats.monthlyLoss || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Cumulative expenses this month</p>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">
+                        <span>This Year Expenses</span>
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[9px] font-black">YEARLY</span>
+                      </div>
+                      <h4 className="text-2xl font-black text-indigo-600 tracking-tight">
+                        {currency} {(dashStats.yearlyLoss || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Full yearly total operating cost</p>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">
+                        <span>Damaged Egg Loss</span>
+                        <span className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[9px] font-black">BREAKAGE</span>
+                      </div>
+                      <h4 className="text-2xl font-black text-orange-600 tracking-tight">
+                        {currency} {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Egg cracked/broken stock losses</p>
+                    </div>
+                  </div>
+
+                  {/* Main Expenses Table Container (White & Gray) */}
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl text-slate-800 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
                       <div>
-                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                           <FileText className="w-4 h-4 text-rose-600" />
-                          Expenses Timeframe Selector (Days / Months / Year)
+                          Expenses Timeframe Filter (Day / Month / Year)
                         </h3>
-                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
-                          Select time filter to isolate and display only that period's expenses report
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Filter and analyze operating expense entries and breakage losses by selected duration
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                      <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
                         {[
                           { id: 'DAY', label: 'Today (Day)' },
                           { id: 'MONTH', label: 'This Month' },
@@ -4854,9 +5515,9 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
                               ? 'bg-rose-600 text-white shadow-md'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
                               }`}
                           >
                             {t.label}
@@ -4865,12 +5526,13 @@ function StoreContent({ shopId }) {
                       </div>
                     </div>
 
-                    <div className="p-6 bg-rose-50/80 border border-rose-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Filtered Period Highlight Bar */}
+                    <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div>
                         <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
-                          {reportTimeframe === 'DAY' ? 'Today (Day) Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'All-Time Total Expenses'}
+                          {reportTimeframe === 'DAY' ? 'Today (Day) Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'All-Time Cumulative Expenses'}
                         </span>
-                        <h4 className="text-3xl font-black text-rose-600 tracking-tight">
+                        <h4 className="text-3xl font-black text-slate-900 tracking-tight">
                           {currency} {(
                             reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
                               reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
@@ -4882,158 +5544,194 @@ function StoreContent({ shopId }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setShowAddExpenseModal(true)}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
+                          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer flex items-center gap-1.5"
                         >
-                          + Add Expense
+                          <Plus className="w-3.5 h-3.5" /> Log Entry
                         </button>
                         <button
                           onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
-                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase rounded-xl shadow flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print Statement
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                          <Send className="w-3.5 h-3.5" /> WhatsApp
                         </button>
                         <button
                           onClick={() => handleExportExcelReport('expenses', reportTimeframe)}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow flex items-center gap-1.5 cursor-pointer"
                         >
-                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Expenses Period Statement</h4>
-                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-                        <table className="w-full text-left text-xs text-zinc-800">
-                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
-                            <tr>
-                              <th className="p-3.5">Selected Period</th>
-                              <th className="p-3.5">Expenses & Loss (RS)</th>
-                              <th className="p-3.5 text-right">Filter Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-200">
-                            {reportTimeframe === 'DAY' && (
-                              <tr className="bg-rose-100/80 font-bold">
-                                <td className="p-3.5 font-bold">Today (Daily Expenses Report)</td>
-                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.todayLoss || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'MONTH' && (
-                              <tr className="bg-rose-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Month (Monthly Expenses Report)</td>
-                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.monthlyLoss || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'YEAR' && (
-                              <tr className="bg-rose-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Year (Yearly Expenses Report)</td>
-                                <td className="p-3.5 text-rose-600 font-bold">{currency} {(dashStats.yearlyLoss || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-rose-500/10 text-rose-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'ALL' && (
-                              <tr className="bg-slate-900 text-white font-bold">
-                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Expenses & Loss</td>
-                                <td className="p-3.5 text-rose-300 font-black text-sm">{currency} {dashStats.totalLoss.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME EXPENSES</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    {/* Dynamic Logged Expenses Table */}
+                    {(() => {
+                      const now = new Date();
+                      const filteredExpForTable = expensesList.filter(exp => {
+                        const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+                        if (reportTimeframe === 'DAY') return d.toDateString() === now.toDateString();
+                        if (reportTimeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                        if (reportTimeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+                        return true;
+                      });
 
-                    {/* ─── DYNAMIC LOGGED MANUAL EXPENSES TABLE ─── */}
-                    <div className="space-y-3 pt-6 border-t border-zinc-100">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-rose-600" />
-                          Shop Expenses List ({expensesList.length})
-                        </h4>
-                        <button
-                          onClick={() => setShowAddExpenseModal(true)}
-                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Log Expense Entry
-                        </button>
-                      </div>
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-rose-600" />
+                              Itemized Logged Expenses ({filteredExpForTable.length} Entries)
+                            </h4>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              {reportTimeframe === 'DAY' ? 'Today' : reportTimeframe === 'MONTH' ? 'This Month' : reportTimeframe === 'YEAR' ? 'This Year' : 'All-Time'}
+                            </span>
+                          </div>
 
-                      {expensesList.length === 0 ? (
-                        <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">No manual shop expenses logged yet.</p>
-                          <p className="text-[10px] text-slate-400 mt-1">Click "+ Add Manual Expense" to enter shop rent, electricity, packaging, or egg damage expenses.</p>
-                          <button
-                            onClick={() => setShowAddExpenseModal(true)}
-                            className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Add First Expense
-                          </button>
+                          {filteredExpForTable.length === 0 ? (
+                            <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No manual expenses logged for this period.</p>
+                              <p className="text-[11px] text-slate-400 mt-1">Click "+ Log Entry" above to add shop rent, electricity, packaging, or egg damage expenses.</p>
+                              <button
+                                onClick={() => setShowAddExpenseModal(true)}
+                                className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Add First Expense
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200 min-h-[280px]">
+                              <table className="w-full text-left text-xs text-slate-800">
+                                <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                  <tr>
+                                    <th className="p-3.5 text-center">#</th>
+                                    <th className="p-3.5">Expense Date</th>
+                                    <th className="p-3.5">Expense Title / Description</th>
+                                    <th className="p-3.5 text-center">Category</th>
+                                    <th className="p-3.5">Amount (RS)</th>
+                                    <th className="p-3.5">Logged By / Notes</th>
+                                    <th className="p-3.5 text-center">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {filteredExpForTable.map((exp, idx) => {
+                                    const openUpward = idx >= 1 && filteredExpForTable.length <= 4;
+                                    return (
+                                      <tr key={exp._id} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="p-3.5 text-center font-bold text-slate-400">
+                                          {idx + 1}
+                                        </td>
+                                        <td className="p-3.5 font-bold text-slate-600">
+                                          {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="p-3.5 font-black text-slate-900 uppercase">
+                                          {exp.title}
+                                        </td>
+                                        <td className="p-3.5 text-center">
+                                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                            exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                              exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                                                exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                  exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                                    'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            }`}>
+                                            {exp.category}
+                                          </span>
+                                        </td>
+                                        <td className="p-3.5 font-black text-rose-600 text-sm">
+                                          {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="p-3.5 text-slate-500 text-[11px]">
+                                          {exp.notes || exp.createdBy || 'Shop Admin'}
+                                        </td>
+                                        <td className="p-3.5 text-center relative">
+                                          <div className="relative inline-block text-left">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveExpenseMenuId(activeExpenseMenuId === exp._id ? null : exp._id);
+                                              }}
+                                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200"
+                                              title="Actions"
+                                            >
+                                              <MoreVertical className="w-4 h-4" />
+                                            </button>
+
+                                            {activeExpenseMenuId === exp._id && (
+                                              <>
+                                                <div
+                                                  className="fixed inset-0 z-30"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveExpenseMenuId(null);
+                                                  }}
+                                                />
+                                                <div className={`absolute right-0 ${openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-40 w-44 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5 text-left space-y-0.5 animate-in fade-in zoom-in-95 duration-150`}>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleEditExpense(exp);
+                                                    }}
+                                                    className="w-full px-3 py-2 hover:bg-indigo-50 text-indigo-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                  >
+                                                    <Edit className="w-3.5 h-3.5" /> Edit Expense
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handlePrintSingleExpense(exp, idx);
+                                                    }}
+                                                    className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                  >
+                                                    <Printer className="w-3.5 h-3.5" /> Print (PDF)
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleWhatsAppSingleExpense(exp, idx);
+                                                    }}
+                                                    className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                  >
+                                                    <Send className="w-3.5 h-3.5" /> WhatsApp
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleExportSingleExpenseExcel(exp, idx);
+                                                    }}
+                                                    className="w-full px-3 py-2 hover:bg-green-50 text-green-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                  >
+                                                    <FileSpreadsheet className="w-3.5 h-3.5" /> Excel Sheet
+                                                  </button>
+                                                  <div className="border-t border-slate-100 my-1"></div>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleDeleteExpense(exp._id);
+                                                    }}
+                                                    className="w-full px-3 py-2 hover:bg-red-50 text-red-600 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" /> Delete Entry
+                                                  </button>
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-                          <table className="w-full text-left text-xs text-zinc-800">
-                            <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
-                              <tr>
-                                <th className="p-3.5">Date & Time</th>
-                                <th className="p-3.5">Expense Title</th>
-                                <th className="p-3.5">Category</th>
-                                <th className="p-3.5">Amount (RS)</th>
-                                <th className="p-3.5">Logged By / Notes</th>
-                                <th className="p-3.5 text-center">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200">
-                              {expensesList.map(exp => (
-                                <tr key={exp._id} className="hover:bg-slate-50 transition-colors">
-                                  <td className="p-3.5 font-bold text-slate-500">
-                                    {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                  </td>
-                                  <td className="p-3.5 font-black text-slate-900">
-                                    {exp.title}
-                                  </td>
-                                  <td className="p-3.5">
-                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-100 text-blue-700' :
-                                      exp.category === 'Utilities / Bills' ? 'bg-amber-100 text-amber-700' :
-                                        exp.category === 'Salaries' ? 'bg-purple-100 text-purple-700' :
-                                          exp.category === 'Egg Damage / Loss' ? 'bg-rose-100 text-rose-700' :
-                                            exp.category === 'Transport & Freight' ? 'bg-indigo-100 text-indigo-700' :
-                                              'bg-emerald-100 text-emerald-700'
-                                      }`}>
-                                      {exp.category}
-                                    </span>
-                                  </td>
-                                  <td className="p-3.5 font-black text-rose-600 text-sm">
-                                    {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
-                                  </td>
-                                  <td className="p-3.5 text-slate-500 text-[11px]">
-                                    {exp.notes || exp.createdBy || 'Shop Admin'}
-                                  </td>
-                                  <td className="p-3.5 text-center">
-                                    <button
-                                      onClick={() => handleDeleteExpense(exp._id)}
-                                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all"
-                                      title="Delete Expense"
-                                    >
-                                      Delete
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -5411,17 +6109,21 @@ function StoreContent({ shopId }) {
           <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
               <div className="flex items-center gap-2 text-rose-600 font-black text-sm uppercase tracking-wider">
-                <Plus className="w-5 h-5" /> Add New Manual Expense
+                {editingExpenseId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                {editingExpenseId ? 'Edit Expense Entry' : 'Add New Manual Expense'}
               </div>
               <button
-                onClick={() => setShowAddExpenseModal(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-rose-100 text-zinc-500 hover:text-rose-600 flex items-center justify-center font-bold text-sm transition-all"
+                onClick={() => {
+                  setShowAddExpenseModal(false);
+                  setEditingExpenseId(null);
+                }}
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-rose-100 text-zinc-500 hover:text-rose-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddExpenseSubmit} className="space-y-4">
+            <form onSubmit={handleSaveExpenseSubmit} className="space-y-4">
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Expense Title / Description *</label>
                 <input
@@ -5490,8 +6192,11 @@ function StoreContent({ shopId }) {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
                 <button
                   type="button"
-                  onClick={() => setShowAddExpenseModal(false)}
-                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider"
+                  onClick={() => {
+                    setShowAddExpenseModal(false);
+                    setEditingExpenseId(null);
+                  }}
+                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -5499,7 +6204,8 @@ function StoreContent({ shopId }) {
                   type="submit"
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" /> Save Expense
+                  {editingExpenseId ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {editingExpenseId ? 'Update Expense' : 'Save Expense'}
                 </button>
               </div>
             </form>
