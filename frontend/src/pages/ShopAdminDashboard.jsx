@@ -10,11 +10,17 @@ import { TeamManagement } from '../components/TeamManagement';
 import { ShiftHistory } from '../components/ShiftHistory';
 import { OrdersManagement } from '../components/OrdersManagement';
 import { useUser } from '../contexts/UserContext';
-import { Users, LayoutDashboard, Plus, History, Package } from 'lucide-react';
+import { Users, LayoutDashboard, Plus, History, Package, Truck } from 'lucide-react';
 import { IntelligenceFeed } from '../components/IntelligenceFeed';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { TopSellingProducts } from '../components/TopSellingProducts';
 import { SalesSummaryCard } from '../components/SalesSummaryCard';
+import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard';
+import { ProfitLossSummaryCard } from '../components/ProfitLossSummaryCard';
+import { PurchasesManagement } from '../components/PurchasesManagement';
+import { RecentPurchasesAndSalesCard } from '../components/RecentPurchasesAndSalesCard';
+import { PurchasedVsSoldStockCard } from '../components/PurchasedVsSoldStockCard';
+import { PurchasedProductsLedgerCard } from '../components/PurchasedProductsLedgerCard';
 
 export function ShopAdminDashboard({
   onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onExport,
@@ -81,7 +87,8 @@ export function ShopAdminDashboard({
 
   // ─── Calculate top level sums ───────────────────────────────────────
   const totalValue = products.reduce((sum, product) => sum + (product.price * product.stock), 0);
-  const totalStockUnits = products.filter(product => (product.stock || 0) > 0).length;
+  const totalStockEggs = products.reduce((sum, product) => sum + (product.stock || 0), 0);
+  const totalPetis = products.reduce((sum, product) => sum + (product.petiQuantity || ((product.stock || 0) / 360)), 0);
 
   // Combine POS sales + EasyPaisa checkout orders
   const validOrders = checkoutOrders.filter(o => o.paymentStatus !== 'FAILED');
@@ -166,6 +173,16 @@ export function ShopAdminDashboard({
               <Package className="w-3.5 h-3.5" />
               EasyPaisa & Customer Orders
             </button>
+            <button
+              onClick={() => setActiveTab('purchases')}
+              className={`flex items-center gap-2.5 px-6 py-2.5 rounded-[1.25rem] font-black text-[10px] uppercase tracking-[0.15em] transition-all ${activeTab === 'purchases'
+                ? 'bg-green-600 text-[var(--color-text-primary)] shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+                }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Purchases Ledger
+            </button>
           </div>
 
           <button
@@ -185,8 +202,18 @@ export function ShopAdminDashboard({
         <ShiftHistory />
       ) : activeTab === 'orders' && isShopAdmin() ? (
         <OrdersManagement />
+      ) : activeTab === 'purchases' && isShopAdmin() ? (
+        <PurchasesManagement
+          products={products}
+          onAddProduct={onAddProduct}
+          onEditProduct={onEditProduct}
+          onDeleteProduct={onDeleteProduct}
+          onViewProduct={onViewProduct}
+        />
       ) : (
         <>
+          {/* ShopAdmin Financial Profit & Loss & Investment Ledger */}
+          <ProfitLossSummaryCard sales={sales} products={products} checkoutOrders={checkoutOrders} />
           <RevenueCards
             dailySales={dailySales}
             monthlySales={monthlySales}
@@ -200,6 +227,24 @@ export function ShopAdminDashboard({
           {/* Sales & Payment Summary — Live from DB */}
           <SalesSummaryCard sales={sales} checkoutOrders={checkoutOrders} />
 
+          {/* Purchased Petis/Trays vs Sold Petis/Trays Analytics Card */}
+          <PurchasedVsSoldStockCard products={products} sales={sales} checkoutOrders={checkoutOrders} />
+
+          {/* Purchased Products & Cost Price Ledger Table Card */}
+          <PurchasedProductsLedgerCard
+            products={products}
+            onAddProduct={onAddProduct}
+            onEditProduct={onEditProduct}
+            onDeleteProduct={onDeleteProduct}
+            onViewProduct={onViewProduct}
+          />
+
+          {/* Supplier Inventory Purchases & Payments Breakdown */}
+          <SupplierPurchaseSummaryCard products={products} />
+
+          {/* Live Recent Purchased Products vs Sales Revenue */}
+          <RecentPurchasesAndSalesCard products={products} sales={sales} checkoutOrders={checkoutOrders} />
+
           <IntelligenceFeed products={products} />
 
           <AnalyticsCards
@@ -207,9 +252,10 @@ export function ShopAdminDashboard({
             totalValue={totalValue}
             lowStockProducts={products.filter(p => p.stock > 0 && p.stock <= p.minStock)}
             outOfStockProducts={products.filter(p => p.stock === 0)}
-            totalStockUnits={totalStockUnits}
+            totalStockUnits={totalStockEggs}
             totalCustomers={totalCustomers}
             totalSalesCount={totalSalesCount}
+            totalPetis={Number(totalPetis.toFixed(1))}
           />
 
 

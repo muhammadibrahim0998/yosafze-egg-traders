@@ -58,7 +58,7 @@ export function SalesSummaryCard({ sales = [], checkoutOrders = [] }) {
         <div>
           <h3 className="text-lg font-black text-zinc-900 uppercase tracking-[0.15em]">Total Sales &amp; Payments</h3>
           <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-            د ډيټابيس نه مستقيم — Exact MongoDB Records
+            Live Verified Database Records
           </p>
         </div>
       </div>
@@ -67,7 +67,7 @@ export function SalesSummaryCard({ sales = [], checkoutOrders = [] }) {
       <div className="bg-zinc-900 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.25em] mb-1">
-            ټول مجموعي — Grand Total
+            Grand Total Sales
           </p>
           <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             Rs. <CountUpNumber value={stats.grandTotal} />
@@ -115,7 +115,7 @@ export function SalesSummaryCard({ sales = [], checkoutOrders = [] }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-black text-zinc-800 uppercase tracking-wider">Cash / POS Sales</p>
             <p className="text-[9px] text-zinc-400 font-bold">
-              نغدي پيسې — {stats.posCount} record(s) in <code className="text-zinc-500">sales</code> collection
+              Cash Transactions — {stats.posCount} record(s)
             </p>
           </div>
           <span className="text-sm font-black text-emerald-600 shrink-0">Rs. {fmt(stats.posTotal)}</span>
@@ -171,7 +171,7 @@ export function SalesSummaryCard({ sales = [], checkoutOrders = [] }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-black text-zinc-800 uppercase tracking-wider">EasyPaisa / Online Orders</p>
             <p className="text-[9px] text-zinc-400 font-bold">
-              آنلاين تادیه — {checkoutOrders.length} record(s) in <code className="text-zinc-500">orders</code> collection
+              Digital / EasyPaisa Orders — {checkoutOrders.length} record(s)
             </p>
           </div>
           <span className="text-sm font-black text-blue-600 shrink-0">Rs. {fmt(stats.onlineTotal)}</span>

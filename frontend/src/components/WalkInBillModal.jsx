@@ -1,9 +1,19 @@
-import React from 'react';
-import { X, Printer, Share2, Download, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Printer, Share2, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }) {
+  const [showWhatsAppPrompt, setShowWhatsAppPrompt] = useState(false);
+  const [targetPhone, setTargetPhone] = useState(bill?.customerPhone || '');
+
+  useEffect(() => {
+    if (bill?.customerPhone) {
+      setTargetPhone(bill.customerPhone);
+    }
+  }, [bill]);
+
   if (!bill) return null;
 
   const saleDate = bill.saleDate ? new Date(bill.saleDate).toLocaleString() : new Date().toLocaleString();
@@ -11,11 +21,15 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   const customerPhone = bill.customerPhone || '';
   const items = bill.items || [];
   const totalAmount = bill.totalAmount || 0;
-  const shopName = shop?.name || 'Attock Shop';
+  const shopName = shop?.name || 'Yosafze Egg Traders';
   const shopAddress = shop?.address || '';
   const shopPhone = shop?.phone || '';
 
-  // Generate PDF Invoice
+  // Extract clean serial number & formatted invoice number
+  const rawSerial = bill.serialNumber || (bill.invoiceNumber ? bill.invoiceNumber.replace(/\D/g, '') : '') || String(bill._id || Date.now()).slice(-6);
+  const serialNo = String(rawSerial);
+  const invoiceDisplay = bill.invoiceNumber || `INV-${serialNo.padStart(5, '0')}`;
+
   const getBranchBank = () => {
     const name = String(shopName || '').toLowerCase();
     const address = String(shopAddress || '').toLowerCase();
@@ -32,151 +46,532 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   };
   const branchBank = getBranchBank();
 
-  // Generate PDF Invoice
-  const handleDownloadPDF = () => {
-    try {
-      const doc = new jsPDF();
+  // ── Helper to build High-End Executive PDF Invoice ──
+  const createPDFDocument = () => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-      // Title & Header
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(shopName.toUpperCase(), 14, 20);
+    // 1. Top Header Banner (Emerald Gradient)
+    doc.setFillColor(21, 128, 61); // Emerald #15803d
+    doc.rect(0, 0, 210, 36, 'F');
 
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      if (shopAddress) doc.text(shopAddress, 14, 26);
-      if (shopPhone) doc.text(`Phone: ${shopPhone}`, 14, 31);
-      doc.text(`Official Bank Account: ${branchBank.bank} - ${branchBank.accountNo}`, 14, 36);
+    // Company Name & Subtitle
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(shopName.toUpperCase(), 14, 16);
 
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('OFFICIAL INVOICE / RECEIPT', 140, 20);
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Invoice ID: #${(bill._id || Date.now()).toString().slice(-8)}`, 140, 26);
-      doc.text(`Date: ${saleDate}`, 140, 31);
-      doc.text(`Customer: ${customerName}`, 140, 36);
-      if (customerPhone) doc.text(`Phone: ${customerPhone}`, 140, 41);
-
-      doc.setLineWidth(0.5);
-      doc.line(14, 46, 196, 46);
-
-      // Items Table
-      const tableData = items.map((item, index) => [
-        index + 1,
-        item.name,
-        item.quantity,
-        `${currency} ${item.price.toLocaleString()}`,
-        `${currency} ${(item.quantity * item.price).toLocaleString()}`
-      ]);
-
-      doc.autoTable({
-        startY: 50,
-        head: [['#', 'Item Description', 'Qty', 'Unit Price', 'Subtotal']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [45, 90, 39], textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 3 },
-      });
-
-      const finalY = (doc.lastAutoTable?.finalY || 100) + 10;
-
-      // Summary
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`TOTAL AMOUNT: ${currency} ${totalAmount.toLocaleString()}`, 130, finalY);
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`Branch Bank Account: ${branchBank.bank} (${branchBank.accountNo})`, 14, finalY + 10);
-      doc.text('Thank you for shopping with us!', 14, finalY + 16);
-
-      // Open PDF preview directly in new tab and trigger download
-      const pdfBlob = doc.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      window.open(pdfUrl, '_blank');
-      doc.save(`Bill_${customerName.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
-    } catch (err) {
-      console.error('PDF error:', err);
-      alert('Error generating PDF. Please try browser print.');
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OFFICIAL SALES INVOICE & TAX BILL RECEIPT', 14, 22);
+    if (shopAddress || shopPhone) {
+      doc.text(`${shopAddress} • Phone: ${shopPhone || 'N/A'}`, 14, 28);
     }
-  };
 
-  // WhatsApp Share function
-  const handleWhatsAppShare = () => {
-    let text = `🧾 *INVOICE - ${shopName}*\n`;
-    text += `📅 Date: ${saleDate}\n`;
-    text += `👤 Customer: ${customerName}\n`;
-    if (customerPhone) text += `📞 Phone: ${customerPhone}\n`;
-    text += `🏦 *Branch Bank Account:* ${branchBank.bank} (${branchBank.accountNo})\n`;
-    text += `------------------------------\n`;
-    text += `*ITEMS PURCHASED:*\n`;
+    // Right Side: Serial Badge
+    doc.setFillColor(217, 119, 6); // Amber Gold #d97706
+    doc.roundedRect(148, 8, 48, 20, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`SERIAL: #${serialNo}`, 154, 16);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(invoiceDisplay, 154, 23);
 
-    items.forEach((item, idx) => {
-      text += `${idx + 1}. *${item.name}* x ${item.quantity} = ${currency} ${(item.quantity * item.price).toLocaleString()}\n`;
+    // 2. Invoice Details Box
+    doc.setFillColor(248, 250, 252); // Slate #f8fafc
+    doc.setDrawColor(203, 213, 225); // Slate #cbd5e1
+    doc.roundedRect(14, 42, 182, 28, 2, 2, 'FD');
+
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8.5);
+
+    // Left Column
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILLED TO (CUSTOMER):', 18, 49);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(10.5);
+    doc.text(customerName.toUpperCase(), 18, 55);
+
+    doc.setTextColor(71, 85, 105);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Phone / WhatsApp: ${customerPhone || 'Walk-in'}`, 18, 61);
+    doc.text(`Payment: ${bill.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer (Approved)' : 'Paid in Cash'}`, 18, 66);
+
+    // Right Column
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(51, 65, 85);
+    doc.text('INVOICE METADATA:', 110, 49);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Date & Time: ${saleDate}`, 110, 55);
+    doc.text(`Branch Bank: ${branchBank.bank}`, 110, 61);
+    doc.text(`Account No: ${branchBank.accountNo}`, 110, 66);
+
+    // 3. Items Table
+    const tableData = items.map((item, index) => [
+      index + 1,
+      item.name.toUpperCase(),
+      item.quantity,
+      `${currency} ${(item.price || 0).toLocaleString()}`,
+      `${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}`
+    ]);
+
+    autoTable(doc, {
+      startY: 75,
+      head: [['#', 'ITEM DESCRIPTION', 'QTY', `UNIT PRICE (${currency})`, `SUBTOTAL (${currency})`]],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [21, 128, 61],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9,
+        halign: 'center'
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' },
+        1: { halign: 'left', fontStyle: 'bold' },
+        2: { halign: 'center', cellWidth: 24, fontStyle: 'bold', textColor: [21, 128, 61] },
+        3: { halign: 'right', cellWidth: 38 },
+        4: { halign: 'right', cellWidth: 42, fontStyle: 'bold', textColor: [15, 23, 42] }
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3.5,
+        lineColor: [203, 213, 225],
+        lineWidth: 0.2
+      }
     });
 
-    text += `------------------------------\n`;
-    text += `💵 *TOTAL AMOUNT: ${currency} ${totalAmount.toLocaleString()}*\n\n`;
-    text += `Thank you for shopping with us! 🙏`;
+    const finalY = (doc['lastAutoTable']?.finalY || 130) + 6;
 
-    const encodedText = encodeURIComponent(text);
-    let cleanPhone = customerPhone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '92' + cleanPhone.slice(1);
-    }
+    // 4. Grand Total Bar
+    doc.setFillColor(220, 252, 231); // Emerald #dcfce7
+    doc.setDrawColor(34, 197, 94); // Green #22c55e
+    doc.roundedRect(100, finalY, 96, 16, 2, 2, 'FD');
 
-    let whatsappUrl = cleanPhone
-      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
-      : `https://api.whatsapp.com/send?text=${encodedText}`;
+    doc.setTextColor(21, 128, 61);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('GRAND TOTAL PAID:', 105, finalY + 10.5);
 
-    window.open(whatsappUrl, '_blank');
+    doc.setFontSize(13);
+    doc.text(`${currency} ${totalAmount.toLocaleString()}`, 190, finalY + 11, { align: 'right' });
+
+    // 5. Signatures & Footer
+    const footerY = Math.max(finalY + 36, 255);
+    doc.setDrawColor(203, 213, 225);
+    doc.line(20, footerY, 75, footerY);
+    doc.line(135, footerY, 190, footerY);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Customer Signature', 47.5, footerY + 5, { align: 'center' });
+    doc.text('Authorized Signature & Stamp', 162.5, footerY + 5, { align: 'center' });
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Official Bill Receipt • Generated by ${shopName} • Thank you for your business!`, 105, footerY + 15, { align: 'center' });
+
+    return doc;
   };
 
-  // Print Receipt
+  // 1. Download PDF (used internally by WhatsApp share)
+  const downloadPDF = () => {
+    const doc = createPDFDocument();
+    const pdfFileName = `Invoice_${invoiceDisplay}_${customerName.replace(/\s+/g, '_')}.pdf`;
+    doc.save(pdfFileName);
+    return { doc, pdfFileName };
+  };
+
+  // 2. Export / Generate Styled Excel Spreadsheet (.xls / .csv compatible)
+  const handleDownloadExcel = () => {
+    try {
+      const formattedItemsHtml = items.map((item, idx) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; border: 1px solid #94a3b8; padding: 7px 10px; font-weight: bold;">${idx + 1}</td>
+          <td style="text-align: left; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: bold; text-transform: uppercase;">${item.name}</td>
+          <td style="text-align: center; border: 1px solid #94a3b8; padding: 7px 10px; font-weight: 900; color: #15803d;">${item.quantity}</td>
+          <td style="text-align: right; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: 600;">${currency} ${(item.price || 0).toLocaleString()}</td>
+          <td style="text-align: right; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: 900; color: #0f172a;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+        </tr>
+      `).join('');
+
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Official Bill Invoice</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body, table, td, th { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+            table { border-collapse: collapse; }
+            .header-banner { background-color: #166534; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 42px; border: 1px solid #14532d; }
+            .sub-banner { background-color: #dcfce7; color: #166534; font-size: 10pt; font-weight: bold; text-align: center; height: 26px; border: 1px solid #86efac; }
+            .info-label { background-color: #f1f5f9; font-weight: bold; color: #334155; padding: 6px 12px; border: 1px solid #94a3b8; font-size: 10pt; width: 140px; }
+            .info-val { background-color: #ffffff; color: #0f172a; padding: 6px 12px; border: 1px solid #94a3b8; font-size: 10pt; font-weight: 600; }
+            .col-header { background-color: #15803d; color: #ffffff; font-weight: bold; font-size: 11pt; padding: 8px 10px; border: 1px solid #166534; text-transform: uppercase; text-align: center; }
+            .total-row { background-color: #dcfce7; color: #15803d; font-weight: 900; font-size: 13pt; height: 38px; border: 2px solid #22c55e; }
+            .footer-note { font-size: 9pt; color: #64748b; font-style: italic; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
+            <tr>
+              <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="sub-banner">OFFICIAL BILL INVOICE &amp; PAYMENT STATEMENT</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td class="info-label">Invoice ID:</td>
+              <td class="info-val" style="font-weight: 900; color: #15803d;">${invoiceDisplay}</td>
+              <td style="width: 20px; border:none;"></td>
+              <td class="info-label">Transaction Date:</td>
+              <td class="info-val">${saleDate}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Serial Number:</td>
+              <td class="info-val" style="font-weight: 900;">#${serialNo}</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Payment Status:</td>
+              <td class="info-val" style="color: #15803d; font-weight: bold;">${bill.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer (Approved)' : 'Paid in Cash'}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Customer Name:</td>
+              <td class="info-val" style="font-weight: bold;">${customerName}</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Customer Phone:</td>
+              <td class="info-val" style="mso-number-format:'\\@'; font-weight: bold;">${customerPhone ? `="${customerPhone}"` : 'N/A'}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Store / Branch:</td>
+              <td class="info-val">${shopName}</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Branch Bank:</td>
+              <td class="info-val">${branchBank.bank} (${branchBank.accountNo})</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr style="height: 32px;">
+              <th class="col-header" style="width: 50px;">#</th>
+              <th class="col-header" style="width: 260px; text-align: left;">Item Description</th>
+              <th class="col-header" style="width: 90px;">Quantity</th>
+              <th class="col-header" style="width: 140px; text-align: right;">Unit Price (${currency})</th>
+              <th class="col-header" style="width: 150px; text-align: right;">Subtotal (${currency})</th>
+            </tr>
+            ${formattedItemsHtml}
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr class="total-row">
+              <td colspan="3" style="text-align: right; padding-right: 15px; border: 1px solid #86efac;">GRAND TOTAL AMOUNT PAID:</td>
+              <td colspan="2" style="text-align: right; padding-right: 12px; color: #15803d; border: 1px solid #86efac;">${currency} ${totalAmount.toLocaleString()}</td>
+            </tr>
+            <tr style="height: 16px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="5" class="footer-note" style="border:none;">Generated via Yosafze Egg Traders Management System • Verified Official Receipt</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Bill_${invoiceDisplay}_${customerName.replace(/\s+/g, '_')}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Formatted Excel spreadsheet downloaded successfully!');
+    } catch (err) {
+      console.error('Excel export error:', err);
+      toast.error('Failed to generate Excel file.');
+    }
+  };
+
+  // Format clean international phone number for Pakistan (e.g. 03069578493 -> 923069578493)
+  const formatCleanPhone = (phone) => {
+    let clean = String(phone || '').replace(/\D/g, '');
+    if (clean.startsWith('0092')) clean = '92' + clean.slice(4);
+    else if (clean.startsWith('0')) clean = '92' + clean.slice(1);
+    else if (clean.length === 10 && clean.startsWith('3')) clean = '92' + clean;
+    return clean;
+  };
+
+  // Build clean comprehensive WhatsApp bill invoice text representation
+  const getWhatsAppMessageText = () => {
+    let text = `🧾 *OFFICIAL BILL INVOICE - ${shopName.toUpperCase()}*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🔢 *Invoice:* ${invoiceDisplay} (Serial: #${serialNo})\n`;
+    text += `📅 *Date:* ${saleDate}\n`;
+    text += `👤 *Customer:* ${customerName}\n`;
+    if (targetPhone || customerPhone) text += `📞 *Phone:* ${targetPhone || customerPhone}\n`;
+    text += `🏦 *Branch Bank:* ${branchBank.bank}\n`;
+    text += `💳 *Account No:* ${branchBank.accountNo}\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `📦 *ITEMS PURCHASED:*\n`;
+    items.forEach((item, idx) => {
+      text += `${idx + 1}. *${item.name}* x ${item.quantity} = ${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}\n`;
+    });
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `💵 *GRAND TOTAL PAID: ${currency} ${totalAmount.toLocaleString()}*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `📄 *Official A4 PDF Bill Receipt has been issued & saved.*\n`;
+    text += `🙏 *Thank you for shopping with ${shopName}!*`;
+    return text;
+  };
+
+  // 3. WhatsApp: Generate PDF + Open WhatsApp Options
+  const handleWhatsAppShare = () => {
+    try {
+      downloadPDF();
+      setShowWhatsAppPrompt(true);
+    } catch (err) {
+      console.error('WhatsApp PDF download error:', err);
+      setShowWhatsAppPrompt(true);
+    }
+  };
+
+  // Direct Open WhatsApp with Customer & PDF Downloaded + Pre-filled Invoice
+  const handleDirectSharePDFFile = () => {
+    try {
+      downloadPDF();
+      const cleanPhone = formatCleanPhone(targetPhone || customerPhone);
+      const text = getWhatsAppMessageText();
+      const encodedText = encodeURIComponent(text);
+
+      if (cleanPhone) {
+        window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`, '_blank');
+        toast.success(`PDF downloaded! Opening WhatsApp Web chat with +${cleanPhone}`);
+      } else {
+        window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+        toast.success('PDF downloaded! Opening WhatsApp Web');
+      }
+      setShowWhatsAppPrompt(false);
+    } catch (err) {
+      console.error('WhatsApp open error:', err);
+      toast.error('Failed to open WhatsApp.');
+    }
+  };
+
+  // Direct send to entered number via universal wa.me link
+  const handleSendToNumber = (phoneToSend) => {
+    downloadPDF();
+    const cleanPhone = formatCleanPhone(phoneToSend || targetPhone || customerPhone);
+    const text = getWhatsAppMessageText();
+    const encodedText = encodeURIComponent(text);
+
+    if (cleanPhone) {
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+      window.open(whatsappUrl, '_blank');
+      toast.success(`PDF downloaded! Opening WhatsApp chat with +${cleanPhone}`);
+    } else {
+      window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+      toast.success('PDF downloaded! Opening WhatsApp Web');
+    }
+    setShowWhatsAppPrompt(false);
+  };
+
+  // Direct send via web.whatsapp.com directly
+  const handleSendViaWhatsAppWeb = (phoneToSend) => {
+    downloadPDF();
+    const cleanPhone = formatCleanPhone(phoneToSend || targetPhone || customerPhone);
+    const text = getWhatsAppMessageText();
+    const encodedText = encodeURIComponent(text);
+
+    if (cleanPhone) {
+      const whatsappUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+      window.open(whatsappUrl, '_blank');
+      toast.success(`PDF downloaded! Opening WhatsApp Web with +${cleanPhone}`);
+    } else {
+      window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+      toast.success('PDF downloaded! Opening WhatsApp Web to choose contact');
+    }
+    setShowWhatsAppPrompt(false);
+  };
+
+  // Open general WhatsApp (works with ANY contact / group without error)
+  const handleOpenGeneralWhatsApp = () => {
+    downloadPDF();
+    const text = getWhatsAppMessageText();
+    const encodedText = encodeURIComponent(text);
+    window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+    toast.success('PDF downloaded! Opening WhatsApp Web with bill message.');
+    setShowWhatsAppPrompt(false);
+  };
+
+  // Copy bill text to clipboard
+  const handleCopyBillText = () => {
+    const text = getWhatsAppMessageText();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      toast.success('Bill text copied to clipboard!');
+    }
+  };
+
+  // 4. Print Clean Bill Receipt
   const handlePrint = () => {
-    window.print();
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    let itemsHtml = items.map((item, idx) => `
+      <tr>
+        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
+        <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:bold; text-transform:uppercase;">${item.name}</td>
+        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#059669;">${item.quantity}</td>
+        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right;">${currency} ${(item.price || 0).toLocaleString()}</td>
+        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Bill Receipt - #${serialNo} (${customerName})</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #0f172a; background: #ffffff; }
+            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 12px; margin-bottom: 20px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 22px; font-weight: 900; }
+            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+            .meta { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin-bottom: 16px; background: #f8fafc; padding: 12px 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
+            .serial-tag { background: #047857; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 900; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 10px; color: #475569; padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left; }
+            .total-bar { margin-top: 16px; padding: 12px 16px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 10px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #047857; }
+            .bank-info { margin-top: 12px; padding: 10px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 10px; color: #92400e; font-weight: bold; }
+            .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #cbd5e1; width: 180px; text-align: center; padding-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${shopName}</h1>
+            <p>Official Sales Bill & Tax Receipt</p>
+          </div>
+          <div class="meta">
+            <div>
+              <span style="color:#059669; text-transform:uppercase;">Customer:</span> <strong style="font-size:13px;">${customerName}</strong><br/>
+              ${customerPhone ? `<span>Phone: ${customerPhone}</span><br/>` : ''}
+              <span>Payment: ${bill.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' : 'Cash'}</span>
+            </div>
+            <div style="text-align:right;">
+              <span class="serial-tag">SERIAL NO: #${serialNo}</span><br/>
+              <span style="display:inline-block; margin-top:5px; color:#64748b;">Invoice: ${invoiceDisplay}</span><br/>
+              <span style="color:#64748b;">Date: ${saleDate}</span>
+            </div>
+          </div>
+
+          <div class="bank-info">
+            Official Branch Bank Account: <strong>${branchBank.bank} (${branchBank.accountNo})</strong>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center;">#</th>
+                <th>Item Description</th>
+                <th style="text-align:center;">Qty</th>
+                <th style="text-align:right;">Unit Price</th>
+                <th style="text-align:right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="total-bar">
+            <span>GRAND TOTAL AMOUNT PAID:</span>
+            <span>${currency} ${totalAmount.toLocaleString('en-PK')}</span>
+          </div>
+
+          <div class="footer">
+            <div class="sign">Customer Signature</div>
+            <div class="sign">Yosafze Egg Traders Stamp</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-[#1E293B] border border-slate-700/80 rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] text-white">
-        
+
         {/* Header */}
-        <div className="p-5 bg-gradient-to-r from-[#2D5A27] via-[#24491F] to-[#1B3817] flex items-center justify-between border-b border-white/10">
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#2D5A27] via-[#24491F] to-[#1B3817] flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/20 rounded-xl border border-emerald-400/30">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+            <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-400/30">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-base font-black uppercase tracking-wider text-white">Walk-in Sale Bill</h2>
-              <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Completed Successfully</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black uppercase tracking-wider text-white">Walk-in Sale Bill</h2>
+                <span className="px-2 py-0.5 bg-amber-400/20 text-amber-300 font-mono font-black text-xs rounded-md border border-amber-400/40">
+                  #{serialNo}
+                </span>
+              </div>
+              <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">{invoiceDisplay} • Completed</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Bill Printable Area */}
-        <div className="p-6 overflow-y-auto space-y-5 print:p-0 print:bg-white print:text-black">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 print:p-0 print:bg-white print:text-black">
           {/* Shop & Customer details */}
-          <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 space-y-3">
-            <div className="flex justify-between items-start border-b border-slate-700/50 pb-3">
+          <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-3.5 space-y-2.5">
+            <div className="flex justify-between items-start border-b border-slate-700/50 pb-2.5">
               <div>
                 <h3 className="font-black text-sm text-white uppercase italic">{shopName}</h3>
-                {shopAddress && <p className="text-[11px] text-slate-400 font-medium">{shopAddress}</p>}
-                {shopPhone && <p className="text-[11px] text-emerald-400 font-bold">{shopPhone}</p>}
+                {shopAddress && <p className="text-[10.5px] text-slate-400 font-medium">{shopAddress}</p>}
+                {shopPhone && <p className="text-[10.5px] text-emerald-400 font-bold">{shopPhone}</p>}
               </div>
               <div className="text-right">
-                <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${bill.paymentMethod === 'BANK_TRANSFER' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}`}>
-                  {bill.paymentMethod === 'BANK_TRANSFER' ? '🏦 BANK TRANSFER' : '💵 PAID IN CASH'}
-                </span>
-                <p className="text-[9px] text-slate-400 mt-1">{saleDate}</p>
+                <div className="flex items-center justify-end gap-1.5 mb-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Serial: #{serialNo}
+                  </span>
+                  <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${bill.paymentMethod === 'BANK_TRANSFER' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}`}>
+                    {bill.paymentMethod === 'BANK_TRANSFER' ? '🏦 BANK' : '💵 CASH'}
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-400">{saleDate}</p>
               </div>
             </div>
 
@@ -204,53 +599,137 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-[10px] font-black text-slate-300 uppercase tracking-wider border-b border-slate-700">
                 <tr>
-                  <th className="p-3">Item</th>
-                  <th className="p-3 text-center">Qty</th>
-                  <th className="p-3 text-right">Price</th>
-                  <th className="p-3 text-right">Total</th>
+                  <th className="p-2.5">Item</th>
+                  <th className="p-2.5 text-center">Qty</th>
+                  <th className="p-2.5 text-right">Price</th>
+                  <th className="p-2.5 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-medium">
                 {items.map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-800/30">
-                    <td className="p-3 font-bold uppercase">{item.name}</td>
-                    <td className="p-3 text-center font-bold text-emerald-400">{item.quantity}</td>
-                    <td className="p-3 text-right text-slate-300">{currency} {item.price.toLocaleString()}</td>
-                    <td className="p-3 text-right font-black text-white">{currency} {(item.quantity * item.price).toLocaleString()}</td>
+                    <td className="p-2.5 font-bold uppercase">{item.name}</td>
+                    <td className="p-2.5 text-center font-bold text-emerald-400">{item.quantity}</td>
+                    <td className="p-2.5 text-right text-slate-300">{currency} {(item.price || 0).toLocaleString()}</td>
+                    <td className="p-2.5 text-right font-black text-white">{currency} {((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="p-4 bg-slate-800/60 border-t border-slate-700 flex justify-between items-center">
+            <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 flex justify-between items-center">
               <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total Amount</span>
               <span className="text-xl font-black text-emerald-400">{currency} {totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 bg-slate-900 border-t border-slate-700/80 grid grid-cols-3 gap-2">
+        {/* Footer Actions (3 Buttons: Excel, WhatsApp PDF, Print) */}
+        <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-700/80 grid grid-cols-3 gap-2">
+          {/* 1. Excel Download */}
           <button
-            onClick={handleDownloadPDF}
-            className="flex items-center justify-center gap-1.5 py-3 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] uppercase tracking-wider rounded-xl border border-slate-600 transition-all shadow-md"
+            onClick={handleDownloadExcel}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10.5px] uppercase tracking-wider rounded-xl border border-slate-600 transition-all shadow cursor-pointer active:scale-95"
+            title="Export Excel (.csv)"
           >
-            <Download className="w-4 h-4 text-blue-400" /> Save PDF
-          </button>
-          
-          <button
-            onClick={handleWhatsAppShare}
-            className="flex items-center justify-center gap-1.5 py-3 px-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] uppercase tracking-wider rounded-xl border border-emerald-500 transition-all shadow-md"
-          >
-            <Share2 className="w-4 h-4 text-white" /> WhatsApp
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" /> Save Excel
           </button>
 
+          {/* 2. WhatsApp Direct PDF Share */}
+          <button
+            onClick={handleWhatsAppShare}
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl border border-[#1ebe57] transition-all shadow-lg cursor-pointer active:scale-95"
+            title="Send PDF directly to WhatsApp"
+          >
+            <Share2 className="w-3.5 h-3.5 text-white" /> WhatsApp
+          </button>
+
+          {/* 3. Print Receipt */}
           <button
             onClick={handlePrint}
-            className="flex items-center justify-center gap-1.5 py-3 px-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-[11px] uppercase tracking-wider rounded-xl border-t border-emerald-400/30 border-b-2 border-emerald-900 transition-all shadow-lg"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl border-t border-emerald-400/30 border-b-2 border-emerald-900 transition-all shadow-lg cursor-pointer active:scale-95"
+            title="Print Clean Bill Receipt"
           >
-            <Printer className="w-4 h-4" /> Print Bill
+            <Printer className="w-3.5 h-3.5" /> Print Bill
           </button>
         </div>
+
+        {/* WhatsApp Share Options Prompt Modal */}
+        {showWhatsAppPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-slate-900 border-2 border-emerald-500 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl text-white">
+              <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#25D366]/20 border border-[#25D366] flex items-center justify-center text-[#25D366]">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase text-white">Send PDF Bill on WhatsApp</h3>
+                    <p className="text-[10px] text-emerald-400 font-bold">Official Invoice #{serialNo}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWhatsAppPrompt(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10.5px] font-black uppercase text-slate-300 tracking-wider block">
+                  Customer WhatsApp Number
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. 03069578493"
+                    value={targetPhone}
+                    onChange={e => setTargetPhone(e.target.value)}
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDirectSharePDFFile}
+                    className="px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-xs uppercase rounded-xl tracking-wider transition-all cursor-pointer shadow-lg active:scale-95 flex items-center gap-1.5"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> Send PDF
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                {/* Primary: Send PDF Bill directly */}
+                <button
+                  type="button"
+                  onClick={handleDirectSharePDFFile}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Send PDF Bill</span>
+                </button>
+
+                {/* Secondary Actions: Save PDF & Web WhatsApp */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadPDF}
+                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>📄 Save PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSendViaWhatsAppWeb(targetPhone)}
+                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <span>💻 WhatsApp Web</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

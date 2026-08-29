@@ -25,10 +25,11 @@ import {
   Footprints,
   Building2,
   Package,
-  Search
+  Search,
+  Truck
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import companyLogo from '../logo1.jpeg';
+import companyLogo from '../image/logo.png';
 
 export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSidebar }) {
   const { categories } = useProducts();
@@ -138,9 +139,12 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
                 <NavItem to="/store" icon={Store} label="All Products" />
               )}
 
-              {/* Only Shop Admin & Super Admin can manage teams */}
-              {isShopAdmin() && (
-                <NavItem to="/team" icon={Users} label="Team Management" />
+              {/* Only Shop Admin & Super Admin can manage teams & purchases */}
+              {(isShopAdmin() || isSuperAdmin()) && (
+                <>
+                  <NavItem to="/purchases" icon={Truck} label="Purchases" />
+                  <NavItem to="/team" icon={Users} label="Team Management" />
+                </>
               )}
             </div>
           </div>

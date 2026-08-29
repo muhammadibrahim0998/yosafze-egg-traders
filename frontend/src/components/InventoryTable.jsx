@@ -73,6 +73,19 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
 
   const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: '2-digit' }) : 'N/A';
 
+  const formatEggStock = (product) => {
+    if (product.petiQuantity > 0 || product.trayQuantity > 0 || product.eggQuantity > 0) {
+      const parts = [];
+      if (product.petiQuantity > 0) parts.push(`${product.petiQuantity} Petis`);
+      if (product.trayQuantity > 0) parts.push(`${product.trayQuantity} Trays`);
+      if (product.eggQuantity > 0) parts.push(`${product.eggQuantity} Eggs`);
+      return parts.join(' + ');
+    }
+    const total = product.stock || 0;
+    const petis = (total / 360).toFixed(1);
+    return `${total.toLocaleString()} Eggs (${petis} Petis)`;
+  };
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProducts = products.slice(startIndex, startIndex + itemsPerPage);
   const totalPages = Math.ceil(products.length / itemsPerPage) || 1;
@@ -127,8 +140,8 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                       <span className="text-[9px] font-black text-zinc-500 border border-zinc-200 px-2 py-0.5 rounded uppercase tracking-tighter">{product.category}</span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className={`text-xs font-black ${product.stock <= product.minStock ? 'text-rose-600' : 'text-zinc-900'}`}>{product.stock} Units</div>
-                      <div className="text-[9px] text-zinc-400 font-bold uppercase italic">Min: {product.minStock}</div>
+                      <div className={`text-xs font-black ${product.stock <= product.minStock ? 'text-rose-600' : 'text-zinc-900'}`}>{formatEggStock(product)}</div>
+                      <div className="text-[9px] text-zinc-400 font-bold uppercase italic">Min Alert: {product.minStock}</div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-xs font-black text-green-600 font-mono">Rs.{product.price.toLocaleString()}</div>
@@ -196,7 +209,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-zinc-50">
               <div>
                 <p className="text-[9px] font-bold text-zinc-400 uppercase">Stock</p>
-                <p className="text-xs font-black text-zinc-900">{product.stock} Units</p>
+                <p className="text-xs font-black text-zinc-900">{formatEggStock(product)}</p>
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-bold text-zinc-400 uppercase">Price</p>

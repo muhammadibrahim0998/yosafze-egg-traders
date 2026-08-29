@@ -5,7 +5,7 @@ import { loginSchema } from '../../schemas/authSchema';
 import { useUser } from '../../contexts/UserContext';
 import { Lock, User, ShieldCheck, AlertCircle, Eye, EyeOff, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import companyLogo from '../../logo1.jpeg';
+import companyLogo from '../../image/logo.png';
 
 export function LoginView() {
   const { login } = useUser();

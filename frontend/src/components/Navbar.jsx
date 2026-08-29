@@ -5,7 +5,7 @@ import { useShift } from '../contexts/ShiftContext';
 import { useUser } from '../contexts/UserContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useProducts } from '../contexts/ProductContext';
-import companyLogo from '../logo1.jpeg';
+import companyLogo from '../image/logo.png';
 
 export function Navbar({
   isCollapsed,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingBag, MapPin, Phone, Package,
@@ -7,19 +7,23 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2
+  Truck, Edit2, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
-import companyLogo from '../logo1.jpeg';
+import companyLogo from '../image/logo.png';
 import { CheckoutModal } from '../components/CheckoutModal.jsx';
 import UserOrderModal from '../components/UserOrderModal.jsx';
 import { ProductModal } from '../components/ProductModal.jsx';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal.jsx';
 import WalkInBillModal from '../components/WalkInBillModal.jsx';
 import { OrdersManagement } from '../components/OrdersManagement.jsx';
+import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
+import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale } from '../services/api.js';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_CATALOG = '/api/catalog';
 
@@ -362,8 +366,15 @@ function StoreContent({ shopId }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDesktopOpen, setIsDesktopOpen] = useState(true);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const [orderOpen, setOrderOpen] = useState(false); // new state to show orders of user
-  const [activeView, setActiveView] = useState(isAdminUser ? 'dashboard' : 'products'); // 'dashboard', 'products', 'walkin', 'sales'
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [activeView, setActiveView] = useState('dashboard'); // Default to dashboard
+
+  useEffect(() => {
+    // If admin, ensure dashboard view is active by default
+    if (isAdminUser) {
+      setActiveView('dashboard');
+    }
+  }, [isAdminUser]);
 
   // ─── Walk-in Sales & Billing State for ShopAdmin ───
   const [walkInCart, setWalkInCart] = useState([]);
@@ -548,7 +559,7 @@ function StoreContent({ shopId }) {
     csvRows.push([`"Store Branch"`, `"${shopName}"`]);
     csvRows.push([`"Customer Name"`, `"${name}"`]);
     csvRows.push([`"Email Address"`, `"${email}"`]);
-    csvRows.push([`"Contact Phone"`, `"${phone}"`]);
+    csvRows.push([`"Contact Phone"`, `="${phone}"`]);
     csvRows.push([`"Registration Date"`, `"${regDate}"`]);
     csvRows.push([`"Total Orders Placed"`, ordersCount]);
     csvRows.push([`"Total Money Spent"`, `RS ${totalSpent}`]);
@@ -690,39 +701,80 @@ function StoreContent({ shopId }) {
     printWin.document.close();
   };
 
-  const addToWalkInCart = (product) => {
+  const getProductUnitPrice = (product, unit = 'tray') => {
+    if (!product) return 0;
+    const basePrice = Number(product.price) || 0;
+    const pEgg = Number(product.pricePerEgg) || 0;
+    const pTray = Number(product.pricePerTray) || 0;
+    const pPeti = Number(product.pricePerPeti) || 0;
+    const uType = String(product.unitType || 'tray').toLowerCase();
+
+    let eggRate = pEgg;
+    if (!eggRate && pTray > 0) eggRate = pTray / 30;
+    else if (!eggRate && pPeti > 0) eggRate = pPeti / 360;
+    else if (!eggRate && basePrice > 0) {
+      eggRate = uType === 'peti' ? basePrice / 360 : uType === 'tray' ? basePrice / 30 : basePrice;
+    }
+    if (!eggRate) eggRate = 30;
+
+    if (unit === 'peti') {
+      if (pPeti > 0) return pPeti;
+      if (pTray > 0) return pTray * 12;
+      return Math.round(eggRate * 360);
+    }
+    if (unit === 'tray') {
+      if (pTray > 0) return pTray;
+      if (pPeti > 0) return Math.round(pPeti / 12);
+      return Math.round(eggRate * 30);
+    }
+    // 'egg'
+    if (pEgg > 0) return pEgg;
+    if (pTray > 0) return Math.round(pTray / 30);
+    return Math.round(eggRate);
+  };
+
+  const addToWalkInCart = (product, unit = 'tray') => {
     if ((product.stock || 0) <= 0) {
       alert('Product is out of stock!');
       return;
     }
+    const unitPrice = getProductUnitPrice(product, unit);
     setWalkInCart(prev => {
-      const existing = prev.find(item => item.product._id === product._id);
+      const existing = prev.find(item => item.product._id === product._id && (item.selectedUnit || 'tray') === unit);
       if (existing) {
-        if (existing.quantity >= product.stock) {
-          alert(`Only ${product.stock} units available in stock`);
-          return prev;
-        }
         return prev.map(item =>
-          item.product._id === product._id
-            ? { ...item, quantity: item.quantity + 1 }
+          item.product._id === product._id && (item.selectedUnit || 'tray') === unit
+            ? { ...item, quantity: item.quantity + 1, unitPrice }
             : item
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, selectedUnit: unit, unitPrice }];
     });
-    setAddedMsg(`Added ${product.name} to bill`);
+    setAddedMsg(`Added ${product.name} (${unit.toUpperCase()}) to bill`);
     setTimeout(() => setAddedMsg(''), 2000);
   };
 
-  const updateWalkInQty = (productId, delta) => {
+  const updateWalkInUnit = (productId, currentUnit, newUnit) => {
     setWalkInCart(prev =>
       prev.map(item => {
-        if (item.product._id === productId) {
+        if (item.product._id === productId && (item.selectedUnit || 'tray') === currentUnit) {
+          const newUnitPrice = getProductUnitPrice(item.product, newUnit);
+          return {
+            ...item,
+            selectedUnit: newUnit,
+            unitPrice: newUnitPrice
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateWalkInQty = (productId, unit, delta) => {
+    setWalkInCart(prev =>
+      prev.map(item => {
+        if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
           const newQty = item.quantity + delta;
-          if (newQty > item.product.stock) {
-            alert(`Only ${item.product.stock} units available in stock`);
-            return item;
-          }
           return newQty > 0 ? { ...item, quantity: newQty } : null;
         }
         return item;
@@ -730,8 +782,8 @@ function StoreContent({ shopId }) {
     );
   };
 
-  const removeFromWalkInCart = (productId) => {
-    setWalkInCart(prev => prev.filter(item => item.product._id !== productId));
+  const removeFromWalkInCart = (productId, unit) => {
+    setWalkInCart(prev => prev.filter(item => !(item.product._id === productId && (item.selectedUnit || 'tray') === unit)));
   };
 
   const fetchShopSales = async () => {
@@ -746,6 +798,22 @@ function StoreContent({ shopId }) {
     }
   };
 
+  const handleDeleteSale = async (saleId) => {
+    if (!window.confirm('Delete this sale record? This cannot be undone.')) return;
+    try {
+      const token = localStorage.getItem('nexflow_token');
+      await fetch(`/api/sales/${saleId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}`, 'x-user-role': user?.role || 'shop_admin' }
+      });
+      setShopSalesList(prev => prev.filter(s => s._id !== saleId));
+      fetchDashboardStats();
+    } catch (err) {
+      alert('Failed to delete sale. Please try again.');
+      console.error('Delete sale error:', err);
+    }
+  };
+
   const handleCompleteWalkInSale = async () => {
     if (walkInCart.length === 0) {
       alert('Walk-in cart is empty!');
@@ -753,18 +821,37 @@ function StoreContent({ shopId }) {
     }
     setIsProcessingWalkIn(true);
     try {
-      const saleItems = walkInCart.map(item => ({
-        productId: item.product._id,
-        name: item.product.name,
-        quantity: item.quantity,
-        price: item.product.price,
-        costPrice: item.product.costPrice || 0,
-        subtotal: item.product.price * item.quantity,
-        profit: (item.product.price - (item.product.costPrice || 0)) * item.quantity
-      }));
+      const saleItems = walkInCart.map(item => {
+        const unit = item.selectedUnit || 'tray';
+        const unitMultiplier = unit === 'peti' ? 360 : unit === 'tray' ? 30 : 1;
+        const totalEggs = (Number(item.quantity) || 1) * unitMultiplier;
+        const unitPrice = item.unitPrice || getProductUnitPrice(item.product, unit);
+        const subtotal = Math.round(unitPrice * (Number(item.quantity) || 1));
 
-      const totalAmount = walkInCart.reduce((sum, i) => sum + (i.product.price * i.quantity), 0);
-      const totalProfit = saleItems.reduce((sum, i) => sum + i.profit, 0);
+        const unitCost = Number(item.product.costPrice) > 0 ? Number(item.product.costPrice) : (Number(item.product.price) || 0) * 0.8;
+        const costPerEgg = item.product.unitType === 'peti' ? unitCost / 360 : item.product.unitType === 'tray' ? unitCost / 30 : unitCost;
+        const itemTotalCost = Math.round(costPerEgg * totalEggs);
+        const profit = Math.max(0, subtotal - itemTotalCost);
+
+        const unitLabel = unit === 'peti' ? 'Peti' : unit === 'tray' ? 'Tray' : 'Egg';
+
+        return {
+          productId: item.product._id,
+          name: `${item.product.name} (${item.quantity} ${unitLabel})`,
+          rawProductName: item.product.name,
+          quantity: Number(item.quantity) || 1,
+          unit: unit,
+          unitLabel: unitLabel,
+          totalEggs: totalEggs,
+          price: unitPrice,
+          costPrice: unitCost,
+          subtotal: subtotal,
+          profit: profit
+        };
+      });
+
+      const totalAmount = saleItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
+      const totalProfit = saleItems.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
 
       const saleData = {
         shopId,
@@ -838,24 +925,32 @@ function StoreContent({ shopId }) {
     }
   };
 
-  const confirmDeleteProduct = async () => {
-    if (!deleteDialog.item) return;
-    setIsDeleting(true);
+  const handleDirectDeleteProduct = async (item) => {
+    const targetItem = item || deleteDialog.item;
+    if (!targetItem) return;
+    if (!window.confirm(`Are you sure you want to delete product "${targetItem.name}"?`)) return;
     try {
       const role = user?.role || 'shop_admin';
-      await apiDeleteItem(deleteDialog.item._id, '', role);
-      setAddedMsg('Product deleted successfully!');
+      await apiDeleteItem(targetItem._id, '', role);
+      setItems(prev => prev.filter(p => String(p._id) !== String(targetItem._id)));
+      setAddedMsg('✅ Product deleted successfully!');
       setDeleteDialog({ isOpen: false, item: null });
       fetchCatalog();
       fetchDashboardStats();
       setTimeout(() => setAddedMsg(''), 2500);
     } catch (err) {
-      alert(err.message || 'Failed to delete product');
-    } finally {
-      setIsDeleting(false);
+      console.error('[Delete Product Error]', err);
+      alert(err?.response?.data?.message || err.message || 'Failed to delete product');
     }
   };
+
+  const confirmDeleteProduct = handleDirectDeleteProduct;
+
+  const [dateFromFilter, setDateFromFilter] = useState('2026-08-01');
+  const [dateToFilter, setDateToFilter] = useState(new Date().toISOString().split('T')[0]);
   const [reportTimeframe, setReportTimeframe] = useState('ALL'); // 'DAY', 'MONTH', 'YEAR', 'ALL'
+  const [salesReportSearchTerm, setSalesReportSearchTerm] = useState('');
+  const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [dashStats, setDashStats] = useState({
     totalProducts: 0,
     totalStock: 0,
@@ -874,10 +969,87 @@ function StoreContent({ shopId }) {
     todayLoss: 0,
     monthlyLoss: 0,
     yearlyLoss: 0,
-    // Profit / Loss
     totalProfit: 0,
     totalLoss: 0,
   });
+
+  // ─── Filtered Sales for Sales Report View (Strict Timeframe + Search) ───
+  const filteredSalesForReport = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return (shopSalesList || []).filter(s => {
+      if (!s) return false;
+      const sDate = new Date(s.saleDate || s.createdAt || s.date || 0);
+      const sDateStr = sDate.toISOString().split('T')[0];
+
+      let matchTime = true;
+      if (reportTimeframe === 'DAY') {
+        matchTime = sDateStr === todayStr;
+      } else if (reportTimeframe === 'MONTH') {
+        matchTime = sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear;
+      } else if (reportTimeframe === 'YEAR') {
+        matchTime = sDate.getFullYear() === currentYear;
+      }
+
+      if (!matchTime) return false;
+
+      if (!salesReportSearchTerm.trim()) return true;
+      const q = salesReportSearchTerm.toLowerCase();
+      const inv = (s.invoiceNumber || s.serialNumber || '').toString().toLowerCase();
+      const cust = (s.customerName || '').toLowerCase();
+      const phone = (s.customerPhone || '').toLowerCase();
+      const cashier = (s.cashierName || '').toLowerCase();
+      const itemsStr = (s.items || []).map(i => i.name).join(' ').toLowerCase();
+
+      return inv.includes(q) || cust.includes(q) || phone.includes(q) || cashier.includes(q) || itemsStr.includes(q);
+    });
+  }, [shopSalesList, reportTimeframe, salesReportSearchTerm]);
+
+  const salesReportStats = useMemo(() => {
+    let totalRevenue = 0;
+    let totalProfit = 0;
+    let totalEggs = 0;
+    let cashSales = 0;
+    let onlineSales = 0;
+
+    filteredSalesForReport.forEach(s => {
+      const amount = Number(s.totalAmount) || 0;
+      const profit = Number(s.totalProfit) || 0;
+      totalRevenue += amount;
+      totalProfit += profit;
+
+      const pMethod = (s.paymentMethod || 'CASH').toUpperCase();
+      if (pMethod === 'CASH') {
+        cashSales += amount;
+      } else {
+        onlineSales += amount;
+      }
+
+      (s.items || []).forEach(i => {
+        totalEggs += Number(i.quantity) || 0;
+      });
+    });
+
+    const totalPetis = (totalEggs / 360).toFixed(1);
+    const totalTrays = Math.round(totalEggs / 30);
+    const totalBills = filteredSalesForReport.length;
+    const avgBill = totalBills > 0 ? Math.round(totalRevenue / totalBills) : 0;
+
+    return {
+      totalRevenue: totalRevenue || (reportTimeframe === 'DAY' ? dashStats.todaySales : reportTimeframe === 'MONTH' ? dashStats.monthlySales : reportTimeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue),
+      totalProfit: totalProfit || (reportTimeframe === 'DAY' ? dashStats.todayProfit : reportTimeframe === 'MONTH' ? dashStats.monthlyProfit : reportTimeframe === 'YEAR' ? dashStats.yearlyProfit : dashStats.totalProfit),
+      totalEggs,
+      totalPetis,
+      totalTrays,
+      totalBills,
+      avgBill,
+      cashSales,
+      onlineSales
+    };
+  }, [filteredSalesForReport, reportTimeframe, dashStats]);
 
   // Dynamic Manual Expenses Tracking State
   const [expensesList, setExpensesList] = useState([]);
@@ -1064,34 +1236,341 @@ function StoreContent({ shopId }) {
     setTimeout(fetchDashboardStats, 300);
   };
 
-  const handleWhatsAppReportShare = (type = 'sales', timeframe = reportTimeframe) => {
-    const shopName = shop?.name || 'Peshawar Shop';
-    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // ─── Filtered Profit Analytics (Gross Profit - Expenses - Damaged Loss = Net Profit) ───
+  const profitReportStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    let title = 'Sales Revenue Report';
-    let val = dashStats.totalRevenue;
-    if (type === 'sales') {
-      title = 'Sales Revenue Report';
-      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
-    } else if (type === 'profit') {
-      title = 'Net Profit Report';
-      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
-    } else if (type === 'expenses') {
-      title = 'Expenses & Loss Report';
-      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
-    } else if (type === 'damaged') {
-      title = 'Damaged Products Loss Report';
-      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
+    // 1. Filter Sales for this timeframe
+    const filteredSales = (shopSalesList || []).filter(s => {
+      if (!s) return false;
+      const sDate = new Date(s.saleDate || s.createdAt || s.date || 0);
+      const sDateStr = sDate.toISOString().split('T')[0];
+
+      if (reportTimeframe === 'DAY') return sDateStr === todayStr;
+      if (reportTimeframe === 'MONTH') return sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear;
+      if (reportTimeframe === 'YEAR') return sDate.getFullYear() === currentYear;
+      return true;
+    });
+
+    let grossProfit = 0;
+    let totalRevenue = 0;
+    filteredSales.forEach(s => {
+      grossProfit += Number(s.totalProfit) || 0;
+      totalRevenue += Number(s.totalAmount) || 0;
+    });
+
+    // Fallback if legacy sales have no totalProfit field
+    if (grossProfit === 0 && totalRevenue > 0) {
+      grossProfit = Math.round(totalRevenue * 0.15);
+    }
+    if (grossProfit === 0) {
+      grossProfit = reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) : reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : (dashStats.totalProfit || 0);
     }
 
-    const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+    // 2. Filter Expenses for this timeframe
+    const filteredExpenses = (expensesList || []).filter(e => {
+      if (!e) return false;
+      const eDate = new Date(e.expenseDate || e.createdAt || 0);
+      const eDateStr = eDate.toISOString().split('T')[0];
 
-    let message = `*${shopName} - Financial Report*\n`;
-    message += `📅 Period: *${timeLabel}*\n`;
-    message += `📊 Report Type: *${title}*\n`;
-    message += `💰 Total Amount: *RS ${val.toLocaleString('en-PK')}*\n`;
-    message += `🕒 Date: ${dateStr}\n\n`;
-    message += `_Generated by Yosafze Egg Traders System_`;
+      if (reportTimeframe === 'DAY') return eDateStr === todayStr;
+      if (reportTimeframe === 'MONTH') return eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear;
+      if (reportTimeframe === 'YEAR') return eDate.getFullYear() === currentYear;
+      return true;
+    });
+
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    // 3. Filter Damaged Loss for this timeframe
+    const filteredDamaged = (damagedProductsList || []).filter(d => {
+      if (!d) return false;
+      const dDate = new Date(d.damageDate || d.createdAt || 0);
+      const dDateStr = dDate.toISOString().split('T')[0];
+
+      if (reportTimeframe === 'DAY') return dDateStr === todayStr;
+      if (reportTimeframe === 'MONTH') return dDate.getMonth() === currentMonth && dDate.getFullYear() === currentYear;
+      if (reportTimeframe === 'YEAR') return dDate.getFullYear() === currentYear;
+      return true;
+    });
+
+    const totalDamagedLoss = filteredDamaged.reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
+
+    // 4. Pure Realized Net Profit = Gross Profit - Expenses - Damaged Loss
+    const finalNetProfit = grossProfit - totalExpenses - totalDamagedLoss;
+
+    return {
+      grossProfit,
+      totalRevenue,
+      totalExpenses,
+      totalDamagedLoss,
+      finalNetProfit,
+      filteredSalesCount: filteredSales.length,
+      filteredExpensesCount: filteredExpenses.length,
+      filteredDamagedCount: filteredDamaged.length,
+      filteredExpenses,
+      filteredDamaged
+    };
+  }, [shopSalesList, expensesList, damagedProductsList, reportTimeframe, dashStats]);
+
+  // ─── Executive Net Realized Profit/Loss Breakdown for Main Dashboard ───
+  const netStats = useMemo(() => {
+    const todayGrossProfit = dashStats.todayProfit || 0;
+    const todayExp = dashStats.todayExpense || 0;
+    const todayDmg = dashStats.todayDamagedLoss || 0;
+    const todayNet = todayGrossProfit - todayExp - todayDmg;
+
+    const monthlyGrossProfit = dashStats.monthlyProfit || 0;
+    const monthlyExp = dashStats.monthlyExpense || 0;
+    const monthlyDmg = dashStats.monthlyDamagedLoss || 0;
+    const monthlyNet = monthlyGrossProfit - monthlyExp - monthlyDmg;
+
+    const yearlyGrossProfit = dashStats.yearlyProfit || 0;
+    const currentYear = new Date().getFullYear();
+    const yearlyExp = (expensesList || []).filter(e => new Date(e.expenseDate || e.createdAt || 0).getFullYear() === currentYear).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const yearlyDmg = (damagedProductsList || []).filter(d => new Date(d.damageDate || d.createdAt || 0).getFullYear() === currentYear).reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
+    const yearlyNet = yearlyGrossProfit - yearlyExp - yearlyDmg;
+
+    const totalGrossProfit = dashStats.totalProfit || 0;
+    const totalExp = dashStats.totalExpense || 0;
+    const totalDmg = dashStats.totalDamagedLoss || 0;
+    const totalNet = totalGrossProfit - totalExp - totalDmg;
+
+    return {
+      todayGrossProfit,
+      todayExp,
+      todayDmg,
+      todayNet,
+      monthlyGrossProfit,
+      monthlyExp,
+      monthlyDmg,
+      monthlyNet,
+      yearlyGrossProfit,
+      yearlyExp,
+      yearlyDmg,
+      yearlyNet,
+      totalGrossProfit,
+      totalExp,
+      totalDmg,
+      totalNet
+    };
+  }, [dashStats, expensesList, damagedProductsList]);
+
+  // ─── Generate Official Profit PDF via jsPDF & autoTable ───
+  const generateProfitReportPDF = (timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const timeTitle = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const doc = new jsPDF('portrait', 'pt', 'a4');
+
+    // Header Banner
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(0, 0, 595, 60, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text(shopName.toUpperCase(), 30, 26);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Official Net Profit & Loss Statement • Filter: ${timeTitle}`, 30, 44);
+    doc.text(`Generated: ${dateStr}`, 430, 44);
+
+    // Summary Metric Bar
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(30, 72, 535, 42, 6, 6, 'FD');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('GROSS PROFIT', 45, 87);
+    doc.text('SHOP EXPENSES', 180, 87);
+    doc.text('DAMAGED EGG LOSS', 320, 87);
+    doc.text('FINAL NET PROFIT', 455, 87);
+
+    doc.setFontSize(11);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}`, 45, 104);
+    doc.setTextColor(225, 29, 72);
+    doc.text(`- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`, 180, 104);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`, 320, 104);
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`, 455, 104);
+
+    // Income Statement Breakdown Table
+    const breakdownData = [
+      ['1', '(+) Gross Profit Earned from Egg Sales', `${profitReportStats.filteredSalesCount} Sales`, `+ Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}`],
+      ['2', '(-) Shop Operational Expenses (Bills, Rent, Misc)', `${profitReportStats.filteredExpensesCount} Entries`, `- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`],
+      ['3', '(-) Damaged / Broken Egg Losses', `${profitReportStats.filteredDamagedCount} Logs`, `- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`],
+      ['4', '(=) FINAL REALIZED NET PROFIT BALANCE', 'Net Profit', `Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`]
+    ];
+
+    autoTable(doc, {
+      startY: 125,
+      head: [['#', 'Financial Metric & Description', 'Volume / Records', 'Amount (RS)']],
+      body: breakdownData,
+      theme: 'grid',
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+      bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { cellPadding: 4 },
+      margin: { left: 30, right: 30 },
+    });
+
+    const fileName = `Net_Profit_Report_${timeTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    return fileName;
+  };
+
+  // ─── Generate Official Sales PDF via jsPDF & autoTable ───
+  const generateSalesReportPDF = (timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const timeTitle = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const doc = new jsPDF('portrait', 'pt', 'a4');
+
+    // Header Banner
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(0, 0, 595, 60, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text(shopName.toUpperCase(), 30, 26);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Official Sales Revenue & Bills Report • Filter: ${timeTitle}`, 30, 44);
+    doc.text(`Generated: ${dateStr}`, 430, 44);
+
+    // Summary Metric Bar
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(30, 72, 535, 42, 6, 6, 'FD');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('TOTAL REVENUE', 45, 87);
+    doc.text('ORDERS / BILLS', 180, 87);
+    doc.text('EGGS SOLD (P/T)', 320, 87);
+    doc.text('NET PROFIT', 455, 87);
+
+    doc.setFontSize(11);
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Rs. ${(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}`, 45, 104);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${salesReportStats.totalBills} Bills`, 180, 104);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`${salesReportStats.totalPetis} P (${salesReportStats.totalTrays} T)`, 320, 104);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`Rs. ${(salesReportStats.totalProfit || 0).toLocaleString('en-PK')}`, 455, 104);
+
+    // Itemized Sales Table
+    const tableData = (filteredSalesForReport.length > 0 ? filteredSalesForReport : shopSalesList).map((s, idx) => {
+      const invNo = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+      const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const cust = `${s.customerName || 'Walk-in'}${s.customerPhone ? ` (${s.customerPhone})` : ''}`;
+      const itemsList = (s.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ') || 'Eggs';
+      const method = s.paymentMethod || 'CASH';
+      const total = Number(s.totalAmount) || 0;
+
+      return [
+        idx + 1,
+        invNo,
+        sDate,
+        cust,
+        itemsList,
+        method,
+        `Rs. ${total.toLocaleString('en-PK')}`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 125,
+      head: [['#', 'Invoice #', 'Date & Time', 'Customer', 'Items Sold', 'Method', 'Total (Rs)']],
+      body: tableData.length > 0 ? tableData : [['-', 'No Records', dateStr, 'N/A', 'No sales recorded', '-', 'Rs. 0']],
+      theme: 'grid',
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { fontSize: 7.5, textColor: [15, 23, 42] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { cellPadding: 3.5, overflow: 'linebreak' },
+      margin: { left: 30, right: 30 },
+    });
+
+    const fileName = `Sales_Report_${timeTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    return fileName;
+  };
+
+  const handleWhatsAppReportShare = (type = 'sales', timeframe = reportTimeframe) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const periodName = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
+
+    if (type === 'profit') {
+      // 1. Generate & download official PDF file
+      const pdfFileName = generateProfitReportPDF(timeframe);
+
+      // 2. Format detailed WhatsApp Net Profit Statement
+      let message = `📄 *${shopName.toUpperCase()} - NET PROFIT ANALYTICS REPORT*\n`;
+      message += `📅 *Timeframe:* ${periodName} (${dateStr})\n`;
+      message += `===============================\n`;
+      message += `📈 *(+) Gross Sales Profit:* Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}\n`;
+      message += `📉 *(-) Shop Expenses:* Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}\n`;
+      message += `🥚 *(-) Damaged Egg Loss:* Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}\n`;
+      message += `===============================\n`;
+      message += `💵 *(=) FINAL REALIZED NET PROFIT:* Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}\n`;
+      message += `===============================\n`;
+      message += `📊 *SUMMARY STATS:*\n`;
+      message += `• Total Sales Invoices: ${profitReportStats.filteredSalesCount} Bills\n`;
+      message += `• Shop Expense Entries: ${profitReportStats.filteredExpensesCount} Entries\n`;
+      message += `• Damaged Product Logs: ${profitReportStats.filteredDamagedCount} Logs\n`;
+      message += `===============================\n`;
+      message += `📎 *Official PDF Report (${pdfFileName}) downloaded to your device.*\n`;
+      message += `_Yosafze Egg Traders Financial System_`;
+
+      const encodedText = encodeURIComponent(message);
+      window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+      return;
+    }
+
+    // Default Sales report WhatsApp
+    const pdfFileName = generateSalesReportPDF(timeframe);
+    let message = `📄 *${shopName.toUpperCase()} - SALES REVENUE REPORT*\n`;
+    message += `📅 *Timeframe:* ${periodName} (${dateStr})\n`;
+    message += `===============================\n`;
+    message += `💰 *Total Sales Revenue:* Rs. ${(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}\n`;
+    message += `🧾 *Total Invoices / Bills:* ${salesReportStats.totalBills} Bills\n`;
+    message += `📦 *Stock Eggs Sold:* ${salesReportStats.totalPetis} Petis (${salesReportStats.totalTrays} Trays • ${(salesReportStats.totalEggs || 0).toLocaleString('en-PK')} Eggs)\n`;
+    message += `📈 *Net Profit Earned:* Rs. ${(salesReportStats.totalProfit || 0).toLocaleString('en-PK')}\n`;
+    message += `💵 *Cash Received:* Rs. ${(salesReportStats.cashSales || 0).toLocaleString('en-PK')}\n`;
+    message += `💳 *Bank / Online Received:* Rs. ${(salesReportStats.onlineSales || 0).toLocaleString('en-PK')}\n`;
+    message += `===============================\n`;
+    message += `🛒 *RECENT SALES LIST:* (${filteredSalesForReport.length} sales)\n`;
+
+    filteredSalesForReport.slice(0, 8).forEach((s, idx) => {
+      const inv = s.invoiceNumber || `#${s.serialNumber || idx + 1}`;
+      const cust = s.customerName || 'Walk-in Customer';
+      message += `${idx + 1}. *${inv}* - ${cust} | Rs. ${(s.totalAmount || 0).toLocaleString('en-PK')} (${s.paymentMethod || 'CASH'})\n`;
+    });
+
+    if (filteredSalesForReport.length > 8) {
+      message += `... and ${filteredSalesForReport.length - 8} more sales (see PDF).\n`;
+    }
+
+    message += `===============================\n`;
+    message += `📎 *Official PDF Report (${pdfFileName}) downloaded to your device.*\n`;
+    message += `_Yosafze Egg Traders Sales Management System_`;
 
     const encodedText = encodeURIComponent(message);
     window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
@@ -1100,30 +1579,7 @@ function StoreContent({ shopId }) {
   const handlePrintSingleReport = (type = 'sales', timeframe = reportTimeframe) => {
     const shopName = shop?.name || 'Peshawar Shop';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-    let typeTitle = 'Sales Revenue';
-    let val = dashStats.totalRevenue;
-    let themeColor = '#059669';
-
-    if (type === 'sales') {
-      typeTitle = 'Sales Revenue';
-      themeColor = '#059669';
-      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
-    } else if (type === 'profit') {
-      typeTitle = 'Net Profit';
-      themeColor = '#16a34a';
-      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
-    } else if (type === 'expenses') {
-      typeTitle = 'Expenses & Return Losses';
-      themeColor = '#e11d48';
-      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
-    } else if (type === 'damaged') {
-      typeTitle = 'Damaged Products Loss';
-      themeColor = '#d97706';
-      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
-    }
-
-    const timeTitle = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+    const timeTitle = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
 
     const printWin = window.open('', '_blank');
     if (!printWin) {
@@ -1131,106 +1587,262 @@ function StoreContent({ shopId }) {
       return;
     }
 
+    if (type === 'profit') {
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${timeTitle} Net Profit Report - ${shopName}</title>
+            <style>
+              @page { size: portrait; margin: 8mm 10mm; }
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 15px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
+              .header { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 8px; margin-bottom: 12px; }
+              .header h1 { margin: 0; color: #0f766e; text-transform: uppercase; font-size: 18px; letter-spacing: 1px; font-weight: 900; }
+              .header p { margin: 2px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
+              .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+              .stats-grid { display: flex; flex-direction: row; gap: 8px; margin-bottom: 12px; }
+              .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; text-align: center; }
+              .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
+              .stat-card .val { font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 1px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+              th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 9.5px; text-align: left; }
+              th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
+              .footer { margin-top: 25px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
+              .sign { border-top: 1.5px solid #94a3b8; width: 140px; text-align: center; padding-top: 4px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${shopName.toUpperCase()}</h1>
+              <p>Official Net Profit &amp; Loss Analytics Statement</p>
+            </div>
+            <div class="meta">
+              <span>Generated: ${dateStr}</span>
+              <span>Period Filter: ${timeTitle}</span>
+              <span>Report Type: Net Profit Realization</span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card"><label>Gross Sales Profit</label><div class="val" style="color:#059669;">Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Shop Expenses</label><div class="val" style="color:#e11d48;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Damaged Egg Loss</label><div class="val" style="color:#d97706;">- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Final Net Profit</label><div class="val" style="color:#0f766e;">Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}</div></div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:20px; text-align:center;">#</th>
+                  <th>Financial Line Item &amp; Description</th>
+                  <th style="text-align:center;">Source</th>
+                  <th style="text-align:center;">Records</th>
+                  <th style="text-align:right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align:center;">1</td>
+                  <td><strong>(+) Gross Profit Earned from Sales</strong></td>
+                  <td style="text-align:center;">Egg Sales</td>
+                  <td style="text-align:center;">${profitReportStats.filteredSalesCount} Invoices</td>
+                  <td style="text-align:right; font-weight:bold; color:#059669;">+ Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}</td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">2</td>
+                  <td><strong>(-) Shop Operational Expenses (Bills, Rent, Packaging)</strong></td>
+                  <td style="text-align:center;">Overhead Costs</td>
+                  <td style="text-align:center;">${profitReportStats.filteredExpensesCount} Entries</td>
+                  <td style="text-align:right; font-weight:bold; color:#e11d48;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">3</td>
+                  <td><strong>(-) Damaged / Broken Egg Inventory Loss</strong></td>
+                  <td style="text-align:center;">Damaged Stock</td>
+                  <td style="text-align:center;">${profitReportStats.filteredDamagedCount} Logs</td>
+                  <td style="text-align:right; font-weight:bold; color:#d97706;">- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="background:#f0fdfa; font-weight:900; font-size:11px;">
+                  <td colspan="4" style="text-align:right; color:#0f766e;">(=) FINAL PURE REALIZED NET PROFIT:</td>
+                  <td style="text-align:right; color:#0f766e;">Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div class="footer">
+              <div>Report Generated by Yosafze Egg Traders Admin System</div>
+              <div class="sign">Authorized Signature</div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => printWin.print(), 300);
+      return;
+    }
+
+    const salesList = filteredSalesForReport.length > 0 ? filteredSalesForReport : shopSalesList;
+
+    const tableRows = salesList.map((s, idx) => {
+      const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+      const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const cust = s.customerName || 'Walk-in Customer';
+      const phone = s.customerPhone ? `<br/><small style="color:#64748b;">${s.customerPhone}</small>` : '';
+      const itemsList = (s.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ') || 'Eggs';
+      const method = s.paymentMethod || 'CASH';
+      const total = Number(s.totalAmount) || 0;
+
+      return `
+        <tr>
+          <td style="text-align:center;">${idx + 1}</td>
+          <td><strong>${inv}</strong></td>
+          <td>${sDate}</td>
+          <td>${cust}${phone}</td>
+          <td>${itemsList}</td>
+          <td style="text-align:center;"><span class="badge ${method === 'CASH' ? 'badge-cash' : 'badge-bank'}">${method}</span></td>
+          <td style="text-align:right; font-weight:bold; color:#047857;">Rs. ${total.toLocaleString('en-PK')}</td>
+        </tr>
+      `;
+    }).join('');
+
     printWin.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${timeTitle} ${typeTitle} Report - ${shopName}</title>
+          <title>${timeTitle} Sales Revenue Report - ${shopName}</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
-            .header { text-align: center; border-bottom: 3px double ${themeColor}; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { margin: 0; color: ${themeColor}; text-transform: uppercase; font-size: 26px; letter-spacing: 1px; }
-            .header p { margin: 6px 0 0; color: #475569; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; }
-            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 25px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
-            .hero-card { border: 2px solid ${themeColor}; border-radius: 20px; padding: 25px; background: #f8fafc; text-align: center; margin-bottom: 30px; }
-            .hero-card label { font-size: 12px; font-weight: 900; text-transform: uppercase; color: #64748b; letter-spacing: 1.5px; }
-            .hero-card .val { font-size: 36px; font-weight: 900; color: ${themeColor}; margin-top: 8px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #cbd5e1; padding: 12px 16px; font-size: 13px; text-align: left; }
-            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; }
-            .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #64748b; }
-            .sign { border-top: 2px solid #cbd5e1; width: 220px; text-align: center; padding-top: 8px; }
+            @page { size: portrait; margin: 8mm 10mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 15px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
+            .header { text-align: center; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 12px; }
+            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 18px; letter-spacing: 1px; font-weight: 900; }
+            .header p { margin: 2px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
+            .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+            .stats-grid { display: flex; flex-direction: row; gap: 8px; margin-bottom: 12px; }
+            .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; text-align: center; }
+            .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
+            .stat-card .val { font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 1px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border: 1px solid #cbd5e1; padding: 4.5px 6px; font-size: 9.5px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
+            .badge { padding: 1.5px 5px; border-radius: 4px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; }
+            .badge-cash { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+            .badge-bank { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+            .total-row { background: #f8fafc; font-weight: 900; font-size: 10px; }
+            .footer { margin-top: 25px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 1.5px solid #94a3b8; width: 140px; text-align: center; padding-top: 4px; }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>${shopName}</h1>
-            <p>${timeTitle} ${typeTitle} Report</p>
+            <h1>${shopName.toUpperCase()}</h1>
+            <p>Official Sales Revenue &amp; Bills Statement Report</p>
           </div>
           <div class="meta">
-            <span>Generated Date: ${dateStr}</span>
-            <span>Period Filter: ${timeframe}</span>
-            <span>Report Category: ${typeTitle}</span>
+            <span>Generated: ${dateStr}</span>
+            <span>Period Filter: ${timeTitle}</span>
+            <span>Total Sales: ${salesList.length} Invoices</span>
           </div>
-          <div class="hero-card">
-            <label>Total ${timeTitle} ${typeTitle}</label>
-            <div class="val">RS ${val.toLocaleString('en-PK')}</div>
+          <div class="stats-grid">
+            <div class="stat-card"><label>Total Sales Revenue</label><div class="val" style="color:#059669;">Rs. ${(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}</div></div>
+            <div class="stat-card"><label>Total Orders / Bills</label><div class="val">${salesReportStats.totalBills} Bills</div></div>
+            <div class="stat-card"><label>Eggs Sold (Petis)</label><div class="val" style="color:#d97706;">${salesReportStats.totalPetis} Petis</div></div>
+            <div class="stat-card"><label>Net Profit Earned</label><div class="val" style="color:#10b981;">Rs. ${(salesReportStats.totalProfit || 0).toLocaleString('en-PK')}</div></div>
           </div>
-          <div class="table-sec">
-            <h3>Selected Period (${timeTitle}) Statement</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Period Timeframe</th>
-                  <th>Metric Amount (RS)</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="background:#f0fdf4; font-weight:bold;">
-                  <td>${timeTitle}</td>
-                  <td>RS ${val.toLocaleString('en-PK')}</td>
-                  <td>Active Filtered Statement</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:20px; text-align:center;">#</th>
+                <th>Invoice #</th>
+                <th>Date &amp; Time</th>
+                <th>Customer</th>
+                <th>Items Purchased</th>
+                <th style="text-align:center;">Method</th>
+                <th style="text-align:right;">Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="7" style="text-align:center; padding:15px;">No sales recorded for this period.</td></tr>'}
+            </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td colspan="4" style="text-align:right;">TOTAL SALES REVENUE:</td>
+                <td colspan="2" style="text-align:center;">${salesReportStats.totalBills} Bills (${salesReportStats.totalPetis} Petis)</td>
+                <td style="text-align:right; color:#047857; font-size:11px;">Rs. ${(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}</td>
+              </tr>
+            </tfoot>
+          </table>
           <div class="footer">
-            <div class="sign">Manager Signature</div>
-            <div class="sign">Yosafze Egg Traders Stamp</div>
+            <div>Report Generated by Yosafze Egg Traders Admin System</div>
+            <div class="sign">Authorized Signature</div>
           </div>
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
         </body>
       </html>
     `);
     printWin.document.close();
+    printWin.focus();
+    setTimeout(() => printWin.print(), 300);
   };
 
+
+
   const handleExportExcelReport = (type = 'sales', timeframe = reportTimeframe) => {
-    const shopName = shop?.name || 'Peshawar Shop';
+    const shopName = shop?.name || 'Yosafze Egg Traders';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    let title = 'Sales Revenue Report';
-    let val = dashStats.totalRevenue;
+    let salesVal = type === 'profit' ? (profitReportStats.totalRevenue || 0) : (dashStats.totalRevenue || 0);
+    let grossProfitVal = type === 'profit' ? (profitReportStats.grossProfit || 0) : (dashStats.totalProfit || 0);
+    let expensesVal = type === 'profit' ? (profitReportStats.totalExpenses || 0) : (dashStats.totalLoss || 0);
+    let damagedVal = type === 'profit' ? (profitReportStats.totalDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
+    let finalNetProfitVal = type === 'profit' ? (profitReportStats.finalNetProfit || 0) : (grossProfitVal - expensesVal);
 
-    if (type === 'sales') {
-      title = 'Sales Revenue Report';
-      val = timeframe === 'DAY' ? dashStats.todaySales : timeframe === 'MONTH' ? dashStats.monthlySales : timeframe === 'YEAR' ? dashStats.yearlySales : dashStats.totalRevenue;
-    } else if (type === 'profit') {
-      title = 'Net Profit Report';
-      val = timeframe === 'DAY' ? (dashStats.todayProfit || 0) : timeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : timeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : dashStats.totalProfit;
-    } else if (type === 'expenses') {
-      title = 'Expenses & Loss Report';
-      val = timeframe === 'DAY' ? (dashStats.todayLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) : dashStats.totalLoss;
-    } else if (type === 'damaged') {
-      title = 'Damaged Products Loss Report';
-      val = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) : timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) : timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
+    if (timeframe === 'DAY' && type !== 'profit') {
+      salesVal = dashStats.todaySales || 0;
+      grossProfitVal = dashStats.todayProfit || 0;
+      expensesVal = dashStats.todayLoss || 0;
+    } else if (timeframe === 'MONTH' && type !== 'profit') {
+      salesVal = dashStats.monthlySales || 0;
+      grossProfitVal = dashStats.monthlyProfit || 0;
+      expensesVal = dashStats.monthlyLoss || 0;
+    } else if (timeframe === 'YEAR' && type !== 'profit') {
+      salesVal = dashStats.yearlySales || 0;
+      grossProfitVal = dashStats.yearlyProfit || 0;
+      expensesVal = dashStats.yearlyLoss || 0;
     }
 
     const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
 
     let csvRows = [];
-    csvRows.push([`"YOSAFZE EGG TRADERS - ${title.toUpperCase()}"`]);
+    csvRows.push([`"YOSAFZE EGG TRADERS - OFFICIAL NET PROFIT & FINANCIAL REPORT"`]);
     csvRows.push([`"Store Branch"`, `"${shopName}"`]);
-    csvRows.push([`"Report Type"`, `"${title}"`]);
-    csvRows.push([`"Report Period"`, `"${timeLabel}"`]);
+    csvRows.push([`"Report Period Filter"`, `"${timeLabel}"`]);
     csvRows.push([`"Generated Date"`, `"${dateStr}"`]);
-    csvRows.push([`"Shop ID"`, `"${shopId}"`]);
-    csvRows.push([]); // Blank row
-    csvRows.push([`"Report Category"`, `"Amount (RS)"`]);
-    csvRows.push([`"${title}"`, val]);
+    csvRows.push([]);
+
+    csvRows.push([`"1. NET PROFIT RECONCILIATION STATEMENT"`, `"AMOUNT (RS)"`, `"CURRENCY"`, `"PERIOD"`]);
+    csvRows.push([`"Gross Sales Revenue"`, salesVal, `"PKR"`, timeLabel]);
+    csvRows.push([`"(+) Gross Sales Profit"`, grossProfitVal, `"PKR"`, timeLabel]);
+    csvRows.push([`"(-) Shop Operational Expenses"`, expensesVal, `"PKR"`, timeLabel]);
+    csvRows.push([`"(-) Damaged / Broken Egg Losses"`, damagedVal, `"PKR"`, timeLabel]);
+    csvRows.push([`"(=) FINAL REALIZED NET PROFIT"`, finalNetProfitVal, `"PKR"`, timeLabel]);
+    csvRows.push([]);
+
+    csvRows.push([`"2. SUPPLIER PURCHASES & RESTOCKS"`, `"QUANTITY / VALUE"`, `"UNIT"`, `"NOTES"`]);
+    csvRows.push([`"Restocks Entries Count"`, dashStats.totalPurchasesCount || 0, `"Entries"`, `"Supplier Bills"`]);
+    csvRows.push([`"Total Petis Purchased"`, dashStats.totalPetisPurchased || 0, `"Petis"`, `"1 Peti = 12 Trays = 360 Eggs"`]);
+    csvRows.push([`"Total Trays Purchased"`, dashStats.totalTraysPurchased || 0, `"Trays"`, `"1 Tray = 30 Eggs"`]);
+    csvRows.push([`"Total Eggs Purchased"`, dashStats.totalEggsPurchased || 0, `"Eggs"`, `"Single Eggs"`]);
+    csvRows.push([`"Total Purchase Cost Investment"`, dashStats.totalPurchaseCost || 0, `"PKR"`, `"Total Purchase Investment"`]);
+    csvRows.push([`"Cash Paid to Supplier"`, dashStats.cashPaidToSupplier || 0, `"PKR"`, `"Cash Paid"`]);
+    csvRows.push([`"Remaining Supplier Debt (Due)"`, dashStats.dueToSupplier || 0, `"PKR"`, `"Unpaid Debt"`]);
+    csvRows.push([]);
+
+    csvRows.push([`"3. CATALOG PRODUCTS & INVENTORY STOCK"`, `"QUANTITY"`, `"UNIT"`, `"NOTES"`]);
+    csvRows.push([`"Total Catalog Products"`, dashStats.totalProducts || 0, `"Items"`, `"Active Catalog"`]);
+    csvRows.push([`"Available Eggs Stock"`, dashStats.totalStockEggs || 0, `"Eggs"`, `"Eggs in Store"`]);
+    csvRows.push([`"Available Petis Stock"`, dashStats.totalStockPetis || 0, `"Petis"`, `"Petis in Store"`]);
+    csvRows.push([`"Sold Petis Stock"`, dashStats.soldPetis || 0, `"Petis"`, `"Petis Sold"`]);
+    csvRows.push([`"Sold Trays Stock"`, dashStats.soldTrays || 0, `"Trays"`, `"Trays Sold"`]);
+    csvRows.push([`"Sold Eggs Stock"`, dashStats.soldEggs || 0, `"Eggs"`, `"Eggs Sold"`]);
+    csvRows.push([`"Total Damaged Loss"`, dashStats.totalDamagedLoss || 0, `"PKR"`, `"Egg Breakage Loss"`]);
     csvRows.push([]);
     csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
 
@@ -1239,7 +1851,50 @@ function StoreContent({ shopId }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_${title.replace(/\s+/g, '_')}_${timeframe}.csv`);
+    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_Excel_Report_${timeframe}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportAllSalesExcel = () => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    let csvRows = [];
+    csvRows.push([`"YOSAFZE EGG TRADERS - ALL SALES & CUSTOMER BILLS REPORT"`]);
+    csvRows.push([`"Store / Branch"`, `"${shopName}"`]);
+    csvRows.push([`"Export Date"`, `"${new Date().toLocaleString()}"`]);
+    csvRows.push([`"Total Sales Count"`, shopSalesList.length]);
+    csvRows.push([`"Total Revenue"`, `RS ${shopSalesList.reduce((sum, s) => sum + (s.totalAmount || 0), 0)}`]);
+    csvRows.push([]);
+    csvRows.push([`"#"`, `"Serial No"`, `"Invoice ID"`, `"Date & Time"`, `"Customer Name"`, `"Phone"`, `"Payment Method"`, `"Items Breakdown"`, `"Total Paid (RS)"`]);
+
+    shopSalesList.forEach((s, idx) => {
+      const serialNo = s.serialNumber || (s.invoiceNumber ? s.invoiceNumber.replace(/\D/g, '') : '') || String(s._id || '').slice(-6);
+      const invoiceDisplay = s.invoiceNumber || `INV-${String(serialNo).padStart(5, '0')}`;
+      const dateStr = new Date(s.saleDate || s.createdAt).toLocaleString();
+      const itemsStr = (s.items || []).map(i => `${i.name} (${i.quantity})`).join('; ');
+      csvRows.push([
+        idx + 1,
+        `"#${serialNo}"`,
+        `"${invoiceDisplay}"`,
+        `"${dateStr}"`,
+        `"${s.customerName || 'Walk-in Customer'}"`,
+        `="${s.customerPhone || 'N/A'}"`,
+        `"${s.paymentMethod || 'CASH'}"`,
+        `"${itemsStr}"`,
+        s.totalAmount || 0
+      ]);
+    });
+
+    csvRows.push([]);
+    csvRows.push([`"Generated via Yosafze Egg Traders Management System"`]);
+
+    const csvString = csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${shopName.replace(/\s+/g, '_')}_All_Sales_Bills_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1482,14 +2137,117 @@ function StoreContent({ shopId }) {
         const lowStock = (data.items || []).filter(i => i.stock > 0 && i.stock <= (i.minStock || 5)).length;
         // Expired products: expiryDate is set and is before today
         const expiredProductsList = (data.items || []).filter(i => i.expiryDate && new Date(i.expiryDate) < now);
+
+        // Stock Conversion: 1 Peti (Box) = 12 Trays = 360 Eggs | 1 Tray = 30 Eggs
+        const totalStockEggs = (data.items || []).reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+        const totalStockPetis = Number((totalStockEggs / 360).toFixed(1));
+        const totalStockTrays = Math.round(totalStockEggs / 30);
+
+        let totalInventoryValue = 0;
+        (data.items || []).forEach(i => {
+          const stk = Number(i.stock) || 0;
+          const rate = Number(i.price) > 0 ? Number(i.price) : (Number(i.costPrice) || 0);
+          const divisor = i.unitType === 'egg' ? 1 : i.unitType === 'tray' ? 30 : 360;
+          totalInventoryValue += (stk * (rate / divisor));
+        });
+
+        // Purchases & Supplier Stats
+        let totalPetisPurchased = 0;
+        let totalPurchasesCount = 0;
+        let totalPurchaseCost = 0;
+        let cashPaidToSupplier = 0;
+        let onlinePaidToSupplier = 0;
+        let dueToSupplier = 0;
+
+        (data.items || []).forEach(p => {
+          const stockEggs = Number(p.stock || 0);
+          const petiQty = Number(p.petiQuantity || 0);
+          const trayQty = Number(p.trayQuantity || 0);
+          const eggQty = Number(p.eggQuantity || 0);
+
+          if (petiQty > 0 || trayQty > 0 || eggQty > 0) {
+            totalPetisPurchased += petiQty + (trayQty / 12) + (eggQty / 360);
+          } else if (stockEggs > 0) {
+            totalPetisPurchased += stockEggs / 360;
+          }
+
+          const unitCost = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
+          const unitDivisor = p.unitType === 'egg' ? 1 : p.unitType === 'tray' ? 30 : 360;
+
+          const cost = Number(p.totalPurchaseCost) > 0
+            ? Number(p.totalPurchaseCost)
+            : (petiQty > 0 ? petiQty * unitCost : (stockEggs > 0 ? stockEggs * (unitCost / unitDivisor) : 0));
+
+          const hasReceipt = !!(
+            (p.paymentReceipt && typeof p.paymentReceipt === 'string' && p.paymentReceipt.trim()) ||
+            (p.receipt && typeof p.receipt === 'string' && p.receipt.trim()) ||
+            (p.paymentProof && typeof p.paymentProof === 'string' && p.paymentProof.trim())
+          );
+
+          const pMethodLower = String(p.paymentMethod || 'Cash').trim().toLowerCase();
+
+          const isOnline = p.isOnlinePayment === true || hasReceipt || (
+            pMethodLower.includes('bank') ||
+            pMethodLower.includes('easy') ||
+            pMethodLower.includes('jazz') ||
+            pMethodLower.includes('online') ||
+            pMethodLower.includes('cheque') ||
+            pMethodLower.includes('transfer') ||
+            pMethodLower.includes('card')
+          );
+
+          const isCredit = !isOnline && (
+            pMethodLower.includes('credit') ||
+            pMethodLower.includes('due') ||
+            pMethodLower.includes('qaraz')
+          );
+
+          let due = 0;
+          let paid = 0;
+
+          if (p.amountPaidToSupplier !== undefined && p.amountPaidToSupplier !== null && p.amountPaidToSupplier !== '') {
+            paid = Number(p.amountPaidToSupplier);
+            due = Math.max(0, cost - paid);
+          } else if (p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) > 0) {
+            due = Number(p.dueAmountToSupplier);
+            paid = Math.max(0, cost - due);
+          } else if (isCredit) {
+            paid = 0;
+            due = cost;
+          } else {
+            paid = cost;
+            due = 0;
+          }
+
+          totalPurchaseCost += cost;
+          dueToSupplier += due;
+          cashPaidToSupplier += paid;
+
+          if (p.supplierName || paid > 0 || due > 0 || hasReceipt || petiQty > 0) {
+            totalPurchasesCount++;
+          }
+        });
+
         setDashStats(prev => ({
           ...prev,
           totalProducts: (data.items || []).length,
           totalStock,
+          totalStockEggs,
+          totalStockPetis,
+          totalStockTrays,
+          totalInventoryValue: Math.round(totalInventoryValue),
           outOfStock,
           lowStock,
           expiredProducts: expiredProductsList.length,
           expiredProductsList,
+          totalPetisPurchased: Number(totalPetisPurchased.toFixed(1)),
+          totalTraysPurchased: Math.round(totalPetisPurchased * 12),
+          totalEggsPurchased: Math.round(totalPetisPurchased * 360),
+          totalPurchasesCount,
+          totalPurchaseCost: Math.round(totalPurchaseCost),
+          cashPaidToSupplier: Math.round(cashPaidToSupplier),
+          onlinePaidToSupplier: Math.round(onlinePaidToSupplier),
+          dueToSupplier: Math.round(dueToSupplier),
         }));
       }
     } catch (e) { }
@@ -1561,6 +2319,10 @@ function StoreContent({ shopId }) {
         const totalPosRevenue = validPOS.reduce((s, x) => s + (x.totalAmount || 0), 0);
         const totalOrderRevenue = paidOrders.reduce((s, x) => s + (x.totalAmount || 0), 0);
 
+        const todayOrdersCount = validPOS.filter(x => new Date(x.saleDate) >= today).length + paidOrders.filter(x => new Date(x.createdAt) >= today).length;
+        const monthlyOrdersCount = validPOS.filter(x => new Date(x.saleDate) >= thisMonth).length + paidOrders.filter(x => new Date(x.createdAt) >= thisMonth).length;
+        const yearlyOrdersCount = validPOS.filter(x => new Date(x.saleDate) >= thisYear).length + paidOrders.filter(x => new Date(x.createdAt) >= thisYear).length;
+
         // Profit & Loss
         const returnedSales = posSalesList.filter(s => s.status === 'returned' || s.status === 'cancelled');
         const posLoss = (dateFrom) => returnedSales
@@ -1586,6 +2348,8 @@ function StoreContent({ shopId }) {
           .filter(x => new Date(x.expenseDate || x.createdAt) >= dateFrom)
           .reduce((sum, x) => sum + (Number(x.amount) || 0), 0);
 
+        const todayExpenseSum = manualExpenseSum(today);
+        const monthlyExpenseSum = manualExpenseSum(thisMonth);
         const totalManualExpensesSum = (currentExpList || []).reduce((sum, x) => sum + (Number(x.amount) || 0), 0);
 
         // ── Damaged Products Calculation ──
@@ -1601,9 +2365,22 @@ function StoreContent({ shopId }) {
 
         const totalDamagedLossSum = (currentDmgList || []).reduce((sum, x) => sum + (Number(x.totalLoss) || 0), 0);
 
+        let totalDamagedEggs = 0;
+        (currentDmgList || []).forEach(x => {
+          const e = Number(x.eggQuantity || x.quantity || 0);
+          const p = Number(x.petiQuantity || 0);
+          const t = Number(x.trayQuantity || 0);
+          totalDamagedEggs += (p * 360) + (t * 30) + e;
+        });
+        const totalDamagedPetis = Number((totalDamagedEggs / 360).toFixed(1));
+        const totalDamagedTrays = Math.round(totalDamagedEggs / 30);
+
         setDashStats(prev => ({
           ...prev,
           totalOrders: posSalesList.length + checkoutOrders.length,
+          todayOrdersCount,
+          monthlyOrdersCount,
+          yearlyOrdersCount,
           totalRevenue: totalPosRevenue + totalOrderRevenue,
           todaySales: posRevenue(today) + orderRevenue(today),
           monthlySales: posRevenue(thisMonth) + orderRevenue(thisMonth),
@@ -1611,12 +2388,18 @@ function StoreContent({ shopId }) {
           todayProfit: posProfit(today) + orderProfit(today),
           monthlyProfit: posProfit(thisMonth) + orderProfit(thisMonth),
           yearlyProfit: posProfit(thisYear) + orderProfit(thisYear),
-          todayLoss: posLoss(today) + orderLoss(today) + manualExpenseSum(today),
-          monthlyLoss: posLoss(thisMonth) + orderLoss(thisMonth) + manualExpenseSum(thisMonth),
+          todayExpense: todayExpenseSum,
+          monthlyExpense: monthlyExpenseSum,
+          totalExpense: totalManualExpensesSum,
+          todayLoss: posLoss(today) + orderLoss(today) + todayExpenseSum,
+          monthlyLoss: posLoss(thisMonth) + orderLoss(thisMonth) + monthlyExpenseSum,
           yearlyLoss: posLoss(thisYear) + orderLoss(thisYear) + manualExpenseSum(thisYear),
           todayDamagedLoss: damagedLossSum(today),
           monthlyDamagedLoss: damagedLossSum(thisMonth),
           yearlyDamagedLoss: damagedLossSum(thisYear),
+          totalDamagedEggs,
+          totalDamagedPetis,
+          totalDamagedTrays,
           totalDamagedLoss: totalDamagedLossSum,
           totalProfit: totalProfitSum,
           totalLoss: totalLossSum + totalManualExpensesSum,
@@ -1942,6 +2725,17 @@ function StoreContent({ shopId }) {
                   </button>
 
                   <button
+                    onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchases'
+                      ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-500 hover:to-amber-600 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                      }`}
+                  >
+                    <Truck className="w-4 h-4 text-teal-400 group-hover:text-zinc-950 transition-colors" />
+                    <span className="truncate">Purchases & Restocks</span>
+                  </button>
+
+                  <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3 py-1.5 mx-3 rounded-xl text-xs font-black italic tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'registered-customers'
                       ? "bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-zinc-950 border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
@@ -2088,53 +2882,54 @@ function StoreContent({ shopId }) {
             <div className="max-w-7xl mx-auto space-y-3">
 
               {/* ─── Header Banner (always visible) ─── */}
-              <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 overflow-hidden ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
+              <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex items-center justify-between gap-4 overflow-hidden w-full ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
                 <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
                   <ShoppingBag className="w-24 h-24 sm:w-32 sm:h-32 text-emerald-400" />
                 </div>
-                <div className="relative z-10 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[9px] font-black uppercase tracking-widest shrink-0">
-                      <Sparkles className="w-3 h-3 text-emerald-400" /> Welcome, {user?.fullName || customer?.fullName || 'User'}
+                <div className="relative z-10 flex items-center justify-between w-full gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-700 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {user?.fullName || customer?.fullName || 'Shop Admin'}
                     </span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isAdminUser ? 'bg-amber-500/20 border-amber-400/30 text-amber-300' : 'bg-blue-500/20 border-blue-400/30 text-blue-300'}`}>
-                      {isAdminUser ? '🛡 SHOP ADMIN' : '🛒 CUSTOMER'}
-                    </span>
+                    <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-zinc-900 truncate">
+                      {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : '📦 Products & Inventory Catalog'}
+                    </h1>
                   </div>
-                  <h1 className={`text-sm sm:text-base md:text-lg font-black tracking-tight uppercase italic truncate ${isAdminUser ? 'text-zinc-900' : 'text-white'}`}>
-                    {activeView === 'dashboard'
-                      ? (isAdminUser ? 'Shop Admin Dashboard' : 'My Customer Dashboard')
-                      : 'Fresh Inventory & Products Catalog'}
-                  </h1>
-                  <p className="text-[10px] sm:text-xs text-slate-400 max-w-xl font-medium line-clamp-1 sm:line-clamp-none">
-                    {activeView === 'dashboard'
-                      ? (isAdminUser ? 'Overview of your shop performance and statistics.' : 'Your order history, cart summary and spending stats.')
-                      : 'Browse products, check stock levels, and add items to your cart easily.'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => navigate('/shop')}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 text-[10px] font-black uppercase tracking-widest transition-all shadow border border-slate-700 cursor-pointer active:scale-95"
-                    title="Switch or Select Shop Branch"
-                  >
-                    <Store className="w-3.5 h-3.5 text-amber-400" /> Switch Branch
-                  </button>
-                  {isAdminUser && (
-                    <button
-                      onClick={() => setAddProductModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg border border-amber-400/60 cursor-pointer active:scale-95"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Product
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setActiveView(activeView === 'dashboard' ? 'products' : 'dashboard')}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow border border-emerald-500/40"
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    {activeView === 'dashboard' ? 'View Products' : 'Dashboard'}
-                  </button>
+
+                  {/* Right-Aligned 3D Action Buttons with Tabs */}
+                  <div className="flex items-center gap-2 ml-auto flex-wrap">
+                    {/* View Switcher Tabs */}
+                    <div className="flex items-center p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
+                      <button
+                        onClick={() => setActiveView('dashboard')}
+                        className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                          }`}
+                      >
+                        <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                      </button>
+                      <button
+                        onClick={() => setActiveView('products')}
+                        className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                          }`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" /> Products
+                      </button>
+                    </div>
+
+                    {isAdminUser && (
+                      <button
+                        onClick={() => setAddProductModal(true)}
+                        className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-md border-b-2 border-amber-800 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                        <span>+ Add Product</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2144,300 +2939,409 @@ function StoreContent({ shopId }) {
 
                   {/* ─── SHOP ADMIN DASHBOARD (CLEAN WHITE THEME) ─── */}
                   {isAdminUser ? (
-                    <div className="space-y-6">
-                      {/* Top Stat Cards - White Theme */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {[
-                          { label: 'Registered Customers', value: dashStats.totalCustomers, icon: '👥', color: 'bg-white border-zinc-200 text-blue-600', textColor: 'text-zinc-900', sub: 'Shop Accounts' },
-                          { label: 'Total Products', value: dashStats.totalProducts, icon: '📦', color: 'bg-white border-zinc-200 text-emerald-600', textColor: 'text-zinc-900', sub: 'In Catalog' },
-                          { label: 'Available Stock', value: dashStats.totalStock.toLocaleString('en-PK'), icon: '🏪', color: 'bg-white border-zinc-200 text-green-600', textColor: 'text-zinc-900', sub: 'Total Units' },
-                          { label: 'Total Sales Orders', value: dashStats.totalOrders, icon: '🛒', color: 'bg-white border-zinc-200 text-orange-600', textColor: 'text-zinc-900', sub: 'All Time' },
-                          { label: 'Low Stock Items', value: dashStats.lowStock, icon: '⚠️', color: 'bg-white border-zinc-200 text-amber-600', textColor: 'text-amber-600', sub: 'Need Attention' },
-                          { label: 'Out of Stock', value: dashStats.outOfStock, icon: '🚫', color: 'bg-white border-zinc-200 text-rose-600', textColor: 'text-rose-600', sub: 'Restock Needed' },
-                        ].map(({ label, value, icon, color, textColor, sub }) => (
-                          <div key={label} className={`${color} border rounded-3xl p-5 shadow-xl flex flex-col gap-2`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</span>
-                              <span className="text-xl">{icon}</span>
-                            </div>
-                            <p className={`text-2xl font-black ${textColor} tracking-tight`}>
-                              <CountUpNumber value={value} />
-                            </p>
-                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">{sub}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="space-y-4">
 
-                      {/* Profit & Loss Summary */}
-                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
-                        <h3 className="text-xs font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                          <span>💹</span> Profit & Loss Summary
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-1">Total Profit Earned</p>
-                            <p className="text-2xl font-black text-emerald-600">
-                              <CountUpNumber value={`${currency} ${dashStats.totalProfit || 0}`} />
-                            </p>
-                            <p className="text-[9px] text-emerald-600/70 uppercase mt-1">From completed sales</p>
-                          </div>
-                          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-1">Shop Expenses & Loss</p>
-                            <p className="text-2xl font-black text-rose-600">
-                              <CountUpNumber value={`${currency} ${dashStats.totalLoss || 0}`} />
-                            </p>
-                            <p className="text-[9px] text-rose-600/70 uppercase mt-1">Expenses & Returns</p>
-                          </div>
-                          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Damaged Stock Loss</p>
-                            <p className="text-2xl font-black text-amber-600">
-                              <CountUpNumber value={`${currency} ${dashStats.totalDamagedLoss || 0}`} />
-                            </p>
-                            <p className="text-[9px] text-amber-700/80 uppercase mt-1">Egg Breakage & Loss</p>
-                          </div>
-                          <div className={`border rounded-2xl p-4 ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">Net Earnings / Balance</p>
-                            <p className={`text-2xl font-black ${(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {(dashStats.totalProfit - dashStats.totalLoss) >= 0 ? '+' : '-'} <CountUpNumber value={`${currency} ${Math.abs(dashStats.totalProfit - dashStats.totalLoss)}`} />
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      {/* ─── EXECUTIVE BUSINESS DASHBOARD (CLEAN & MINIMAL) ─── */}
+                      <div className="bg-slate-100 border border-slate-200/90 rounded-2xl p-3.5 sm:p-5 shadow-xl text-slate-900 space-y-3.5">
 
-                      {/* Bank Account Transfers vs Cash Revenue Breakdown */}
-                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-black text-zinc-700 uppercase tracking-widest flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-indigo-600" />
-                            Bank Account Transfers & Payment Methods Breakdown
-                          </h3>
-                          <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
-                            Approved Bank Revenue
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Approved Bank / EasyPaisa Transfers</span>
-                              <Building2 className="w-4 h-4 text-indigo-600" />
-                            </div>
-                            <p className="text-2xl font-black text-indigo-600">
-                              {currency} {(
-                                shopSalesList.filter(s => (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'EASYPAISA' || s.paymentMethod === 'ONLINE') && s.approvalStatus === 'APPROVED').reduce((sum, s) => sum + (s.totalAmount || 0), 0) +
-                                allShopOrders.filter(o => o.paymentStatus === 'PAID').reduce((sum, o) => sum + (o.totalAmount || 0), 0)
-                              ).toLocaleString('en-PK')}
-                            </p>
-                            <p className="text-[9px] text-indigo-600/80 uppercase font-bold mt-1">Transferred directly to Shop Bank Account</p>
-                          </div>
-
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Hand Cash Sales</span>
-                              <DollarSign className="w-4 h-4 text-emerald-600" />
-                            </div>
-                            <p className="text-2xl font-black text-emerald-600">
-                              {currency} {shopSalesList.filter(s => !s.paymentMethod || s.paymentMethod === 'CASH').reduce((sum, s) => sum + (s.totalAmount || 0), 0).toLocaleString('en-PK')}
-                            </p>
-                            <p className="text-[9px] text-emerald-600/80 uppercase font-bold mt-1">Collected as physical cash in shop drawer</p>
-                          </div>
-
-                          <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-lg border border-slate-800">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">Total Combined Shop Revenue</span>
-                              <Sparkles className="w-4 h-4 text-yellow-400" />
-                            </div>
-                            <p className="text-2xl font-black text-white">
-                              {currency} {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}
-                            </p>
-                            <p className="text-[9px] text-slate-300 uppercase font-bold mt-1">Cash Sales + Approved Bank Transfers</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Revenue Analytics (Day / Month / Year) */}
-                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
-                        <h3 className="text-xs font-black text-zinc-700 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Analytics (Day / Month / Year)
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Today Sales (Day)</span>
-                            <h4 className="text-xl font-black text-emerald-600 tracking-tight">
-                              <CountUpNumber value={`${currency} ${dashStats.todaySales || 0}`} />
-                            </h4>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">Daily Gross Sales</span>
-                          </div>
-
-                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">This Month (Month)</span>
-                            <h4 className="text-xl font-black text-emerald-600 tracking-tight">
-                              <CountUpNumber value={`${currency} ${dashStats.monthlySales || 0}`} />
-                            </h4>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">Monthly Gross Sales</span>
-                          </div>
-
-                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">This Year (Year)</span>
-                            <h4 className="text-xl font-black text-blue-600 tracking-tight">
-                              <CountUpNumber value={`${currency} ${dashStats.yearlySales || 0}`} />
-                            </h4>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">Yearly Gross Sales</span>
-                          </div>
-
-                          <div className="p-4 bg-[#1B3817] text-white rounded-2xl border border-green-800 shadow-lg">
-                            <span className="text-[10px] font-black text-yellow-300 uppercase tracking-widest block mb-1">Total Revenue</span>
-                            <h4 className="text-xl font-black text-white tracking-tight">
-                              <CountUpNumber value={`${currency} ${dashStats.totalRevenue || 0}`} />
-                            </h4>
-                            <span className="text-[9px] text-white/60 font-bold uppercase">All-Time Cumulative Sales</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ─── TOTAL FINANCIAL & SALES REPORTS CENTER ─── */}
-                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
-                          <div>
-                            <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-emerald-600" />
-                              Total Summary Reports Center (Sales, Profit & Expenses)
-                            </h3>
-                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
-                              Generate, inspect & print itemized financial reports for Day, Month, Year & All-Time
-                            </p>
-                          </div>
-
-                          {/* Timeframe selector buttons */}
-                          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            {[
-                              { id: 'ALL', label: 'All-Time' },
-                              { id: 'DAY', label: 'Today (Day)' },
-                              { id: 'MONTH', label: 'This Month' },
-                              { id: 'YEAR', label: 'This Year' },
-                            ].map(t => (
-                              <button
-                                key={t.id}
-                                onClick={() => setReportTimeframe(t.id)}
-                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                                  ? 'bg-emerald-600 text-white shadow-md'
-                                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                                  }`}
-                              >
-                                {t.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Active Filter Metrics */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
-                            <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block mb-1">
-                              {reportTimeframe === 'DAY' ? 'Today Gross Sales' : reportTimeframe === 'MONTH' ? 'Monthly Gross Sales' : reportTimeframe === 'YEAR' ? 'Yearly Gross Sales' : 'Total Revenue'}
+                        {/* ─── LINE 1: 💰 REALIZED NET PROFIT & LOSS (خالصه ګټه او تاوان) ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-emerald-800 flex items-center gap-1.5 tracking-wider">
+                              <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> 1. Realized Net Profit / Loss (خالصه ګټه - تفریق مصارف او تاوان)
                             </span>
-                            <h4 className="text-2xl font-black text-emerald-600 tracking-tight">
-                              {currency} {(
-                                reportTimeframe === 'DAY' ? dashStats.todaySales :
-                                  reportTimeframe === 'MONTH' ? dashStats.monthlySales :
-                                    reportTimeframe === 'YEAR' ? dashStats.yearlySales :
-                                      dashStats.totalRevenue
-                              ).toLocaleString('en-PK')}
-                            </h4>
-                            <span className="text-[9px] text-emerald-600/70 font-bold uppercase">Sales Revenue</span>
-                          </div>
-
-                          <div className="p-4 bg-green-50/70 border border-green-200/80 rounded-2xl">
-                            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest block mb-1">
-                              {reportTimeframe === 'DAY' ? 'Today Profit' : reportTimeframe === 'MONTH' ? 'Monthly Profit' : reportTimeframe === 'YEAR' ? 'Yearly Profit' : 'Total Profit Earned'}
+                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">
+                              Sales Profit - Expenses - Damaged Loss
                             </span>
-                            <h4 className="text-2xl font-black text-green-600 tracking-tight">
-                              {currency} {(
-                                reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
-                                  reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
-                                    reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
-                                      dashStats.totalProfit
-                              ).toLocaleString('en-PK')}
-                            </h4>
-                            <span className="text-[9px] text-green-600/70 font-bold uppercase">Net Profit</span>
                           </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {/* Today Net Profit */}
+                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.todayNet >= 0 ? 'bg-gradient-to-br from-emerald-600 to-teal-700 border-emerald-500' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                              <div>
+                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                  Today Net {netStats.todayNet >= 0 ? 'Profit' : 'Loss'}
+                                </span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                  {currency} {netStats.todayNet.toLocaleString('en-PK')}
+                                </h4>
+                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                  Gross: Rs.{netStats.todayGrossProfit} | Exp: Rs.{netStats.todayExp} | Loss: Rs.{netStats.todayDmg}
+                                </span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <TrendingUp className="w-4 h-4" />
+                              </div>
+                            </div>
 
-                          <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-2xl">
-                            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
-                              {reportTimeframe === 'DAY' ? 'Today Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'Total Loss / Returns'}
-                            </span>
-                            <h4 className="text-2xl font-black text-rose-600 tracking-tight">
-                              {currency} {(
-                                reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
-                                  reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
-                                    reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
-                                      dashStats.totalLoss
-                              ).toLocaleString('en-PK')}
-                            </h4>
-                            <span className="text-[9px] text-rose-600/70 font-bold uppercase">Expenses & Returns</span>
-                          </div>
+                            {/* Monthly Net Profit */}
+                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.monthlyNet >= 0 ? 'bg-gradient-to-br from-teal-600 to-emerald-700 border-teal-500' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                              <div>
+                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                  Month Net {netStats.monthlyNet >= 0 ? 'Profit' : 'Loss'}
+                                </span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                  {currency} {netStats.monthlyNet.toLocaleString('en-PK')}
+                                </h4>
+                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                  Gross: Rs.{netStats.monthlyGrossProfit} | Exp: Rs.{netStats.monthlyExp}
+                                </span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <DollarSign className="w-4 h-4" />
+                              </div>
+                            </div>
 
-                          <div className="p-4 bg-slate-900 text-white border border-slate-800 rounded-2xl shadow-lg">
-                            <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest block mb-1">
-                              Net Liquidity / Balance
-                            </span>
-                            <h4 className="text-2xl font-black text-white tracking-tight">
-                              {currency} {(
-                                (reportTimeframe === 'DAY' ? ((dashStats.todayProfit || 0) - (dashStats.todayLoss || 0)) :
-                                  reportTimeframe === 'MONTH' ? ((dashStats.monthlyProfit || 0) - (dashStats.monthlyLoss || 0)) :
-                                    reportTimeframe === 'YEAR' ? ((dashStats.yearlyProfit || 0) - (dashStats.yearlyLoss || 0)) :
-                                      (dashStats.totalProfit - dashStats.totalLoss))
-                              ).toLocaleString('en-PK')}
-                            </h4>
-                            <span className="text-[9px] text-white/60 font-bold uppercase">Net Profit - Expenses</span>
+                            {/* Yearly Net Profit */}
+                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.yearlyNet >= 0 ? 'bg-gradient-to-br from-blue-700 to-indigo-800 border-blue-600' : 'bg-gradient-to-br from-rose-600 to-red-700 border-rose-500'}`}>
+                              <div>
+                                <span className="text-[9px] font-bold text-white/90 uppercase tracking-wide block">
+                                  Year Net {netStats.yearlyNet >= 0 ? 'Profit' : 'Loss'}
+                                </span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                                  {currency} {netStats.yearlyNet.toLocaleString('en-PK')}
+                                </h4>
+                                <span className="text-[8px] text-white/80 font-bold block mt-0.5">
+                                  This Year Realized
+                                </span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <Calendar className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* All-Time Cumulative Net Profit */}
+                            <div className={`p-3 rounded-xl text-white shadow-sm flex items-center justify-between border ${netStats.totalNet >= 0 ? 'bg-slate-900 border-emerald-500/50' : 'bg-slate-900 border-rose-500/50'}`}>
+                              <div>
+                                <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wide block">
+                                  All-Time Net Profit
+                                </span>
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.totalNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {currency} {netStats.totalNet.toLocaleString('en-PK')}
+                                </h4>
+                                <span className="text-[8px] text-zinc-300 font-bold block mt-0.5">
+                                  Pure Realized Balance
+                                </span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-amber-400 shrink-0">
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Generate & Print Action Buttons */}
-                        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-100">
-                          <div className="text-xs text-zinc-500 font-bold flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Showing <span className="font-black text-zinc-800">{reportTimeframe}</span> report summary for {shop?.name || 'Shop'}.
+                        {/* ─── LINE 2: 🛒 SALES & REVENUE ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-teal-800 flex items-center gap-1.5 tracking-wider">
+                              <ShoppingBag className="w-3.5 h-3.5 text-teal-600" /> 2. Sales &amp; Revenue
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              Sales Volume &amp; Invoices
+                            </span>
                           </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {/* Today */}
+                            <div className="p-3 bg-teal-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <Calendar className="w-4 h-4" />
+                              </div>
+                            </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={() => handlePrintSummaryReport(reportTimeframe)}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title="Direct Print Report"
-                            >
-                              <Printer className="w-4 h-4" /> Print
-                            </button>
-                            <button
-                              onClick={() => handlePrintSummaryReport(reportTimeframe)}
-                              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-rose-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title="Save Report as PDF"
-                            >
-                              <FileText className="w-4 h-4" /> Save PDF
-                            </button>
-                            <button
-                              onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                              className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-emerald-700/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title="Share Financial Summary on WhatsApp"
-                            >
-                              <Send className="w-4 h-4" /> WhatsApp
-                            </button>
-                            <button
-                              onClick={() => handleExportExcelReport(reportTimeframe)}
-                              className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-green-700/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title="Export Financial Report to Excel"
-                            >
-                              <FileSpreadsheet className="w-4 h-4" /> Generate Excel
-                            </button>
-                            <button
-                              onClick={() => handlePrintSummaryReport('ALL')}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                              title="Print All-Time Cumulative Summary"
-                            >
-                              <FileText className="w-4 h-4" /> All-Time Summary
-                            </button>
+                            {/* This Month */}
+                            <div className="p-3 bg-emerald-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">This Month</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <TrendingUp className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* This Year */}
+                            <div className="p-3 bg-blue-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">This Year</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <ShoppingBag className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Total Sales */}
+                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
+                              <div>
+                                <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wide block">Total Sales</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-zinc-300 font-bold block">{dashStats.totalOrders || 0} Orders</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <DollarSign className="w-4 h-4 text-amber-400" />
+                              </div>
+                            </div>
                           </div>
                         </div>
+
+                        {/* ─── LINE 3: 📦 AVAILABLE STOCK ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-amber-800 flex items-center gap-1.5 tracking-wider">
+                              <Box className="w-3.5 h-3.5 text-amber-600" /> 3. Available Stock
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              Inventory Count &amp; Worth
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {/* Petis */}
+                            <div className="p-3 bg-amber-500 rounded-xl text-slate-950 shadow-sm flex items-center justify-between border border-amber-600">
+                              <div>
+                                <span className="text-[9px] font-black uppercase tracking-wide block text-slate-900">Petis</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-slate-900 font-bold block">{dashStats.totalProducts || 0} Products</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-black/10 border border-black/20 flex items-center justify-center text-slate-950 shrink-0">
+                                <Box className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Trays */}
+                            <div className="p-3 bg-amber-100 rounded-xl text-amber-950 shadow-sm flex items-center justify-between border border-amber-200">
+                              <div>
+                                <span className="text-[9px] font-black uppercase tracking-wide block text-amber-800">Trays</span>
+                                <h4 className="text-lg sm:text-xl font-black text-amber-950 mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
+                                <span className="text-[8.5px] text-amber-700 font-bold block">Available</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-900 shrink-0">
+                                <Package className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Eggs */}
+                            <div className="p-3 bg-amber-50 rounded-xl text-amber-900 shadow-sm flex items-center justify-between border border-amber-200">
+                              <div>
+                                <span className="text-[9px] font-black uppercase tracking-wide block text-amber-700">Eggs</span>
+                                <h4 className="text-lg sm:text-xl font-black text-amber-900 mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
+                                <span className="text-[8.5px] text-amber-600 font-bold block">Available</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 shrink-0">
+                                <ShoppingBag className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Stock Worth */}
+                            <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Stock Worth</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">Total Valuation</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <TrendingUp className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ─── LINE 4: 🚚 PURCHASES & RESTOCK ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-purple-800 flex items-center gap-1.5 tracking-wider">
+                              <Truck className="w-3.5 h-3.5 text-purple-600" /> 4. Purchases &amp; Restock
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              Restock Summary
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {/* Stock Bought */}
+                            <div className="p-3 bg-purple-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Purchased</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(Number(dashStats.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <Truck className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Purchase Cost */}
+                            <div className="p-3 bg-purple-900 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-amber-300 uppercase tracking-wide block">Total Cost</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">Total Investment</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <DollarSign className="w-4 h-4 text-amber-300" />
+                              </div>
+                            </div>
+
+                            {/* Cash Paid to Supplier */}
+                            <div className="p-3 bg-emerald-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Cash Paid</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">Paid to Supplier</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <Banknote className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Due Supplier Debt */}
+                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
+                              <div>
+                                <span className="text-[9px] font-bold text-rose-300 uppercase tracking-wide block">Due Balance</span>
+                                <h4 className="text-lg sm:text-xl font-black text-rose-400 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-rose-300 font-bold block">Owed Debt</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                                <AlertCircle className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ─── LINE 5: 💸 SHOP EXPENSES ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-rose-800 flex items-center gap-1.5 tracking-wider">
+                              <FileText className="w-3.5 h-3.5 text-rose-600" /> 5. Shop Expenses
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              Expense Summary
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            {/* Today's Expenses */}
+                            <div className="p-3 bg-rose-500 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today Expense</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todayExpense || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">Today</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Monthly Expenses */}
+                            <div className="p-3 bg-rose-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Month Expense</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlyExpense || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">This Month</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <TrendingDown className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Total Cumulative Expenses */}
+                            <div className="p-3 bg-rose-700 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Total Expense</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalExpense || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">Total</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <DollarSign className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ─── LINE 6: 🥚 DAMAGED STOCK & LOSS ─── */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                            <span className="text-[11px] font-black uppercase text-red-800 flex items-center gap-1.5 tracking-wider">
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> 6. Damaged Stock &amp; Loss
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">
+                              Damages &amp; Loss Summary
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            {/* Damaged Stock Quantity */}
+                            <div className="p-3 bg-red-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Damaged Stock</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalDamagedPetis || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.totalDamagedTrays || 0} Trays</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <AlertCircle className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Today's Breakage Loss */}
+                            <div className="p-3 bg-red-700 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today Loss</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todayDamagedLoss || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">Today</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <TrendingDown className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Total Breakage Loss */}
+                            <div className="p-3 bg-red-800 rounded-xl text-white shadow-sm flex items-center justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Total Loss</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">Total</span>
+                              </div>
+                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                                <DollarSign className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ─── BILLTEN ALERT ROW (3 ALERT PANELS AT BOTTOM) ─── */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+
+                          {/* Alert 1: Low Stock Items */}
+                          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+                            <div>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">LOW STOCK ITEMS</span>
+                              <span className="text-lg font-black text-slate-900">{dashStats.lowStock || 0}</span>
+                            </div>
+                          </div>
+
+                          {/* Alert 2: Negative / Damaged Stock */}
+                          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+                            <div>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">DAMAGED STOCK</span>
+                              <span className="text-lg font-black text-slate-900">{dashStats.totalDamagedLoss ? 1 : 0}</span>
+                            </div>
+                          </div>
+
+                          {/* Alert 3: Expiring Products */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-full bg-slate-300 shrink-0" />
+                            <div>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">EXPIRING PRODUCTS</span>
+                              <span className="text-lg font-black text-slate-900">{dashStats.expiredProducts || 0}</span>
+                            </div>
+                          </div>
+
+                        </div>
+
                       </div>
 
                       {/* EasyPaisa & Customer Orders Verification */}
@@ -2499,6 +3403,19 @@ function StoreContent({ shopId }) {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'purchases' && (
+                <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
+                  <PurchasesManagement
+                    products={items}
+                    onAddProduct={() => setAddProductModal(true)}
+                    onEditProduct={(p) => setEditModalProduct(p)}
+                    onDeleteProduct={handleDirectDeleteProduct}
+                    onViewProduct={(p) => setSelectedItem(p)}
+                  />
                 </div>
               )}
 
@@ -2676,45 +3593,45 @@ function StoreContent({ shopId }) {
 
               {/* ─── WALK-IN POS & BILLING VIEW ─── */}
               {activeView === 'walkin' && isAdminUser && (
-                <div className="space-y-6">
-                  {/* Top Banner */}
-                  <div className="bg-gradient-to-r from-[#2D5A27] via-[#24491F] to-[#1B3817] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-4">
+                  {/* Top Banner - white/gray */}
+                  <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <Receipt className="w-4 h-4" /> Shop Admin Walk-in POS
+                      <div className="flex items-center gap-2 text-emerald-700 text-xs font-black uppercase tracking-widest mb-0.5">
+                        <Receipt className="w-4 h-4" /> Walk-in POS
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Customer Sale & Billing System</h2>
-                      <p className="text-slate-300 text-xs mt-1">Select items for the customer, enter customer details, and generate printable PDF / WhatsApp bill.</p>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Customer Sale & Billing</h2>
+                      <p className="text-gray-400 text-xs mt-0.5">Select items, enter customer details, complete sale & generate bill.</p>
                     </div>
                     <button
                       onClick={() => { setActiveView('sales'); fetchShopSales(); }}
-                      className="px-4 py-2.5 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-2 shadow-lg transition-all"
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2 transition-all cursor-pointer"
                     >
-                      <DollarSign className="w-4 h-4 text-amber-400" /> View Sales History
+                      <DollarSign className="w-4 h-4 text-emerald-600" /> Sales History
                     </button>
                   </div>
 
                   {/* POS Split Screen */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-                    {/* Left: Product Catalog Selection (7 cols) */}
-                    <div className="lg:col-span-7 space-y-4">
-                      {/* POS Search & Filter */}
-                      <div className="flex flex-col sm:flex-row gap-3">
+                    {/* ── Left: Product Catalog (7 cols) ── */}
+                    <div className="lg:col-span-7 space-y-3">
+                      {/* Search & Filter */}
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <div className="relative flex-1">
                           <input
                             type="text"
-                            placeholder="Search products for customer..."
+                            placeholder="Search products..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-2xl py-3 pl-10 pr-4 text-xs font-bold text-white outline-none focus:border-emerald-500 transition-colors shadow-inner"
+                            className="w-full bg-white border border-gray-300 rounded-xl py-2.5 pl-9 pr-3 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors shadow-sm"
                           />
-                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                         </div>
                         <select
                           value={activeCategory}
                           onChange={e => setActiveCategory(e.target.value)}
-                          className="bg-slate-800 border border-slate-700 text-white rounded-2xl px-4 py-3 text-xs font-bold outline-none focus:border-emerald-500"
+                          className="bg-white border border-gray-300 text-gray-800 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500 shadow-sm"
                         >
                           {categories.map(c => (
                             <option key={c} value={c}>{c}</option>
@@ -2722,285 +3639,302 @@ function StoreContent({ shopId }) {
                         </select>
                       </div>
 
-                      {/* Items Grid for POS */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
+                      {/* Product Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[560px] overflow-y-auto pr-1">
                         {items.map(product => {
-                          const inCart = walkInCart.find(i => i.product._id === product._id);
+                          const petiPrice = getProductUnitPrice(product, 'peti');
+                          const trayPrice = getProductUnitPrice(product, 'tray');
+                          const eggPrice = getProductUnitPrice(product, 'egg');
+
                           return (
                             <div
                               key={product._id}
-                              className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-3 flex gap-3 items-center hover:border-emerald-500/50 transition-all"
+                              className="bg-white border-2 border-gray-200 hover:border-emerald-400 rounded-2xl p-3 flex flex-col justify-between gap-2.5 hover:shadow-md transition-all"
                             >
-                              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-700">
-                                {product.images?.[0] ? (
-                                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <Package className="w-8 h-8 m-4 text-slate-700" />
-                                )}
+                              <div className="flex items-center gap-3">
+                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                                  {product.images?.[0] ? (
+                                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Package className="w-6 h-6 text-gray-300" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="font-black text-gray-900 text-xs uppercase tracking-tight truncate">{product.name}</h4>
+                                  <p className="text-emerald-700 font-extrabold text-[11px] mt-0.5">
+                                    {currency} {trayPrice.toLocaleString()} <span className="text-[9px] font-normal text-gray-400">/ Tray</span>
+                                  </p>
+                                  <span className={`text-[9px] font-bold uppercase ${product.stock > 0 ? 'text-gray-400' : 'text-rose-500'}`}>
+                                    Stock: {product.stock} eggs ({(product.stock / 360).toFixed(1)} Petis)
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-black text-white text-xs uppercase tracking-tight truncate">{product.name}</h4>
-                                <p className="text-emerald-400 font-black text-xs">{currency} {product.price.toLocaleString()}</p>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider ${product.stock > 0 ? 'text-slate-400' : 'text-rose-400'}`}>
-                                  Stock: {product.stock}
-                                </span>
+
+                              {/* 3 Direct Unit Add Buttons: Peti, Tray, Egg */}
+                              <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-gray-100">
+                                <button
+                                  type="button"
+                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'peti')}
+                                  disabled={product.stock <= 0}
+                                  className="py-1 px-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                  title={`Add 1 Peti (${currency} ${petiPrice})`}
+                                >
+                                  <span>📦 Peti</span>
+                                  <span className="text-[8px] font-extrabold text-amber-900">{currency}{petiPrice}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'tray')}
+                                  disabled={product.stock <= 0}
+                                  className="py-1 px-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                  title={`Add 1 Tray (${currency} ${trayPrice})`}
+                                >
+                                  <span>🍱 Tray</span>
+                                  <span className="text-[8px] font-extrabold text-emerald-900">{currency}{trayPrice}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'egg')}
+                                  disabled={product.stock <= 0}
+                                  className="py-1 px-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                  title={`Add 1 Egg (${currency} ${eggPrice})`}
+                                >
+                                  <span>🥚 Egg</span>
+                                  <span className="text-[8px] font-extrabold text-blue-900">{currency}{eggPrice}</span>
+                                </button>
                               </div>
-                              <button
-                                onClick={() => addToWalkInCart(product)}
-                                disabled={product.stock <= 0}
-                                className={`p-2.5 rounded-xl font-black text-xs transition-all ${inCart
-                                  ? 'bg-emerald-600 text-white shadow-lg'
-                                  : product.stock > 0
-                                    ? 'bg-slate-800 hover:bg-emerald-700 text-white border border-slate-600'
-                                    : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
-                                  }`}
-                                title="Add to Bill"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
                             </div>
                           );
                         })}
                       </div>
                     </div>
 
-                    {/* Right: Walk-in Cart & Customer Billing Details (5 cols) */}
-                    <div className="lg:col-span-5 bg-[#1E293B] border border-slate-700/60 rounded-3xl p-5 space-y-5 shadow-2xl flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-                          <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                            <Receipt className="w-4 h-4 text-emerald-400" /> Customer Bill Cart ({walkInCart.length})
-                          </h3>
+                    {/* ── Right: Bill / Receipt Panel (5 cols) ── */}
+                    <div className="lg:col-span-5">
+                      <div className="bg-white border border-gray-200 rounded-2xl shadow-md overflow-hidden flex flex-col">
+
+                        {/* Bill Header */}
+                        <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-white">
+                            <Receipt className="w-4 h-4" />
+                            <span className="font-black text-sm uppercase tracking-wide">Bill Cart ({walkInCart.length})</span>
+                          </div>
                           {walkInCart.length > 0 && (
                             <button
                               onClick={() => setWalkInCart([])}
-                              className="text-[10px] font-bold text-rose-400 hover:text-rose-300 uppercase tracking-widest"
+                              className="text-[10px] font-bold text-emerald-100 hover:text-white uppercase tracking-widest cursor-pointer"
                             >
-                              Clear Bill
+                              Clear All
                             </button>
                           )}
                         </div>
 
-                        {/* Customer Information Inputs */}
-                        <div className="space-y-2 bg-slate-900/60 p-3 rounded-2xl border border-slate-700/50">
-                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Customer Details (Optional)</p>
+                        <div className="p-4 space-y-4 flex-1">
+                          {/* Customer Details */}
                           <div className="space-y-2">
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Customer Details</p>
                             <input
                               type="text"
-                              placeholder="Customer Full Name (e.g. Ahmad Khan)"
+                              placeholder="Customer Name (e.g. Ahmad Khan)"
                               value={walkInCustomerName}
                               onChange={e => setWalkInCustomerName(e.target.value)}
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors"
                             />
                             <input
                               type="text"
-                              placeholder="WhatsApp / Phone Number (e.g. +923001234567)"
+                              placeholder="WhatsApp / Phone (e.g. +923001234567)"
                               value={walkInCustomerPhone}
                               onChange={e => setWalkInCustomerPhone(e.target.value)}
-                              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500"
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors"
                             />
                           </div>
-                        </div>
 
-                        {/* Payment Method & Bank Transfer Receipt Attachment */}
-                        <div className="space-y-2.5 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/60">
-                          <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center justify-between">
-                            <span>Payment Method</span>
-                            <span className="text-slate-400 font-normal">Cash or Bank Transfer</span>
-                          </p>
+                          {/* Payment Method */}
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Payment Method</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setWalkInPaymentMethod('CASH')}
+                                className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPaymentMethod === 'CASH'
+                                  ? 'bg-emerald-500 text-white shadow border border-emerald-400'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
+                                  }`}
+                              >
+                                <DollarSign className="w-3.5 h-3.5" /> Cash
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setWalkInPaymentMethod('BANK_TRANSFER')}
+                                className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPaymentMethod === 'BANK_TRANSFER'
+                                  ? 'bg-amber-500 text-white shadow border border-amber-400'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
+                                  }`}
+                              >
+                                <Building2 className="w-3.5 h-3.5" /> Bank
+                              </button>
+                            </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setWalkInPaymentMethod('CASH')}
-                              className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${walkInPaymentMethod === 'CASH'
-                                ? 'bg-emerald-600 text-white shadow-lg border border-emerald-400/40'
-                                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-                                }`}
-                            >
-                              <DollarSign className="w-3.5 h-3.5" /> Cash
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setWalkInPaymentMethod('BANK_TRANSFER')}
-                              className={`py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${walkInPaymentMethod === 'BANK_TRANSFER'
-                                ? 'bg-amber-600 text-white shadow-lg border border-amber-400/40'
-                                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-                                }`}
-                            >
-                              <Building2 className="w-3.5 h-3.5" /> Bank Transfer
-                            </button>
+                            {walkInPaymentMethod === 'BANK_TRANSFER' && (
+                              <div className="space-y-2 animate-in fade-in duration-200">
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
+                                  <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest">🏦 Official Bank Account</p>
+                                  {(() => {
+                                    const sName = (shop?.name || '').toLowerCase();
+                                    const sAddr = (shop?.address || '').toLowerCase();
+                                    if (sName.includes('mardan') || sAddr.includes('mardan')) {
+                                      return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2 py-1 rounded-lg">Bank Al Habib: 2013008100773501</p>;
+                                    }
+                                    if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
+                                      return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2 py-1 rounded-lg">Meezan Bank: 07190104740373</p>;
+                                    }
+                                    return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2 py-1 rounded-lg">UBL: 0109000306243543</p>;
+                                  })()}
+                                </div>
+                                <input
+                                  type="text"
+                                  placeholder="Transaction / Ref ID"
+                                  value={walkInTransactionId}
+                                  onChange={e => setWalkInTransactionId(e.target.value)}
+                                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-amber-500"
+                                />
+                                <div>
+                                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-wider block mb-1">Upload Payment Receipt</label>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleReceiptUpload}
+                                    className="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-500 file:text-white hover:file:bg-amber-600 cursor-pointer"
+                                  />
+                                  {walkInPaymentProof && (
+                                    <div className="mt-2 w-14 h-14 rounded-lg overflow-hidden border border-amber-300">
+                                      <img src={walkInPaymentProof} alt="Receipt" className="w-full h-full object-cover" />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
 
-                          {walkInPaymentMethod === 'BANK_TRANSFER' && (
-                            <div className="space-y-2.5 pt-2 border-t border-slate-800 animate-in fade-in duration-200">
-                              {/* Branch Specific Official Bank Account Box */}
-                              <div className="bg-amber-500/10 border border-amber-400/40 rounded-xl p-3 space-y-1 text-amber-200">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 flex items-center justify-between">
-                                  <span>🏦 Official {shop?.name || 'Branch'} Bank Account</span>
-                                  <span className="bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded text-[8px]">Send Payment Here</span>
-                                </p>
-                                {(() => {
-                                  const sName = (shop?.name || '').toLowerCase();
-                                  const sAddr = (shop?.address || '').toLowerCase();
+                          {/* Bill Items List with Peti, Tray, Egg Unit Selectors */}
+                          <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                            {walkInCart.length === 0 ? (
+                              <div className="text-center py-8 text-gray-300 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-gray-200 rounded-xl">
+                                No items added yet
+                              </div>
+                            ) : (
+                              walkInCart.map(item => {
+                                const currentUnit = item.selectedUnit || 'tray';
+                                const itemRate = item.unitPrice || getProductUnitPrice(item.product, currentUnit);
+                                const itemTotal = itemRate * (Number(item.quantity) || 1);
 
-                                  if (sName.includes('peshawar') || sName.includes('peshawer') || sAddr.includes('peshawar')) {
-                                    return (
-                                      <div className="space-y-1">
-                                        <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
-                                          <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: Meezan Bank</p>
-                                          <p className="text-xs font-black text-white">Title: <span className="text-amber-300">RIZWAN ULLAH</span></p>
-                                          <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
-                                            07190104740373
-                                          </p>
-                                          <p className="text-[9px] font-mono text-slate-300 mt-0.5">IBAN: PK02MEZN0007190104740373</p>
-                                        </div>
-                                        <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[10px]">
-                                          <p className="text-slate-400 font-bold">Other Bank: <span className="text-white font-mono">UBL 2458-267520146 (Rizwan Ullah)</span></p>
-                                        </div>
+                                return (
+                                  <div
+                                    key={`${item.product._id}_${currentUnit}`}
+                                    className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-2 hover:border-emerald-300 transition-all shadow-sm"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="min-w-0 flex-1">
+                                        <p className="font-black text-gray-900 uppercase truncate text-xs">{item.product.name}</p>
+                                        <span className="text-[10px] font-bold text-emerald-700">
+                                          {currency} {itemRate.toLocaleString()} <span className="text-[9px] font-normal text-gray-400">/ {currentUnit.toUpperCase()}</span>
+                                        </span>
                                       </div>
-                                    );
-                                  }
 
-                                  if (sName.includes('mardan') || sAddr.includes('mardan')) {
-                                    return (
-                                      <div className="space-y-1">
-                                        <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
-                                          <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: Bank Al Habib</p>
-                                          <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
-                                            2013008100773501
-                                          </p>
-                                        </div>
-                                        <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[9px] space-y-0.5">
-                                          <p className="text-slate-300 font-bold">UBL: <span className="text-amber-300 font-mono">UBL-010900316536105</span> | <span className="text-amber-300 font-mono">UBL-0109000259289278</span></p>
-                                          <p className="text-slate-300 font-bold">HBL: <span className="text-amber-300 font-mono">HBL-0012757900527403</span> | Bank Islami: <span className="text-amber-300 font-mono">0303500476780190</span></p>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-
-                                  // Attock Branch (Default)
-                                  return (
-                                    <div className="space-y-1">
-                                      <div className="bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
-                                        <p className="text-[10px] font-black text-emerald-400 uppercase">Primary Bank: UBL (United Bank Limited)</p>
-                                        <p className="text-xs font-black text-white">Title: <span className="text-amber-300">Yousafzai Eggs Traders</span></p>
-                                        <p className="text-xs font-mono font-black text-yellow-300 bg-black/60 px-2 py-1 rounded mt-0.5 border border-amber-400/30 select-all">
-                                          UBL-0109000306243543
-                                        </p>
-                                      </div>
-                                      <div className="bg-slate-900/60 p-1.5 rounded-lg border border-slate-700/50 text-[9px] space-y-0.5">
-                                        <p className="text-slate-300 font-bold">HBL (Yousafzai): <span className="text-amber-300 font-mono">HBL-0012757902845903</span></p>
-                                        <p className="text-slate-300 font-bold">HBL (Sana Ullah): <span className="text-amber-300 font-mono">HBL-0012757900520003</span></p>
+                                      <div className="text-right flex items-center gap-2">
+                                        <p className="font-black text-gray-900 text-sm">{currency} {itemTotal.toLocaleString()}</p>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeFromWalkInCart(item.product._id, currentUnit)}
+                                          className="text-gray-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
+                                          title="Remove from bill"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
                                     </div>
-                                  );
-                                })()}
-                              </div>
 
-                              <input
-                                type="text"
-                                placeholder="Transaction / Ref ID (e.g. TRX-982173)"
-                                value={walkInTransactionId}
-                                onChange={e => setWalkInTransactionId(e.target.value)}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-amber-500"
-                              />
+                                    {/* Unit Selection Pills (Peti, Tray, Egg) & Qty Counter */}
+                                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/60">
+                                      {/* Unit Pills */}
+                                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-200">
+                                        {[
+                                          { id: 'peti', label: '📦 Peti' },
+                                          { id: 'tray', label: '🍱 Tray' },
+                                          { id: 'egg', label: '🥚 Egg' },
+                                        ].map(u => (
+                                          <button
+                                            key={u.id}
+                                            type="button"
+                                            onClick={() => updateWalkInUnit(item.product._id, currentUnit, u.id)}
+                                            className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${currentUnit === u.id
+                                              ? 'bg-emerald-600 text-white shadow-sm'
+                                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                                              }`}
+                                          >
+                                            {u.label}
+                                          </button>
+                                        ))}
+                                      </div>
 
-                              <div>
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">
-                                  Upload Payment Receipt Image / Screenshot Proof
-                                </label>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handleReceiptUpload}
-                                  className="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer"
-                                />
-                                {walkInPaymentProof && (
-                                  <div className="mt-2 relative w-20 h-20 rounded-xl overflow-hidden border border-amber-400/40 shadow-md">
-                                    <img src={walkInPaymentProof} alt="Receipt Proof" className="w-full h-full object-cover" />
-                                    <span className="absolute bottom-0 inset-x-0 bg-emerald-600 text-[8px] font-black text-white text-center py-0.5 uppercase">Uploaded</span>
+                                      {/* Qty +/- */}
+                                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-200">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateWalkInQty(item.product._id, currentUnit, -1)}
+                                          className="w-5 h-5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center justify-center cursor-pointer font-black text-xs"
+                                        >
+                                          -
+                                        </button>
+                                        <span className="font-black text-gray-900 text-xs w-6 text-center">{item.quantity}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateWalkInQty(item.product._id, currentUnit, 1)}
+                                          className="w-5 h-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded flex items-center justify-center cursor-pointer font-black text-xs"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
 
-                        {/* Items List in Bill */}
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                          {walkInCart.length === 0 ? (
-                            <div className="text-center py-10 text-slate-500 text-xs font-bold uppercase tracking-widest border border-dashed border-slate-700 rounded-2xl">
-                              No products added to bill yet
-                            </div>
-                          ) : (
-                            walkInCart.map(item => (
-                              <div
-                                key={item.product._id}
-                                className="flex items-center justify-between p-3 bg-slate-900/80 border border-slate-700/60 rounded-xl gap-2 text-xs"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-bold text-white uppercase truncate">{item.product.name}</p>
-                                  <p className="text-[10px] text-emerald-400 font-bold">{currency} {item.product.price} each</p>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => updateWalkInQty(item.product._id, -1)}
-                                    className="p-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
-                                  >
-                                    <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className="font-black text-white px-1.5">{item.quantity}</span>
-                                  <button
-                                    onClick={() => updateWalkInQty(item.product._id, 1)}
-                                    className="p-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                </div>
-
-                                <div className="text-right min-w-[60px]">
-                                  <p className="font-black text-white">{currency} {(item.product.price * item.quantity).toLocaleString()}</p>
-                                </div>
-
-                                <button
-                                  onClick={() => removeFromWalkInCart(item.product._id)}
-                                  className="p-1 text-slate-400 hover:text-rose-400"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))
-                          )}
+                        {/* Bill Total & Complete */}
+                        <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Total Amount</span>
+                            <span className="text-2xl font-black text-emerald-600">
+                              {currency} {walkInCart.reduce((sum, i) => {
+                                const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
+                                return sum + (rate * (Number(i.quantity) || 1));
+                              }, 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleCompleteWalkInSale}
+                            disabled={walkInCart.length === 0 || isProcessingWalkIn}
+                            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-[0.15em] rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {isProcessingWalkIn ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <Receipt className="w-4 h-4" />
+                                <span>Complete Sale & Generate Bill</span>
+                              </>
+                            )}
+                          </button>
                         </div>
+
                       </div>
-
-                      {/* Total & Complete Sale Button */}
-                      <div className="space-y-4 pt-4 border-t border-slate-700">
-                        <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-700">
-                          <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Total Bill Amount</span>
-                          <span className="text-2xl font-black text-emerald-400">
-                            {currency} {walkInCart.reduce((sum, i) => sum + (i.product.price * i.quantity), 0).toLocaleString()}
-                          </span>
-                        </div>
-
-                        <button
-                          onClick={handleCompleteWalkInSale}
-                          disabled={walkInCart.length === 0 || isProcessingWalkIn}
-                          className="w-full py-4 bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl border-t border-emerald-400/30 border-b-4 border-emerald-950 transition-all flex items-center justify-center gap-2 active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isProcessingWalkIn ? (
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <>
-                              <Receipt className="w-4 h-4" />
-                              <span>Complete Sale & Generate Bill</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
                     </div>
 
                   </div>
@@ -3009,148 +3943,169 @@ function StoreContent({ shopId }) {
 
               {/* ─── SHOPADMIN SALES & BILLS HISTORY VIEW ─── */}
               {activeView === 'sales' && isAdminUser && (
-                <div className="space-y-6">
-                  {/* Top Stats Banner */}
-                  <div className="bg-gradient-to-r from-[#2D5A27] via-[#24491F] to-[#1B3817] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-4">
+                  {/* Top Banner - white/gray theme */}
+                  <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <DollarSign className="w-4 h-4" /> Shop Sales Dashboard
+                      <div className="flex items-center gap-2 text-emerald-700 text-xs font-black uppercase tracking-widest mb-0.5">
+                        <DollarSign className="w-4 h-4" /> Sales & Bills History
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Sales & Customer Bills History</h2>
-                      <p className="text-slate-300 text-xs mt-1">Review all past transactions, print receipts, and share bills on WhatsApp.</p>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">All Customer Sales Records</h2>
+                      <p className="text-gray-500 text-xs mt-0.5">Print, share on WhatsApp, or delete records.</p>
                     </div>
-
                     <button
                       onClick={() => setActiveView('walkin')}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/30 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center gap-2 shadow-lg transition-all"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center gap-2 shadow transition-all cursor-pointer"
                     >
-                      <Plus className="w-4 h-4" /> New Walk-in Sale
+                      <Plus className="w-4 h-4" /> New Sale
                     </button>
                   </div>
 
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Sales Completed</p>
-                      <p className="text-2xl font-black text-white mt-1">{shopSalesList.length}</p>
+                  {/* Summary Cards - light theme */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Sales</p>
+                      <p className="text-xl font-black text-gray-900 mt-0.5">{shopSalesList.length}</p>
                     </div>
-
-                    <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Revenue Generated</p>
-                      <p className="text-2xl font-black text-emerald-400 mt-1">
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenue</p>
+                      <p className="text-xl font-black text-emerald-600 mt-0.5">
                         {currency} {shopSalesList.reduce((sum, s) => sum + (s.totalAmount || 0), 0).toLocaleString()}
                       </p>
                     </div>
-
-                    <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Profit Earned</p>
-                      <p className="text-2xl font-black text-amber-400 mt-1">
+                    <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Profit</p>
+                      <p className="text-xl font-black text-amber-600 mt-0.5">
                         {currency} {shopSalesList.reduce((sum, s) => sum + (s.totalProfit || 0), 0).toLocaleString()}
                       </p>
                     </div>
                   </div>
 
-                  {/* Sales Table */}
-                  <div className="bg-[#1E293B] border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="p-4 bg-slate-900/80 border-b border-slate-700/60 flex items-center justify-between">
-                      <h3 className="text-xs font-black text-white uppercase tracking-wider">All Sales Records</h3>
-                      <button
-                        onClick={fetchShopSales}
-                        className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-widest"
-                      >
-                        Refresh List
-                      </button>
+                  {/* Sales Table - white/gray, compact, responsive */}
+                  <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                    {/* Table Header */}
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                      <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider">All Sales Records</h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleExportAllSalesExcel}
+                          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-[10px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Export
+                        </button>
+                        <button
+                          onClick={fetchShopSales}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-[10px] font-bold text-emerald-700 uppercase tracking-widest transition-all cursor-pointer"
+                        >
+                          Refresh
+                        </button>
+                      </div>
                     </div>
 
                     {loadingSales ? (
-                      <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
-                        Loading sales history...
+                      <div className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                        Loading sales...
                       </div>
                     ) : shopSalesList.length === 0 ? (
-                      <div className="p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
-                        No sales records found for this shop yet
+                      <div className="p-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                        No sales records found yet
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-white">
-                          <thead className="bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
                             <tr>
-                              <th className="p-4">Date & Time</th>
-                              <th className="p-4">Customer</th>
-                              <th className="p-4">Payment & Receipt</th>
-                              <th className="p-4">Items Breakdown</th>
-                              <th className="p-4 text-right">Total Paid</th>
-                              <th className="p-4 text-center">Action</th>
+                              <th className="px-3 py-2.5">#</th>
+                              <th className="px-3 py-2.5">Date</th>
+                              <th className="px-3 py-2.5">Customer</th>
+                              <th className="px-3 py-2.5">Payment</th>
+                              <th className="px-3 py-2.5">Items</th>
+                              <th className="px-3 py-2.5 text-right">Total</th>
+                              <th className="px-3 py-2.5 text-center">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/80">
-                            {shopSalesList.map(sale => (
-                              <tr key={sale._id} className="hover:bg-slate-800/40">
-                                <td className="p-4 font-bold text-slate-300">
-                                  {new Date(sale.saleDate || sale.createdAt).toLocaleString()}
-                                </td>
-                                <td className="p-4 font-black uppercase text-white">
-                                  {sale.customerName || 'Walk-in Customer'}
-                                </td>
-                                <td className="p-4">
-                                  {sale.paymentMethod === 'BANK_TRANSFER' || sale.paymentMethod === 'EASYPAISA' || sale.paymentMethod === 'ONLINE' ? (
-                                    <div className="space-y-1">
-                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${sale.approvalStatus === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
-                                        <Building2 className="w-3 h-3" />
-                                        {sale.approvalStatus === 'APPROVED' ? '🏦 Bank Transfer (Approved)' : '⚠️ Bank Transfer (Pending)'}
-                                      </span>
-                                      {sale.transactionId && (
-                                        <p className="text-[9px] font-mono text-amber-300">Trx: {sale.transactionId}</p>
-                                      )}
-                                      <div className="flex items-center gap-1.5 pt-0.5">
+                          <tbody className="divide-y divide-gray-100">
+                            {shopSalesList.map(sale => {
+                              const serialNo = sale.serialNumber || (sale.invoiceNumber ? sale.invoiceNumber.replace(/\D/g, '') : '') || String(sale._id || '').slice(-6);
+                              return (
+                                <tr key={sale._id} className="hover:bg-gray-50 transition-colors">
+                                  {/* Serial */}
+                                  <td className="px-3 py-2.5">
+                                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 font-mono font-black text-[10px] rounded">
+                                      #{serialNo}
+                                    </span>
+                                  </td>
+                                  {/* Date */}
+                                  <td className="px-3 py-2.5 text-gray-500 font-medium whitespace-nowrap">
+                                    {new Date(sale.saleDate || sale.createdAt).toLocaleString()}
+                                  </td>
+                                  {/* Customer */}
+                                  <td className="px-3 py-2.5">
+                                    <p className="font-black text-gray-900 uppercase text-[11px]">{sale.customerName || 'Walk-in'}</p>
+                                    {sale.customerPhone && <p className="text-gray-400 text-[10px] font-mono">{sale.customerPhone}</p>}
+                                  </td>
+                                  {/* Payment */}
+                                  <td className="px-3 py-2.5">
+                                    {sale.paymentMethod === 'BANK_TRANSFER' || sale.paymentMethod === 'EASYPAISA' || sale.paymentMethod === 'ONLINE' ? (
+                                      <div className="space-y-1">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase ${sale.approvalStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                          <Building2 className="w-2.5 h-2.5" />
+                                          {sale.approvalStatus === 'APPROVED' ? 'Bank ✓' : 'Bank ⏳'}
+                                        </span>
                                         {sale.paymentProof && (
-                                          <button
-                                            onClick={() => setViewingReceiptModal(sale.paymentProof)}
-                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                                          >
-                                            <Eye className="w-3 h-3" /> View Receipt
+                                          <button onClick={() => setViewingReceiptModal(sale.paymentProof)} className="block text-[9px] text-indigo-600 font-bold underline cursor-pointer">
+                                            View Receipt
                                           </button>
                                         )}
                                         {sale.approvalStatus !== 'APPROVED' && (
-                                          <button
-                                            onClick={() => handleApproveSale(sale._id)}
-                                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                                          >
-                                            <CheckCircle className="w-3 h-3" /> Approve Transfer
+                                          <button onClick={() => handleApproveSale(sale._id)} className="block text-[9px] text-emerald-600 font-bold underline cursor-pointer">
+                                            Approve
                                           </button>
                                         )}
                                       </div>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] font-black uppercase">
+                                        <DollarSign className="w-2.5 h-2.5" /> Cash
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Items */}
+                                  <td className="px-3 py-2.5 text-gray-500 text-[10px] max-w-[160px]">
+                                    <span className="line-clamp-2">{(sale.items || []).map(i => `${i.name}(${i.quantity})`).join(', ')}</span>
+                                  </td>
+                                  {/* Total */}
+                                  <td className="px-3 py-2.5 text-right font-black text-emerald-600 text-sm whitespace-nowrap">
+                                    {currency} {(sale.totalAmount || 0).toLocaleString()}
+                                  </td>
+                                  {/* Actions */}
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                      <button
+                                        onClick={() => setCompletedBill(sale)}
+                                        className="px-2 py-1 bg-gray-100 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold text-[9px] uppercase border border-gray-200 hover:border-emerald-200 transition-all flex items-center gap-1 cursor-pointer"
+                                        title="View Bill"
+                                      >
+                                        <Receipt className="w-3 h-3" /> Bill
+                                      </button>
+                                      <button
+                                        onClick={() => handlePrintCustomerSingleRecord(sale)}
+                                        className="px-2 py-1 bg-gray-100 hover:bg-blue-100 text-blue-700 rounded-lg font-bold text-[9px] uppercase border border-gray-200 hover:border-blue-200 transition-all flex items-center gap-1 cursor-pointer"
+                                        title="Print Record"
+                                      >
+                                        <Printer className="w-3 h-3" /> Print
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSale(sale._id)}
+                                        className="px-2 py-1 bg-gray-100 hover:bg-red-100 text-red-600 rounded-lg font-bold text-[9px] uppercase border border-gray-200 hover:border-red-200 transition-all flex items-center gap-1 cursor-pointer"
+                                        title="Delete Sale Record"
+                                      >
+                                        <Trash2 className="w-3 h-3" /> Del
+                                      </button>
                                     </div>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
-                                      <DollarSign className="w-3 h-3 text-emerald-400" /> Cash Payment
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-4 text-slate-300">
-                                  {(sale.items || []).map(i => `${i.name} (${i.quantity})`).join(', ')}
-                                </td>
-                                <td className="p-4 text-right font-black text-emerald-400 text-sm">
-                                  {currency} {(sale.totalAmount || 0).toLocaleString()}
-                                </td>
-                                <td className="p-4 text-center flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => setCompletedBill(sale)}
-                                    className="px-3 py-1.5 bg-slate-800 hover:bg-emerald-800 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider border border-slate-700 transition-all flex items-center gap-1.5"
-                                    title="View Bill (PDF, WhatsApp, Print)"
-                                  >
-                                    <Receipt className="w-3.5 h-3.5" /> View Bill
-                                  </button>
-                                  <button
-                                    onClick={() => handlePrintCustomerSingleRecord(sale)}
-                                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
-                                    title="Direct Print Single Customer Record"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" /> Print Record
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -3291,150 +4246,293 @@ function StoreContent({ shopId }) {
               {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-sales' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <TrendingUp className="w-4 h-4" /> Customer & POS Sales Report
+                  {/* Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-6 sm:p-7 rounded-[2rem] border border-slate-700/80 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-400">
+                          <TrendingUp className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight">
+                            Sales Analytics Report
+                          </h2>
+                          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                            Real-time Revenue, Orders, Egg Quantities &amp; Invoices
+                          </p>
+                        </div>
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Sales Revenue Analytics Report</h2>
-                      <p className="text-slate-300 text-xs mt-1">
-                        View itemized gross sales filtered strictly by Days (Today), Months, Years, or All-Time.
-                      </p>
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-600 transition-all cursor-pointer shadow-sm hover:border-emerald-400"
+                        title="Print PDF Sales Report"
                       >
-                        <Printer className="w-4 h-4" /> Print PDF Report
+                        <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Print PDF</span>
                       </button>
+
                       <button
                         onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
+                        title="Share via WhatsApp"
                       >
-                        <Send className="w-4 h-4" /> Share WhatsApp
+                        <Send className="w-3.5 h-3.5 text-white" />
+                        <span>WhatsApp</span>
                       </button>
+
                       <button
                         onClick={() => handleExportExcelReport(reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider border border-emerald-600 transition-all cursor-pointer shadow-sm"
+                        title="Export Excel (.csv) Report"
                       >
-                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>Excel</span>
                       </button>
-                    </div>
-                  </div>
 
-                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
-                      <div>
-                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-emerald-600" />
-                          Sales Timeframe Selector (Days / Months / Year)
-                        </h3>
-                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
-                          Select time filter to isolate and display only that period's sales report
-                        </p>
-                      </div>
+                      <button
+                        onClick={fetchShopSales}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                        title="Refresh Sales"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
 
-                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                      {/* Day / Month / Year Timeframe Selector */}
+                      <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
                         {[
+                          { id: 'ALL', label: 'All-Time' },
                           { id: 'DAY', label: 'Today (Day)' },
                           { id: 'MONTH', label: 'This Month' },
                           { id: 'YEAR', label: 'This Year' },
-                          { id: 'ALL', label: 'All-Time' },
                         ].map(t => (
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                              ? 'bg-emerald-600 text-white shadow-md'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                              }`}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              reportTimeframe === t.id
+                                ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                            }`}
                           >
                             {t.label}
                           </button>
                         ))}
                       </div>
                     </div>
+                  </div>
 
-                    <div className="p-6 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div>
-                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block mb-1">
-                          {reportTimeframe === 'DAY' ? 'Today (Day) Sales Revenue' : reportTimeframe === 'MONTH' ? 'Monthly Sales Revenue' : reportTimeframe === 'YEAR' ? 'Yearly Sales Revenue' : 'All-Time Cumulative Sales'}
+                  {/* Top 4 Dynamic Stat Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Card 1: Total Sales Revenue */}
+                    <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">
+                          {reportTimeframe === 'DAY' ? 'Today Revenue' : reportTimeframe === 'MONTH' ? 'Monthly Revenue' : reportTimeframe === 'YEAR' ? 'Yearly Revenue' : 'Total Revenue'}
                         </span>
-                        <h4 className="text-3xl font-black text-emerald-600 tracking-tight">
-                          {currency} {(
-                            reportTimeframe === 'DAY' ? dashStats.todaySales :
-                              reportTimeframe === 'MONTH' ? dashStats.monthlySales :
-                                reportTimeframe === 'YEAR' ? dashStats.yearlySales :
-                                  dashStats.totalRevenue
-                          ).toLocaleString('en-PK')}
-                        </h4>
+                        <div className="p-1.5 bg-emerald-100 rounded-lg">
+                          <Banknote className="w-3.5 h-3.5 text-emerald-700" />
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
-                        </button>
-                        <button
-                          onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
-                        </button>
-                        <button
-                          onClick={() => handleExportExcelReport(reportTimeframe)}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
-                        </button>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700">
+                        {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        Cash: Rs. {Number(salesReportStats.cashSales || 0).toLocaleString('en-PK')} • Bank: Rs. {Number(salesReportStats.onlineSales || 0).toLocaleString('en-PK')}
+                      </span>
+                    </div>
+
+                    {/* Card 2: Total Orders / Bills */}
+                    <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">
+                          Orders / Bills
+                        </span>
+                        <div className="p-1.5 bg-blue-100 rounded-lg">
+                          <Receipt className="w-3.5 h-3.5 text-blue-700" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">
+                        {salesReportStats.totalBills} <span className="text-base text-blue-700">Bills</span>
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        Avg Sale: Rs. {Number(salesReportStats.avgBill || 0).toLocaleString('en-PK')}
+                      </span>
+                    </div>
+
+                    {/* Card 3: Stock Eggs Sold */}
+                    <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
+                          Eggs Sold (Volume)
+                        </span>
+                        <div className="p-1.5 bg-amber-100 rounded-lg">
+                          <Box className="w-3.5 h-3.5 text-amber-700" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">
+                        {salesReportStats.totalPetis} <span className="text-base text-amber-700">Petis</span>
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        {salesReportStats.totalTrays} Trays • {Number(salesReportStats.totalEggs || 0).toLocaleString('en-PK')} Eggs
+                      </span>
+                    </div>
+
+                    {/* Card 4: Net Profit Earned */}
+                    <div className="bg-white border-2 border-teal-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-teal-700 uppercase tracking-widest">
+                          Net Profit Earned
+                        </span>
+                        <div className="p-1.5 bg-teal-100 rounded-lg">
+                          <DollarSign className="w-3.5 h-3.5 text-teal-700" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-teal-700">
+                        {currency} {Number(salesReportStats.totalProfit || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        Filtered Period Earnings
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Search and Invoices Section */}
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                          <Receipt className="w-4 h-4 text-emerald-600" /> Itemized Sales Invoices ({filteredSalesForReport.length})
+                        </h3>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">
+                          Filtered by <strong className="text-gray-700">{reportTimeframe}</strong> timeframe
+                        </p>
+                      </div>
+
+                      {/* Search Input */}
+                      <div className="flex items-center gap-2 bg-gray-100 px-3.5 py-1.5 rounded-xl w-full sm:w-72 border border-gray-200">
+                        <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <input
+                          type="text"
+                          value={salesReportSearchTerm}
+                          onChange={(e) => setSalesReportSearchTerm(e.target.value)}
+                          placeholder="Search Invoice, Customer, Phone..."
+                          className="bg-transparent text-xs font-bold outline-none w-full text-gray-800 placeholder:text-gray-400"
+                        />
+                        {salesReportSearchTerm && (
+                          <button
+                            onClick={() => setSalesReportSearchTerm('')}
+                            className="text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Sales Period Statement</h4>
-                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-                        <table className="w-full text-left text-xs text-zinc-800">
-                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                    {/* Sales Table */}
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200">
+                      <table className="w-full text-left text-xs text-gray-800">
+                        <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                          <tr>
+                            <th className="p-3">#</th>
+                            <th className="p-3">Invoice #</th>
+                            <th className="p-3">Date &amp; Time</th>
+                            <th className="p-3">Customer</th>
+                            <th className="p-3">Items Purchased</th>
+                            <th className="p-3 text-center">Payment</th>
+                            <th className="p-3 text-right">Total Amount</th>
+                            <th className="p-3 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredSalesForReport.length === 0 ? (
                             <tr>
-                              <th className="p-3.5">Selected Period</th>
-                              <th className="p-3.5">Sales Revenue (RS)</th>
-                              <th className="p-3.5 text-right">Filter Status</th>
+                              <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
+                                No sales records found for this period.
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-200">
-                            {reportTimeframe === 'DAY' && (
-                              <tr className="bg-emerald-100/80 font-bold">
-                                <td className="p-3.5 font-bold">Today (Daily Sales Report)</td>
-                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.todaySales.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'MONTH' && (
-                              <tr className="bg-emerald-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Month (Monthly Sales Report)</td>
-                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.monthlySales.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'YEAR' && (
-                              <tr className="bg-emerald-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Year (Yearly Sales Report)</td>
-                                <td className="p-3.5 text-emerald-600 font-bold">{currency} {dashStats.yearlySales.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'ALL' && (
-                              <tr className="bg-slate-900 text-white font-bold">
-                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Sales</td>
-                                <td className="p-3.5 text-emerald-300 font-black text-sm">{currency} {dashStats.totalRevenue.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME TOTAL</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                          ) : (
+                            filteredSalesForReport.map((s, idx) => {
+                              const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+                              const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                              const cust = s.customerName || 'Walk-in Customer';
+                              const phone = s.customerPhone || '';
+                              const method = s.paymentMethod || 'CASH';
+                              const total = Number(s.totalAmount) || 0;
+                              const isCash = method === 'CASH';
+
+                              return (
+                                <tr key={s._id || idx} className="hover:bg-gray-50/80 transition-colors">
+                                  <td className="p-3 font-bold text-gray-400">{idx + 1}</td>
+                                  <td className="p-3 font-black text-gray-900">{inv}</td>
+                                  <td className="p-3 text-[11px] font-bold text-gray-600">{sDate}</td>
+                                  <td className="p-3">
+                                    <div className="font-extrabold text-gray-900">{cust}</div>
+                                    {phone && <div className="text-[10px] text-teal-700 font-bold">📞 {phone}</div>}
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="space-y-0.5 max-w-xs">
+                                      {(s.items || []).map((i, iIdx) => (
+                                        <span key={iIdx} className="inline-block bg-gray-100 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md mr-1 mb-0.5">
+                                          {i.name} (x{i.quantity})
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                      isCash
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                    }`}>
+                                      {method}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-right font-black text-emerald-700">
+                                    {currency} {total.toLocaleString('en-PK')}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCompletedBill(s)}
+                                        className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all cursor-pointer"
+                                        title="View & Print Bill"
+                                      >
+                                        <Printer className="w-3.5 h-3.5 text-gray-700" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteSale(s._id)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
+                                        title="Delete Sale"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                        {filteredSalesForReport.length > 0 && (
+                          <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-black text-xs">
+                            <tr>
+                              <td colSpan="6" className="p-3 text-right text-gray-600 uppercase">
+                                Total ({filteredSalesForReport.length} Sales):
+                              </td>
+                              <td className="p-3 text-right text-emerald-700 text-sm">
+                                {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
                     </div>
                   </div>
                 </div>
@@ -3443,150 +4541,251 @@ function StoreContent({ shopId }) {
               {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-profit' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 text-green-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <DollarSign className="w-4 h-4" /> Shop Net Profit Report
+                  {/* Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 sm:p-7 rounded-[2rem] border border-slate-700/80 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-teal-500/20 border border-teal-500/40 rounded-2xl text-teal-400">
+                          <DollarSign className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight">
+                            Net Profit Analytics Report
+                          </h2>
+                          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                            Gross Profit minus Shop Expenses &amp; Damaged Product Losses
+                          </p>
+                        </div>
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Net Profit Analytics Report</h2>
-                      <p className="text-slate-300 text-xs mt-1">
-                        View itemized profit earned filtered strictly by Days (Today), Months, Years, or All-Time.
-                      </p>
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-600 transition-all cursor-pointer shadow-sm hover:border-teal-400"
+                        title="Print PDF Profit Report"
                       >
-                        <Printer className="w-4 h-4" /> Print PDF Report
+                        <Printer className="w-3.5 h-3.5 text-teal-400" />
+                        <span>Print PDF</span>
                       </button>
+
                       <button
                         onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
+                        title="Share via WhatsApp"
                       >
-                        <Send className="w-4 h-4" /> Share WhatsApp
+                        <Send className="w-3.5 h-3.5 text-white" />
+                        <span>WhatsApp</span>
                       </button>
+
                       <button
                         onClick={() => handleExportExcelReport('profit', reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider border border-emerald-600 transition-all cursor-pointer shadow-sm"
+                        title="Export Excel (.csv) Report"
                       >
-                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>Excel</span>
                       </button>
-                    </div>
-                  </div>
 
-                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900 space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
-                      <div>
-                        <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-green-600" />
-                          Profit Timeframe Selector (Days / Months / Year)
-                        </h3>
-                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
-                          Select time filter to isolate and display only that period's profit report
-                        </p>
-                      </div>
+                      <button
+                        onClick={() => { fetchShopSales(); fetchExpenses(); fetchDamagedProducts(); }}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                        title="Refresh Data"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
 
-                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                      {/* Day / Month / Year Timeframe Selector */}
+                      <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
                         {[
+                          { id: 'ALL', label: 'All-Time' },
                           { id: 'DAY', label: 'Today (Day)' },
                           { id: 'MONTH', label: 'This Month' },
                           { id: 'YEAR', label: 'This Year' },
-                          { id: 'ALL', label: 'All-Time' },
                         ].map(t => (
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                              ? 'bg-green-600 text-white shadow-md'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                              }`}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              reportTimeframe === t.id
+                                ? 'bg-teal-400 text-slate-950 shadow-md font-extrabold'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                            }`}
                           >
                             {t.label}
                           </button>
                         ))}
                       </div>
                     </div>
+                  </div>
 
-                    <div className="p-6 bg-green-50/80 border border-green-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div>
-                        <span className="text-[10px] font-black text-green-700 uppercase tracking-widest block mb-1">
-                          {reportTimeframe === 'DAY' ? 'Today (Day) Profit Earned' : reportTimeframe === 'MONTH' ? 'Monthly Profit Earned' : reportTimeframe === 'YEAR' ? 'Yearly Profit Earned' : 'All-Time Total Profit'}
+                  {/* 4 Dynamic Financial Stat Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Card 1: Gross Sales Profit */}
+                    <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">
+                          (+) Gross Sales Profit
                         </span>
-                        <h4 className="text-3xl font-black text-green-600 tracking-tight">
-                          {currency} {(
-                            reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) :
-                              reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) :
-                                reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) :
-                                  dashStats.totalProfit
-                          ).toLocaleString('en-PK')}
-                        </h4>
+                        <div className="p-1.5 bg-emerald-100 rounded-lg">
+                          <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
-                        </button>
-                        <button
-                          onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
-                        </button>
-                        <button
-                          onClick={() => handleExportExcelReport('profit', reportTimeframe)}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
-                        </button>
-                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700">
+                        {currency} {Number(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        From {profitReportStats.filteredSalesCount} Sales Invoices
+                      </span>
                     </div>
 
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Profit Period Statement</h4>
-                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-                        <table className="w-full text-left text-xs text-zinc-800">
-                          <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
-                            <tr>
-                              <th className="p-3.5">Selected Period</th>
-                              <th className="p-3.5">Profit Earned (RS)</th>
-                              <th className="p-3.5 text-right">Filter Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-200">
-                            {reportTimeframe === 'DAY' && (
-                              <tr className="bg-green-100/80 font-bold">
-                                <td className="p-3.5 font-bold">Today (Daily Profit Report)</td>
-                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.todayProfit || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-green-500/10 text-green-600 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'MONTH' && (
-                              <tr className="bg-green-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Month (Monthly Profit Report)</td>
-                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.monthlyProfit || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'YEAR' && (
-                              <tr className="bg-green-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Year (Yearly Profit Report)</td>
-                                <td className="p-3.5 text-green-600 font-bold">{currency} {(dashStats.yearlyProfit || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'ALL' && (
-                              <tr className="bg-slate-900 text-white font-bold">
-                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Profit</td>
-                                <td className="p-3.5 text-green-300 font-black text-sm">{currency} {dashStats.totalProfit.toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME PROFIT</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
+                    {/* Card 2: Shop Expenses */}
+                    <div className="bg-white border-2 border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest">
+                          (-) Shop Expenses
+                        </span>
+                        <div className="p-1.5 bg-rose-100 rounded-lg">
+                          <FileText className="w-3.5 h-3.5 text-rose-700" />
+                        </div>
                       </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-rose-700">
+                        - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        {profitReportStats.filteredExpensesCount} Expense Logs
+                      </span>
+                    </div>
+
+                    {/* Card 3: Damaged Products Loss */}
+                    <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
+                          (-) Damaged Egg Loss
+                        </span>
+                        <div className="p-1.5 bg-amber-100 rounded-lg">
+                          <PackageX className="w-3.5 h-3.5 text-amber-700" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-amber-700">
+                        - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                        {profitReportStats.filteredDamagedCount} Broken Egg Logs
+                      </span>
+                    </div>
+
+                    {/* Card 4: Final Pure Realized Net Profit */}
+                    <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-300 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] font-black text-teal-800 uppercase tracking-widest">
+                          (=) Final Pure Net Profit
+                        </span>
+                        <div className="p-1.5 bg-teal-200/80 rounded-lg">
+                          <DollarSign className="w-3.5 h-3.5 text-teal-800" />
+                        </div>
+                      </div>
+                      <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${profitReportStats.finalNetProfit >= 0 ? 'text-teal-800' : 'text-rose-700'}`}>
+                        {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-black text-teal-700 uppercase mt-1 block">
+                        Realized Cash Balance
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Financial Reconciliation Statement Table */}
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4">
+                    <div>
+                      <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-teal-600" />
+                        Financial Profit &amp; Loss Statement ({reportTimeframe})
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase">
+                        Transparent breakdown deducting operational expenses &amp; damaged egg losses
+                      </p>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200">
+                      <table className="w-full text-left text-xs text-gray-800">
+                        <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                          <tr>
+                            <th className="p-3">#</th>
+                            <th className="p-3">Financial Line Item</th>
+                            <th className="p-3 text-center">Category / Source</th>
+                            <th className="p-3 text-center">Records</th>
+                            <th className="p-3 text-right">Amount (RS)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-bold">
+                          {/* Row 1: Gross Sales Profit */}
+                          <tr className="hover:bg-gray-50">
+                            <td className="p-3 text-gray-400 font-bold">1</td>
+                            <td className="p-3 text-emerald-800 font-extrabold">
+                              (+) Gross Profit Earned from Sales
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
+                                Sales Revenue
+                              </span>
+                            </td>
+                            <td className="p-3 text-center text-gray-600">
+                              {profitReportStats.filteredSalesCount} Invoices
+                            </td>
+                            <td className="p-3 text-right text-emerald-700 font-black text-sm">
+                              + {currency} {Number(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}
+                            </td>
+                          </tr>
+
+                          {/* Row 2: Shop Expenses */}
+                          <tr className="hover:bg-gray-50">
+                            <td className="p-3 text-gray-400 font-bold">2</td>
+                            <td className="p-3 text-rose-800 font-extrabold">
+                              (-) Shop Operational Expenses (Bills, Rent, Transport)
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-800">
+                                Overhead Cost
+                              </span>
+                            </td>
+                            <td className="p-3 text-center text-gray-600">
+                              {profitReportStats.filteredExpensesCount} Entries
+                            </td>
+                            <td className="p-3 text-right text-rose-700 font-black text-sm">
+                              - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
+                            </td>
+                          </tr>
+
+                          {/* Row 3: Damaged Egg Loss */}
+                          <tr className="hover:bg-gray-50">
+                            <td className="p-3 text-gray-400 font-bold">3</td>
+                            <td className="p-3 text-amber-800 font-extrabold">
+                              (-) Damaged / Broken Egg Inventory Loss
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800">
+                                Waste &amp; Breakage
+                              </span>
+                            </td>
+                            <td className="p-3 text-center text-gray-600">
+                              {profitReportStats.filteredDamagedCount} Logs
+                            </td>
+                            <td className="p-3 text-right text-amber-700 font-black text-sm">
+                              - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                            </td>
+                          </tr>
+                        </tbody>
+                        <tfoot className="bg-teal-50/80 border-t-2 border-teal-200 font-black text-xs">
+                          <tr>
+                            <td colSpan="4" className="p-3.5 text-right text-teal-900 uppercase font-black text-xs tracking-wider">
+                              (=) FINAL PURE REALIZED NET PROFIT:
+                            </td>
+                            <td className={`p-3.5 text-right text-base font-black ${profitReportStats.finalNetProfit >= 0 ? 'text-teal-800' : 'text-rose-700'}`}>
+                              {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
                 </div>

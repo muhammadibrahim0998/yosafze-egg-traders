@@ -23,32 +23,37 @@ export function AnalyticsCards({
   outOfStockProducts = [],
   totalStockUnits = 0,
   totalCustomers = 0,
-  totalSalesCount = 0
+  totalSalesCount = 0,
+  totalPetis = 0,
+  totalPurchaseCost = 0,
+  cashPaidToSupplier = 0,
+  onlinePaidToSupplier = 0,
+  dueToSupplier = 0
 }) {
   return (
     <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-stretch"
+      className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
     >
       <motion.div variants={itemVariants}>
         <StatCard
-          title="Registered Customers"
-          value={totalCustomers}
-          icon={Users}
-          color="blue"
-          sub="Shop Customers Count"
+          title="Total Petis (Boxes)"
+          value={`${(totalPetis || 0).toLocaleString('en-PK')} Petis`}
+          icon={Box}
+          color="orange"
+          sub={`${totalProducts} Egg Products`}
         />
       </motion.div>
 
       <motion.div variants={itemVariants}>
         <StatCard
           title="Available Stock"
-          value={(totalStockUnits || 0).toLocaleString('en-PK')}
+          value={`${(totalStockUnits || 0).toLocaleString('en-PK')} Eggs`}
           icon={Package}
           color="green"
-          sub={`${totalProducts} Products in Catalog`}
+          sub={`Total Egg Count`}
         />
       </motion.div>
 
@@ -57,7 +62,7 @@ export function AnalyticsCards({
           title="Total Sales"
           value={`${totalSalesCount} Sales`}
           icon={ShoppingBag}
-          color="orange"
+          color="blue"
           sub="Total Orders Completed"
         />
       </motion.div>
@@ -65,10 +70,10 @@ export function AnalyticsCards({
       <motion.div variants={itemVariants}>
         <StatCard
           title="Inventory Value"
-          value={`Rs. ${totalValue || 0}`}
+          value={`Rs. ${totalValue ? totalValue.toLocaleString() : 0}`}
           icon={TrendingUp}
           color="blue"
-          sub="Total Valuation"
+          sub="Total Sale Valuation"
         />
       </motion.div>
 

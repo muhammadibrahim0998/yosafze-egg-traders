@@ -58,11 +58,36 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
 
       {/* Item Info & Actions */}
       <div className="p-4 flex flex-col flex-1 justify-between gap-3">
-        <div className="space-y-1 text-left">
+        <div className="space-y-2 text-left">
           <h3 className="font-black text-white text-sm leading-snug line-clamp-1 uppercase tracking-tight group-hover:text-emerald-300 transition-colors">
             {product.name}
           </h3>
-          <p className="text-emerald-400 font-black text-lg">Rs. {product.price}</p>
+          
+          {/* Explicit Unit Pricing Breakdown (Peti, Tray, Egg) */}
+          {(() => {
+            const price = Number(product.price) || 0;
+            const unit = product.unitType || 'peti';
+            const petiRate = product.pricePerPeti || (unit === 'peti' ? price : unit === 'tray' ? price * 12 : price * 360);
+            const trayRate = product.pricePerTray || (unit === 'tray' ? price : unit === 'peti' ? price / 12 : price * 30);
+            const eggRate = product.pricePerEgg || (unit === 'egg' ? price : unit === 'tray' ? price / 30 : price / 360);
+
+            return (
+              <div className="grid grid-cols-3 gap-1 p-2 bg-slate-900/90 rounded-xl border border-slate-700/80 text-[10px] font-black">
+                <div className="text-center border-r border-slate-700/60 pr-1">
+                  <span className="text-[7px] text-amber-400 font-bold uppercase block">Peti (Box)</span>
+                  <span className="text-white text-[11px]">Rs.{Math.round(petiRate).toLocaleString()}</span>
+                </div>
+                <div className="text-center border-r border-slate-700/60 px-1">
+                  <span className="text-[7px] text-teal-400 font-bold uppercase block">Tray</span>
+                  <span className="text-white text-[11px]">Rs.{Math.round(trayRate).toLocaleString()}</span>
+                </div>
+                <div className="text-center pl-1">
+                  <span className="text-[7px] text-emerald-400 font-bold uppercase block">Single Egg</span>
+                  <span className="text-white text-[11px]">Rs.{eggRate < 100 ? eggRate.toFixed(1) : Math.round(eggRate)}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Action Controls */}

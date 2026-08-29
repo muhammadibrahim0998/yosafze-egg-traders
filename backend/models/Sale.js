@@ -27,6 +27,14 @@ const SaleSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  serialNumber: {
+    type: Number,
+    default: 0
+  },
+  invoiceNumber: {
+    type: String,
+    default: ''
+  },
   saleDate: {
     type: Date,
     default: Date.now

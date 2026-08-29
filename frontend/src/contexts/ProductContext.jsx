@@ -8,7 +8,11 @@ import { useUser } from './UserContext';
 const ProductContext = createContext();
 
 export function useProducts() {
-  return useContext(ProductContext);
+  const context = useContext(ProductContext);
+  if (!context) {
+    return { products: [], sales: [], loading: false, fetchProducts: () => {}, fetchSales: () => {} };
+  }
+  return context;
 }
 
 function getStockStatus(stock, minStock) {

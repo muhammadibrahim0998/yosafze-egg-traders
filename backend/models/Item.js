@@ -34,6 +34,18 @@ const itemSchema = new mongoose.Schema({
     type: Number, 
     default: 0 
   },
+  pricePerPeti: {
+    type: Number,
+    default: 0
+  },
+  pricePerTray: {
+    type: Number,
+    default: 0
+  },
+  pricePerEgg: {
+    type: Number,
+    default: 0
+  },
   images: { 
     type: [String], 
     default: [] 
@@ -47,6 +59,69 @@ const itemSchema = new mongoose.Schema({
   },
   expiryDate: {
     type: Date
+  },
+  // Egg Trading Units & Packaging Ratios
+  unitType: {
+    type: String,
+    enum: ['peti', 'tray', 'egg'],
+    default: 'peti'
+  },
+  traysPerPeti: {
+    type: Number,
+    default: 12
+  },
+  eggsPerTray: {
+    type: Number,
+    default: 30
+  },
+  petiQuantity: {
+    type: Number,
+    default: 0
+  },
+  trayQuantity: {
+    type: Number,
+    default: 0
+  },
+  eggQuantity: {
+    type: Number,
+    default: 0
+  },
+  // Supplier & Purchase Payment Details
+  supplierName: {
+    type: String,
+    default: ''
+  },
+  supplierPhone: {
+    type: String,
+    default: ''
+  },
+  supplierLocation: {
+    type: String,
+    default: ''
+  },
+  totalPurchaseCost: {
+    type: Number,
+    default: 0
+  },
+  amountPaidToSupplier: {
+    type: Number,
+    default: 0
+  },
+  dueAmountToSupplier: {
+    type: Number,
+    default: 0
+  },
+  paymentMethod: {
+    type: String,
+    default: 'Cash'
+  },
+  paymentReceipt: {
+    type: String,
+    default: ''
+  },
+  isOnlinePayment: {
+    type: Boolean,
+    default: false
   },
   lastUpdated: { 
     type: String, 

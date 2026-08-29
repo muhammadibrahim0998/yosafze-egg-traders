@@ -97,11 +97,18 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
     const method = req.body.paymentMethod || 'CASH';
     const isBank = method === 'BANK_TRANSFER' || method === 'EASYPAISA' || method === 'ONLINE';
 
+    // Generate unique serial number (starting from 1)
+    const existingCount = await Sale.countDocuments({ shopId: targetShopId });
+    const serialNumber = 1 + existingCount;
+    const invoiceNumber = `INV-${String(serialNumber).padStart(5, '0')}`;
+
     const sale = new Sale({
       shopId: targetShopId,
       items,
       totalAmount,
       totalProfit,
+      serialNumber,
+      invoiceNumber,
       cashierName: cashierName || req.user.fullName || "Shop Admin",
       customerName: customerName || "Walk-in Customer",
       customerPhone: req.body.customerPhone || "",
