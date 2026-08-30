@@ -107,9 +107,16 @@ router.get('/:shopId', async (req, res) => {
       return itemObj;
     });
 
-    // Get unique categories
+    // Get unique categories (including all standard egg categories)
     const allItems = await Item.find({ shopId: realShopId }).select('category');
-    const categories = ['All', ...new Set(allItems.map(i => i.category))];
+    const existingCats = allItems.map(i => i.category).filter(Boolean);
+    const defaultCats = [
+      'Super Jumbo', 'Jumbo', 'Stander', 'Step Stander', 'Step Jumbo',
+      'Starter', 'Weak Shell', 'Dusty', 'Floor', 'Sandy',
+      'Double White', 'Double Brown', 'Golden', 'Breeder', 'Special',
+      'loman brown', 'loman black', 'china eggs', 'pak egg', 'A Grade', 'Eggs'
+    ];
+    const categories = ['All', ...new Set([...defaultCats, ...existingCats])];
 
     res.json({
       shop: {

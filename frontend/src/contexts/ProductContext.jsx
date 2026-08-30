@@ -100,8 +100,35 @@ export function ProductProvider({ children }) {
     }
   };
 
+  const PREDEFINED_CATEGORIES = [
+    'Super Jumbo',
+    'Jumbo',
+    'Stander',
+    'Step Stander',
+    'Step Jumbo',
+    'Starter',
+    'Weak Shell',
+    'Dusty',
+    'Floor',
+    'Sandy',
+    'Double White',
+    'Double Brown',
+    'Golden',
+    'Breeder',
+    'Special',
+    'loman brown',
+    'loman black',
+    'china eggs',
+    'pak egg',
+    'A Grade',
+    'Eggs'
+  ];
+
   // Derived State: Filtering & Sorting
-  const categories = useMemo(() => ["All", ...Array.from(new Set(products.map((p) => p.category)))], [products]);
+  const categories = useMemo(() => {
+    const productCats = (products || []).map((p) => p.category).filter(Boolean);
+    return ["All", ...Array.from(new Set([...PREDEFINED_CATEGORIES, ...productCats]))];
+  }, [products]);
 
   const filteredProducts = useMemo(() => products.filter((product) => {
     const matchesSearch =

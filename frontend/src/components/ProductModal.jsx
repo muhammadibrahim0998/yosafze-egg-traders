@@ -393,16 +393,24 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
               <Controller
                 name="category"
                 control={control}
-                render={({ field }) => (
-                  <CreatableSelect
-                    {...field}
-                    isClearable
-                    isDisabled={mode === 'view'}
-                    options={categories.filter(c => c !== "All").map(c => ({ value: c, label: c }))}
-                    onChange={(val) => field.onChange(val ? val.value : "")}
-                    onCreateOption={(inputValue) => field.onChange(inputValue)}
-                    value={field.value ? { label: field.value, value: field.value } : null}
-                    placeholder="Category..."
+                render={({ field }) => {
+                  const defaultCats = [
+                    'Super Jumbo', 'Jumbo', 'Stander', 'Step Stander', 'Step Jumbo',
+                    'Starter', 'Weak Shell', 'Dusty', 'Floor', 'Sandy',
+                    'Double White', 'Double Brown', 'Golden', 'Breeder', 'Special',
+                    'loman brown', 'loman black', 'china eggs', 'pak egg', 'A Grade', 'Eggs'
+                  ];
+                  const mergedCats = Array.from(new Set([...defaultCats, ...(categories || []).filter(c => c !== "All")]));
+                  return (
+                    <CreatableSelect
+                      {...field}
+                      isClearable
+                      isDisabled={mode === 'view'}
+                      options={mergedCats.map(c => ({ value: c, label: c }))}
+                      onChange={(val) => field.onChange(val ? val.value : "")}
+                      onCreateOption={(inputValue) => field.onChange(inputValue)}
+                      value={field.value ? { label: field.value, value: field.value } : null}
+                      placeholder="Category..."
                     styles={{
                       control: (base, state) => ({
                         ...base,
@@ -431,8 +439,9 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       singleValue: (base) => ({ ...base, color: '#fff' }),
                       input: (base) => ({ ...base, color: '#fff' }),
                     }}
-                  />
-                )}
+                    />
+                  );
+                }}
               />
             </div>
 
