@@ -104,7 +104,12 @@ export default function App() {
   const handleEditProductSubmit = async (productData) => {
     requireAuth(async (pw) => {
       try {
-        await updateItem(activeData.product._id, productData, pw, user?.role);
+        const prodId = activeData?.product?._id || activeData?.product?.id || productData?._id || productData?.id;
+        if (!prodId || prodId === 'undefined') {
+          toast.error("Product ID is missing. Cannot update.");
+          return;
+        }
+        await updateItem(prodId, productData, pw, user?.role);
         toast.success("Product updated successfully!");
         closeModal("editProduct");
         fetchData();
@@ -115,17 +120,28 @@ export default function App() {
   };
 
   const handleDeleteProduct = (product) => {
+    if (!product) return;
+    const id = typeof product === 'string' ? product : (product?._id || product?.id);
+    const name = typeof product === 'string' ? 'Selected Product' : (product?.name || 'Selected Product');
+    if (!id || id === 'undefined') {
+      toast.error("Invalid product selected for deletion");
+      return;
+    }
     setDeleteDialog({
       isOpen: true,
       type: 'product',
-      id: product._id,
-      name: product.name,
+      id,
+      name,
       data: product
     });
   };
 
   const confirmDeleteProduct = async () => {
     const { id } = deleteDialog;
+    if (!id || id === 'undefined') {
+      toast.error("Product ID is missing");
+      return;
+    }
     requireAuth(async (pw) => {
       setIsDeleting(true);
       try {

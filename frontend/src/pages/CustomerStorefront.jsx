@@ -1025,15 +1025,19 @@ function StoreContent({ shopId }) {
   };
 
   const handleDirectDeleteProduct = async (item) => {
-    const targetItem = item || deleteDialog.item;
-    if (!targetItem) return;
-    if (!window.confirm(`Are you sure you want to delete product "${targetItem.name}"?`)) return;
+    if (!item) return;
+    const targetId = typeof item === 'string' ? item : (item._id || item.id);
+    const targetName = typeof item === 'string' ? 'this product' : `product "${item.name || 'Selected'}"`;
+    if (!targetId || targetId === 'undefined') {
+      alert('Product ID is missing');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete ${targetName}?`)) return;
     try {
       const role = user?.role || 'shop_admin';
-      await apiDeleteItem(targetItem._id, '', role);
-      setItems(prev => prev.filter(p => String(p._id) !== String(targetItem._id)));
+      await apiDeleteItem(targetId, '', role);
+      setItems(prev => prev.filter(p => String(p._id) !== String(targetId)));
       setAddedMsg('✅ Product deleted successfully!');
-      setDeleteDialog({ isOpen: false, item: null });
       fetchCatalog();
       fetchDashboardStats();
       setTimeout(() => setAddedMsg(''), 2500);
@@ -3940,7 +3944,7 @@ function StoreContent({ shopId }) {
 
                       {/* EasyPaisa & Customer Orders Verification */}
                       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
-                        <OrdersManagement />
+                        <OrdersManagement shopId={shopId} />
                       </div>
                     </div>
                   ) : (
@@ -4159,7 +4163,7 @@ function StoreContent({ shopId }) {
                                   </button>
 
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setDeleteDialog({ isOpen: true, item }); }}
+                                    onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
                                     className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] transition-all cursor-pointer"
                                     title="Delete Product"
                                   >
@@ -4711,7 +4715,7 @@ function StoreContent({ shopId }) {
               {/* ─── EASYPAISA & CUSTOMER ORDERS VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'orders' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <OrdersManagement />
+                  <OrdersManagement shopId={shopId} />
                 </div>
               )}
 

@@ -79,6 +79,9 @@ export const createItem = async (itemData) => {
 };
 
 export const updateItem = async (id, itemData, password, role) => {
+  if (!id || id === 'undefined' || id === 'null') {
+    throw new Error('Valid Product ID is required to update product');
+  }
   const response = await api.put(`/items/${id}`, itemData, {
     headers: { 
       'x-owner-password': password,
@@ -89,6 +92,9 @@ export const updateItem = async (id, itemData, password, role) => {
 };
 
 export const deleteItem = async (id, password, role) => {
+  if (!id || id === 'undefined' || id === 'null') {
+    throw new Error('Valid Product ID is required to delete product');
+  }
   const response = await api.delete(`/items/${id}`, {
     headers: { 
       'x-owner-password': password,

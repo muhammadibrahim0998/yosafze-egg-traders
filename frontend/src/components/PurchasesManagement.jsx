@@ -46,15 +46,18 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
 
   const handleDeleteClick = async (item) => {
     if (!item) return;
-    if (!window.confirm(`Are you sure you want to delete product "${item.name}"?`)) return;
+    const itemId = typeof item === 'string' ? item : (item._id || item.id);
+    const itemName = typeof item === 'string' ? 'this product' : (item.name || 'Product');
+    if (!itemId || itemId === 'undefined') return;
+    if (!window.confirm(`Are you sure you want to delete product "${itemName}"?`)) return;
     
     // 1. Instantly remove from local UI state
-    setDeletedIds(prev => new Set([...prev, item._id]));
-    setApiProducts(prev => prev.filter(p => p._id !== item._id));
+    setDeletedIds(prev => new Set([...prev, itemId]));
+    setApiProducts(prev => prev.filter(p => p._id !== itemId));
 
     // 2. Call backend API
     try {
-      await deleteItem(item._id, '', 'shop_admin');
+      await deleteItem(itemId, '', 'shop_admin');
     } catch (err) {
       console.error('[Direct Delete Item API]:', err);
     }
@@ -64,7 +67,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
       try { await onDeleteProduct(item); } catch (_) {}
     }
     if (productCtx.deleteProduct) {
-      try { await productCtx.deleteProduct(item._id); } catch (_) {}
+      try { await productCtx.deleteProduct(itemId); } catch (_) {}
     }
   };
 

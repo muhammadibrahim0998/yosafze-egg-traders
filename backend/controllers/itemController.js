@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Item from '../models/Item.js';
 import Expense from '../models/Expense.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
@@ -5,7 +6,16 @@ import { logSystemUpdate } from '../utils/updateHelper.js';
 // @desc    Get all items
 const getItems = async (req, res) => {
   try {
-    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId) ? {} : { shopId: req.user.shopId };
+    const queryShopId = req.query.shopId;
+    let filter = {};
+    if (req.user?.role === 'super_admin') {
+      if (queryShopId) filter.shopId = queryShopId;
+    } else if (req.user?.shopId) {
+      filter.shopId = req.user.shopId;
+    } else if (queryShopId) {
+      filter.shopId = queryShopId;
+    }
+
     const items = await Item.find(filter).sort({ createdAt: -1 });
     const normalized = items.map(item => {
       const itemObj = typeof item.toObject === 'function' ? item.toObject() : item;
@@ -50,7 +60,15 @@ const getItems = async (req, res) => {
 // @desc    Get single item
 const getItem = async (req, res) => {
   try {
-    const filter = req.user?.role === 'super_admin' ? { _id: req.params.id } : { _id: req.params.id, shopId: req.user.shopId };
+    const { id } = req.params;
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
+      ? { _id: id }
+      : { _id: id, shopId: req.user.shopId };
+
     const item = await Item.findOne(filter);
     if (!item) return res.status(404).json({ message: 'Item not found' });
     res.json(item);
@@ -137,6 +155,11 @@ const createItem = async (req, res) => {
 // @desc    Update item
 const updateItem = async (req, res) => {
   try {
+    const { id } = req.params;
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
     const updateData = { ...req.body };
     if (req.body.paymentMethod !== undefined || req.body.paymentReceipt !== undefined) {
       const pMethod = String(req.body.paymentMethod || '').trim().toLowerCase();
@@ -145,12 +168,17 @@ const updateItem = async (req, res) => {
       );
     }
 
-    const updatedItem = await Item.findByIdAndUpdate(
-      req.params.id,
+    // Branch scoping: Shop admin can only update their own shop's item (super admin can update any)
+    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
+      ? { _id: id }
+      : { _id: id, shopId: req.user.shopId };
+
+    const updatedItem = await Item.findOneAndUpdate(
+      filter,
       updateData,
       { new: true, runValidators: true }
     );
-    if (!updatedItem) return res.status(404).json({ message: 'Item not found' });
+    if (!updatedItem) return res.status(404).json({ message: 'Item not found or unauthorized' });
     res.json(updatedItem);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -160,8 +188,21 @@ const updateItem = async (req, res) => {
 // @desc    Delete item
 const deleteItem = async (req, res) => {
   try {
-    const item = await Item.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Item deleted successfully', deletedId: req.params.id, existed: !!item });
+    const { id } = req.params;
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+
+    // Branch scoping: Shop admin can only delete their own shop's item (super admin can delete any)
+    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
+      ? { _id: id }
+      : { _id: id, shopId: req.user.shopId };
+
+    const item = await Item.findOneAndDelete(filter);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found or unauthorized' });
+    }
+    res.json({ message: 'Item deleted successfully', deletedId: id, existed: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

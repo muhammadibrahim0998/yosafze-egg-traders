@@ -204,7 +204,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                   <span className="text-[9px] font-black text-green-600 uppercase">{product.category}</span>
                 </div>
               </div>
-              <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product._id)} isShopAdmin={isShopAdmin()} />
+              <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product)} isShopAdmin={isShopAdmin()} />
             </div>
             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-zinc-50">
               <div>

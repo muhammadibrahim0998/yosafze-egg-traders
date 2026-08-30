@@ -45,11 +45,10 @@ router.get('/:shopId', async (req, res) => {
     const realShopId = shop._id;
     const settings = await Settings.findOne({ shopId: realShopId }).select('shopName logoUrl currency address phone');
 
-    // Auto-seed missing default egg categories/products for any shop branch
-    const existingItems = await Item.find({ shopId: realShopId }).select('name');
-    const existingNames = new Set(existingItems.map(i => i.name));
-    for (const prod of DEFAULT_EGG_PRODUCTS) {
-      if (!existingNames.has(prod.name)) {
+    // Auto-seed default egg categories/products ONLY if the shop branch has zero items
+    const existingCount = await Item.countDocuments({ shopId: realShopId });
+    if (existingCount === 0) {
+      for (const prod of DEFAULT_EGG_PRODUCTS) {
         await Item.create({
           shopId: realShopId,
           name: prod.name,

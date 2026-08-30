@@ -22,7 +22,7 @@ const ORDER_BADGE = {
 
 const fmt = (n) => `Rs. ${(n || 0).toLocaleString('en-PK')}`;
 
-export function OrdersManagement() {
+export function OrdersManagement({ shopId = null }) {
   const { user } = useUser();
   const { fetchData } = useProducts() || {};
   const [orders, setOrders] = useState([]);
@@ -39,16 +39,21 @@ export function OrdersManagement() {
     setError('');
     try {
       const params = {};
+      if (shopId) params.shopId = shopId;
       if (paymentFilter !== 'ALL') params.paymentStatus = paymentFilter;
       if (statusFilter !== 'ALL') params.orderStatus = statusFilter;
       const data = await getShopOrders(params);
-      setOrders(data.orders || []);
+      let list = data.orders || [];
+      if (shopId) {
+        list = list.filter(o => String(o.shopId?._id || o.shopId) === String(shopId) || String(o.shopId?.name || '').toLowerCase() === String(shopId).toLowerCase());
+      }
+      setOrders(list);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load orders');
     } finally {
       setLoading(false);
     }
-  }, [paymentFilter, statusFilter]);
+  }, [paymentFilter, statusFilter, shopId]);
 
   useEffect(() => {
     fetchOrders();
