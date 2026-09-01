@@ -243,7 +243,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     doc.text('STOCK PURCHASED', 45, 87);
     doc.text('TOTAL INVESTMENT', 180, 87);
     doc.text('CASH PAID', 320, 87);
-    doc.text('DUE (QARAZ)', 455, 87);
+    doc.text('DUE (CREDIT)', 455, 87);
 
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
@@ -273,13 +273,13 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
         `Rs. ${fmt(cost)}`,
         `Rs. ${fmt(paid)}`,
         `Rs. ${fmt(due)}`,
-        due > 0 ? 'Qaraz' : 'Cash'
+        due > 0 ? 'Credit' : 'Cash'
       ];
     });
 
     autoTable(doc, {
       startY: 125,
-      head: [['#', 'Product Name', 'Supplier', 'Stock (P/T)', 'Eggs', 'Cost', 'Cash Paid', 'Qaraz', 'Status']],
+      head: [['#', 'Product Name', 'Supplier', 'Stock (P/T)', 'Eggs', 'Cost', 'Cash Paid', 'Credit', 'Status']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
@@ -324,7 +324,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
         <td style="text-align:right; font-weight:bold;">Rs. ${fmt(cost)}</td>
         <td style="text-align:right; color:#059669; font-weight:bold;">Rs. ${fmt(paid)}</td>
         <td style="text-align:right; color:${due > 0 ? '#e11d48' : '#64748b'}; font-weight:bold;">Rs. ${fmt(due)}</td>
-        <td style="text-align:center;"><span class="badge ${due > 0 ? 'badge-due' : 'badge-paid'}">${due > 0 ? 'Qaraz' : 'Cash'}</span></td>
+        <td style="text-align:center;"><span class="badge ${due > 0 ? 'badge-due' : 'badge-paid'}">${due > 0 ? 'Credit' : 'Cash'}</span></td>
       </tr>`;
     }).join('');
 
@@ -369,7 +369,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
             <div class="stat-card"><label>Stock Purchased</label><div class="val">${stats.totalPetis} Petis</div></div>
             <div class="stat-card"><label>Total Investment</label><div class="val" style="color:#059669;">Rs. ${fmt(stats.totalPurchasesCost)}</div></div>
             <div class="stat-card"><label>Cash Paid</label><div class="val" style="color:#10b981;">Rs. ${fmt(stats.cashPaid)}</div></div>
-            <div class="stat-card"><label>Qaraz (Due)</label><div class="val" style="color:#e11d48;">Rs. ${fmt(stats.totalDue)}</div></div>
+            <div class="stat-card"><label>Credit (Due)</label><div class="val" style="color:#e11d48;">Rs. ${fmt(stats.totalDue)}</div></div>
           </div>
           <table>
             <thead>
@@ -382,7 +382,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                 <th style="text-align:center;">Eggs</th>
                 <th style="text-align:right;">Cost</th>
                 <th style="text-align:right;">Cash Paid</th>
-                <th style="text-align:right;">Qaraz</th>
+                <th style="text-align:right;">Credit</th>
                 <th style="text-align:center;">Status</th>
               </tr>
             </thead>
@@ -398,7 +398,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                 <td style="text-align:right; color:#059669;">Rs. ${fmt(stats.totalPurchasesCost)}</td>
                 <td style="text-align:right; color:#10b981;">Rs. ${fmt(stats.cashPaid)}</td>
                 <td style="text-align:right; color:#e11d48;">Rs. ${fmt(stats.totalDue)}</td>
-                <td></td>
+                <td style="text-align:center;"><span class="badge ${stats.totalDue > 0 ? 'badge-due' : 'badge-paid'}">${stats.totalDue > 0 ? 'Credit' : 'Cash'}</span></td>
               </tr>
             </tfoot>
           </table>
@@ -429,7 +429,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     message += `📦 *Stock Restocked:* ${stats.totalPetis} Petis (${stats.totalTrays} Trays • ${fmt(stats.totalEggs)} Eggs)\n`;
     message += `💰 *Total Investment:* Rs. ${fmt(stats.totalPurchasesCost)}\n`;
     message += `💵 *Cash Paid:* Rs. ${fmt(stats.cashPaid)}\n`;
-    message += `⚠️ *Qaraz (Debt Due):* Rs. ${fmt(stats.totalDue)}\n`;
+    message += `⚠️ *Credit (Due):* Rs. ${fmt(stats.totalDue)}\n`;
     message += `===============================\n`;
     message += `🛒 *PURCHASED PRODUCTS:* (${purchaseItems.length} items)\n`;
 
@@ -597,10 +597,10 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
           <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Cash Paid</span>
         </div>
 
-        {/* Card 3: Due Balance (Qaraz) */}
+        {/* Card 3: Due Balance (Credit) */}
         <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between ${stats.totalDue > 0 ? 'border-rose-300 bg-rose-50' : 'border-gray-200'}`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Qaraz (Debt)</span>
+            <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
             <div className="p-1.5 bg-rose-100 rounded-lg">
               <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
             </div>
@@ -726,7 +726,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                       ? 'bg-rose-100 text-rose-700 border border-rose-200'
                       : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                   }`}>
-                    {hasDue ? '⚠️ Qaraz' : '✓ Cash'}
+                    {hasDue ? '⚠️ Credit' : '✓ Cash'}
                   </span>
                 </div>
 
@@ -750,14 +750,14 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                   </div>
                 </div>
 
-                {/* Payment Breakdown (Cash Paid vs Qaraz) */}
+                {/* Payment Breakdown (Cash Paid vs Credit) */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2">
                     <span className="text-[9px] font-black text-emerald-700 uppercase block">💵 Cash Paid:</span>
                     <span className="font-black text-emerald-700 text-xs">Rs. {fmt(paidAmount)}</span>
                   </div>
                   <div className={`rounded-xl p-2 border ${hasDue ? 'bg-rose-50 border-rose-200' : 'bg-gray-50 border-gray-200'}`}>
-                    <span className={`text-[9px] font-black uppercase block ${hasDue ? 'text-rose-600' : 'text-gray-400'}`}>⚠️ Qaraz (Due):</span>
+                    <span className={`text-[9px] font-black uppercase block ${hasDue ? 'text-rose-600' : 'text-gray-400'}`}>⚠️ Credit (Due):</span>
                     <span className={`font-black text-xs ${hasDue ? 'text-rose-600' : 'text-gray-400'}`}>Rs. {fmt(dueBalanceAmount)}</span>
                   </div>
                 </div>

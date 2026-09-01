@@ -179,7 +179,7 @@ export function PurchasedProductsLedgerCard({ products = [], onAddProduct, onEdi
         {/* Supplier Due Balance Box */}
         <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl flex flex-col justify-between">
           <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest block mb-1">
-            ⚠️ Due Balance (Qaraz)
+            ⚠️ Due Balance (Credit)
           </span>
           <h4 className="text-xl sm:text-2xl font-black text-rose-700 tracking-tight">
             Rs. <CountUpNumber value={stats.totalDue} />

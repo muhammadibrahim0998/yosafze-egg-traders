@@ -389,6 +389,7 @@ function StoreContent({ shopId }) {
   const [shopSalesList, setShopSalesList] = useState([]);
   const [loadingSales, setLoadingSales] = useState(false);
   const [registeredCustomersList, setRegisteredCustomersList] = useState([]);
+  const [activeCustMenuId, setActiveCustMenuId] = useState(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [allShopOrders, setAllShopOrders] = useState([]);
 
@@ -561,22 +562,22 @@ function StoreContent({ shopId }) {
     const name = cust.fullName || 'Registered Customer';
     const email = cust.email || 'N/A';
     const phone = cust.phone || 'N/A';
-    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK');
+    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
     const serialNo = index + 1;
     const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
     const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
 
     const formattedRowsHtml = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-        <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold;">${idx + 1}</td>
-        <td style="border: 1px solid #cbd5e1;">${new Date(item.date).toLocaleString()}</td>
-        <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7;">${item.type}</td>
-        <td style="border: 1px solid #cbd5e1; font-weight: bold;">${item.items}</td>
-        <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: #15803d;">RS ${item.amount.toLocaleString()}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 10px; vertical-align: middle;">${idx + 1}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: middle;">${new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7; padding: 7px 10px; vertical-align: middle;">${item.type}</td>
+        <td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 12px; vertical-align: middle; text-transform: uppercase;">${item.items}</td>
+        <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #047857; padding: 7px 12px; vertical-align: middle;">RS ${item.amount.toLocaleString()}</td>
       </tr>
     `).join('') : `
       <tr>
-        <td colspan="5" style="text-align: center; padding: 15px; border: 1px solid #cbd5e1; color: #64748b;">No transaction history recorded yet</td>
+        <td colspan="5" style="text-align: center; padding: 18px; border: 1px solid #cbd5e1; color: #64748b; font-weight: bold; background-color: #f8fafc;">No transaction history recorded yet for this customer</td>
       </tr>
     `;
 
@@ -599,65 +600,78 @@ function StoreContent({ shopId }) {
         </xml>
         <![endif]-->
         <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; }
-          .header-banner { background-color: #15803d; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 35px; }
-          .sub-banner { background-color: #166534; color: #dcfce7; font-size: 9pt; text-align: center; font-weight: bold; }
-          .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
-          .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
-          .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9pt; border: 1px solid #334155; }
-          .total-row { background-color: #dcfce7; font-weight: 900; font-size: 11pt; color: #15803d; border: 2px solid #22c55e; }
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+          .header-banner { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
+          .sub-banner { background-color: #1e293b; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
+          .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 12px; }
+          .info-val { font-weight: 600; color: #0f172a; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 7px 12px; }
+          .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
+          .tot-lbl { background-color: #0f172a; color: #ffffff; font-weight: 900; font-size: 11pt; text-align: right; border: 1px solid #0f172a; padding: 10px 14px; }
+          .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+          .footer-note { color: #64748b; font-size: 9pt; font-style: italic; text-align: center; height: 26px; vertical-align: middle; border: none; }
         </style>
       </head>
       <body>
         <table>
+          <colgroup>
+            <col width="60" />
+            <col width="190" />
+            <col width="140" />
+            <col width="300" />
+            <col width="170" />
+          </colgroup>
           <tr>
             <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
           </tr>
           <tr>
-            <td colspan="5" class="sub-banner">REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</td>
+            <td colspan="5" class="sub-banner">OFFICIAL REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</td>
           </tr>
           <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
           <tr>
-            <td class="info-label">Customer Serial / ID:</td>
-            <td class="info-val" style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} (${uniqueId})</td>
-            <td style="border:none;"></td>
-            <td class="info-label">Registration Date:</td>
-            <td class="info-val">${regDate}</td>
+            <td colspan="2" class="info-label">Customer Serial &amp; ID:</td>
+            <td colspan="3" class="info-val" style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} &nbsp;(${uniqueId})</td>
           </tr>
           <tr>
-            <td class="info-label">Customer Full Name:</td>
-            <td class="info-val">${name}</td>
-            <td style="border:none;"></td>
-            <td class="info-label">Total Orders Placed:</td>
-            <td class="info-val" style="color: #0284c7;">${ordersCount} Orders</td>
+            <td colspan="2" class="info-label">Customer Full Name:</td>
+            <td colspan="3" class="info-val" style="font-weight: 900; text-transform: uppercase;">${name}</td>
           </tr>
           <tr>
-            <td class="info-label">Contact Phone:</td>
-            <td class="info-val" style="mso-number-format:'\\@';">${phone}</td>
-            <td style="border:none;"></td>
-            <td class="info-label">Total Money Spent:</td>
-            <td class="info-val" style="color: #15803d; font-weight: 900;">RS ${totalSpent.toLocaleString()}</td>
+            <td colspan="2" class="info-label">Contact Phone / WhatsApp:</td>
+            <td colspan="3" class="info-val" style="mso-number-format:'\\@'; font-weight: bold; color: #047857;">${phone}</td>
           </tr>
           <tr>
-            <td class="info-label">Email Address:</td>
-            <td class="info-val">${email}</td>
-            <td style="border:none;"></td>
-            <td class="info-label">Store Branch:</td>
-            <td class="info-val">${shopName}</td>
+            <td colspan="2" class="info-label">Email Address:</td>
+            <td colspan="3" class="info-val" style="color: #334155; font-weight: 600;">${email}</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="info-label">Registration Date:</td>
+            <td colspan="3" class="info-val">${regDate}</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="info-label">Total Orders Placed:</td>
+            <td colspan="3" class="info-val" style="color: #0284c7; font-weight: bold;">${ordersCount} Orders</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="info-label">Store Branch:</td>
+            <td colspan="3" class="info-val" style="font-weight: bold;">${shopName}</td>
           </tr>
           <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr style="height: 30px;">
-            <th class="col-header" style="width: 50px;">#</th>
-            <th class="col-header" style="width: 170px;">Transaction Date</th>
-            <th class="col-header" style="width: 120px;">Order Type</th>
-            <th class="col-header" style="width: 280px; text-align: left;">Items Purchased</th>
-            <th class="col-header" style="width: 160px; text-align: right;">Total Amount Paid (RS)</th>
+          <tr style="height: 32px;">
+            <th class="col-header" style="text-align: center;">#</th>
+            <th class="col-header">Transaction Date</th>
+            <th class="col-header" style="text-align: center;">Order Type</th>
+            <th class="col-header" style="text-align: left;">Items Purchased</th>
+            <th class="col-header" style="text-align: right;">Paid Amount</th>
           </tr>
           ${formattedRowsHtml}
           <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr class="total-row">
-            <td colspan="4" style="text-align: right; padding-right: 15px; border: 1px solid #86efac;">TOTAL PURCHASES AMOUNT:</td>
-            <td style="text-align: right; padding-right: 12px; border: 1px solid #86efac;">RS ${totalSpent.toLocaleString()}</td>
+          <tr>
+            <td colspan="4" class="tot-lbl">TOTAL PURCHASES AMOUNT:</td>
+            <td class="tot-val">RS ${totalSpent.toLocaleString()}</td>
+          </tr>
+          <tr style="height: 12px;"><td colspan="5" style="border:none;"></td></tr>
+          <tr>
+            <td colspan="5" class="footer-note">Official Customer Statement • Generated via Yosafze Egg Traders Financial System</td>
           </tr>
         </table>
       </body>
@@ -672,8 +686,6 @@ function StoreContent({ shopId }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.success(`Customer #${serialNo} statement exported to Excel!`);
   };
 
   const handlePrintRegisteredCustomerRecord = (cust, index = 0) => {
@@ -694,15 +706,19 @@ function StoreContent({ shopId }) {
 
     let salesRows = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold;">${idx + 1}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1;">${new Date(item.date).toLocaleString()}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#0284c7;">${item.type}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; text-transform:uppercase;">${item.items}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:#059669;">RS ${item.amount.toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; vertical-align:middle;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; vertical-align:middle; font-weight:600; color:#334155;">${new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">
+          <span style="background:#e0f2fe; color:#0369a1; padding:3px 10px; border-radius:6px; font-weight:900; font-size:10.5px; text-transform:uppercase; border:1px solid #bae6fd;">${item.type}</span>
+        </td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; text-transform:uppercase; vertical-align:middle; color:#0f172a;">${item.items}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857; vertical-align:middle;">RS ${item.amount.toLocaleString('en-PK')}</td>
       </tr>
     `).join('') : `
       <tr>
-        <td colspan="5" style="padding:20px; text-align:center; color:#64748b; font-weight:bold;">No transaction history recorded yet for this customer.</td>
+        <td colspan="5" style="padding:26px; text-align:center; color:#64748b; font-weight:bold; background:#f8fafc;">
+          No transaction history recorded yet for this customer.
+        </td>
       </tr>
     `;
 
@@ -712,92 +728,117 @@ function StoreContent({ shopId }) {
         <head>
           <title>Customer Profile & Statement - ${uniqueId} - ${name}</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
-            .header-banner { background: #15803d; color: #ffffff; padding: 18px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-            .header-banner h1 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
-            .header-banner p { margin: 4px 0 0; font-size: 10px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; }
-            .serial-badge { background: #d97706; color: #ffffff; padding: 8px 16px; border-radius: 8px; font-weight: 900; font-size: 13px; text-align: center; letter-spacing: 1px; }
-            .card-box { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; padding: 18px 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; font-size: 12px; }
-            .card-box label { font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 3px; }
-            .card-box span { font-weight: 800; color: #0f172a; font-size: 13px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th { background: #15803d; text-transform: uppercase; font-weight: 900; font-size: 10px; color: #ffffff; padding: 10px; border: 1px solid #15803d; text-align: left; }
-            .total-bar { margin-top: 20px; padding: 14px 20px; background: #dcfce7; border: 2px solid #22c55e; border-radius: 10px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #15803d; }
-            .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
-            .sign { border-top: 2px solid #cbd5e1; width: 220px; text-align: center; padding-top: 6px; }
+            @page { size: A4 portrait; margin: 12mm 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #0f172a; background: #f8fafc; font-size: 12px; margin: 0; }
+            .statement-wrapper { max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); overflow: hidden; border: 1.5px solid #cbd5e1; }
+            .header-banner { background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #065f46 100%); color: #ffffff; padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; }
+            .header-title h1 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #ffffff; }
+            .header-title p { margin: 4px 0 0; font-size: 10px; font-weight: 800; color: #34d399; letter-spacing: 1.5px; text-transform: uppercase; }
+            .serial-tag { background: #f59e0b; color: #0f172a; padding: 7px 16px; border-radius: 10px; font-weight: 900; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center; }
+            .serial-tag span { display: block; font-size: 8.5px; font-weight: 800; opacity: 0.85; text-transform: uppercase; }
+            .body-content { padding: 26px 28px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px; }
+            .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; }
+            .info-card .label { font-size: 9.5px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+            .info-card .value { font-size: 13px; font-weight: 800; color: #0f172a; }
+            .section-title { font-size: 11.5px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 1px; margin: 22px 0 10px 0; display: flex; align-items: center; justify-content: space-between; }
+            table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; }
+            th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 10px; letter-spacing: 0.5px; padding: 10px 12px; border: 1px solid #0f172a; text-align: left; }
+            .amount-hero { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 16px; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; margin: 22px 0 26px 0; }
+            .amount-hero .lbl { font-size: 12px; font-weight: 900; color: #065f46; text-transform: uppercase; letter-spacing: 1px; }
+            .amount-hero .sub { font-size: 9.5px; font-weight: 700; color: #047857; margin-top: 2px; }
+            .amount-hero .val { font-size: 24px; font-weight: 900; color: #047857; letter-spacing: -0.5px; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; padding-top: 20px; border-top: 1px dashed #cbd5e1; text-align: center; }
+            .sign-line { border-top: 1.5px solid #94a3b8; padding-top: 6px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+            .statement-footer { margin-top: 22px; text-align: center; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+            @media print {
+              body { background: #ffffff; padding: 0; }
+              .statement-wrapper { box-shadow: none; border: 1.5px solid #94a3b8; }
+            }
           </style>
         </head>
         <body>
-          <div class="header-banner">
-            <div>
-              <h1>${shopName}</h1>
-              <p>OFFICIAL REGISTERED CUSTOMER PROFILE &amp; TRANSACTION STATEMENT</p>
+          <div class="statement-wrapper">
+            <div class="header-banner">
+              <div class="header-title">
+                <h1>${shopName.toUpperCase()}</h1>
+                <p>OFFICIAL REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</p>
+              </div>
+              <div class="serial-tag">
+                <span>CUSTOMER ID</span>
+                SERIAL #${serialNo} (${uniqueId})
+              </div>
             </div>
-            <div class="serial-badge">
-              SERIAL #${serialNo}<br/>
-              <span style="font-size:9px; font-weight:600;">${uniqueId}</span>
+
+            <div class="body-content">
+              <div class="info-grid">
+                <div class="info-card">
+                  <div class="label">Customer Full Name</div>
+                  <div class="value" style="text-transform: uppercase;">${name}</div>
+                </div>
+                <div class="info-card">
+                  <div class="label">Registration Date</div>
+                  <div class="value">${regDate}</div>
+                </div>
+                <div class="info-card">
+                  <div class="label">Contact Phone / WhatsApp</div>
+                  <div class="value" style="color: #047857;">${phone}</div>
+                </div>
+                <div class="info-card">
+                  <div class="label">Total Orders Placed</div>
+                  <div class="value" style="color: #0284c7;">${ordersCount} ${ordersCount === 1 ? 'Order' : 'Orders'}</div>
+                </div>
+                <div class="info-card" style="grid-column: span 2;">
+                  <div class="label">Email Address</div>
+                  <div class="value" style="color: #334155;">${email}</div>
+                </div>
+              </div>
+
+              <div class="section-title">
+                <span>All Purchases &amp; Transaction History</span>
+                <span style="font-size: 9.5px; color: #64748b;">${combinedHistory.length} Transactions</span>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th style="text-align:center; width:45px;">#</th>
+                    <th style="width:170px;">Transaction Date</th>
+                    <th style="width:120px; text-align:center;">Order Type</th>
+                    <th>Items Purchased</th>
+                    <th style="text-align:right; width:150px;">Paid Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${salesRows}
+                </tbody>
+              </table>
+
+              <div class="amount-hero">
+                <div>
+                  <div class="lbl">TOTAL PURCHASES AMOUNT:</div>
+                  <div class="sub">Total Lifetime Cumulative Shopping</div>
+                </div>
+                <div class="val">RS ${totalSpent.toLocaleString('en-PK')}</div>
+              </div>
+
+              <div class="signatures">
+                <div class="sign-line">Customer Signature</div>
+                <div class="sign-line">${shopName} Authorized Stamp</div>
+              </div>
+
+              <div class="statement-footer">
+                Yosafze Egg Traders • Official Customer Management &amp; Accounts Ledger
+              </div>
             </div>
           </div>
-
-          <div class="card-box">
-            <div>
-              <label>Customer Full Name</label>
-              <span>${name.toUpperCase()}</span>
-            </div>
-            <div>
-              <label>Customer Serial / ID</label>
-              <span style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} (${uniqueId})</span>
-            </div>
-            <div>
-              <label>Contact Phone / WhatsApp</label>
-              <span>${phone}</span>
-            </div>
-            <div>
-              <label>Registration Date</label>
-              <span>${regDate}</span>
-            </div>
-            <div>
-              <label>Email Address</label>
-              <span>${email}</span>
-            </div>
-            <div>
-              <label>Total Orders Placed</label>
-              <span style="color: #0284c7; font-weight: 900;">${ordersCount} Orders</span>
-            </div>
-          </div>
-
-          <h3 style="font-size:13px; text-transform:uppercase; font-weight:900; color:#334155; margin-bottom:8px;">All Purchases &amp; Transaction History</h3>
-          <table>
-            <thead>
-              <tr>
-                <th style="text-align:center; width:40px;">#</th>
-                <th style="width:160px;">Transaction Date</th>
-                <th style="width:120px; text-align:center;">Type</th>
-                <th>Items Purchased</th>
-                <th style="text-align:right; width:150px;">Paid Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${salesRows}
-            </tbody>
-          </table>
-
-          <div class="total-bar">
-            <span>TOTAL PURCHASES AMOUNT:</span>
-            <span>RS ${totalSpent.toLocaleString('en-PK')}</span>
-          </div>
-
-          <div class="footer">
-            <div class="sign">Customer Signature</div>
-            <div class="sign">${shopName} Authorized Stamp</div>
-          </div>
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
         </body>
       </html>
     `);
     printWin.document.close();
+    printWin.focus();
+    setTimeout(() => printWin.print(), 300);
   };
 
   const getProductUnitPrice = (product, unit = 'tray') => {
@@ -922,13 +963,33 @@ function StoreContent({ shopId }) {
     try {
       const saleItems = walkInCart.map(item => {
         const unit = item.selectedUnit || 'tray';
-        const unitMultiplier = unit === 'peti' ? 360 : unit === 'tray' ? 30 : 1;
-        const totalEggs = (Number(item.quantity) || 1) * unitMultiplier;
+        const tPerPeti = item.product?.traysPerPeti || 12;
+        const ePerTray = item.product?.eggsPerTray || 30;
+        const ePerPeti = tPerPeti * ePerTray;
+        const qty = Number(item.quantity) || 1;
+
+        let breakdownStr = '';
+        if (unit === 'peti') {
+          const totalTrays = (qty * tPerPeti).toFixed(1).replace(/\.0$/, '');
+          const totalEggs = Math.round(qty * ePerPeti);
+          breakdownStr = `${qty} Peti • ${totalTrays} Trays • ${totalEggs.toLocaleString()} Eggs`;
+        } else if (unit === 'tray') {
+          const totalEggs = Math.round(qty * ePerTray);
+          const totalPetis = (qty / tPerPeti).toFixed(2).replace(/\.00$/, '');
+          breakdownStr = `${qty} Tray • ${totalEggs.toLocaleString()} Eggs • ${totalPetis} Peti`;
+        } else {
+          const totalTrays = (qty / ePerTray).toFixed(1).replace(/\.0$/, '');
+          const totalPetis = (qty / ePerPeti).toFixed(2).replace(/\.00$/, '');
+          breakdownStr = `${qty} Egg • ${totalTrays} Trays • ${totalPetis} Peti`;
+        }
+
+        const unitMultiplier = unit === 'peti' ? ePerPeti : unit === 'tray' ? ePerTray : 1;
+        const totalEggs = qty * unitMultiplier;
         const unitPrice = item.unitPrice || getProductUnitPrice(item.product, unit);
-        const subtotal = Math.round(unitPrice * (Number(item.quantity) || 1));
+        const subtotal = Math.round(unitPrice * qty);
 
         const unitCost = Number(item.product.costPrice) > 0 ? Number(item.product.costPrice) : (Number(item.product.price) || 0) * 0.8;
-        const costPerEgg = item.product.unitType === 'peti' ? unitCost / 360 : item.product.unitType === 'tray' ? unitCost / 30 : unitCost;
+        const costPerEgg = item.product.unitType === 'peti' ? unitCost / ePerPeti : item.product.unitType === 'tray' ? unitCost / ePerTray : unitCost;
         const itemTotalCost = Math.round(costPerEgg * totalEggs);
         const profit = Math.max(0, subtotal - itemTotalCost);
 
@@ -936,9 +997,9 @@ function StoreContent({ shopId }) {
 
         return {
           productId: item.product._id,
-          name: `${item.product.name} (${item.quantity} ${unitLabel})`,
+          name: `${item.product.name} (${breakdownStr})`,
           rawProductName: item.product.name,
-          quantity: Number(item.quantity) || 1,
+          quantity: qty,
           unit: unit,
           unitLabel: unitLabel,
           totalEggs: totalEggs,
@@ -1163,6 +1224,7 @@ function StoreContent({ shopId }) {
     title: '',
     category: 'Utilities / Bills',
     amount: '',
+    paymentMethod: 'Paid',
     expenseDate: new Date().toISOString().split('T')[0],
     notes: ''
   });
@@ -1193,6 +1255,7 @@ function StoreContent({ shopId }) {
       title: exp.title || '',
       category: exp.category || 'Utilities / Bills',
       amount: exp.amount || '',
+      paymentMethod: exp.paymentMethod || 'Paid',
       expenseDate: exp.expenseDate ? new Date(exp.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       notes: exp.notes || ''
     });
@@ -1214,6 +1277,7 @@ function StoreContent({ shopId }) {
         title: expenseFormData.title,
         category: expenseFormData.category,
         amount: Number(expenseFormData.amount),
+        paymentMethod: expenseFormData.paymentMethod || 'Paid',
         expenseDate: expenseFormData.expenseDate ? new Date(expenseFormData.expenseDate) : new Date(),
         notes: expenseFormData.notes || '',
         createdBy: user?.fullName || customer?.fullName || 'Shop Admin'
@@ -1234,6 +1298,7 @@ function StoreContent({ shopId }) {
         title: '',
         category: 'Utilities / Bills',
         amount: '',
+        paymentMethod: 'Paid',
         expenseDate: new Date().toISOString().split('T')[0],
         notes: ''
       });
@@ -1247,6 +1312,7 @@ function StoreContent({ shopId }) {
       title: expenseFormData.title,
       category: expenseFormData.category,
       amount: Number(expenseFormData.amount),
+      paymentMethod: expenseFormData.paymentMethod || 'Paid',
       expenseDate: expenseFormData.expenseDate ? new Date(expenseFormData.expenseDate) : new Date(),
       notes: expenseFormData.notes || '',
       createdBy: user?.fullName || customer?.fullName || 'Shop Admin'
@@ -1275,6 +1341,7 @@ function StoreContent({ shopId }) {
       title: '',
       category: 'Utilities / Bills',
       amount: '',
+      paymentMethod: 'Paid',
       expenseDate: new Date().toISOString().split('T')[0],
       notes: ''
     });
@@ -1299,62 +1366,94 @@ function StoreContent({ shopId }) {
         <head>
           <title>Expense Payment Voucher - ${voucherNo}</title>
           <style>
-            @page { size: portrait; margin: 10mm 15mm; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 12px; margin: 0; }
-            .voucher-card { border: 2px solid #dc2626; border-radius: 16px; padding: 24px; background: #ffffff; }
-            .header-banner { background: #dc2626; color: #ffffff; padding: 14px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-            .header-banner h1 { margin: 0; font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
-            .header-banner p { margin: 2px 0 0; font-size: 9px; font-weight: 600; opacity: 0.9; text-transform: uppercase; }
-            .voucher-badge { background: #ffffff; color: #dc2626; padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 12px; }
-            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px; }
-            .info-box label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 3px; }
-            .info-box span { font-size: 12px; font-weight: 800; color: #0f172a; }
-            .amount-banner { background: #fee2e2; border: 2px solid #ef4444; padding: 18px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin: 20px 0; }
-            .amount-banner .lbl { font-size: 11px; font-weight: 900; color: #991b1b; text-transform: uppercase; }
-            .amount-banner .val { font-size: 24px; font-weight: 900; color: #dc2626; }
-            .footer-grid { margin-top: 40px; display: flex; justify-content: space-between; padding-top: 20px; border-top: 1px dashed #cbd5e1; font-size: 10px; font-weight: 800; color: #64748b; }
-            .sign-box { border-top: 1.5px solid #94a3b8; width: 160px; text-align: center; padding-top: 5px; }
+            @page { size: A4 portrait; margin: 12mm 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #0f172a; background: #f8fafc; font-size: 12px; margin: 0; }
+            .voucher-wrapper { max-width: 660px; margin: 0 auto; background: #ffffff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); overflow: hidden; border: 1.5px solid #cbd5e1; }
+            .header-banner { background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #065f46 100%); color: #ffffff; padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; }
+            .header-title h1 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #ffffff; }
+            .header-title p { margin: 4px 0 0; font-size: 10px; font-weight: 800; color: #34d399; letter-spacing: 1.5px; text-transform: uppercase; }
+            .voucher-tag { background: #f59e0b; color: #0f172a; padding: 7px 16px; border-radius: 10px; font-weight: 900; font-size: 13px; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center; }
+            .voucher-tag span { display: block; font-size: 8.5px; font-weight: 800; opacity: 0.85; text-transform: uppercase; }
+            .body-content { padding: 26px 28px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+            .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; }
+            .info-card.full-width { grid-column: span 2; }
+            .info-card .label { font-size: 9.5px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+            .info-card .value { font-size: 13px; font-weight: 800; color: #0f172a; }
+            .category-pill { display: inline-block; background: #fee2e2; color: #dc2626; padding: 3px 12px; border-radius: 6px; font-weight: 900; font-size: 11px; text-transform: uppercase; border: 1px solid #fecaca; }
+            .status-pill { display: inline-block; background: #dcfce7; color: #15803d; padding: 3px 12px; border-radius: 6px; font-weight: 900; font-size: 11px; text-transform: uppercase; border: 1px solid #bbf7d0; }
+            .amount-hero { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 16px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin: 22px 0 26px 0; }
+            .amount-hero .lbl { font-size: 12px; font-weight: 900; color: #065f46; text-transform: uppercase; letter-spacing: 1px; }
+            .amount-hero .sub { font-size: 9.5px; font-weight: 700; color: #047857; margin-top: 2px; }
+            .amount-hero .val { font-size: 26px; font-weight: 900; color: #047857; letter-spacing: -0.5px; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 36px; padding-top: 20px; border-top: 1px dashed #cbd5e1; text-align: center; }
+            .sign-line { border-top: 1.5px solid #94a3b8; padding-top: 6px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+            .voucher-footer { margin-top: 22px; text-align: center; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+            @media print {
+              body { background: #ffffff; padding: 0; }
+              .voucher-wrapper { box-shadow: none; border: 1.5px solid #94a3b8; }
+            }
           </style>
         </head>
         <body>
-          <div class="voucher-card">
+          <div class="voucher-wrapper">
             <div class="header-banner">
-              <div>
+              <div class="header-title">
                 <h1>${shopName.toUpperCase()}</h1>
-                <p>OFFICIAL EXPENSE PAYMENT RECEIPT / VOUCHER</p>
+                <p>OFFICIAL EXPENSE PAYMENT VOUCHER &amp; RECEIPT</p>
               </div>
-              <div class="voucher-badge">${voucherNo}</div>
-            </div>
-
-            <div class="info-grid">
-              <div class="info-box">
-                <label>Date &amp; Time</label>
-                <span>${dateStr}</span>
-              </div>
-              <div class="info-box">
-                <label>Expense Category</label>
-                <span style="color: #dc2626;">${exp.category || 'General Expense'}</span>
-              </div>
-              <div class="info-box" style="grid-column: span 2;">
-                <label>Expense Title / Reason</label>
-                <span style="text-transform: uppercase; font-size: 13px;">${exp.title}</span>
-              </div>
-              <div class="info-box" style="grid-column: span 2;">
-                <label>Paid To / Logged By / Notes</label>
-                <span>${exp.notes || exp.createdBy || 'Shop Admin'}</span>
+              <div class="voucher-tag">
+                <span>VOUCHER NO</span>
+                ${voucherNo}
               </div>
             </div>
 
-            <div class="amount-banner">
-              <div class="lbl">TOTAL AMOUNT PAID:</div>
-              <div class="val">Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}</div>
-            </div>
+            <div class="body-content">
+              <div class="info-grid">
+                <div class="info-card">
+                  <div class="label">Date &amp; Time</div>
+                  <div class="value">${dateStr}</div>
+                </div>
+                <div class="info-card">
+                  <div class="label">Expense Category</div>
+                  <div class="value">
+                    <span class="category-pill">${exp.category || 'General Expense'}</span>
+                  </div>
+                </div>
+                <div class="info-card full-width">
+                  <div class="label">Payment Status</div>
+                  <div class="value">
+                    <span class="status-pill">✓ PAID</span>
+                  </div>
+                </div>
+                <div class="info-card full-width">
+                  <div class="label">Expense Title / Description</div>
+                  <div class="value" style="font-size: 14px; text-transform: uppercase; color: #0f172a;">${exp.title}</div>
+                </div>
+                <div class="info-card full-width">
+                  <div class="label">Paid To / Logged By / Remarks</div>
+                  <div class="value" style="color: #334155;">${exp.notes || exp.createdBy || 'Shop Admin'}</div>
+                </div>
+              </div>
 
-            <div class="footer-grid">
-              <div class="sign-box">Prepared By (Admin)</div>
-              <div class="sign-box">Received By / Paid To</div>
-              <div class="sign-box">Authorized Stamp</div>
+              <div class="amount-hero">
+                <div>
+                  <div class="lbl">TOTAL AMOUNT (PAID):</div>
+                  <div class="sub">Cash Settled &amp; Accounted in Store Financials</div>
+                </div>
+                <div class="val">Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}</div>
+              </div>
+
+              <div class="signatures">
+                <div class="sign-line">Prepared By (Admin)</div>
+                <div class="sign-line">Received By / Paid To</div>
+                <div class="sign-line">Authorized Stamp</div>
+              </div>
+
+              <div class="voucher-footer">
+                Yosafze Egg Traders • Financial Accounting &amp; Expense Management
+              </div>
             </div>
           </div>
         </body>
@@ -1378,15 +1477,16 @@ function StoreContent({ shopId }) {
     msg += `🏢 *Store Branch:* ${shopName}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📌 *Category:* ${exp.category || 'Expense'}\n`;
+    msg += `💳 *Payment Method:* ${exp.paymentMethod || 'Paid'}\n`;
     msg += `📝 *Expense Title:* ${exp.title}\n`;
     msg += `👤 *Notes / Paid To:* ${exp.notes || exp.createdBy || 'Shop Admin'}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `💵 *TOTAL AMOUNT PAID: Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}*\n`;
+    msg += `💵 *TOTAL AMOUNT: Rs. ${(Number(exp.amount) || 0).toLocaleString('en-PK')}* (${exp.paymentMethod || 'Paid'})\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🙏 *Official Expense Payment Voucher Recorded.*`;
 
     const encoded = encodeURIComponent(msg);
-    window.open(`https://web.whatsapp.com/send?text=${encoded}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
 
   const handleExportSingleExpenseExcel = (exp, idx = 0) => {
@@ -1414,39 +1514,60 @@ function StoreContent({ shopId }) {
         </xml>
         <![endif]-->
         <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; }
-          .header-banner { background-color: #dc2626; color: #ffffff; font-size: 15pt; font-weight: bold; text-align: center; height: 35px; }
-          .sub-banner { background-color: #991b1b; color: #fee2e2; font-size: 9pt; text-align: center; font-weight: bold; }
-          .info-lbl { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
-          .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
-          .total-row { background-color: #fee2e2; font-weight: 900; font-size: 12pt; color: #991b1b; border: 2px solid #ef4444; }
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+          .header-main { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
+          .sub-title { background-color: #1e293b; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
+          .lbl { background-color: #f1f5f9; color: #475569; font-weight: bold; font-size: 10pt; border: 1px solid #cbd5e1; padding: 7px 12px; }
+          .val { background-color: #ffffff; color: #0f172a; font-weight: 600; font-size: 10pt; border: 1px solid #cbd5e1; padding: 7px 12px; }
+          .val-bold { background-color: #f8fafc; color: #0f172a; font-weight: 900; font-size: 10.5pt; border: 1px solid #cbd5e1; padding: 7px 12px; }
+          .tot-lbl { background-color: #f8fafc; color: #065f46; font-weight: 900; font-size: 11pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+          .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+          .footer-note { color: #64748b; font-size: 9pt; font-style: italic; text-align: center; height: 26px; vertical-align: middle; border: none; }
         </style>
       </head>
       <body>
         <table>
-          <tr><td colspan="4" class="header-banner">${shopName.toUpperCase()}</td></tr>
-          <tr><td colspan="4" class="sub-banner">OFFICIAL EXPENSE PAYMENT VOUCHER</td></tr>
-          <tr style="height: 10px;"><td colspan="4"></td></tr>
+          <colgroup>
+            <col width="160" />
+            <col width="220" />
+            <col width="160" />
+            <col width="220" />
+          </colgroup>
           <tr>
-            <td class="info-lbl">Voucher No:</td>
-            <td class="info-val" style="color:#dc2626; font-weight:900;">${voucherNo}</td>
-            <td class="info-lbl">Expense Date:</td>
-            <td class="info-val">${dateStr}</td>
+            <td colspan="4" class="header-main">${shopName.toUpperCase()}</td>
           </tr>
           <tr>
-            <td class="info-lbl">Category:</td>
-            <td class="info-val">${exp.category || 'General'}</td>
-            <td class="info-lbl">Logged By:</td>
-            <td class="info-val">${exp.notes || exp.createdBy || 'Shop Admin'}</td>
+            <td colspan="4" class="sub-title">OFFICIAL EXPENSE PAYMENT VOUCHER</td>
+          </tr>
+          <tr style="height: 10px;"><td colspan="4" style="border:none;"></td></tr>
+          <tr>
+            <td class="lbl">Voucher No:</td>
+            <td class="val" style="color:#0284c7; font-weight:900;">${voucherNo}</td>
+            <td class="lbl">Expense Date:</td>
+            <td class="val">${dateStr}</td>
           </tr>
           <tr>
-            <td class="info-lbl">Expense Title:</td>
-            <td colspan="3" class="info-val" style="font-weight:900;">${exp.title}</td>
+            <td class="lbl">Expense Category:</td>
+            <td class="val" style="color:#b91c1c; font-weight:bold; background-color:#fee2e2;">${exp.category || 'General'}</td>
+            <td class="lbl">Payment Status:</td>
+            <td class="val" style="font-weight:900; color:#15803d; background-color:#dcfce7;">✓ PAID</td>
           </tr>
-          <tr style="height: 10px;"><td colspan="4"></td></tr>
-          <tr class="total-row">
-            <td colspan="3" style="text-align:right;">TOTAL AMOUNT PAID:</td>
-            <td style="text-align:right;">Rs. ${(Number(exp.amount) || 0).toLocaleString()}</td>
+          <tr>
+            <td class="lbl">Expense Title:</td>
+            <td colspan="3" class="val-bold" style="text-transform: uppercase;">${exp.title}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Notes / Paid To:</td>
+            <td colspan="3" class="val">${exp.notes || exp.createdBy || 'Shop Admin'}</td>
+          </tr>
+          <tr style="height: 12px;"><td colspan="4" style="border:none;"></td></tr>
+          <tr>
+            <td colspan="3" class="tot-lbl">TOTAL AMOUNT (PAID):</td>
+            <td class="tot-val">Rs. ${(Number(exp.amount) || 0).toLocaleString()}</td>
+          </tr>
+          <tr style="height: 12px;"><td colspan="4" style="border:none;"></td></tr>
+          <tr>
+            <td colspan="4" class="footer-note">Official Expense Voucher • Generated via Yosafze Egg Traders Financial System</td>
           </tr>
         </table>
       </body>
@@ -1886,7 +2007,7 @@ function StoreContent({ shopId }) {
         message += `📦 *ITEMIZED EXPENSES LIST:*\n`;
         filteredExp.forEach((e, idx) => {
           const eDate = new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK');
-          message += `${idx + 1}. [${e.category}] ${e.title} = Rs. ${(Number(e.amount) || 0).toLocaleString('en-PK')} (${eDate})\n`;
+          message += `${idx + 1}. [${e.category}] ${e.title} = Rs. ${(Number(e.amount) || 0).toLocaleString('en-PK')} (${e.paymentMethod || 'Paid'} • ${eDate})\n`;
         });
       } else {
         message += `_No manual expenses logged for this period._\n`;
@@ -1896,7 +2017,7 @@ function StoreContent({ shopId }) {
       message += `🙏 *Thank you! Generated via Yosafze Egg Traders System*`;
 
       const encodedText = encodeURIComponent(message);
-      window.open(`https://web.whatsapp.com/send?text=${encodedText}`, '_blank');
+      window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
       return;
     }
 
@@ -1993,12 +2114,13 @@ function StoreContent({ shopId }) {
           <td style="border:1px solid #cbd5e1; padding:8px;">${new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
           <td style="border:1px solid #cbd5e1; padding:8px; font-weight:bold; text-transform:uppercase;">${e.title}</td>
           <td style="border:1px solid #cbd5e1; padding:8px; text-align:center;"><span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:8.5pt;">${e.category}</span></td>
+          <td style="border:1px solid #cbd5e1; padding:8px; text-align:center;"><span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:8.5pt;">${e.paymentMethod || 'Paid'}</span></td>
           <td style="border:1px solid #cbd5e1; padding:8px; color:#64748b;">${e.notes || e.createdBy || 'Shop Admin'}</td>
           <td style="border:1px solid #cbd5e1; padding:8px; text-align:right; font-weight:bold; color:#dc2626;">Rs. ${(Number(e.amount) || 0).toLocaleString('en-PK')}</td>
         </tr>
       `).join('') : `
         <tr>
-          <td colspan="6" style="text-align:center; padding:20px; color:#64748b; font-weight:bold;">No expenses recorded for this period.</td>
+          <td colspan="7" style="text-align:center; padding:20px; color:#64748b; font-weight:bold;">No expenses recorded for this period.</td>
         </tr>
       `;
 
@@ -2048,11 +2170,12 @@ function StoreContent({ shopId }) {
               <thead>
                 <tr>
                   <th style="width:30px; text-align:center;">#</th>
-                  <th style="width:110px;">Date</th>
+                  <th style="width:100px;">Date</th>
                   <th>Expense Title / Reason</th>
-                  <th style="width:130px; text-align:center;">Category</th>
-                  <th style="width:140px;">Notes / User</th>
-                  <th style="width:120px; text-align:right;">Amount</th>
+                  <th style="width:120px; text-align:center;">Category</th>
+                  <th style="width:110px; text-align:center;">Payment Status</th>
+                  <th style="width:130px;">Notes / User</th>
+                  <th style="width:110px; text-align:right;">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -2296,12 +2419,13 @@ function StoreContent({ shopId }) {
 
       const formattedRowsHtml = filteredExp.map((e, idx) => `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="text-align:center; border:1px solid #cbd5e1; font-weight:bold;">${idx + 1}</td>
-          <td style="border:1px solid #cbd5e1;">${new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK')}</td>
-          <td style="border:1px solid #cbd5e1; font-weight:bold;">${e.title}</td>
-          <td style="border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#dc2626;">${e.category}</td>
-          <td style="border:1px solid #cbd5e1;">${e.notes || e.createdBy || 'Shop Admin'}</td>
-          <td style="text-align:right; border:1px solid #cbd5e1; font-weight:bold; color:#dc2626;">Rs. ${(Number(e.amount) || 0).toLocaleString()}</td>
+          <td style="text-align:center; border:1px solid #cbd5e1; font-weight:bold; padding:6px;">${idx + 1}</td>
+          <td style="border:1px solid #cbd5e1; padding:6px;">${new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PK')}</td>
+          <td style="border:1px solid #cbd5e1; font-weight:bold; padding:6px;">${e.title}</td>
+          <td style="border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#e11d48; padding:6px;">${e.category}</td>
+          <td style="border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#16a34a; padding:6px;">${e.paymentMethod || 'Paid'}</td>
+          <td style="border:1px solid #cbd5e1; padding:6px;">${e.notes || e.createdBy || 'Shop Admin'}</td>
+          <td style="text-align:right; border:1px solid #cbd5e1; font-weight:bold; color:#e11d48; padding:6px;">Rs. ${(Number(e.amount) || 0).toLocaleString()}</td>
         </tr>
       `).join('');
 
@@ -2324,52 +2448,63 @@ function StoreContent({ shopId }) {
           </xml>
           <![endif]-->
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; }
-            .header-banner { background-color: #dc2626; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 35px; }
-            .sub-banner { background-color: #991b1b; color: #fee2e2; font-size: 9pt; text-align: center; font-weight: bold; }
-            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; }
-            .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; }
-            .col-header { background-color: #dc2626; color: #ffffff; font-weight: bold; font-size: 9pt; border: 1px solid #991b1b; }
-            .total-row { background-color: #fee2e2; font-weight: 900; font-size: 11pt; color: #991b1b; border: 2px solid #ef4444; }
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10.5pt; }
+            .header-banner { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
+            .sub-banner { background-color: #1e293b; color: #38bdf8; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 10px; }
+            .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; padding: 6px 10px; }
+            .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
+            .total-lbl-cell { background-color: #f8fafc; font-weight: 900; font-size: 11pt; color: #0f172a; border: 2px solid #0f172a; padding: 10px 14px; text-align: right; }
+            .total-val-cell { background-color: #fef2f2; font-weight: 900; font-size: 12pt; color: #dc2626; border: 2px solid #0f172a; padding: 10px 14px; text-align: right; }
           </style>
         </head>
         <body>
           <table>
+            <colgroup>
+              <col width="50" />
+              <col width="120" />
+              <col width="260" />
+              <col width="140" />
+              <col width="130" />
+              <col width="160" />
+              <col width="140" />
+            </colgroup>
             <tr>
-              <td colspan="6" class="header-banner">${shopName.toUpperCase()}</td>
+              <td colspan="7" class="header-banner">${shopName.toUpperCase()}</td>
             </tr>
             <tr>
-              <td colspan="6" class="sub-banner">OFFICIAL BUSINESS EXPENSES &amp; LOSS REPORT (${timeLabel.toUpperCase()})</td>
+              <td colspan="7" class="sub-banner">OFFICIAL BUSINESS EXPENSES &amp; LOSS REPORT (${timeLabel.toUpperCase()})</td>
             </tr>
-            <tr style="height: 10px;"><td colspan="6" style="border:none;"></td></tr>
+            <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
             <tr>
               <td class="info-label">Report Period:</td>
-              <td class="info-val" style="color: #dc2626; font-weight: 900;">${timeLabel}</td>
+              <td class="info-val" style="color: #0284c7; font-weight: 900;">${timeLabel}</td>
               <td style="border:none;"></td>
               <td class="info-label">Generated Date:</td>
-              <td colspan="2" class="info-val">${dateStr}</td>
+              <td colspan="3" class="info-val">${dateStr}</td>
             </tr>
             <tr>
-              <td class="info-label">Total Expense Entries:</td>
+              <td class="info-label">Total Entries:</td>
               <td class="info-val">${filteredExp.length} Entries</td>
               <td style="border:none;"></td>
               <td class="info-label">Damaged Egg Loss:</td>
-              <td colspan="2" class="info-val" style="color: #d97706; font-weight: bold;">Rs. ${damagedLossVal.toLocaleString()}</td>
+              <td colspan="3" class="info-val" style="color: #d97706; font-weight: bold;">Rs. ${damagedLossVal.toLocaleString()}</td>
             </tr>
-            <tr style="height: 14px;"><td colspan="6" style="border:none;"></td></tr>
+            <tr style="height: 14px;"><td colspan="7" style="border:none;"></td></tr>
             <tr style="height: 30px;">
-              <th class="col-header" style="width: 50px;">#</th>
-              <th class="col-header" style="width: 120px;">Expense Date</th>
-              <th class="col-header" style="width: 250px; text-align: left;">Expense Title / Description</th>
-              <th class="col-header" style="width: 140px; text-align: center;">Category</th>
-              <th class="col-header" style="width: 160px;">Logged By / Notes</th>
-              <th class="col-header" style="width: 150px; text-align: right;">Amount (RS)</th>
+              <th class="col-header" style="text-align: center;">#</th>
+              <th class="col-header">Expense Date</th>
+              <th class="col-header" style="text-align: left;">Expense Title / Description</th>
+              <th class="col-header" style="text-align: center;">Category</th>
+              <th class="col-header" style="text-align: center;">Payment Method</th>
+              <th class="col-header">Logged By / Notes</th>
+              <th class="col-header" style="text-align: right;">Amount (RS)</th>
             </tr>
-            ${formattedRowsHtml || '<tr><td colspan="6" style="text-align:center; padding:15px;">No expenses logged for this period</td></tr>'}
-            <tr style="height: 10px;"><td colspan="6" style="border:none;"></td></tr>
-            <tr class="total-row">
-              <td colspan="5" style="text-align: right; padding-right: 15px; border: 1px solid #f87171;">COMBINED TOTAL EXPENSES &amp; LOSSES:</td>
-              <td style="text-align: right; padding-right: 12px; border: 1px solid #f87171;">Rs. ${(totalManualExp + damagedLossVal).toLocaleString()}</td>
+            ${formattedRowsHtml || '<tr><td colspan="7" style="text-align:center; padding:15px;">No expenses logged for this period</td></tr>'}
+            <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="6" class="total-lbl-cell">COMBINED TOTAL EXPENSES &amp; LOSSES:</td>
+              <td class="total-val-cell">Rs. ${(totalManualExp + damagedLossVal).toLocaleString()}</td>
             </tr>
           </table>
         </body>
@@ -2384,7 +2519,6 @@ function StoreContent({ shopId }) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success(`${timeLabel} expenses report exported to Excel!`);
       return;
     }
 
@@ -4498,6 +4632,37 @@ function StoreContent({ shopId }) {
                                         </button>
                                       </div>
                                     </div>
+
+                                    {/* Live Dynamic Breakdown: 1 Peti = 12 Trays • 360 Eggs */}
+                                    {(() => {
+                                      const tPerPeti = item.product?.traysPerPeti || 12;
+                                      const ePerTray = item.product?.eggsPerTray || 30;
+                                      const ePerPeti = tPerPeti * ePerTray;
+                                      const qty = Number(item.quantity) || 1;
+                                      let breakdownStr = '';
+                                      if (currentUnit === 'peti') {
+                                        const totalTrays = (qty * tPerPeti).toFixed(1).replace(/\.0$/, '');
+                                        const totalEggs = Math.round(qty * ePerPeti).toLocaleString();
+                                        breakdownStr = `${totalTrays} Trays • ${totalEggs} Eggs`;
+                                      } else if (currentUnit === 'tray') {
+                                        const totalEggs = Math.round(qty * ePerTray).toLocaleString();
+                                        const totalPetis = (qty / tPerPeti).toFixed(2).replace(/\.00$/, '');
+                                        breakdownStr = `${totalEggs} Eggs • ${totalPetis} Peti`;
+                                      } else {
+                                        const totalTrays = (qty / ePerTray).toFixed(1).replace(/\.0$/, '');
+                                        const totalPetis = (qty / ePerPeti).toFixed(2).replace(/\.00$/, '');
+                                        breakdownStr = `${totalTrays} Trays • ${totalPetis} Peti`;
+                                      }
+
+                                      return (
+                                        <div className="flex items-center justify-between px-2.5 py-1 bg-emerald-50 border border-emerald-200/80 rounded-lg text-[10px] font-black text-emerald-800">
+                                          <span className="uppercase text-emerald-700 flex items-center gap-1 font-bold">
+                                            <span>⚡</span> {qty} {currentUnit.toUpperCase()} =
+                                          </span>
+                                          <span className="font-extrabold text-emerald-900 tracking-tight">{breakdownStr}</span>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })
@@ -4741,102 +4906,156 @@ function StoreContent({ shopId }) {
                     </button>
                   </div>
 
-                  <div className="bg-slate-800 border border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl">
-                    <div className="p-4 bg-slate-900/90 border-b border-slate-700/80 flex items-center justify-between">
-                      <h3 className="text-xs font-black text-white uppercase tracking-wider">All Registered Customer Accounts ({registeredCustomersList.length})</h3>
-                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{shop?.name || 'Shop'} Portal</span>
+                  <div className="bg-white border border-gray-200 rounded-3xl overflow-visible shadow-sm">
+                    <div className="p-4 sm:p-5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                      <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <Users className="w-4 h-4 text-indigo-600" />
+                        All Registered Customer Accounts ({registeredCustomersList.length})
+                      </h3>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                        {shop?.name || 'Shop'} Portal
+                      </span>
                     </div>
 
                     {loadingCustomers ? (
-                      <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                      <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
                         Loading registered customers directory...
                       </div>
                     ) : registeredCustomersList.length === 0 ? (
-                      <div className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                      <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
                         No registered customer accounts found for this shop yet
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-white">
-                          <thead className="bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                      <div className="overflow-x-auto min-h-[320px] pb-28 relative">
+                        {/* Backdrop overlay to close dropdown on click outside */}
+                        {activeCustMenuId && (
+                          <div
+                            className="fixed inset-0 z-30"
+                            onClick={() => setActiveCustMenuId(null)}
+                          />
+                        )}
+
+                        <table className="w-full text-left text-xs text-gray-800">
+                          <thead className="bg-gray-100 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
                             <tr>
-                              <th className="p-4 text-center">Serial #</th>
-                              <th className="p-4">Customer Name</th>
-                              <th className="p-4">Email Address</th>
-                              <th className="p-4">Phone / Contact</th>
-                              <th className="p-4">Total Shopping Spent</th>
-                              <th className="p-4">Orders Count</th>
-                              <th className="p-4">Registration Date</th>
-                              <th className="p-4 text-center">Actions & Export Options</th>
+                              <th className="p-3.5 text-center">Serial #</th>
+                              <th className="p-3.5">Customer Name</th>
+                              <th className="p-3.5">Email Address</th>
+                              <th className="p-3.5">Phone / Contact</th>
+                              <th className="p-3.5">Total Shopping Spent</th>
+                              <th className="p-3.5">Orders Count</th>
+                              <th className="p-3.5">Registration Date</th>
+                              <th className="p-3.5 text-center">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-700/60">
+                          <tbody className="divide-y divide-gray-100">
                             {registeredCustomersList.map((cust, idx) => {
                               const { totalSpent, ordersCount } = getCustomerStats(cust);
                               const serialNo = idx + 1;
                               const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+                              const isMenuOpen = activeCustMenuId === cust._id;
+
                               return (
-                                <tr key={cust._id} className="hover:bg-slate-700/40 transition-colors">
-                                  <td className="p-4 text-center">
-                                    <span className="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-black">
+                                <tr key={cust._id} className="hover:bg-gray-50/80 transition-colors">
+                                  <td className="p-3.5 text-center">
+                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black">
                                       #{serialNo}
                                     </span>
                                   </td>
-                                  <td className="p-4 font-black uppercase text-white flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-black text-xs shrink-0">
+                                  <td className="p-3.5 font-black uppercase text-gray-900 flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xs shrink-0">
                                       {(cust.fullName || 'C')[0].toUpperCase()}
                                     </div>
                                     <div>
-                                      <span className="block font-black text-white">{cust.fullName}</span>
-                                      <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest block mt-0.5">
+                                      <span className="block font-black text-gray-900">{cust.fullName}</span>
+                                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mt-0.5">
                                         {uniqueId}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="p-4 font-bold text-slate-300">{cust.email}</td>
-                                  <td className="p-4 font-bold text-emerald-400">{cust.phone || '—'}</td>
-                                  <td className="p-4 font-black text-emerald-400 text-sm">
+                                  <td className="p-3.5 font-bold text-gray-600">{cust.email}</td>
+                                  <td className="p-3.5 font-bold text-teal-700">{cust.phone || '—'}</td>
+                                  <td className="p-3.5 font-black text-emerald-700 text-sm">
                                     {currency} {totalSpent.toLocaleString('en-PK')}
                                   </td>
-                                  <td className="p-4 font-black text-amber-300">
-                                    <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs">
+                                  <td className="p-3.5 font-black text-amber-800">
+                                    <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold">
                                       {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
                                     </span>
                                   </td>
-                                  <td className="p-4 font-semibold text-slate-300">
+                                  <td className="p-3.5 font-semibold text-gray-500">
                                     {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </td>
-                                  <td className="p-4 text-center">
-                                    <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                                  <td className="p-3.5 text-center relative">
+                                    <div className="flex items-center justify-center">
                                       <button
-                                        onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
-                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                                        title="Print Customer Record"
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveCustMenuId(isMenuOpen ? null : cust._id);
+                                        }}
+                                        className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${
+                                          isMenuOpen
+                                            ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                                        }`}
+                                        title="Actions & Export Options"
                                       >
-                                        <Printer className="w-3 h-3" /> Print
-                                      </button>
-                                      <button
-                                        onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
-                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                                        title="Save PDF Statement"
-                                      >
-                                        <FileText className="w-3 h-3" /> PDF
-                                      </button>
-                                      <button
-                                        onClick={() => handleWhatsAppCustomerShare(cust, idx)}
-                                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                                        title="Share Statement on WhatsApp"
-                                      >
-                                        <Send className="w-3 h-3" /> WhatsApp
-                                      </button>
-                                      <button
-                                        onClick={() => handleExportCustomerExcel(cust, idx)}
-                                        className="px-2.5 py-1 bg-green-700 hover:bg-green-600 text-white rounded-lg font-black text-[9px] uppercase tracking-wider transition-all shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                                        title="Export Customer Statement to Excel"
-                                      >
-                                        <FileSpreadsheet className="w-3 h-3" /> Excel
+                                        <MoreVertical className="w-4 h-4" />
                                       </button>
                                     </div>
+
+                                    {/* 3-Dot Dropdown Menu (Guaranteed Visible) */}
+                                    {isMenuOpen && (
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute right-2 top-11 w-52 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 text-left"
+                                      >
+                                        <button
+                                          onClick={() => {
+                                            setActiveCustMenuId(null);
+                                            handlePrintRegisteredCustomerRecord(cust, idx);
+                                          }}
+                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                          <Printer className="w-4 h-4 text-indigo-600" />
+                                          <span>Print Statement</span>
+                                        </button>
+
+                                        <button
+                                          onClick={() => {
+                                            setActiveCustMenuId(null);
+                                            handlePrintRegisteredCustomerRecord(cust, idx);
+                                          }}
+                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                          <FileText className="w-4 h-4 text-rose-600" />
+                                          <span>PDF Statement</span>
+                                        </button>
+
+                                        <button
+                                          onClick={() => {
+                                            setActiveCustMenuId(null);
+                                            handleWhatsAppCustomerShare(cust, idx);
+                                          }}
+                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                          <Send className="w-4 h-4 text-emerald-600" />
+                                          <span>WhatsApp</span>
+                                        </button>
+
+                                        <button
+                                          onClick={() => {
+                                            setActiveCustMenuId(null);
+                                            handleExportCustomerExcel(cust, idx);
+                                          }}
+                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                          <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                                          <span>Excel Sheet</span>
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -5616,6 +5835,7 @@ function StoreContent({ shopId }) {
                                     <th className="p-3.5">Expense Date</th>
                                     <th className="p-3.5">Expense Title / Description</th>
                                     <th className="p-3.5 text-center">Category</th>
+                                    <th className="p-3.5 text-center">Payment Status</th>
                                     <th className="p-3.5">Amount (RS)</th>
                                     <th className="p-3.5">Logged By / Notes</th>
                                     <th className="p-3.5 text-center">Action</th>
@@ -5644,6 +5864,11 @@ function StoreContent({ shopId }) {
                                                     'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                             }`}>
                                             {exp.category}
+                                          </span>
+                                        </td>
+                                        <td className="p-3.5 text-center">
+                                          <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 font-black">
+                                            ✓ Paid
                                           </span>
                                         </td>
                                         <td className="p-3.5 font-black text-rose-600 text-sm">
@@ -6169,6 +6394,20 @@ function StoreContent({ shopId }) {
                     onChange={e => setExpenseFormData(prev => ({ ...prev, amount: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:border-rose-500"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">
+                  Payment Status / Method
+                </label>
+                <div className="py-2.5 px-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-black text-emerald-800 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">✓</span> Paid
+                  </span>
+                  <span className="text-[9.5px] font-black bg-emerald-200/60 px-2 py-0.5 rounded-md text-emerald-800 uppercase tracking-wider">
+                    Paid
+                  </span>
                 </div>
               </div>
 

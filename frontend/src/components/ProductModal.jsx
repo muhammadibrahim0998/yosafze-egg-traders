@@ -37,12 +37,23 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
   const watchedAmountPaid = watch("amountPaidToSupplier") || 0;
 
   // Live Unit & Stock Conversions
-  const eggsPerPeti = (Number(watchedTraysPerPeti) || 12) * (Number(watchedEggsPerTray) || 30);
-  const totalEggsCalculated = (Number(watchedPetiQty) * eggsPerPeti) + 
-                              (Number(watchedTrayQty) * (Number(watchedEggsPerTray) || 30)) + 
-                              Number(watchedEggQty);
-  const totalTraysCalculated = (totalEggsCalculated / (Number(watchedEggsPerTray) || 30)).toFixed(1);
-  const totalPetisCalculated = (totalEggsCalculated / (eggsPerPeti || 360)).toFixed(2);
+  const tPerPetiVal = Number(watchedTraysPerPeti) || 12;
+  const ePerTrayVal = Number(watchedEggsPerTray) || 30;
+  const eggsPerPeti = tPerPetiVal * ePerTrayVal;
+
+  const totalEggsCalculated = Number(watchedEggQty) > 0 
+    ? Number(watchedEggQty) 
+    : (Number(watchedPetiQty) > 0 
+        ? Math.round(Number(watchedPetiQty) * eggsPerPeti) 
+        : (Number(watchedTrayQty) > 0 ? Math.round(Number(watchedTrayQty) * ePerTrayVal) : 0));
+
+  const totalTraysCalculated = totalEggsCalculated > 0 
+    ? Number((totalEggsCalculated / ePerTrayVal).toFixed(1)) 
+    : 0;
+
+  const totalPetisCalculated = totalEggsCalculated > 0 
+    ? Number((totalEggsCalculated / (eggsPerPeti || 360)).toFixed(2)) 
+    : 0;
 
   const watchedPrice = watch("price") || 0;
 
@@ -82,16 +93,31 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
     if (isOpen) {
       setHasUserEditedPayment(mode === "edit" || mode === "view");
       if (product && mode !== "add") {
+        const tPerP = product.traysPerPeti || 12;
+        const ePerT = product.eggsPerTray || 30;
+        const ePerP = tPerP * ePerT;
+
+        const totalStockEggs = product.stock || (product.petiQuantity ? Math.round(product.petiQuantity * ePerP) : (product.eggQuantity || 0)) || 0;
+        const initialPeti = product.petiQuantity !== undefined && product.petiQuantity !== null && product.petiQuantity > 0
+          ? product.petiQuantity
+          : (totalStockEggs > 0 ? Number((totalStockEggs / ePerP).toFixed(2)) : 0);
+        const initialTray = product.trayQuantity !== undefined && product.trayQuantity !== null && product.trayQuantity > 0
+          ? product.trayQuantity
+          : (initialPeti > 0 ? Number((initialPeti * tPerP).toFixed(1)) : (totalStockEggs > 0 ? Number((totalStockEggs / ePerT).toFixed(1)) : 0));
+        const initialEgg = product.eggQuantity !== undefined && product.eggQuantity !== null && product.eggQuantity > 0
+          ? product.eggQuantity
+          : (totalStockEggs > 0 ? totalStockEggs : (initialPeti > 0 ? Math.round(initialPeti * ePerP) : 0));
+
         reset({
           name: product.name || "",
           category: product.category || "Eggs",
           unitType: product.unitType || "peti",
-          traysPerPeti: product.traysPerPeti || 12,
-          eggsPerTray: product.eggsPerTray || 30,
-          petiQuantity: product.petiQuantity || 0,
-          trayQuantity: product.trayQuantity || 0,
-          eggQuantity: product.eggQuantity || 0,
-          stock: product.stock || 0,
+          traysPerPeti: tPerP,
+          eggsPerTray: ePerT,
+          petiQuantity: initialPeti,
+          trayQuantity: initialTray,
+          eggQuantity: initialEgg,
+          stock: totalStockEggs || initialEgg,
           minStock: product.minStock || 0,
           price: product.price || 0,
           costPrice: product.costPrice || 0,
@@ -146,11 +172,10 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
     const ePerPeti = tPerPeti * ePerTray;
 
     const pQty = parseFloat(data.petiQuantity) || 0;
-    const tQty = parseFloat(data.trayQuantity) || 0;
-    const eQty = parseFloat(data.eggQuantity) || 0;
+    const tQty = parseFloat(data.trayQuantity) || (pQty > 0 ? Number((pQty * tPerPeti).toFixed(1)) : 0);
+    const eQty = parseFloat(data.eggQuantity) || (pQty > 0 ? Math.round(pQty * ePerPeti) : (tQty > 0 ? Math.round(tQty * ePerTray) : 0));
 
-    const computedTotalEggs = (pQty * ePerPeti) + (tQty * ePerTray) + eQty;
-    const finalStock = computedTotalEggs > 0 ? computedTotalEggs : (parseFloat(data.stock) || 0);
+    const finalStock = eQty > 0 ? eQty : (pQty > 0 ? Math.round(pQty * ePerPeti) : (parseFloat(data.stock) || 0));
 
     const costPriceVal = parseFloat(data.costPrice) || 0;
     const salePriceVal = parseFloat(data.price) || 0;
@@ -160,8 +185,8 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
     if (computedBill <= 0) {
       if (pQty > 0) {
         computedBill = pQty * effectiveUnitPrice;
-      } else if (computedTotalEggs > 0) {
-        computedBill = computedTotalEggs * (effectiveUnitPrice / ePerPeti);
+      } else if (finalStock > 0) {
+        computedBill = finalStock * (effectiveUnitPrice / ePerPeti);
       }
     }
 
@@ -177,7 +202,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
 
     const dueAmt = Math.max(0, totalBill - paidAmt);
     const determinedMethod = dueAmt > 0 && paidAmt === 0 
-      ? "Credit / Qaraz" 
+      ? "Credit" 
       : (dueAmt > 0 ? "Partial Cash" : "Cash");
 
     const payload = {
@@ -503,11 +528,28 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
 
             <div className="grid grid-cols-3 gap-2.5">
               <div className="space-y-1">
-                <label className="text-xs font-black text-amber-400 uppercase">Petis (Boxes)</label>
+                <label className="text-xs font-black text-amber-400 uppercase flex items-center justify-between">
+                  <span>Petis (Boxes)</span>
+                  <span className="text-[9px] text-amber-300/80 font-bold">1P = 12T</span>
+                </label>
                 <input
                   type="number"
                   step="any"
-                  {...register("petiQuantity")}
+                  {...register("petiQuantity", {
+                    onChange: (e) => {
+                      const val = e.target.value;
+                      if (val === '' || isNaN(Number(val))) {
+                        setValue("trayQuantity", '');
+                        setValue("eggQuantity", '');
+                      } else {
+                        const num = parseFloat(val);
+                        const tPerP = parseFloat(watch("traysPerPeti")) || 12;
+                        const ePerT = parseFloat(watch("eggsPerTray")) || 30;
+                        setValue("trayQuantity", Number((num * tPerP).toFixed(1)));
+                        setValue("eggQuantity", Math.round(num * tPerP * ePerT));
+                      }
+                    }
+                  })}
                   disabled={mode === "view"}
                   className="w-full bg-slate-800 border border-amber-500/40 rounded-xl py-1.5 px-2.5 text-center text-sm font-black text-white outline-none focus:border-amber-400"
                   placeholder="0"
@@ -515,11 +557,28 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black text-teal-400 uppercase">Trays</label>
+                <label className="text-xs font-black text-teal-400 uppercase flex items-center justify-between">
+                  <span>Trays</span>
+                  <span className="text-[9px] text-teal-300/80 font-bold">1T = 30 Eggs</span>
+                </label>
                 <input
                   type="number"
                   step="any"
-                  {...register("trayQuantity")}
+                  {...register("trayQuantity", {
+                    onChange: (e) => {
+                      const val = e.target.value;
+                      if (val === '' || isNaN(Number(val))) {
+                        setValue("petiQuantity", '');
+                        setValue("eggQuantity", '');
+                      } else {
+                        const num = parseFloat(val);
+                        const tPerP = parseFloat(watch("traysPerPeti")) || 12;
+                        const ePerT = parseFloat(watch("eggsPerTray")) || 30;
+                        setValue("petiQuantity", Number((num / tPerP).toFixed(2)));
+                        setValue("eggQuantity", Math.round(num * ePerT));
+                      }
+                    }
+                  })}
                   disabled={mode === "view"}
                   className="w-full bg-slate-800 border border-teal-500/40 rounded-xl py-1.5 px-2.5 text-center text-sm font-black text-white outline-none focus:border-teal-400"
                   placeholder="0"
@@ -527,11 +586,29 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black text-emerald-400 uppercase">Single Eggs</label>
+                <label className="text-xs font-black text-emerald-400 uppercase flex items-center justify-between">
+                  <span>Single Eggs</span>
+                  <span className="text-[9px] text-emerald-300/80 font-bold">Total Eggs</span>
+                </label>
                 <input
                   type="number"
                   step="any"
-                  {...register("eggQuantity")}
+                  {...register("eggQuantity", {
+                    onChange: (e) => {
+                      const val = e.target.value;
+                      if (val === '' || isNaN(Number(val))) {
+                        setValue("petiQuantity", '');
+                        setValue("trayQuantity", '');
+                      } else {
+                        const num = parseFloat(val);
+                        const tPerP = parseFloat(watch("traysPerPeti")) || 12;
+                        const ePerT = parseFloat(watch("eggsPerTray")) || 30;
+                        const ePerP = tPerP * ePerT;
+                        setValue("petiQuantity", Number((num / ePerP).toFixed(2)));
+                        setValue("trayQuantity", Number((num / ePerT).toFixed(1)));
+                      }
+                    }
+                  })}
                   disabled={mode === "view"}
                   className="w-full bg-slate-800 border border-emerald-500/40 rounded-xl py-1.5 px-2.5 text-center text-sm font-black text-white outline-none focus:border-emerald-400"
                   placeholder="0"
@@ -623,7 +700,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       }}
                       className="px-2 py-0.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-300 text-[10px] font-black border border-rose-500/40 cursor-pointer"
                     >
-                      ⚠️ 100% Qaraz
+                      ⚠️ 100% Credit
                     </button>
                   </div>
                 )}
@@ -636,7 +713,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                 })}
                 disabled={mode === "view"}
                 className="w-full bg-slate-800 border border-emerald-500/40 rounded-xl py-2 px-3 text-emerald-400 text-sm font-black outline-none focus:border-emerald-400"
-                placeholder="Enter paid amount (0 if all qaraz)"
+                placeholder="Enter paid amount (0 if all credit)"
               />
             </div>
 
@@ -651,7 +728,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                 <span className="font-black text-emerald-400 text-xs sm:text-sm">Rs. {watchedPaidNum.toLocaleString()}</span>
               </div>
               <div className="flex flex-col border-l border-slate-700 pl-2">
-                <span className="text-[9px] font-black text-rose-400 uppercase">Qaraz (Due):</span>
+                <span className="text-[9px] font-black text-rose-400 uppercase">Credit (Due):</span>
                 <span className={`font-black text-xs sm:text-sm ${calculatedDue > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                   Rs. {calculatedDue.toLocaleString()}
                 </span>

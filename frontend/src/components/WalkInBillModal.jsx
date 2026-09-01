@@ -46,6 +46,42 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   };
   const branchBank = getBranchBank();
 
+  // Helper to extract clean name and separate Peti / Tray / Egg badges
+  const getItemBreakdownDetails = (item) => {
+    if (!item) return { rawName: 'Egg', petis: '0 Peti', trays: '0 Trays', eggs: '0 Eggs', unit: 'peti', qty: 1 };
+    let rawName = item.rawProductName || (item.name ? item.name.replace(/\s*\([^)]*\)/g, '').trim() : 'Egg');
+    if (!rawName) rawName = 'Egg';
+
+    const qty = Number(item.quantity) || 1;
+    const nameLower = (item.name || '').toLowerCase();
+    const unit = String(item.unit || item.selectedUnit || '').toLowerCase() || 
+      (nameLower.includes('peti') ? 'peti' : nameLower.includes('tray') ? 'tray' : 'egg');
+
+    const tPerPeti = Number(item.traysPerPeti) || 12;
+    const ePerTray = Number(item.eggsPerTray) || 30;
+    const ePerPeti = tPerPeti * ePerTray;
+
+    let petis = '';
+    let trays = '';
+    let eggs = '';
+
+    if (unit === 'peti') {
+      petis = `${qty} Peti${qty > 1 ? 's' : ''}`;
+      trays = `${(qty * tPerPeti).toFixed(1).replace(/\.0$/, '')} Trays`;
+      eggs = `${Math.round(qty * ePerPeti).toLocaleString()} Eggs`;
+    } else if (unit === 'tray') {
+      petis = `${(qty / tPerPeti).toFixed(2).replace(/\.00$/, '')} Peti`;
+      trays = `${qty} Tray${qty > 1 ? 's' : ''}`;
+      eggs = `${Math.round(qty * ePerTray).toLocaleString()} Eggs`;
+    } else {
+      petis = `${(qty / ePerPeti).toFixed(2).replace(/\.00$/, '')} Peti`;
+      trays = `${(qty / ePerTray).toFixed(1).replace(/\.0$/, '')} Trays`;
+      eggs = `${qty} Egg${qty > 1 ? 's' : ''}`;
+    }
+
+    return { rawName, petis, trays, eggs, unit, qty };
+  };
+
   // ── Helper to build High-End Executive PDF Invoice ──
   const createPDFDocument = () => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -111,13 +147,16 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     doc.text(`Account No: ${branchBank.accountNo}`, 110, 66);
 
     // 3. Items Table
-    const tableData = items.map((item, index) => [
-      index + 1,
-      item.name.toUpperCase(),
-      item.quantity,
-      `${currency} ${(item.price || 0).toLocaleString()}`,
-      `${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}`
-    ]);
+    const tableData = items.map((item, index) => {
+      const d = getItemBreakdownDetails(item);
+      return [
+        index + 1,
+        `${d.rawName.toUpperCase()}\n[ 📦 ${d.petis}  |  🍱 ${d.trays}  |  🥚 ${d.eggs} ]`,
+        item.quantity,
+        `${currency} ${(item.price || 0).toLocaleString()}`,
+        `${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}`
+      ];
+    });
 
     autoTable(doc, {
       startY: 75,
@@ -195,15 +234,25 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   // 2. Export / Generate Styled Excel Spreadsheet (.xls / .csv compatible)
   const handleDownloadExcel = () => {
     try {
-      const formattedItemsHtml = items.map((item, idx) => `
+      const formattedItemsHtml = items.map((item, idx) => {
+        const d = getItemBreakdownDetails(item);
+        return `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="text-align: center; border: 1px solid #94a3b8; padding: 7px 10px; font-weight: bold;">${idx + 1}</td>
-          <td style="text-align: left; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: bold; text-transform: uppercase;">${item.name}</td>
-          <td style="text-align: center; border: 1px solid #94a3b8; padding: 7px 10px; font-weight: 900; color: #15803d;">${item.quantity}</td>
-          <td style="text-align: right; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: 600;">${currency} ${(item.price || 0).toLocaleString()}</td>
-          <td style="text-align: right; border: 1px solid #94a3b8; padding: 7px 12px; font-weight: 900; color: #0f172a;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+          <td style="text-align: center; border: 1px solid #94a3b8; padding: 8px 10px; font-weight: bold; vertical-align: middle;">${idx + 1}</td>
+          <td style="text-align: left; border: 1px solid #94a3b8; padding: 8px 12px; vertical-align: middle;">
+            <div style="font-weight: 900; font-size: 11pt; color: #0f172a; text-transform: uppercase; margin-bottom: 3px;">${d.rawName}</div>
+            <div style="font-size: 9pt; font-weight: bold;">
+              <span style="color: #b45309;">📦 ${d.petis}</span> &nbsp;•&nbsp;
+              <span style="color: #0284c7;">🍱 ${d.trays}</span> &nbsp;•&nbsp;
+              <span style="color: #15803d;">🥚 ${d.eggs}</span>
+            </div>
+          </td>
+          <td style="text-align: center; border: 1px solid #94a3b8; padding: 8px 10px; font-weight: 900; color: #15803d; vertical-align: middle;">${item.quantity}</td>
+          <td style="text-align: right; border: 1px solid #94a3b8; padding: 8px 12px; font-weight: 600; vertical-align: middle;">${currency} ${(item.price || 0).toLocaleString()}</td>
+          <td style="text-align: right; border: 1px solid #94a3b8; padding: 8px 12px; font-weight: 900; color: #0f172a; vertical-align: middle;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
 
       const excelTemplate = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -333,7 +382,8 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     text += `━━━━━━━━━━━━━━━━━━━━\n`;
     text += `📦 *ITEMS PURCHASED:*\n`;
     items.forEach((item, idx) => {
-      text += `${idx + 1}. *${item.name}* x ${item.quantity} = ${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}\n`;
+      const d = getItemBreakdownDetails(item);
+      text += `${idx + 1}. *${d.rawName.toUpperCase()}*\n   📦 *${d.petis}* | 🍱 *${d.trays}* | 🥚 *${d.eggs}*\n   Qty: ${item.quantity} x ${currency} ${(item.price || 0).toLocaleString()} = *${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}*\n`;
     });
     text += `━━━━━━━━━━━━━━━━━━━━\n`;
     text += `💵 *GRAND TOTAL PAID: ${currency} ${totalAmount.toLocaleString()}*\n`;
@@ -439,15 +489,25 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
       return;
     }
 
-    let itemsHtml = items.map((item, idx) => `
+    let itemsHtml = items.map((item, idx) => {
+      const d = getItemBreakdownDetails(item);
+      return `
       <tr>
-        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
-        <td style="padding:8px 10px; border:1px solid #cbd5e1; font-weight:bold; text-transform:uppercase;">${item.name}</td>
-        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#059669;">${item.quantity}</td>
-        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right;">${currency} ${(item.price || 0).toLocaleString()}</td>
-        <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; vertical-align:middle;">
+          <div style="font-weight:900; font-size:13px; text-transform:uppercase; color:#0f172a; margin-bottom:4px;">${d.rawName}</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; font-size:10px; font-weight:800;">
+            <span style="background:#fef3c7; color:#92400e; padding:2px 7px; border-radius:4px; border:1px solid #fde68a;">📦 ${d.petis}</span>
+            <span style="background:#e0f2fe; color:#0369a1; padding:2px 7px; border-radius:4px; border:1px solid #bae6fd;">🍱 ${d.trays}</span>
+            <span style="background:#dcfce7; color:#15803d; padding:2px 7px; border-radius:4px; border:1px solid #bbf7d0;">🥚 ${d.eggs}</span>
+          </div>
+        </td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle; font-weight:900; color:#059669;">${item.quantity}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; vertical-align:middle;">${currency} ${(item.price || 0).toLocaleString()}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; vertical-align:middle; font-weight:900;">${currency} ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     printWin.document.write(`
       <!DOCTYPE html>
@@ -606,14 +666,40 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-medium">
-                {items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30">
-                    <td className="p-2.5 font-bold uppercase">{item.name}</td>
-                    <td className="p-2.5 text-center font-bold text-emerald-400">{item.quantity}</td>
-                    <td className="p-2.5 text-right text-slate-300">{currency} {(item.price || 0).toLocaleString()}</td>
-                    <td className="p-2.5 text-right font-black text-white">{currency} {((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
-                  </tr>
-                ))}
+                {items.map((item, idx) => {
+                  const d = getItemBreakdownDetails(item);
+                  return (
+                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3">
+                        <div className="space-y-1.5">
+                          <p className="font-black text-white text-xs tracking-wide uppercase">{d.rawName}</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-black">
+                              <span>📦</span> {d.petis}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-black">
+                              <span>🍱</span> {d.trays}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black">
+                              <span>🥚</span> {d.eggs}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3 text-center align-middle">
+                        <span className="px-2 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 font-mono font-black text-xs">
+                          {item.quantity}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right align-middle text-slate-300 font-mono text-xs">
+                        {currency} {(item.price || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right align-middle font-mono font-black text-white text-sm">
+                        {currency} {((item.quantity || 1) * (item.price || 0)).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 flex justify-between items-center">

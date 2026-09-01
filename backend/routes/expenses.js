@@ -21,7 +21,7 @@ router.post('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
     const realShopId = await resolveShopId(shopId);
-    const { title, category, amount, expenseDate, notes, createdBy } = req.body;
+    const { title, category, amount, paymentMethod, expenseDate, notes, createdBy } = req.body;
 
     if (!title || amount === undefined || amount === null) {
       return res.status(400).json({ success: false, message: 'Title and amount are required' });
@@ -32,6 +32,7 @@ router.post('/shop/:shopId', async (req, res) => {
       title,
       category: category || 'Other',
       amount: Number(amount),
+      paymentMethod: paymentMethod || 'Paid',
       expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
       notes: notes || '',
       createdBy: createdBy || 'Shop Admin'
@@ -39,6 +40,27 @@ router.post('/shop/:shopId', async (req, res) => {
 
     await newExpense.save();
     res.status(201).json({ success: true, data: newExpense });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT update an expense by ID
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, category, amount, paymentMethod, expenseDate, notes, createdBy } = req.body;
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (category !== undefined) updateData.category = category;
+    if (amount !== undefined) updateData.amount = Number(amount);
+    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (expenseDate !== undefined) updateData.expenseDate = new Date(expenseDate);
+    if (notes !== undefined) updateData.notes = notes;
+    if (createdBy !== undefined) updateData.createdBy = createdBy;
+
+    const updated = await Expense.findByIdAndUpdate(id, updateData, { new: true });
+    res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
