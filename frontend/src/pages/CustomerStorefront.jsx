@@ -367,14 +367,38 @@ function StoreContent({ shopId }) {
   const [isDesktopOpen, setIsDesktopOpen] = useState(true);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
-  const [activeView, setActiveView] = useState('dashboard'); // Default to dashboard
+  const [activeView, setActiveView] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('tab') || urlParams.get('view');
+      if (urlView) return urlView;
+      const saved = sessionStorage.getItem('yosafze_active_view') || localStorage.getItem('yosafze_active_view');
+      if (saved) return saved;
+    } catch (e) { }
+    return 'dashboard';
+  });
 
   useEffect(() => {
-    // If admin, ensure dashboard view is active by default
-    if (isAdminUser) {
-      setActiveView('dashboard');
+    try {
+      if (activeView) {
+        sessionStorage.setItem('yosafze_active_view', activeView);
+        localStorage.setItem('yosafze_active_view', activeView);
+      }
+    } catch (e) { }
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit') {
+      fetchShopSales();
     }
-  }, [isAdminUser]);
+    if (activeView === 'registered-customers') {
+      fetchRegisteredCustomers();
+    }
+    if (activeView === 'report-expenses') {
+      fetchExpenses();
+      fetchDamagedProducts();
+    }
+  }, [activeView, shopId]);
 
   // ─── Walk-in Sales & Billing State for ShopAdmin ───
   const [walkInCart, setWalkInCart] = useState([]);
@@ -1692,14 +1716,117 @@ function StoreContent({ shopId }) {
     setTimeout(fetchDashboardStats, 300);
   };
 
-  // ─── Filtered Profit Analytics (Gross Profit - Expenses - Damaged Loss = Net Profit) ───
+  // ─── Dynamic Live Expenses Calculations (Today, This Month, This Year, All-Time) ───
+  const dynamicExpenseStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    let todayExp = 0;
+    let todayExpCount = 0;
+    let monthExp = 0;
+    let monthExpCount = 0;
+    let yearExp = 0;
+    let yearExpCount = 0;
+    let totalExp = 0;
+    let totalExpCount = (expensesList || []).length;
+
+    (expensesList || []).forEach(e => {
+      const amt = Number(e.amount) || 0;
+      const d = new Date(e.expenseDate || e.createdAt || 0);
+      const dStr = d.toISOString().split('T')[0];
+
+      totalExp += amt;
+
+      if (dStr === todayStr || d.toDateString() === now.toDateString()) {
+        todayExp += amt;
+        todayExpCount++;
+      }
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        monthExp += amt;
+        monthExpCount++;
+      }
+      if (d.getFullYear() === currentYear) {
+        yearExp += amt;
+        yearExpCount++;
+      }
+    });
+
+    let todayDamaged = 0;
+    let monthDamaged = 0;
+    let yearDamaged = 0;
+    let totalDamaged = 0;
+    let totalDamagedEggs = 0;
+
+    (damagedProductsList || []).forEach(d => {
+      const loss = Number(d.totalLoss) || ((Number(d.quantity) || 0) * (Number(d.unitPrice) || 0));
+      const date = new Date(d.damageDate || d.createdAt || 0);
+      const dateStr = date.toISOString().split('T')[0];
+      const eggs = Number(d.eggQuantity || d.quantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30);
+
+      totalDamaged += loss;
+      totalDamagedEggs += eggs;
+
+      if (dateStr === todayStr || date.toDateString() === now.toDateString()) {
+        todayDamaged += loss;
+      }
+      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+        monthDamaged += loss;
+      }
+      if (date.getFullYear() === currentYear) {
+        yearDamaged += loss;
+      }
+    });
+
+    return {
+      todayExp,
+      todayExpCount,
+      monthExp,
+      monthExpCount,
+      yearExp,
+      yearExpCount,
+      totalExp,
+      totalExpCount,
+      todayDamaged,
+      monthDamaged,
+      yearDamaged,
+      totalDamaged,
+      totalDamagedEggs,
+      todayTotalLoss: todayExp + todayDamaged,
+      monthTotalLoss: monthExp + monthDamaged,
+      yearTotalLoss: yearExp + yearDamaged,
+      grandTotalLoss: totalExp + totalDamaged,
+    };
+  }, [expensesList, damagedProductsList]);
+
+  // ─── Filtered Profit Analytics (Sales, Purchases with Peti/Tray/Egg, Expenses, Damaged Losses = Pure Net Profit) ───
   const profitReportStats = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    // 1. Filter Sales for this timeframe
+    // 1. All-Time & Periodic Sales
+    const todaySales = (shopSalesList || []).filter(s => new Date(s.saleDate || s.createdAt || s.date || 0).toISOString().split('T')[0] === todayStr);
+    const todaySalesTotal = todaySales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const todayProfitTotal = todaySales.reduce((sum, s) => sum + (Number(s.totalProfit) || (Number(s.totalAmount) * 0.15)), 0);
+
+    const monthSales = (shopSalesList || []).filter(s => {
+      const d = new Date(s.saleDate || s.createdAt || s.date || 0);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthSalesTotal = monthSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const monthProfitTotal = monthSales.reduce((sum, s) => sum + (Number(s.totalProfit) || (Number(s.totalAmount) * 0.15)), 0);
+
+    const yearSales = (shopSalesList || []).filter(s => new Date(s.saleDate || s.createdAt || s.date || 0).getFullYear() === currentYear);
+    const yearSalesTotal = yearSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const yearProfitTotal = yearSales.reduce((sum, s) => sum + (Number(s.totalProfit) || (Number(s.totalAmount) * 0.15)), 0);
+
+    const allSalesTotal = (shopSalesList || []).reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const allProfitTotal = (shopSalesList || []).reduce((sum, s) => sum + (Number(s.totalProfit) || (Number(s.totalAmount) * 0.15)), 0);
+
+    // 2. Filter Sales for active timeframe
     const filteredSales = (shopSalesList || []).filter(s => {
       if (!s) return false;
       const sDate = new Date(s.saleDate || s.createdAt || s.date || 0);
@@ -1718,21 +1845,50 @@ function StoreContent({ shopId }) {
       totalRevenue += Number(s.totalAmount) || 0;
     });
 
-    // Fallback if legacy sales have no totalProfit field
     if (grossProfit === 0 && totalRevenue > 0) {
       grossProfit = Math.round(totalRevenue * 0.15);
     }
     if (grossProfit === 0) {
-      grossProfit = reportTimeframe === 'DAY' ? (dashStats.todayProfit || 0) : reportTimeframe === 'MONTH' ? (dashStats.monthlyProfit || 0) : reportTimeframe === 'YEAR' ? (dashStats.yearlyProfit || 0) : (dashStats.totalProfit || 0);
+      grossProfit = reportTimeframe === 'DAY' ? todayProfitTotal : reportTimeframe === 'MONTH' ? monthProfitTotal : reportTimeframe === 'YEAR' ? yearProfitTotal : allProfitTotal;
     }
 
-    // 2. Filter Expenses for this timeframe
+    // 3. Filter Purchases / Restocks (items) for active timeframe
+    const filteredPurchases = (items || []).filter(p => {
+      if (!p) return false;
+      const pDate = new Date(p.purchaseDate || p.createdAt || p.date || 0);
+      const pDateStr = pDate.toISOString().split('T')[0];
+
+      if (reportTimeframe === 'DAY') return pDateStr === todayStr;
+      if (reportTimeframe === 'MONTH') return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
+      if (reportTimeframe === 'YEAR') return pDate.getFullYear() === currentYear;
+      return true;
+    });
+
+    let totalPurchasesCost = 0;
+    let totalPurchasesEggs = 0;
+
+    filteredPurchases.forEach(p => {
+      const e = Number(p.eggQuantity || 0);
+      const peti = Number(p.petiQuantity || 0);
+      const tray = Number(p.trayQuantity || 0);
+      const totalItemEggs = (peti * 360) + (tray * 30) + e;
+      totalPurchasesEggs += totalItemEggs;
+
+      const cost = Number(p.totalPurchaseCost || p.purchaseCost || p.totalCost) ||
+        (Number(p.costPrice || 0) * (totalItemEggs / (p.unitType === 'peti' ? 360 : p.unitType === 'tray' ? 30 : 1)));
+      totalPurchasesCost += Math.round(cost);
+    });
+
+    const totalPurchasesPetis = Number((totalPurchasesEggs / 360).toFixed(1));
+    const totalPurchasesTrays = Math.round(totalPurchasesEggs / 30);
+
+    // 4. Filter Expenses for active timeframe
     const filteredExpenses = (expensesList || []).filter(e => {
       if (!e) return false;
       const eDate = new Date(e.expenseDate || e.createdAt || 0);
       const eDateStr = eDate.toISOString().split('T')[0];
 
-      if (reportTimeframe === 'DAY') return eDateStr === todayStr;
+      if (reportTimeframe === 'DAY') return eDateStr === todayStr || eDate.toDateString() === now.toDateString();
       if (reportTimeframe === 'MONTH') return eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear;
       if (reportTimeframe === 'YEAR') return eDate.getFullYear() === currentYear;
       return true;
@@ -1740,58 +1896,80 @@ function StoreContent({ shopId }) {
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-    // 3. Filter Damaged Loss for this timeframe
+    // 5. Filter Damaged Stock Logs for active timeframe
     const filteredDamaged = (damagedProductsList || []).filter(d => {
       if (!d) return false;
       const dDate = new Date(d.damageDate || d.createdAt || 0);
       const dDateStr = dDate.toISOString().split('T')[0];
 
-      if (reportTimeframe === 'DAY') return dDateStr === todayStr;
+      if (reportTimeframe === 'DAY') return dDateStr === todayStr || dDate.toDateString() === now.toDateString();
       if (reportTimeframe === 'MONTH') return dDate.getMonth() === currentMonth && dDate.getFullYear() === currentYear;
       if (reportTimeframe === 'YEAR') return dDate.getFullYear() === currentYear;
       return true;
     });
 
-    const totalDamagedLoss = filteredDamaged.reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
+    let totalDamagedLoss = 0;
+    let totalDamagedEggs = 0;
+    filteredDamaged.forEach(d => {
+      totalDamagedLoss += Number(d.totalLoss) || ((Number(d.quantity) || 0) * (Number(d.unitPrice) || 0));
+      totalDamagedEggs += Number(d.quantity) || 1;
+    });
 
-    // 4. Pure Realized Net Profit = Gross Profit - Expenses - Damaged Loss
-    const finalNetProfit = grossProfit - totalExpenses - totalDamagedLoss;
+    // 6. Final Realized Net Profit (Revenue - Purchases - Expenses - Damaged Loss)
+    const finalNetProfit = totalPurchasesCost > 0
+      ? (totalRevenue - totalPurchasesCost - totalExpenses - totalDamagedLoss)
+      : (grossProfit - totalExpenses - totalDamagedLoss);
 
     return {
       grossProfit,
       totalRevenue,
+      totalPurchasesCost,
+      totalPurchasesPetis,
+      totalPurchasesTrays,
+      totalPurchasesEggs,
       totalExpenses,
       totalDamagedLoss,
+      totalDamagedEggs,
       finalNetProfit,
+      todaySalesTotal,
+      todayProfitTotal,
+      monthSalesTotal,
+      monthProfitTotal,
+      yearSalesTotal,
+      yearProfitTotal,
+      allSalesTotal,
+      allProfitTotal,
       filteredSalesCount: filteredSales.length,
+      filteredPurchasesCount: filteredPurchases.length,
       filteredExpensesCount: filteredExpenses.length,
       filteredDamagedCount: filteredDamaged.length,
+      filteredSales,
+      filteredPurchases,
       filteredExpenses,
       filteredDamaged
     };
-  }, [shopSalesList, expensesList, damagedProductsList, reportTimeframe, dashStats]);
+  }, [shopSalesList, items, expensesList, damagedProductsList, reportTimeframe, dashStats]);
 
   // ─── Executive Net Realized Profit/Loss Breakdown for Main Dashboard ───
   const netStats = useMemo(() => {
     const todayGrossProfit = dashStats.todayProfit || 0;
-    const todayExp = dashStats.todayExpense || 0;
-    const todayDmg = dashStats.todayDamagedLoss || 0;
+    const todayExp = dynamicExpenseStats.todayExp || 0;
+    const todayDmg = dynamicExpenseStats.todayDamaged || 0;
     const todayNet = todayGrossProfit - todayExp - todayDmg;
 
     const monthlyGrossProfit = dashStats.monthlyProfit || 0;
-    const monthlyExp = dashStats.monthlyExpense || 0;
-    const monthlyDmg = dashStats.monthlyDamagedLoss || 0;
+    const monthlyExp = dynamicExpenseStats.monthExp || 0;
+    const monthlyDmg = dynamicExpenseStats.monthDamaged || 0;
     const monthlyNet = monthlyGrossProfit - monthlyExp - monthlyDmg;
 
     const yearlyGrossProfit = dashStats.yearlyProfit || 0;
-    const currentYear = new Date().getFullYear();
-    const yearlyExp = (expensesList || []).filter(e => new Date(e.expenseDate || e.createdAt || 0).getFullYear() === currentYear).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    const yearlyDmg = (damagedProductsList || []).filter(d => new Date(d.damageDate || d.createdAt || 0).getFullYear() === currentYear).reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
+    const yearlyExp = dynamicExpenseStats.yearExp || 0;
+    const yearlyDmg = dynamicExpenseStats.yearDamaged || 0;
     const yearlyNet = yearlyGrossProfit - yearlyExp - yearlyDmg;
 
     const totalGrossProfit = dashStats.totalProfit || 0;
-    const totalExp = dashStats.totalExpense || 0;
-    const totalDmg = dashStats.totalDamagedLoss || 0;
+    const totalExp = dynamicExpenseStats.totalExp || 0;
+    const totalDmg = dynamicExpenseStats.totalDamaged || 0;
     const totalNet = totalGrossProfit - totalExp - totalDmg;
 
     return {
@@ -1833,8 +2011,9 @@ function StoreContent({ shopId }) {
 
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(52, 211, 153);
+    doc.text(`Official Pure Realized Net Profit Statement • Filter: ${timeTitle}`, 30, 44);
     doc.setTextColor(203, 213, 225);
-    doc.text(`Official Net Profit & Loss Statement • Filter: ${timeTitle}`, 30, 44);
     doc.text(`Generated: ${dateStr}`, 430, 44);
 
     // Summary Metric Bar
@@ -1845,38 +2024,42 @@ function StoreContent({ shopId }) {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 116, 139);
-    doc.text('GROSS PROFIT', 45, 87);
-    doc.text('SHOP EXPENSES', 180, 87);
-    doc.text('DAMAGED EGG LOSS', 320, 87);
-    doc.text('FINAL NET PROFIT', 455, 87);
+    doc.text('TOTAL REVENUE', 40, 87);
+    doc.text('PURCHASES COST', 150, 87);
+    doc.text('SHOP EXPENSES', 270, 87);
+    doc.text('DAMAGED LOSS', 380, 87);
+    doc.text('PURE NET PROFIT', 475, 87);
 
-    doc.setFontSize(11);
-    doc.setTextColor(16, 185, 129);
-    doc.text(`Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}`, 45, 104);
-    doc.setTextColor(225, 29, 72);
-    doc.text(`- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`, 180, 104);
-    doc.setTextColor(217, 119, 6);
-    doc.text(`- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`, 320, 104);
+    doc.setFontSize(10);
     doc.setTextColor(5, 150, 105);
-    doc.text(`Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`, 455, 104);
+    doc.text(`Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}`, 40, 104);
+    doc.setTextColor(2, 132, 199);
+    doc.text(`- Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}`, 150, 104);
+    doc.setTextColor(225, 29, 72);
+    doc.text(`- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`, 270, 104);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`, 380, 104);
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`, 475, 104);
 
     // Income Statement Breakdown Table
     const breakdownData = [
-      ['1', '(+) Gross Profit Earned from Egg Sales', `${profitReportStats.filteredSalesCount} Sales`, `+ Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}`],
-      ['2', '(-) Shop Operational Expenses (Bills, Rent, Misc)', `${profitReportStats.filteredExpensesCount} Entries`, `- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`],
-      ['3', '(-) Damaged / Broken Egg Losses', `${profitReportStats.filteredDamagedCount} Logs`, `- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`],
-      ['4', '(=) FINAL REALIZED NET PROFIT BALANCE', 'Net Profit', `Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`]
+      ['1', '(+) Total Sales Revenue Earned', `${profitReportStats.filteredSalesCount} Sales Invoices`, `+ Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}`],
+      ['2', '(-) Purchased Products / Restocks Cost', `${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} Eggs`, `- Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}`],
+      ['3', '(-) Shop Operational Expenses (Bills, Rent, Misc)', `${profitReportStats.filteredExpensesCount} Expense Logs`, `- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`],
+      ['4', '(-) Damaged / Broken Egg Inventory Loss', `${profitReportStats.filteredDamagedCount} Logs (${profitReportStats.totalDamagedEggs} Broken Eggs)`, `- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`],
+      ['5', '(=) FINAL PURE REALIZED NET PROFIT', 'Pure Realized Cash Balance', `Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`]
     ];
 
     autoTable(doc, {
       startY: 125,
-      head: [['#', 'Financial Metric & Description', 'Volume / Records', 'Amount (RS)']],
+      head: [['#', 'Financial Line Item & Description', 'Volume / Stock Details', 'Amount (RS)']],
       body: breakdownData,
       theme: 'grid',
-      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
       bodyStyles: { fontSize: 8, textColor: [15, 23, 42] },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      styles: { cellPadding: 4 },
+      styles: { cellPadding: 5 },
       margin: { left: 30, right: 30 },
     });
 
@@ -1974,7 +2157,6 @@ function StoreContent({ shopId }) {
     const periodName = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
 
     if (type === 'expenses') {
-      // Filter expenses based on timeframe
       const now = new Date();
       const filteredExp = expensesList.filter(exp => {
         const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
@@ -2022,25 +2204,27 @@ function StoreContent({ shopId }) {
     }
 
     if (type === 'profit') {
-      // 1. Generate & download official PDF file
       const pdfFileName = generateProfitReportPDF(timeframe);
 
-      // 2. Format detailed WhatsApp Net Profit Statement
-      let message = `📄 *${shopName.toUpperCase()} - NET PROFIT ANALYTICS REPORT*\n`;
-      message += `📅 *Timeframe:* ${periodName} (${dateStr})\n`;
-      message += `===============================\n`;
-      message += `📈 *(+) Gross Sales Profit:* Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}\n`;
-      message += `📉 *(-) Shop Expenses:* Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}\n`;
-      message += `🥚 *(-) Damaged Egg Loss:* Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}\n`;
-      message += `===============================\n`;
-      message += `💵 *(=) FINAL REALIZED NET PROFIT:* Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}\n`;
-      message += `===============================\n`;
-      message += `📊 *SUMMARY STATS:*\n`;
-      message += `• Total Sales Invoices: ${profitReportStats.filteredSalesCount} Bills\n`;
-      message += `• Shop Expense Entries: ${profitReportStats.filteredExpensesCount} Entries\n`;
-      message += `• Damaged Product Logs: ${profitReportStats.filteredDamagedCount} Logs\n`;
-      message += `===============================\n`;
-      message += `📎 *Official PDF Report (${pdfFileName}) downloaded to your device.*\n`;
+      let message = `📄 *${shopName.toUpperCase()} - NET PROFIT STATEMENT*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📅 *Period Filter:* ${periodName} (${dateStr})\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📈 *1. SALES REVENUE SUMMARY:*\n`;
+      message += `• Today's Sales: Rs. ${(profitReportStats.todaySalesTotal || 0).toLocaleString('en-PK')} (Profit: Rs. ${(profitReportStats.todayProfitTotal || 0).toLocaleString('en-PK')})\n`;
+      message += `• This Month Sales: Rs. ${(profitReportStats.monthSalesTotal || 0).toLocaleString('en-PK')} (Profit: Rs. ${(profitReportStats.monthProfitTotal || 0).toLocaleString('en-PK')})\n`;
+      message += `• This Year Sales: Rs. ${(profitReportStats.yearSalesTotal || 0).toLocaleString('en-PK')} (Profit: Rs. ${(profitReportStats.yearProfitTotal || 0).toLocaleString('en-PK')})\n`;
+      message += `• All-Time Total Sales: Rs. ${(profitReportStats.allSalesTotal || 0).toLocaleString('en-PK')}\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📊 *2. NET PROFIT RECONCILIATION:*\n`;
+      message += `(+) Total Sales: Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}\n`;
+      message += `(-) Purchases Cost: Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')} (${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs} Eggs)\n`;
+      message += `(-) Shop Expenses: Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}\n`;
+      message += `(-) Damaged Egg Loss: Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')} (${profitReportStats.totalDamagedEggs} Eggs)\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `💵 *(=) FINAL PURE REALIZED NET PROFIT: Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📎 *Official PDF Statement (${pdfFileName}) downloaded to your device.*\n`;
       message += `_Yosafze Egg Traders Financial System_`;
 
       const encodedText = encodeURIComponent(message);
@@ -2081,7 +2265,7 @@ function StoreContent({ shopId }) {
   };
 
   const handlePrintSingleReport = (type = 'sales', timeframe = reportTimeframe) => {
-    const shopName = shop?.name || 'Peshawar Shop';
+    const shopName = shop?.name || 'Yosafze Egg Traders';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const timeTitle = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
 
@@ -2206,84 +2390,108 @@ function StoreContent({ shopId }) {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>${timeTitle} Net Profit Report - ${shopName}</title>
+            <title>${timeTitle} Pure Net Profit Statement - ${shopName}</title>
             <style>
               @page { size: portrait; margin: 8mm 10mm; }
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 15px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
-              .header { text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 8px; margin-bottom: 12px; }
-              .header h1 { margin: 0; color: #0f766e; text-transform: uppercase; font-size: 18px; letter-spacing: 1px; font-weight: 900; }
-              .header p { margin: 2px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
-              .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
-              .stats-grid { display: flex; flex-direction: row; gap: 8px; margin-bottom: 12px; }
-              .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; text-align: center; }
-              .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
-              .stat-card .val { font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 1px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-              th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 9.5px; text-align: left; }
-              th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
-              .footer { margin-top: 25px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
-              .sign { border-top: 1.5px solid #94a3b8; width: 140px; text-align: center; padding-top: 4px; }
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
+              .header { background: linear-gradient(135deg, #0f172a 0%, #065f46 100%); color: #ffffff; padding: 18px 24px; border-radius: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+              .header h1 { margin: 0; font-size: 18px; letter-spacing: 0.5px; font-weight: 900; text-transform: uppercase; }
+              .header p { margin: 2px 0 0; color: #34d399; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+              .meta-badge { background: #f59e0b; color: #0f172a; padding: 6px 12px; border-radius: 8px; font-weight: 900; font-size: 10px; text-align: center; }
+              .sales-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+              .sale-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 10px; border-radius: 8px; }
+              .sale-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px; }
+              .sale-card .val { font-size: 12px; font-weight: 900; color: #059669; }
+              .flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+              .flow-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 10px; border-radius: 8px; }
+              .flow-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
+              .flow-card .val { font-size: 12px; font-weight: 900; margin-top: 2px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th, td { border: 1px solid #cbd5e1; padding: 7px 10px; font-size: 9.5px; text-align: left; }
+              th { background: #0f172a; text-transform: uppercase; font-weight: 900; font-size: 8.5px; color: #ffffff; }
+              .footer { margin-top: 35px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
+              .sign { border-top: 1.5px solid #94a3b8; width: 160px; text-align: center; padding-top: 4px; }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1>${shopName.toUpperCase()}</h1>
-              <p>Official Net Profit &amp; Loss Analytics Statement</p>
+              <div>
+                <h1>${shopName.toUpperCase()}</h1>
+                <p>Official Pure Realized Net Profit &amp; Loss Statement</p>
+              </div>
+              <div class="meta-badge">
+                PERIOD: ${timeTitle.toUpperCase()}<br/>
+                <span style="font-size:8px; opacity:0.85;">${dateStr}</span>
+              </div>
             </div>
-            <div class="meta">
-              <span>Generated: ${dateStr}</span>
-              <span>Period Filter: ${timeTitle}</span>
-              <span>Report Type: Net Profit Realization</span>
+
+            <div style="font-size: 9.5px; font-weight: 900; color: #334155; text-transform: uppercase; margin-bottom: 6px;">1. Period Sales Overview (Day • Month • Year)</div>
+            <div class="sales-grid">
+              <div class="sale-card"><label>Today's Sales</label><div class="val">Rs. ${(profitReportStats.todaySalesTotal || 0).toLocaleString('en-PK')}</div></div>
+              <div class="sale-card"><label>This Month Sales</label><div class="val">Rs. ${(profitReportStats.monthSalesTotal || 0).toLocaleString('en-PK')}</div></div>
+              <div class="sale-card"><label>This Year Sales</label><div class="val">Rs. ${(profitReportStats.yearSalesTotal || 0).toLocaleString('en-PK')}</div></div>
+              <div class="sale-card"><label>Lifetime Sales</label><div class="val">Rs. ${(profitReportStats.allSalesTotal || 0).toLocaleString('en-PK')}</div></div>
             </div>
-            <div class="stats-grid">
-              <div class="stat-card"><label>Gross Sales Profit</label><div class="val" style="color:#059669;">Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}</div></div>
-              <div class="stat-card"><label>Shop Expenses</label><div class="val" style="color:#e11d48;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</div></div>
-              <div class="stat-card"><label>Damaged Egg Loss</label><div class="val" style="color:#d97706;">- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</div></div>
-              <div class="stat-card"><label>Final Net Profit</label><div class="val" style="color:#0f766e;">Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}</div></div>
+
+            <div style="font-size: 9.5px; font-weight: 900; color: #334155; text-transform: uppercase; margin-bottom: 6px;">2. Statement Financial Deductions</div>
+            <div class="flow-grid">
+              <div class="flow-card"><label>(+) Total Sales</label><div class="val" style="color:#059669;">+ Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}</div></div>
+              <div class="flow-card"><label>(-) Purchases Cost</label><div class="val" style="color:#0284c7;">- Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}</div></div>
+              <div class="flow-card"><label>(-) Shop Expenses</label><div class="val" style="color:#dc2626;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</div></div>
+              <div class="flow-card"><label>(-) Damaged Loss</label><div class="val" style="color:#d97706;">- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</div></div>
             </div>
-            <table>
+
+            <table style="margin-top: 8px;">
               <thead>
                 <tr>
-                  <th style="width:20px; text-align:center;">#</th>
+                  <th style="width:25px; text-align:center;">#</th>
                   <th>Financial Line Item &amp; Description</th>
-                  <th style="text-align:center;">Source</th>
+                  <th style="text-align:center;">Volume / Stock Details</th>
                   <th style="text-align:center;">Records</th>
-                  <th style="text-align:right;">Amount</th>
+                  <th style="text-align:right;">Amount (RS)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="text-align:center;">1</td>
-                  <td><strong>(+) Gross Profit Earned from Sales</strong></td>
-                  <td style="text-align:center;">Egg Sales</td>
+                  <td style="text-align:center; font-weight:bold;">1</td>
+                  <td><strong style="color:#047857;">(+) Total Sales Revenue Earned</strong></td>
+                  <td style="text-align:center;">Sales Invoices</td>
                   <td style="text-align:center;">${profitReportStats.filteredSalesCount} Invoices</td>
-                  <td style="text-align:right; font-weight:bold; color:#059669;">+ Rs. ${(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}</td>
+                  <td style="text-align:right; font-weight:bold; color:#047857;">+ Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}</td>
                 </tr>
                 <tr>
-                  <td style="text-align:center;">2</td>
-                  <td><strong>(-) Shop Operational Expenses (Bills, Rent, Packaging)</strong></td>
-                  <td style="text-align:center;">Overhead Costs</td>
-                  <td style="text-align:center;">${profitReportStats.filteredExpensesCount} Entries</td>
-                  <td style="text-align:right; font-weight:bold; color:#e11d48;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</td>
+                  <td style="text-align:center; font-weight:bold;">2</td>
+                  <td><strong style="color:#0284c7;">(-) Purchased Products / Restocks Cost</strong></td>
+                  <td style="text-align:center;">${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} Eggs</td>
+                  <td style="text-align:center;">${profitReportStats.filteredPurchasesCount} Restocks</td>
+                  <td style="text-align:right; font-weight:bold; color:#0284c7;">- Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}</td>
                 </tr>
                 <tr>
-                  <td style="text-align:center;">3</td>
-                  <td><strong>(-) Damaged / Broken Egg Inventory Loss</strong></td>
-                  <td style="text-align:center;">Damaged Stock</td>
-                  <td style="text-align:center;">${profitReportStats.filteredDamagedCount} Logs</td>
+                  <td style="text-align:center; font-weight:bold;">3</td>
+                  <td><strong style="color:#dc2626;">(-) Shop Operational Expenses (Bills, Rent, Misc)</strong></td>
+                  <td style="text-align:center;">Overhead Cost</td>
+                  <td style="text-align:center;">${profitReportStats.filteredExpensesCount} Logs</td>
+                  <td style="text-align:right; font-weight:bold; color:#dc2626;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</td>
+                </tr>
+                <tr>
+                  <td style="text-align:center; font-weight:bold;">4</td>
+                  <td><strong style="color:#d97706;">(-) Damaged / Broken Egg Inventory Loss</strong></td>
+                  <td style="text-align:center;">Waste &amp; Breakage</td>
+                  <td style="text-align:center;">${profitReportStats.filteredDamagedCount} Logs (${profitReportStats.totalDamagedEggs} Eggs)</td>
                   <td style="text-align:right; font-weight:bold; color:#d97706;">- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</td>
                 </tr>
               </tbody>
               <tfoot>
-                <tr style="background:#f0fdfa; font-weight:900; font-size:11px;">
-                  <td colspan="4" style="text-align:right; color:#0f766e;">(=) FINAL PURE REALIZED NET PROFIT:</td>
-                  <td style="text-align:right; color:#0f766e;">Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}</td>
+                <tr style="background:#ecfdf5; font-weight:900; font-size:11px;">
+                  <td colspan="4" style="text-align:right; color:#065f46; padding: 10px;">(=) FINAL PURE REALIZED NET PROFIT:</td>
+                  <td style="text-align:right; color:#047857; padding: 10px; font-size: 13px;">Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}</td>
                 </tr>
               </tfoot>
             </table>
+
             <div class="footer">
               <div>Report Generated by Yosafze Egg Traders Admin System</div>
-              <div class="sign">Authorized Signature</div>
+              <div class="sign">Authorized Signature &amp; Stamp</div>
             </div>
           </body>
         </html>
@@ -2400,6 +2608,127 @@ function StoreContent({ shopId }) {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const timeLabel = timeframe === 'DAY' ? 'Daily (Today)' : timeframe === 'MONTH' ? 'Monthly (This Month)' : timeframe === 'YEAR' ? 'Yearly (This Year)' : 'All-Time Total';
+
+    if (type === 'profit') {
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Profit_${timeframe}</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+            .header-banner { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
+            .sub-banner { background-color: #1e293b; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .info-val { font-weight: 600; color: #0f172a; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
+            .tot-lbl { background-color: #0f172a; color: #ffffff; font-weight: 900; font-size: 11pt; text-align: right; border: 1px solid #0f172a; padding: 10px 14px; }
+            .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <colgroup>
+              <col width="60" />
+              <col width="260" />
+              <col width="160" />
+              <col width="220" />
+              <col width="160" />
+            </colgroup>
+            <tr>
+              <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="sub-banner">OFFICIAL PURE REALIZED NET PROFIT STATEMENT (${timeLabel.toUpperCase()})</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="2" class="info-label">Period Filter:</td>
+              <td class="info-val" style="color: #0284c7; font-weight: bold;">${timeLabel}</td>
+              <td class="info-label">Generated Date:</td>
+              <td class="info-val">${dateStr}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Today's Sales Revenue:</td>
+              <td class="info-val" style="color: #047857; font-weight: bold;">RS ${(profitReportStats.todaySalesTotal || 0).toLocaleString()}</td>
+              <td class="info-label">This Month Sales:</td>
+              <td class="info-val" style="color: #047857; font-weight: bold;">RS ${(profitReportStats.monthSalesTotal || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">This Year Sales:</td>
+              <td class="info-val" style="color: #047857; font-weight: bold;">RS ${(profitReportStats.yearSalesTotal || 0).toLocaleString()}</td>
+              <td class="info-label">Lifetime Total Sales:</td>
+              <td class="info-val" style="color: #047857; font-weight: 900;">RS ${(profitReportStats.allSalesTotal || 0).toLocaleString()}</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr style="height: 32px;">
+              <th class="col-header" style="text-align: center;">#</th>
+              <th class="col-header" style="text-align: left;">Financial Line Item</th>
+              <th class="col-header" style="text-align: center;">Category</th>
+              <th class="col-header" style="text-align: center;">Volume / Stock Details</th>
+              <th class="col-header" style="text-align: right;">Amount (RS)</th>
+            </tr>
+            <tr>
+              <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px;">1</td>
+              <td style="border: 1px solid #cbd5e1; font-weight: bold; color: #047857; padding: 7px;">(+) Total Sales Revenue Earned</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #047857; padding: 7px;">Sales Revenue</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; padding: 7px;">${profitReportStats.filteredSalesCount} Sales Invoices</td>
+              <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #047857; padding: 7px;">+ RS ${Number(profitReportStats.totalRevenue || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px;">2</td>
+              <td style="border: 1px solid #cbd5e1; font-weight: bold; color: #0284c7; padding: 7px;">(-) Purchased Products Cost</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7; padding: 7px;">Restocks</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; padding: 7px;">${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs} Eggs</td>
+              <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #0284c7; padding: 7px;">- RS ${Number(profitReportStats.totalPurchasesCost || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px;">3</td>
+              <td style="border: 1px solid #cbd5e1; font-weight: bold; color: #dc2626; padding: 7px;">(-) Shop Operating Expenses</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #dc2626; padding: 7px;">Overhead Cost</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; padding: 7px;">${profitReportStats.filteredExpensesCount} Expense Logs</td>
+              <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #dc2626; padding: 7px;">- RS ${Number(profitReportStats.totalExpenses || 0).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px;">4</td>
+              <td style="border: 1px solid #cbd5e1; font-weight: bold; color: #d97706; padding: 7px;">(-) Damaged Egg Losses</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #d97706; padding: 7px;">Stock Breakage</td>
+              <td style="border: 1px solid #cbd5e1; text-align: center; padding: 7px;">${profitReportStats.filteredDamagedCount} Logs (${profitReportStats.totalDamagedEggs} Eggs)</td>
+              <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #d97706; padding: 7px;">- RS ${Number(profitReportStats.totalDamagedLoss || 0).toLocaleString()}</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="4" class="tot-lbl">FINAL PURE REALIZED NET PROFIT:</td>
+              <td class="tot-val">RS ${Number(profitReportStats.finalNetProfit || 0).toLocaleString()}</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Net_Profit_Statement_${timeframe}_${shopName.replace(/\s+/g, '_')}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
 
     if (type === 'expenses') {
       const now = new Date();
@@ -2522,21 +2851,21 @@ function StoreContent({ shopId }) {
       return;
     }
 
-    let salesVal = type === 'profit' ? (profitReportStats.totalRevenue || 0) : (dashStats.totalRevenue || 0);
-    let grossProfitVal = type === 'profit' ? (profitReportStats.grossProfit || 0) : (dashStats.totalProfit || 0);
-    let expensesVal = type === 'profit' ? (profitReportStats.totalExpenses || 0) : (dashStats.totalLoss || 0);
-    let damagedVal = type === 'profit' ? (profitReportStats.totalDamagedLoss || 0) : (dashStats.totalDamagedLoss || 0);
-    let finalNetProfitVal = type === 'profit' ? (profitReportStats.finalNetProfit || 0) : (grossProfitVal - expensesVal);
+    let salesVal = (dashStats.totalRevenue || 0);
+    let grossProfitVal = (dashStats.totalProfit || 0);
+    let expensesVal = (dashStats.totalLoss || 0);
+    let damagedVal = (dashStats.totalDamagedLoss || 0);
+    let finalNetProfitVal = (grossProfitVal - expensesVal);
 
-    if (timeframe === 'DAY' && type !== 'profit') {
+    if (timeframe === 'DAY') {
       salesVal = dashStats.todaySales || 0;
       grossProfitVal = dashStats.todayProfit || 0;
       expensesVal = dashStats.todayLoss || 0;
-    } else if (timeframe === 'MONTH' && type !== 'profit') {
+    } else if (timeframe === 'MONTH') {
       salesVal = dashStats.monthlySales || 0;
       grossProfitVal = dashStats.monthlyProfit || 0;
       expensesVal = dashStats.monthlyLoss || 0;
-    } else if (timeframe === 'YEAR' && type !== 'profit') {
+    } else if (timeframe === 'YEAR') {
       salesVal = dashStats.yearlySales || 0;
       grossProfitVal = dashStats.yearlyProfit || 0;
       expensesVal = dashStats.yearlyLoss || 0;
@@ -3959,8 +4288,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3 bg-rose-500 rounded-xl text-white shadow-sm flex items-center justify-between">
                               <div>
                                 <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todayExpense || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">Today</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.todayExp || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.todayExpCount} Entries Today</span>
                               </div>
                               <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
                                 <FileText className="w-4 h-4" />
@@ -3971,8 +4300,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3 bg-rose-600 rounded-xl text-white shadow-sm flex items-center justify-between">
                               <div>
                                 <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Month Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlyExpense || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">This Month</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.monthExp || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.monthExpCount} Entries This Month</span>
                               </div>
                               <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
                                 <TrendingDown className="w-4 h-4" />
@@ -3983,8 +4312,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3 bg-rose-700 rounded-xl text-white shadow-sm flex items-center justify-between">
                               <div>
                                 <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Total Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalExpense || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">Total</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.totalExp || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.totalExpCount} Total Entries</span>
                               </div>
                               <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
                                 <DollarSign className="w-4 h-4" />
@@ -5366,62 +5695,65 @@ function StoreContent({ shopId }) {
               {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-profit' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 sm:p-7 rounded-[2rem] border border-slate-700/80 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="space-y-1">
+                  {/* Executive Dark Navy / Emerald Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 p-6 sm:p-7 rounded-[2rem] border border-slate-800 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+                    <div className="space-y-1.5">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-teal-500/20 border border-teal-500/40 rounded-2xl text-teal-400">
-                          <DollarSign className="w-5 h-5" />
+                        <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-400">
+                          <DollarSign className="w-6 h-6" />
                         </div>
                         <div>
-                          <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight">
-                            Net Profit Analytics Report
+                          <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                            Official Financial Profit &amp; Loss Ledger
+                          </div>
+                          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-0.5">
+                            Pure Realized Net Profit Statement
                           </h2>
-                          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                            Gross Profit minus Shop Expenses &amp; Damaged Product Losses
+                          <p className="text-slate-400 text-xs font-medium mt-1">
+                            Sales Revenue minus Purchases (Petis • Trays • Eggs), Operating Expenses &amp; Damaged Stock Losses
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-600 transition-all cursor-pointer shadow-sm hover:border-teal-400"
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-700 transition-all cursor-pointer shadow-sm hover:border-emerald-400 flex items-center gap-1.5"
                         title="Print PDF Profit Report"
                       >
-                        <Printer className="w-3.5 h-3.5 text-teal-400" />
+                        <Printer className="w-4 h-4 text-emerald-400" />
                         <span>Print PDF</span>
                       </button>
 
                       <button
                         onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
+                        className="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500/40 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
                         title="Share via WhatsApp"
                       >
-                        <Send className="w-3.5 h-3.5 text-white" />
+                        <Send className="w-4 h-4 text-white" />
                         <span>WhatsApp</span>
                       </button>
 
                       <button
                         onClick={() => handleExportExcelReport('profit', reportTimeframe)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider border border-emerald-600 transition-all cursor-pointer shadow-sm"
-                        title="Export Excel (.csv) Report"
+                        className="px-3.5 py-2.5 rounded-xl bg-green-800 hover:bg-green-700 text-white text-xs font-black uppercase tracking-wider border border-green-600/40 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                        title="Export Excel Report"
                       >
-                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Excel</span>
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+                        <span>Excel Sheet</span>
                       </button>
 
                       <button
                         onClick={() => { fetchShopSales(); fetchExpenses(); fetchDamagedProducts(); }}
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                        className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
                         title="Refresh Data"
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
 
                       {/* Day / Month / Year Timeframe Selector */}
-                      <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+                      <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700">
                         {[
                           { id: 'ALL', label: 'All-Time' },
                           { id: 'DAY', label: 'Today (Day)' },
@@ -5431,10 +5763,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                               reportTimeframe === t.id
-                                ? 'bg-teal-400 text-slate-950 shadow-md font-extrabold'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                                ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
                             }`}
                           >
                             {t.label}
@@ -5444,168 +5776,338 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* 4 Dynamic Financial Stat Cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {/* Card 1: Gross Sales Profit */}
-                    <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">
-                          (+) Gross Sales Profit
-                        </span>
-                        <div className="p-1.5 bg-emerald-100 rounded-lg">
-                          <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
-                        </div>
-                      </div>
-                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700">
-                        {currency} {Number(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}
+                  {/* ─── 1. Period Sales & Gross Profit Summary (Day, Month, Year & Total) ─── */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                        1. Sales Revenue &amp; Gross Profit Overview (Day • Month • Year)
                       </h4>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-                        From {profitReportStats.filteredSalesCount} Sales Invoices
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        Sales Performance
                       </span>
                     </div>
 
-                    {/* Card 2: Shop Expenses */}
-                    <div className="bg-white border-2 border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest">
-                          (-) Shop Expenses
-                        </span>
-                        <div className="p-1.5 bg-rose-100 rounded-lg">
-                          <FileText className="w-3.5 h-3.5 text-rose-700" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Today's Sales */}
+                      <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1.5">
+                          <span>Today's Sales</span>
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[9px]">DAILY</span>
+                        </div>
+                        <h4 className="text-xl font-black text-emerald-700 tracking-tight">
+                          {currency} {(profitReportStats.todaySalesTotal || 0).toLocaleString('en-PK')}
+                        </h4>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-100 text-[11px] font-bold">
+                          <span className="text-gray-500">Gross Profit:</span>
+                          <span className="text-emerald-700 font-black">{currency} {(profitReportStats.todayProfitTotal || 0).toLocaleString('en-PK')}</span>
                         </div>
                       </div>
-                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-rose-700">
-                        - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
-                      </h4>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-                        {profitReportStats.filteredExpensesCount} Expense Logs
-                      </span>
-                    </div>
 
-                    {/* Card 3: Damaged Products Loss */}
-                    <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
-                          (-) Damaged Egg Loss
-                        </span>
-                        <div className="p-1.5 bg-amber-100 rounded-lg">
-                          <PackageX className="w-3.5 h-3.5 text-amber-700" />
+                      {/* This Month's Sales */}
+                      <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-700 mb-1.5">
+                          <span>This Month Sales</span>
+                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-full text-[9px]">MONTHLY</span>
+                        </div>
+                        <h4 className="text-xl font-black text-indigo-700 tracking-tight">
+                          {currency} {(profitReportStats.monthSalesTotal || 0).toLocaleString('en-PK')}
+                        </h4>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-indigo-100 text-[11px] font-bold">
+                          <span className="text-gray-500">Gross Profit:</span>
+                          <span className="text-indigo-700 font-black">{currency} {(profitReportStats.monthProfitTotal || 0).toLocaleString('en-PK')}</span>
                         </div>
                       </div>
-                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-amber-700">
-                        - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
-                      </h4>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-                        {profitReportStats.filteredDamagedCount} Broken Egg Logs
-                      </span>
-                    </div>
 
-                    {/* Card 4: Final Pure Realized Net Profit */}
-                    <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-300 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] font-black text-teal-800 uppercase tracking-widest">
-                          (=) Final Pure Net Profit
-                        </span>
-                        <div className="p-1.5 bg-teal-200/80 rounded-lg">
-                          <DollarSign className="w-3.5 h-3.5 text-teal-800" />
+                      {/* This Year's Sales */}
+                      <div className="bg-white border border-purple-200/80 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-purple-700 mb-1.5">
+                          <span>This Year Sales</span>
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-full text-[9px]">YEARLY</span>
+                        </div>
+                        <h4 className="text-xl font-black text-purple-700 tracking-tight">
+                          {currency} {(profitReportStats.yearSalesTotal || 0).toLocaleString('en-PK')}
+                        </h4>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-purple-100 text-[11px] font-bold">
+                          <span className="text-gray-500">Gross Profit:</span>
+                          <span className="text-purple-700 font-black">{currency} {(profitReportStats.yearProfitTotal || 0).toLocaleString('en-PK')}</span>
                         </div>
                       </div>
-                      <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${profitReportStats.finalNetProfit >= 0 ? 'text-teal-800' : 'text-rose-700'}`}>
-                        {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
-                      </h4>
-                      <span className="text-[10px] font-black text-teal-700 uppercase mt-1 block">
-                        Realized Cash Balance
-                      </span>
+
+                      {/* Lifetime Total Sales */}
+                      <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">
+                          <span>All-Time Total Sales</span>
+                          <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px]">ALL-TIME</span>
+                        </div>
+                        <h4 className="text-xl font-black text-amber-700 tracking-tight">
+                          {currency} {(profitReportStats.allSalesTotal || 0).toLocaleString('en-PK')}
+                        </h4>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-100 text-[11px] font-bold">
+                          <span className="text-gray-500">Total Profit:</span>
+                          <span className="text-amber-700 font-black">{currency} {(profitReportStats.allProfitTotal || 0).toLocaleString('en-PK')}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Financial Reconciliation Statement Table */}
-                  <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4">
-                    <div>
-                      <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-teal-600" />
-                        Financial Profit &amp; Loss Statement ({reportTimeframe})
-                      </h3>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">
-                        Transparent breakdown deducting operational expenses &amp; damaged egg losses
-                      </p>
+                  {/* ─── 2. Step-by-Step Financial Deductions Flow ─── */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-teal-600" />
+                        2. Net Profit Calculation Flow ({reportTimeframe === 'DAY' ? 'Today' : reportTimeframe === 'MONTH' ? 'This Month' : reportTimeframe === 'YEAR' ? 'This Year' : 'All-Time'})
+                      </h4>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                        Revenue - Purchases - Expenses - Damage = Net Profit
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                      {/* Card 1: Total Sales Revenue */}
+                      <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">
+                              (+) 1. Total Sales
+                            </span>
+                            <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <h4 className="text-lg sm:text-xl font-black tracking-tight text-emerald-700">
+                            + {currency} {Number(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                          </h4>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500">
+                          {profitReportStats.filteredSalesCount} Invoices
+                        </div>
+                      </div>
+
+                      {/* Card 2: Purchased Products (Cost) */}
+                      <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">
+                              (-) 2. Purchases Cost
+                            </span>
+                            <div className="p-1.5 bg-blue-100 rounded-lg text-blue-700">
+                              <Truck className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <h4 className="text-lg sm:text-xl font-black tracking-tight text-blue-700">
+                            - {currency} {Number(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}
+                          </h4>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-blue-50 space-y-1">
+                          <div className="flex flex-wrap gap-1 text-[9px] font-black">
+                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                              📦 {profitReportStats.totalPurchasesPetis} P
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded">
+                              🍱 {profitReportStats.totalPurchasesTrays} T
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
+                              🥚 {profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} E
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 3: Shop Operating Expenses */}
+                      <div className="bg-white border-2 border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest">
+                              (-) 3. Shop Expenses
+                            </span>
+                            <div className="p-1.5 bg-rose-100 rounded-lg text-rose-700">
+                              <FileText className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <h4 className="text-lg sm:text-xl font-black tracking-tight text-rose-700">
+                            - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
+                          </h4>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500">
+                          {profitReportStats.filteredExpensesCount} Expense Logs
+                        </div>
+                      </div>
+
+                      {/* Card 4: Damaged Egg Loss */}
+                      <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
+                              (-) 4. Damaged Loss
+                            </span>
+                            <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
+                              <PackageX className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <h4 className="text-lg sm:text-xl font-black tracking-tight text-amber-700">
+                            - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                          </h4>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-amber-800">
+                          {profitReportStats.filteredDamagedCount} Logs ({profitReportStats.totalDamagedEggs} Eggs)
+                        </div>
+                      </div>
+
+                      {/* Card 5: Final Pure Realized Net Profit */}
+                      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 border-2 border-emerald-400 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[9px] font-black text-emerald-900 uppercase tracking-widest">
+                              (=) 5. Pure Net Profit
+                            </span>
+                            <div className="p-1.5 bg-emerald-200 rounded-lg text-emerald-900">
+                              <DollarSign className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <h4 className={`text-lg sm:text-xl font-black tracking-tight ${profitReportStats.finalNetProfit >= 0 ? 'text-emerald-900' : 'text-rose-700'}`}>
+                            {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
+                          </h4>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-emerald-200 text-[10px] font-black text-emerald-800 uppercase">
+                          Realized Cash Balance
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ─── 3. Financial Reconciliation Statement Table (White & Gray) ─── */}
+                  <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                          Financial Profit &amp; Loss Statement ({reportTimeframe})
+                        </h3>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">
+                          Transparent ledger deducting product purchases, operating expenses &amp; damaged stock
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                        {shop?.name || 'Shop'} Accounts
+                      </span>
                     </div>
 
                     <div className="overflow-x-auto rounded-2xl border border-gray-200">
                       <table className="w-full text-left text-xs text-gray-800">
-                        <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                        <thead className="bg-gray-100 text-[10px] font-black text-gray-600 uppercase tracking-wider border-b border-gray-200">
                           <tr>
-                            <th className="p-3">#</th>
-                            <th className="p-3">Financial Line Item</th>
-                            <th className="p-3 text-center">Category / Source</th>
-                            <th className="p-3 text-center">Records</th>
-                            <th className="p-3 text-right">Amount (RS)</th>
+                            <th className="p-3.5 text-center">#</th>
+                            <th className="p-3.5">Financial Line Item &amp; Description</th>
+                            <th className="p-3.5 text-center">Source / Stock Details</th>
+                            <th className="p-3.5 text-center">Records / Quantity</th>
+                            <th className="p-3.5 text-right">Amount (RS)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 font-bold">
-                          {/* Row 1: Gross Sales Profit */}
-                          <tr className="hover:bg-gray-50">
-                            <td className="p-3 text-gray-400 font-bold">1</td>
-                            <td className="p-3 text-emerald-800 font-extrabold">
-                              (+) Gross Profit Earned from Sales
+                          {/* Row 1: Total Sales Revenue */}
+                          <tr className="hover:bg-gray-50/80 transition-colors">
+                            <td className="p-3.5 text-center text-gray-400 font-bold">1</td>
+                            <td className="p-3.5 text-emerald-800 font-extrabold flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                              (+) Total Sales Revenue Earned
                             </td>
-                            <td className="p-3 text-center">
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800">
+                            <td className="p-3.5 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-200">
                                 Sales Revenue
                               </span>
                             </td>
-                            <td className="p-3 text-center text-gray-600">
-                              {profitReportStats.filteredSalesCount} Invoices
+                            <td className="p-3.5 text-center text-gray-600">
+                              {profitReportStats.filteredSalesCount} Sales Invoices
                             </td>
-                            <td className="p-3 text-right text-emerald-700 font-black text-sm">
-                              + {currency} {Number(profitReportStats.grossProfit || 0).toLocaleString('en-PK')}
+                            <td className="p-3.5 text-right text-emerald-700 font-black text-sm">
+                              + {currency} {Number(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                             </td>
                           </tr>
 
-                          {/* Row 2: Shop Expenses */}
-                          <tr className="hover:bg-gray-50">
-                            <td className="p-3 text-gray-400 font-bold">2</td>
-                            <td className="p-3 text-rose-800 font-extrabold">
-                              (-) Shop Operational Expenses (Bills, Rent, Transport)
+                          {/* Row 2: Purchased Products Cost */}
+                          <tr className="hover:bg-gray-50/80 transition-colors">
+                            <td className="p-3.5 text-center text-gray-400 font-bold">2</td>
+                            <td className="p-3.5 text-blue-900 font-extrabold">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                (-) Purchased Products / Restocks Cost
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-normal pl-4 mt-0.5">
+                                Stock acquired from suppliers during this period
+                              </div>
                             </td>
-                            <td className="p-3 text-center">
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-800">
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex items-center gap-1">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px] font-black">
+                                  📦 {profitReportStats.totalPurchasesPetis} Petis
+                                </span>
+                                <span className="px-2 py-0.5 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded text-[9px] font-black">
+                                  🍱 {profitReportStats.totalPurchasesTrays} Trays
+                                </span>
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[9px] font-black">
+                                  🥚 {profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} Eggs
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3.5 text-center text-gray-600">
+                              {profitReportStats.filteredPurchasesCount} Restocks
+                            </td>
+                            <td className="p-3.5 text-right text-blue-700 font-black text-sm">
+                              - {currency} {Number(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}
+                            </td>
+                          </tr>
+
+                          {/* Row 3: Shop Operational Expenses */}
+                          <tr className="hover:bg-gray-50/80 transition-colors">
+                            <td className="p-3.5 text-center text-gray-400 font-bold">3</td>
+                            <td className="p-3.5 text-rose-800 font-extrabold">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                                (-) Shop Operational Expenses (Bills, Rent, Logistics)
+                              </div>
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-rose-50 text-rose-800 border border-rose-200">
                                 Overhead Cost
                               </span>
                             </td>
-                            <td className="p-3 text-center text-gray-600">
-                              {profitReportStats.filteredExpensesCount} Entries
+                            <td className="p-3.5 text-center text-gray-600">
+                              {profitReportStats.filteredExpensesCount} Expense Logs
                             </td>
-                            <td className="p-3 text-right text-rose-700 font-black text-sm">
+                            <td className="p-3.5 text-right text-rose-700 font-black text-sm">
                               - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
                             </td>
                           </tr>
 
-                          {/* Row 3: Damaged Egg Loss */}
-                          <tr className="hover:bg-gray-50">
-                            <td className="p-3 text-gray-400 font-bold">3</td>
-                            <td className="p-3 text-amber-800 font-extrabold">
-                              (-) Damaged / Broken Egg Inventory Loss
+                          {/* Row 4: Damaged Egg Loss */}
+                          <tr className="hover:bg-gray-50/80 transition-colors">
+                            <td className="p-3.5 text-center text-gray-400 font-bold">4</td>
+                            <td className="p-3.5 text-amber-800 font-extrabold">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                (-) Damaged / Broken Egg Inventory Loss
+                              </div>
                             </td>
-                            <td className="p-3 text-center">
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800">
+                            <td className="p-3.5 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
                                 Waste &amp; Breakage
                               </span>
                             </td>
-                            <td className="p-3 text-center text-gray-600">
-                              {profitReportStats.filteredDamagedCount} Logs
+                            <td className="p-3.5 text-center text-gray-600">
+                              {profitReportStats.filteredDamagedCount} Logs ({profitReportStats.totalDamagedEggs} Eggs)
                             </td>
-                            <td className="p-3 text-right text-amber-700 font-black text-sm">
+                            <td className="p-3.5 text-right text-amber-700 font-black text-sm">
                               - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
                             </td>
                           </tr>
                         </tbody>
-                        <tfoot className="bg-teal-50/80 border-t-2 border-teal-200 font-black text-xs">
+                        <tfoot className="bg-emerald-50 border-t-2 border-emerald-200 font-black text-xs">
                           <tr>
-                            <td colSpan="4" className="p-3.5 text-right text-teal-900 uppercase font-black text-xs tracking-wider">
+                            <td colSpan="4" className="p-4 text-right text-emerald-950 uppercase font-black text-xs tracking-wider">
                               (=) FINAL PURE REALIZED NET PROFIT:
                             </td>
-                            <td className={`p-3.5 text-right text-base font-black ${profitReportStats.finalNetProfit >= 0 ? 'text-teal-800' : 'text-rose-700'}`}>
+                            <td className={`p-4 text-right text-base font-black ${profitReportStats.finalNetProfit >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
                               {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
                             </td>
                           </tr>
@@ -5676,9 +6178,9 @@ function StoreContent({ shopId }) {
                         <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[9px] font-black">DAILY</span>
                       </div>
                       <h4 className="text-2xl font-black text-rose-600 tracking-tight">
-                        {currency} {(dashStats.todayLoss || 0).toLocaleString('en-PK')}
+                        {currency} {(dynamicExpenseStats.todayExp || 0).toLocaleString('en-PK')}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Logged operational overheads today</p>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{dynamicExpenseStats.todayExpCount} expense entries logged today</p>
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -5687,9 +6189,9 @@ function StoreContent({ shopId }) {
                         <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[9px] font-black">MONTHLY</span>
                       </div>
                       <h4 className="text-2xl font-black text-amber-600 tracking-tight">
-                        {currency} {(dashStats.monthlyLoss || 0).toLocaleString('en-PK')}
+                        {currency} {(dynamicExpenseStats.monthExp || 0).toLocaleString('en-PK')}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Cumulative expenses this month</p>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{dynamicExpenseStats.monthExpCount} cumulative expenses this month</p>
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -5698,9 +6200,9 @@ function StoreContent({ shopId }) {
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[9px] font-black">YEARLY</span>
                       </div>
                       <h4 className="text-2xl font-black text-indigo-600 tracking-tight">
-                        {currency} {(dashStats.yearlyLoss || 0).toLocaleString('en-PK')}
+                        {currency} {(dynamicExpenseStats.yearExp || 0).toLocaleString('en-PK')}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Full yearly total operating cost</p>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{dynamicExpenseStats.yearExpCount} full yearly operating costs</p>
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -5709,9 +6211,9 @@ function StoreContent({ shopId }) {
                         <span className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[9px] font-black">BREAKAGE</span>
                       </div>
                       <h4 className="text-2xl font-black text-orange-600 tracking-tight">
-                        {currency} {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                        {currency} {(dynamicExpenseStats.totalDamaged || 0).toLocaleString('en-PK')}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1 font-medium">Egg cracked/broken stock losses</p>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{dynamicExpenseStats.totalDamagedEggs} egg cracked/broken stock losses</p>
                     </div>
                   </div>
 
@@ -5757,10 +6259,10 @@ function StoreContent({ shopId }) {
                         </span>
                         <h4 className="text-3xl font-black text-slate-900 tracking-tight">
                           {currency} {(
-                            reportTimeframe === 'DAY' ? (dashStats.todayLoss || 0) :
-                              reportTimeframe === 'MONTH' ? (dashStats.monthlyLoss || 0) :
-                                reportTimeframe === 'YEAR' ? (dashStats.yearlyLoss || 0) :
-                                  dashStats.totalLoss
+                            reportTimeframe === 'DAY' ? dynamicExpenseStats.todayTotalLoss :
+                              reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
+                                reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
+                                  dynamicExpenseStats.grandTotalLoss
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
