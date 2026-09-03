@@ -139,12 +139,14 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
                 <NavItem to="/store" icon={Store} label="All Products" />
               )}
 
-              {/* Only Shop Admin & Super Admin can manage teams & purchases */}
+              {/* Only Shop Admin can view purchases */}
+              {isShopAdmin() && (
+                <NavItem to="/purchases" icon={Truck} label="Purchases" />
+              )}
+
+              {/* Only Shop Admin & Super Admin can manage teams */}
               {(isShopAdmin() || isSuperAdmin()) && (
-                <>
-                  <NavItem to="/purchases" icon={Truck} label="Purchases" />
-                  <NavItem to="/team" icon={Users} label="Team Management" />
-                </>
+                <NavItem to="/team" icon={Users} label="Team Management" />
               )}
             </div>
           </div>
