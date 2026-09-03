@@ -663,7 +663,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Banknote className="w-3 h-3" /> Cash (نغد)
+                  <Banknote className="w-3 h-3" /> Cash
                 </button>
                 <button
                   type="button"
@@ -678,7 +678,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <CreditCard className="w-3 h-3" /> Bank / Online (بانک)
+                  <CreditCard className="w-3 h-3" /> Bank / Online
                 </button>
               </div>
             </div>

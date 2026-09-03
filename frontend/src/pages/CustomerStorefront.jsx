@@ -221,7 +221,7 @@ function CustomerAuthView({ shopInfo }) {
   );
 }
 
-// ─── Cart Drawer Component ───────────────────────────────────────────────────
+// ─── Cart Drawer Component (Sleek Gray Theme with Smooth Transitions) ───────────────────────────────────────────────────
 function CartDrawer({ currency }) {
   const safeCurrency = (!currency || currency === '$') ? 'Rs.' : currency;
   const { cart, cartOpen, setCartOpen, cartTotal, updateCartItem, updateCartItemUnit, removeFromCart, clearCart } = useCustomerAuth();
@@ -231,77 +231,102 @@ function CartDrawer({ currency }) {
 
   return (
     <div className="fixed inset-0 z-[150] flex justify-end" onClick={() => setCartOpen(false)}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" />
+      <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-300" />
       <div
-        className="relative w-full max-w-md bg-[#1E293B] border-l border-slate-700 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 text-white"
+        className="relative w-full max-w-md bg-gradient-to-b from-[#182232] via-[#0f172a] to-[#0b1120] border-l-2 border-slate-700/80 shadow-[0_0_50px_rgba(0,0,0,0.8),-10px_0_30px_rgba(30,41,59,0.5)] flex flex-col animate-in slide-in-from-right duration-300 text-white"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-6 border-b border-slate-700/60 bg-[#15202B]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#1B3817] rounded-xl border border-white/10">
-              <ShoppingCart className="w-5 h-5 text-white" />
+            <div className="p-2.5 bg-slate-800/90 rounded-2xl border border-slate-700/80 shadow-inner flex items-center justify-center">
+              <ShoppingCart className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               <h2 className="text-lg font-black text-white uppercase tracking-tight">Your Cart</h2>
-              <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{cart.length} item{cart.length !== 1 ? 's' : ''}</p>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider inline-block mt-0.5">
+                {cart.length} item{cart.length !== 1 ? 's' : ''}
+              </span>
             </div>
           </div>
-          <button onClick={() => setCartOpen(false)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/10 cursor-pointer">
-            <X className="w-4 h-4 text-white" />
+          <button
+            onClick={() => setCartOpen(false)}
+            className="p-2.5 bg-slate-800/80 hover:bg-rose-500/20 hover:text-rose-400 rounded-xl transition-all duration-300 border border-slate-700/80 hover:border-rose-500/40 cursor-pointer active:scale-90"
+            title="Close Cart"
+          >
+            <X className="w-4 h-4 text-slate-300 hover:text-rose-400" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-3.5">
+        {/* Cart Item List with Smooth Transitions */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
           {cart.length === 0 ? (
-            <div className="text-center py-20 flex flex-col items-center">
-              <div className="p-5 bg-slate-900 rounded-full border border-slate-700 mb-3">
-                <ShoppingCart className="w-10 h-10 text-slate-600" />
+            <div className="text-center py-24 flex flex-col items-center justify-center">
+              <div className="p-6 bg-slate-900/90 rounded-3xl border border-slate-800 mb-4 shadow-inner">
+                <ShoppingCart className="w-12 h-12 text-slate-600 animate-pulse" />
               </div>
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Your cart is currently empty</p>
+              <p className="text-slate-300 font-black uppercase tracking-wider text-sm">Your Cart is Empty</p>
+              <p className="text-slate-500 text-xs mt-1">Add items from the catalog to place an order</p>
             </div>
           ) : cart.map((item, idx) => {
             const currentUnit = item.unit || 'egg';
             return (
-              <div key={`${item.itemId}_${currentUnit}_${idx}`} className="flex flex-col gap-2.5 bg-slate-900/90 border border-slate-700/70 rounded-2xl p-3.5 shadow-md">
+              <div
+                key={`${item.itemId}_${currentUnit}_${idx}`}
+                className="group/cart flex flex-col gap-3 bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/90 hover:border-slate-700 rounded-2xl p-3.5 sm:p-4 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 border border-slate-700">
+                  <div className="w-13 h-13 rounded-xl overflow-hidden bg-slate-950 flex-shrink-0 border border-slate-800 group-hover/cart:border-slate-700 transition-all">
                     {item.image ? (
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover/cart:scale-105 transition-transform duration-300" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center"><Egg className="w-5 h-5 text-slate-600" /></div>
+                      <div className="w-full h-full flex items-center justify-center"><Egg className="w-6 h-6 text-slate-600" /></div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-white text-xs truncate uppercase tracking-tight">{item.name}</p>
-                    <p className="text-emerald-400 font-black text-sm mt-0.5">{safeCurrency} {item.price.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">/ {currentUnit.toUpperCase()}</span></p>
+                    <p className="font-black text-white text-xs truncate uppercase tracking-tight group-hover/cart:text-cyan-300 transition-colors">
+                      {item.name}
+                    </p>
+                    <p className="text-emerald-400 font-black text-sm mt-0.5">
+                      {safeCurrency} {Number(item.price || 0).toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">/ {currentUnit.toUpperCase()}</span>
+                    </p>
                   </div>
-                  <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
-                    <button onClick={() => updateCartItem(item.itemId, item.quantity - 1, currentUnit)}
-                      className="w-7 h-7 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg transition-all cursor-pointer">
-                      <Minus className="w-3 h-3 text-white" />
+                  <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 shadow-inner">
+                    <button
+                      onClick={() => updateCartItem(item.itemId, item.quantity - 1, currentUnit)}
+                      className="w-7 h-7 flex items-center justify-center bg-slate-700/60 hover:bg-slate-600 text-slate-200 hover:text-white rounded-lg transition-all active:scale-90 cursor-pointer"
+                      title="Decrease quantity"
+                    >
+                      <Minus className="w-3 h-3" />
                     </button>
-                    <span className="text-white font-black text-xs w-6 text-center">{item.quantity}</span>
-                    <button onClick={() => updateCartItem(item.itemId, item.quantity + 1, currentUnit)}
-                      className="w-7 h-7 flex items-center justify-center bg-[#1B3817] text-white rounded-lg transition-all cursor-pointer">
-                      <Plus className="w-3 h-3 text-white" />
+                    <span className="text-white font-black text-xs w-6 text-center select-none">{item.quantity}</span>
+                    <button
+                      onClick={() => updateCartItem(item.itemId, item.quantity + 1, currentUnit)}
+                      className="w-7 h-7 flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all active:scale-90 cursor-pointer shadow-sm border-t border-t-emerald-300/40 border-b-2 border-b-emerald-900"
+                      title="Increase quantity"
+                    >
+                      <Plus className="w-3 h-3" />
                     </button>
-                    <button onClick={() => removeFromCart(item.itemId, currentUnit)}
-                      className="w-7 h-7 flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all ml-1 cursor-pointer">
-                      <Trash2 className="w-3 h-3 text-rose-400" />
+                    <button
+                      onClick={() => removeFromCart(item.itemId, currentUnit)}
+                      className="w-7 h-7 flex items-center justify-center bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all ml-0.5 active:scale-90 cursor-pointer border border-rose-500/20"
+                      title="Remove item"
+                    >
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
                 {/* Peti, Tray, Single Egg Unit Switcher in Cart */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-1.5">
+                <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-1.5">
                   <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Unit:</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'peti')}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${currentUnit === 'peti'
-                        ? 'bg-amber-500 text-zinc-950 font-black shadow border border-amber-300'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'peti'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
                         }`}
                     >
                       📦 Peti
@@ -309,9 +334,9 @@ function CartDrawer({ currency }) {
                     <button
                       type="button"
                       onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'tray')}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${currentUnit === 'tray'
-                        ? 'bg-amber-500 text-zinc-950 font-black shadow border border-amber-300'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'tray'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
                         }`}
                     >
                       🍱 Tray
@@ -319,9 +344,9 @@ function CartDrawer({ currency }) {
                     <button
                       type="button"
                       onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'egg')}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${currentUnit === 'egg'
-                        ? 'bg-amber-500 text-zinc-950 font-black shadow border border-amber-300'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                      className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'egg'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
                         }`}
                     >
                       🥚 Egg
@@ -333,23 +358,29 @@ function CartDrawer({ currency }) {
           })}
         </div>
 
+        {/* Footer Area with 3D Action Buttons */}
         {cart.length > 0 && (
-          <div className="p-6 border-t border-slate-700/60 bg-[#15202B] space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400 font-bold uppercase text-xs tracking-widest">Total Amount</span>
-              <span className="text-2xl font-black text-emerald-400">{safeCurrency} {cartTotal.toLocaleString()}</span>
+          <div className="p-5 border-t border-slate-800/90 bg-slate-900/95 space-y-3 backdrop-blur-md">
+            <div className="flex items-center justify-between p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Total Amount</span>
+              <span className="text-2xl font-black text-emerald-400 tracking-tight drop-shadow-sm">
+                {safeCurrency} {cartTotal.toLocaleString()}
+              </span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setCheckoutOpen(true)}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:via-teal-500 hover:to-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-[0_6px_20px_rgba(16,185,129,0.35)] hover:shadow-[0_10px_28px_rgba(16,185,129,0.5)] border-t border-t-emerald-300/40 border-b-4 border-b-emerald-950 active:translate-y-1 active:border-b-0 cursor-pointer flex items-center justify-center gap-2"
               >
-                Proceed to Checkout
+                <span>Proceed to Checkout</span>
               </button>
             </div>
-            <button onClick={clearCart}
-              className="w-full py-3 bg-white/5 hover:bg-rose-500/10 border border-white/10 text-slate-400 hover:text-rose-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all">
-              Empty Cart
+            <button
+              onClick={clearCart}
+              className="w-full py-2.5 bg-slate-800/60 hover:bg-rose-500/15 border border-slate-700/80 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all duration-300 active:scale-98 cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Empty Cart</span>
             </button>
           </div>
         )}
@@ -2228,24 +2259,144 @@ function StoreContent({ shopId }) {
     };
   }, [unifiedSalesList, shopSalesList, items, expensesList, damagedProductsList, reportTimeframe, dashStats]);
 
+  // ─── Live Dynamic Breakdown Hooks for 100% Real-time Dashboard Accuracy ───
+  const salesLiveBreakdown = useMemo(() => {
+    const activeData = unifiedSalesList && unifiedSalesList.length > 0 ? unifiedSalesList : (shopSalesList || []);
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const todaySales = activeData.filter(s => {
+      const d = new Date(s.saleDate || s.createdAt || s.date || 0);
+      return !isNaN(d.getTime()) && (d.toISOString().split('T')[0] === todayStr || d.toDateString() === now.toDateString());
+    });
+    const todayRevenue = todaySales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) || dashStats.todaySales || 0;
+    const todayOrders = todaySales.length || dashStats.todayOrdersCount || 0;
+
+    const monthSales = activeData.filter(s => {
+      const d = new Date(s.saleDate || s.createdAt || s.date || 0);
+      return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthRevenue = monthSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) || dashStats.monthlySales || 0;
+    const monthOrders = monthSales.length || dashStats.monthlyOrdersCount || 0;
+
+    const yearSales = activeData.filter(s => {
+      const d = new Date(s.saleDate || s.createdAt || s.date || 0);
+      return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+    });
+    const yearRevenue = yearSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) || dashStats.yearlySales || 0;
+    const yearOrders = yearSales.length || dashStats.yearlyOrdersCount || 0;
+
+    const totalRevenue = activeData.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) || dashStats.totalRevenue || 0;
+    const totalOrders = activeData.length || dashStats.totalOrders || 0;
+
+    return {
+      todayRevenue,
+      todayOrders,
+      monthRevenue,
+      monthOrders,
+      yearRevenue,
+      yearOrders,
+      totalRevenue,
+      totalOrders
+    };
+  }, [unifiedSalesList, shopSalesList, dashStats]);
+
+  const purchasesLiveBreakdown = useMemo(() => {
+    let totalPurchasesCost = 0;
+    let totalPurchasesEggs = 0;
+    let cashPaid = 0;
+    let bankPaid = 0;
+    let dueBalance = 0;
+
+    (items || []).forEach(p => {
+      const e = Number(p.eggQuantity || 0);
+      const peti = Number(p.petiQuantity || 0);
+      const tray = Number(p.trayQuantity || 0);
+      const totalItemEggs = (peti * 360) + (tray * 30) + e;
+      totalPurchasesEggs += totalItemEggs;
+
+      const cost = Number(p.totalPurchaseCost || p.purchaseCost || p.totalCost) ||
+        (Number(p.costPrice || 0) * (totalItemEggs / (p.unitType === 'peti' ? 360 : p.unitType === 'tray' ? 30 : 1)));
+      totalPurchasesCost += Math.round(cost);
+
+      cashPaid += Number(p.cashPaid || p.amountPaidCash || 0);
+      bankPaid += Number(p.bankPaid || p.amountPaidBank || 0);
+      dueBalance += Number(p.dueAmount || p.balanceDue || 0);
+    });
+
+    const totalPetisPurchased = totalPurchasesEggs > 0 ? Number((totalPurchasesEggs / 360).toFixed(1)) : (Number(dashStats.totalPetisPurchased) || 0);
+    const totalTraysPurchased = totalPurchasesEggs > 0 ? Math.round(totalPurchasesEggs / 30) : (dashStats.totalTraysPurchased || 0);
+
+    return {
+      totalPetisPurchased,
+      totalTraysPurchased,
+      totalPurchaseCost: totalPurchasesCost || dashStats.totalPurchaseCost || 0,
+      cashPaidToSupplier: cashPaid || dashStats.cashPaidToSupplier || 0,
+      bankPaidToSupplier: bankPaid || dashStats.bankPaidToSupplier || 0,
+      dueToSupplier: dueBalance || dashStats.dueToSupplier || 0,
+    };
+  }, [items, dashStats]);
+
+  const stockLiveBreakdown = useMemo(() => {
+    let totalEggs = 0;
+    let totalValue = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    (items || []).forEach(item => {
+      const e = Number(item.eggQuantity || 0);
+      const peti = Number(item.petiQuantity || 0);
+      const tray = Number(item.trayQuantity || 0);
+      const itemStock = Number(item.stock || 0);
+      const totalItemEggs = (peti * 360) + (tray * 30) + e || (itemStock * 30);
+      totalEggs += totalItemEggs;
+
+      const price = Number(item.price || item.costPrice || 0);
+      totalValue += (totalItemEggs / 30) * price;
+
+      if (totalItemEggs === 0 || itemStock === 0) {
+        outOfStockCount++;
+      } else if (totalItemEggs < 300 || itemStock < 10) {
+        lowStockCount++;
+      }
+    });
+
+    const totalPetis = totalEggs > 0 ? Number((totalEggs / 360).toFixed(1)) : (dashStats.totalStockPetis || 0);
+    const totalTrays = totalEggs > 0 ? Math.round(totalEggs / 30) : (dashStats.totalStockTrays || 0);
+    const totalStockEggs = totalEggs || dashStats.totalStockEggs || 0;
+    const totalInventoryValue = totalValue > 0 ? Math.round(totalValue) : (dashStats.totalInventoryValue || 0);
+
+    return {
+      totalPetis,
+      totalTrays,
+      totalStockEggs,
+      totalInventoryValue,
+      totalProducts: (items || []).length || dashStats.totalProducts || 0,
+      lowStockCount,
+      outOfStockCount
+    };
+  }, [items, dashStats]);
+
   // ─── Executive Net Realized Profit/Loss Breakdown for Main Dashboard ───
   const netStats = useMemo(() => {
-    const todayGrossProfit = dashStats.todayProfit || 0;
+    const todayGrossProfit = profitReportStats.todayProfitTotal || dashStats.todayProfit || 0;
     const todayExp = dynamicExpenseStats.todayExp || 0;
     const todayDmg = dynamicExpenseStats.todayDamaged || 0;
     const todayNet = todayGrossProfit - todayExp - todayDmg;
 
-    const monthlyGrossProfit = dashStats.monthlyProfit || 0;
+    const monthlyGrossProfit = profitReportStats.monthProfitTotal || dashStats.monthlyProfit || 0;
     const monthlyExp = dynamicExpenseStats.monthExp || 0;
     const monthlyDmg = dynamicExpenseStats.monthDamaged || 0;
     const monthlyNet = monthlyGrossProfit - monthlyExp - monthlyDmg;
 
-    const yearlyGrossProfit = dashStats.yearlyProfit || 0;
+    const yearlyGrossProfit = profitReportStats.yearProfitTotal || dashStats.yearlyProfit || 0;
     const yearlyExp = dynamicExpenseStats.yearExp || 0;
     const yearlyDmg = dynamicExpenseStats.yearDamaged || 0;
     const yearlyNet = yearlyGrossProfit - yearlyExp - yearlyDmg;
 
-    const totalGrossProfit = dashStats.totalProfit || 0;
+    const totalGrossProfit = profitReportStats.allProfitTotal || dashStats.totalProfit || 0;
     const totalExp = dynamicExpenseStats.totalExp || 0;
     const totalDmg = dynamicExpenseStats.totalDamaged || 0;
     const totalNet = totalGrossProfit - totalExp - totalDmg;
@@ -2268,7 +2419,7 @@ function StoreContent({ shopId }) {
       totalDmg,
       totalNet
     };
-  }, [dashStats, expensesList, damagedProductsList]);
+  }, [dashStats, profitReportStats, dynamicExpenseStats]);
 
   // ─── Generate Official Profit PDF via jsPDF & autoTable ───
   const generateProfitReportPDF = (timeframe = reportTimeframe) => {
@@ -3862,13 +4013,13 @@ function StoreContent({ shopId }) {
             {/* Desktop Toggle */}
             <button
               onClick={() => setIsDesktopOpen(!isDesktopOpen)}
-              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
+              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
               aria-label="Toggle Desktop Menu"
             >
               <Menu className="w-6 h-6" />
             </button>
 
-            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
+            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
               <ArrowLeft className="w-5 h-5" />
             </button>
 
@@ -3879,7 +4030,7 @@ function StoreContent({ shopId }) {
                   const mainContent = document.getElementById('main-store-content');
                   if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_8px_20px_rgba(37,99,235,0.6),_0_2px_6px_rgba(30,58,138,0.5)] overflow-hidden border-2 border-white/80 ring-2 ring-blue-500/60 group-hover:scale-110 group-hover:rotate-3 group-hover:border-blue-300 group-hover:ring-blue-400 group-hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] transition-all duration-300 ease-out p-0.5"
+                className="relative bg-white rounded-xl w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 shadow-[0_4px_14px_rgba(15,23,42,0.4),0_0_10px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] overflow-hidden border-2 border-white/80 ring-2 ring-blue-500/40 group-hover:scale-105 group-hover:rotate-2 group-hover:border-blue-300 group-hover:ring-blue-400 group-hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] transition-all duration-300 ease-out p-0.5"
                 title={isAdminUser ? "Go to Shop Admin Dashboard" : "Go to Customer Dashboard"}
               >
                 {shop?.logoUrl ? (
@@ -3899,7 +4050,7 @@ function StoreContent({ shopId }) {
             </div>
           </div>
 
-          {/* Center Search Input */}
+          {/* Center Search Input with Balanced Yellow, Blue & Gray Shadow */}
           <div className="flex-1 flex justify-center max-w-md mx-auto hidden sm:flex">
             <div className="relative w-full group">
               <input
@@ -3909,9 +4060,9 @@ function StoreContent({ shopId }) {
                 onFocus={() => setShowSearchDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
                 placeholder="Search products..."
-                className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-blue-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_8px_24px_rgba(37,99,235,0.55),_0_2px_8px_rgba(30,58,138,0.4)] hover:shadow-[0_12px_36px_rgba(59,130,246,0.85)] border-b-4 border-blue-600 focus:border-blue-500"
+                className="w-full bg-white/95 backdrop-blur-sm rounded-full py-2.5 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-blue-400/40 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.08),0_4px_14px_rgba(15,23,42,0.35),0_0_10px_rgba(59,130,246,0.2),0_0_8px_rgba(245,158,11,0.12)] hover:shadow-[0_6px_20px_rgba(15,23,42,0.45),0_0_15px_rgba(59,130,246,0.3),0_0_12px_rgba(245,158,11,0.2)] border-b-2 border-blue-500 focus:border-blue-400"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(37,99,235,0.6)] hover:shadow-[0_10px_25px_rgba(59,130,246,0.85)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer">
+              <button className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_4px_10px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25)] hover:shadow-[0_6px_16px_rgba(15,23,42,0.5),0_0_12px_rgba(245,158,11,0.3)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-105 active:scale-95 cursor-pointer">
                 <Search className="w-4 h-4" />
               </button>
 
@@ -3958,7 +4109,7 @@ function StoreContent({ shopId }) {
             {canBuy && (
               <button
                 onClick={() => setOrderOpen(true)}
-                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
+                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
                 title="View My Orders & Payment Status"
               >
                 <Truck className="w-5 h-5 text-blue-400" />
@@ -3969,7 +4120,7 @@ function StoreContent({ shopId }) {
             {canBuy ? (
               <button
                 onClick={() => setCartOpen(true)}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
               >
                 <ShoppingCart className="w-5 h-5" />
                 {cartCount > 0 && (
@@ -3981,7 +4132,7 @@ function StoreContent({ shopId }) {
             ) : isAdminUser ? (
               <button
                 onClick={() => setActiveView('walkin')}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
                 title="View Walk-in Customer Bill Cart"
               >
                 <Receipt className="w-5 h-5 text-emerald-400" />
@@ -4007,9 +4158,9 @@ function StoreContent({ shopId }) {
           />
         )}
 
-        {/* ─── Luxury Dark Green Sidebar (Matches Navbar) with 3D Glowing Shadow ─────────────────────── */}
+        {/* ─── Luxury Dark Green Sidebar with Balanced Blue, Yellow & Gray Shadow ─────────────────────── */}
         <aside
-          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#071306] via-[#152F12] to-[#0A1A08] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#071306] via-[#152F12] to-[#0A1A08] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-2 border-r-slate-700/80 z-[100] md:z-20 overflow-hidden shadow-[10px_0_30px_rgba(15,23,42,0.65),4px_0_15px_rgba(37,99,235,0.18)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
             } ${!isDesktopOpen ? 'md:-ml-56' : 'md:ml-0'
             }`}
         >
@@ -4050,13 +4201,23 @@ function StoreContent({ shopId }) {
                 </button>
 
                 {!isAdminUser && (
-                  <button
-                    onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
-                  >
-                    <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">My Orders</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
+                      className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                    >
+                      <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
+                      <span className="truncate">My Orders</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
+                      className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                    >
+                      <ShoppingCart className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
+                      <span className="truncate">My Cart ({cartCount})</span>
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -4196,30 +4357,6 @@ function StoreContent({ shopId }) {
                       </button>
                     );
                   })}
-                </div>
-              </div>
-            )}
-
-            {/* Cart Quick Access */}
-            {canBuy && (
-              <div>
-                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Cart</p>
-                <div className="space-y-1">
-                  <button
-                    onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
-                  >
-                    <ShoppingCart className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
-                    <span>My Cart ({cartCount})</span>
-                  </button>
-
-                  <button
-                    onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                    className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 transition-all duration-300 ease-out max-w-[200px]"
-                  >
-                    <Truck className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
-                    <span>My Orders</span>
-                  </button>
                 </div>
               </div>
             )}
@@ -4543,8 +4680,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.todayRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.todayOrders || 0} Orders</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Calendar className="w-4 h-4" />
@@ -4555,8 +4692,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-orange-500 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-orange-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Month</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-orange-100/90 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.monthRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-orange-100/90 font-bold block">{salesLiveBreakdown.monthOrders || 0} Orders</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <TrendingUp className="w-4 h-4" />
@@ -4567,8 +4704,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Year</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.yearRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.yearOrders || 0} Orders</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <ShoppingBag className="w-4 h-4" />
@@ -4579,10 +4716,10 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-orange-500 via-amber-400 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-orange-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-orange-100 uppercase tracking-wide block">Total Sales</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.totalOrders || 0} Orders</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.totalRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.totalOrders || 0} Orders</span>
                               </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-md shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <DollarSign className="w-4 h-4 text-white" />
                               </div>
                             </div>
@@ -4604,8 +4741,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold uppercase tracking-wide block text-amber-100">Petis</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{dashStats.totalProducts || 0} Products</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{Number(stockLiveBreakdown.totalPetis || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{stockLiveBreakdown.totalProducts || 0} Products</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Box className="w-4 h-4" />
@@ -4616,7 +4753,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-slate-600 via-sky-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold uppercase tracking-wide block text-sky-100">Trays</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(stockLiveBreakdown.totalTrays || 0).toLocaleString('en-PK')} Trays</h4>
                                 <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4628,7 +4765,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-slate-700 via-blue-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-blue-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold uppercase tracking-wide block text-slate-200">Eggs</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(stockLiveBreakdown.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
                                 <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4640,7 +4777,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-emerald-700 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Stock Worth</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(stockLiveBreakdown.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-emerald-100/90 font-bold block">Total Valuation</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4665,8 +4802,8 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200/90 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-slate-400 hover:shadow transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-slate-600 uppercase tracking-wide block">Purchased</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(Number(dashStats.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-500 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(Number(purchasesLiveBreakdown.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-slate-500 font-bold block">{(purchasesLiveBreakdown.totalTraysPurchased || 0)} Trays</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
                                 <Truck className="w-4 h-4" />
@@ -4677,7 +4814,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300 border-b-4 border-b-blue-900 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-sky-100 uppercase tracking-wide block">Cash Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(purchasesLiveBreakdown.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-sky-100/90 font-bold block">Paid in Cash</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4689,7 +4826,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-br from-amber-300 via-orange-200 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-orange-400/80 border-b-4 border-b-orange-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-slate-800 uppercase tracking-wide block">Bank Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(dashStats.bankPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(purchasesLiveBreakdown.bankPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-slate-700 font-bold block">Paid via Bank</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4701,7 +4838,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-br from-rose-100 via-red-100 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-rose-300 border-b-4 border-b-rose-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-black text-rose-700 uppercase tracking-wide block">Due Balance</span>
-                                <h4 className="text-lg sm:text-xl font-black text-rose-950 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-rose-950 mt-0.5">Rs. {(purchasesLiveBreakdown.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-slate-600 font-bold block">Owed Debt</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-rose-600 border border-rose-500 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4713,7 +4850,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-br from-amber-400 via-yellow-400 to-emerald-500 rounded-xl text-slate-950 shadow-md flex items-center justify-between border border-amber-300 border-b-4 border-b-amber-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-black text-slate-900 uppercase tracking-wide block">Total Cost</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(purchasesLiveBreakdown.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-emerald-950 font-bold block">Total Investment</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/40 border border-white/50 flex items-center justify-center text-slate-950 shadow-sm shrink-0">
@@ -4787,9 +4924,9 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-rose-600 via-red-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-rose-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Damaged Stock</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalDamagedPetis || 0).toFixed(1)} Petis</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(Number(dynamicExpenseStats.totalDamagedEggs || 0) / 360).toFixed(1)} Petis</h4>
                                 <span className="text-[9px] text-slate-200 font-bold block mt-0.5">
-                                  {dashStats.totalDamagedTrays || 0} Trays • {(dashStats.totalDamagedEggs || 0).toLocaleString('en-PK')} Eggs
+                                  {Math.round(Number(dynamicExpenseStats.totalDamagedEggs || 0) / 30)} Trays • {(Number(dynamicExpenseStats.totalDamagedEggs || 0)).toLocaleString('en-PK')} Eggs
                                 </span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4801,7 +4938,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today Loss</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todayDamagedLoss || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.todayDamaged || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-blue-100/90 font-semibold block">Today</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4813,7 +4950,7 @@ function StoreContent({ shopId }) {
                             <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
                                 <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Total Loss</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</h4>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.totalDamaged || 0).toLocaleString('en-PK')}</h4>
                                 <span className="text-[8.5px] text-blue-100/90 font-semibold block">Total</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -4831,7 +4968,7 @@ function StoreContent({ shopId }) {
                             <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
                             <div>
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">LOW STOCK ITEMS</span>
-                              <span className="text-lg font-black text-slate-900">{dashStats.lowStock || 0}</span>
+                              <span className="text-lg font-black text-slate-900">{stockLiveBreakdown.lowStockCount || 0}</span>
                             </div>
                           </div>
 
@@ -4840,7 +4977,7 @@ function StoreContent({ shopId }) {
                             <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
                             <div>
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">DAMAGED STOCK</span>
-                              <span className="text-lg font-black text-slate-900">{dashStats.totalDamagedLoss ? 1 : 0}</span>
+                              <span className="text-lg font-black text-slate-900">{damagedProductsList.length || (dynamicExpenseStats.totalDamaged > 0 ? 1 : 0)}</span>
                             </div>
                           </div>
 
@@ -4849,7 +4986,7 @@ function StoreContent({ shopId }) {
                             <div className="w-4 h-4 rounded-full bg-slate-300 shrink-0" />
                             <div>
                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">EXPIRING PRODUCTS</span>
-                              <span className="text-lg font-black text-slate-900">{dashStats.expiredProducts || 0}</span>
+                              <span className="text-lg font-black text-slate-900">{items.filter(i => i.expiryDate && new Date(i.expiryDate) <= new Date(Date.now() + 7 * 86400000)).length}</span>
                             </div>
                           </div>
 
@@ -4987,9 +5124,9 @@ function StoreContent({ shopId }) {
                       <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        className={`whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${activeCategory === cat
-                          ? 'bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-md'
-                          : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                        className={`whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${activeCategory === cat
+                          ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 border-t border-t-amber-200 border-b-2 border-b-amber-800 shadow-[0_4px_12px_rgba(245,158,11,0.35),0_2px_6px_rgba(15,23,42,0.4)] scale-105'
+                          : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700 shadow-[0_2px_8px_rgba(15,23,42,0.4)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.5),0_0_10px_rgba(59,130,246,0.25),0_0_6px_rgba(245,158,11,0.15)] hover:border-blue-400/50'
                           }`}
                       >
                         {cat !== 'All' && <img src="/egg.png" alt="" className="w-3.5 h-3.5 object-contain" />}
@@ -5000,7 +5137,7 @@ function StoreContent({ shopId }) {
                     {isAdminUser && (
                       <button
                         onClick={() => setAddProductModal(true)}
-                        className="ml-auto whitespace-nowrap flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-lg transition-all shrink-0"
+                        className="ml-auto whitespace-nowrap flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-lg transition-all shrink-0 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Product
                       </button>
@@ -5029,23 +5166,27 @@ function StoreContent({ shopId }) {
                         return (
                           <div
                             key={item._id}
-                            className={`group bg-[#1E293B] border rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl flex flex-col ${itemOutOfStock
-                              ? 'border-red-500/40 opacity-80'
+                            className={`group bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 border-2 rounded-2xl sm:rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] flex flex-col ${itemOutOfStock
+                              ? 'border-red-500/40 opacity-85 shadow-[0_8px_20px_-4px_rgba(239,68,68,0.2)]'
                               : itemLowStock
-                                ? 'border-amber-500/60 shadow-amber-500/10'
-                                : 'border-slate-700/60 hover:border-emerald-500/50'
+                                ? 'border-amber-500/60 shadow-[0_8px_20px_-4px_rgba(245,158,11,0.25),0_0_10px_rgba(15,23,42,0.5)] hover:shadow-[0_16px_35px_-6px_rgba(15,23,42,0.7),0_0_20px_rgba(37,99,235,0.35),0_0_15px_rgba(245,158,11,0.25)] hover:border-amber-400'
+                                : 'border-slate-700/70 hover:border-blue-500/80 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.6),0_0_10px_rgba(37,99,235,0.15)] hover:shadow-[0_16px_35px_-6px_rgba(15,23,42,0.7),0_0_20px_rgba(37,99,235,0.35),0_0_15px_rgba(245,158,11,0.2)]'
                               }`}
                           >
-                            {/* Image Container */}
-                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-900 overflow-hidden relative">
+                            {/* Image Container with Smooth Zoom & Blue Overlay */}
+                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-950 overflow-hidden relative cursor-pointer text-left">
                               {item.images?.[0] ? (
-                                <img src={item.images[0]} alt={item.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${itemOutOfStock ? 'grayscale opacity-60' : ''}`} />
+                                <img src={item.images[0]} alt={item.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`} />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Egg className="w-12 h-12 text-slate-700" />
+                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                  <Egg className="w-14 h-14 text-blue-400/40 group-hover:scale-110 group-hover:text-blue-300 transition-all duration-500" />
                                 </div>
                               )}
-                              <div className="absolute top-3 left-3 bg-[#111827]/90 px-3 py-1 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest border border-slate-700">
+                              {/* Dark to Blue Gradient Overlay on Card Bottom */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/20 opacity-80 group-hover:opacity-50 transition-opacity duration-500 pointer-events-none" />
+
+                              {/* Category Badge - Glows Blue on Hover */}
+                              <div className="absolute top-3 left-3 bg-slate-950/85 group-hover:bg-blue-600/90 text-blue-300 group-hover:text-white px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-400/30 group-hover:border-blue-300 shadow-md backdrop-blur-md transition-all duration-300">
                                 {item.category}
                               </div>
 
@@ -5057,23 +5198,25 @@ function StoreContent({ shopId }) {
                                   </span>
                                 ) : itemLowStock ? (
                                   <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md animate-pulse">
-                                    ⚠️ Low Stock ({itemStock})
+                                    ⚠️ Low ({itemStock})
                                   </span>
                                 ) : (
-                                  <span className="bg-emerald-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-400/60 shadow-md backdrop-blur-md">
+                                  <span className="bg-emerald-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-400/60 shadow-md backdrop-blur-md group-hover:scale-105 transition-transform duration-300">
                                     Stock: {itemStock}
                                   </span>
                                 )}
                               </div>
                             </button>
 
-                            {/* Item Info & Action */}
-                            <div className="p-4 flex flex-col flex-1 justify-between gap-3">
-                              <button onClick={() => setSelectedItem(item)} className="text-left space-y-1">
-                                <h3 className="font-black text-white text-sm leading-snug line-clamp-2 uppercase tracking-tight group-hover:text-emerald-300 transition-colors">
+                            {/* Item Info & Action Buttons */}
+                            <div className="p-4 flex flex-col flex-1 justify-between gap-3 bg-slate-900/60">
+                              <button onClick={() => setSelectedItem(item)} className="text-left space-y-1 cursor-pointer">
+                                <h3 className="font-black text-white text-sm leading-snug line-clamp-2 uppercase tracking-tight group-hover:text-cyan-300 transition-colors duration-300">
                                   {item.name}
                                 </h3>
-                                <p className="text-emerald-400 font-black text-lg">{currency} {item.price.toLocaleString()}</p>
+                                <p className="text-emerald-400 group-hover:text-cyan-400 font-black text-lg transition-colors duration-300 drop-shadow-sm">
+                                  {currency} {Number(item.price || 0).toLocaleString()}
+                                </p>
                               </button>
 
                               {/* Low Stock / Out of Stock Banner */}
@@ -5094,7 +5237,7 @@ function StoreContent({ shopId }) {
                                   {!itemOutOfStock && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
-                                      className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
+                                      className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:shadow-emerald-500/40 border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
                                       title="Add product to Customer Walk-in Bill"
                                     >
                                       <Receipt className="w-3.5 h-3.5" />
@@ -5104,16 +5247,16 @@ function StoreContent({ shopId }) {
                                   <div className="grid grid-cols-3 gap-1.5 w-full">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-600/60 shadow-md active:translate-y-[1px] transition-all cursor-pointer"
+                                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-cyan-300 font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-600 hover:border-blue-400 shadow-md active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
                                       title="View Product Details"
                                     >
-                                      <Eye className="w-3 h-3 text-emerald-400" />
+                                      <Eye className="w-3 h-3 text-cyan-400" />
                                       <span>View</span>
                                     </button>
 
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-blue-400/30 border-b-2 border-indigo-900 active:translate-y-[1px] transition-all cursor-pointer"
+                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md hover:shadow-blue-500/40 border-t border-blue-400/30 border-b-2 border-indigo-900 active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
                                       title="Edit Product"
                                     >
                                       <Edit2 className="w-3 h-3" />
@@ -5122,7 +5265,7 @@ function StoreContent({ shopId }) {
 
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] transition-all cursor-pointer"
+                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md hover:shadow-rose-500/40 border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
                                       title="Delete Product"
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -5134,10 +5277,10 @@ function StoreContent({ shopId }) {
                                 !itemOutOfStock ? (
                                   <button
                                     onClick={() => handleAddToCart(item)}
-                                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all shadow-md active:translate-y-[2px] active:border-b-0 cursor-pointer"
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-green-700 hover:from-emerald-500 hover:via-teal-600 hover:to-green-600 text-white border-t border-t-emerald-300/60 border-b-4 border-b-emerald-950 rounded-xl text-[10.5px] font-black uppercase tracking-[0.15em] transition-all duration-300 shadow-[0_8px_25px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.8),0_0_20px_rgba(59,130,246,0.5)] hover:-translate-y-0.5 active:translate-y-1 active:border-b-0 cursor-pointer"
                                   >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Add to Cart</span>
+                                    <Plus className="w-4 h-4 text-emerald-100" />
+                                    <span>+ Add to Cart</span>
                                   </button>
                                 ) : null
                               ) : null}
@@ -5572,33 +5715,35 @@ function StoreContent({ shopId }) {
 
               {/* ─── REGISTERED CUSTOMERS DIRECTORY VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'registered-customers' && isAdminUser && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  {/* Top Header Banner */}
+                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                     <div>
-                      <div className="flex items-center gap-2 text-indigo-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <Users className="w-4 h-4" /> Customer Management Directory
+                      <div className="flex items-center gap-2 text-indigo-400 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-0.5">
+                        <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Customer Management Directory
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Registered Customers Directory</h2>
-                      <p className="text-slate-300 text-xs mt-1">
+                      <h2 className="text-lg sm:text-2xl font-black uppercase italic tracking-tight">Registered Customers Directory</h2>
+                      <p className="text-slate-300 text-[11px] sm:text-xs mt-0.5 leading-relaxed">
                         View all customer accounts registered to this shop and print individual customer statement records.
                       </p>
                     </div>
 
                     <button
                       onClick={fetchRegisteredCustomers}
-                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer shrink-0"
                     >
-                      <RefreshCw className="w-4 h-4" /> Refresh Customers List
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Refresh Customers List</span>
                     </button>
                   </div>
 
-                  <div className="bg-white border border-gray-200 rounded-3xl overflow-visible shadow-sm">
-                    <div className="p-4 sm:p-5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl overflow-visible shadow-sm">
+                    <div className="p-3.5 sm:p-5 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
                       <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
                         <Users className="w-4 h-4 text-indigo-600" />
                         All Registered Customer Accounts ({registeredCustomersList.length})
                       </h3>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                      <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full uppercase tracking-widest">
                         {shop?.name || 'Shop'} Portal
                       </span>
                     </div>
@@ -5612,164 +5757,288 @@ function StoreContent({ shopId }) {
                         No registered customer accounts found for this shop yet
                       </div>
                     ) : (
-                      <div className="overflow-x-auto min-h-[320px] pb-28 relative">
-                        {/* Backdrop overlay to close dropdown on click outside */}
-                        {activeCustMenuId && (
-                          <div
-                            className="fixed inset-0 z-30"
-                            onClick={() => setActiveCustMenuId(null)}
-                          />
-                        )}
+                      <>
+                        {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                        <div className="block md:hidden p-3 space-y-3">
+                          {registeredCustomersList.map((cust, idx) => {
+                            const { totalSpent, ordersCount } = getCustomerStats(cust);
+                            const serialNo = idx + 1;
+                            const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
 
-                        <table className="w-full text-left text-xs text-gray-800">
-                          <thead className="bg-gray-100 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                            <tr>
-                              <th className="p-3.5 text-center">Serial #</th>
-                              <th className="p-3.5">Customer Name</th>
-                              <th className="p-3.5">Email Address</th>
-                              <th className="p-3.5">Phone / Contact</th>
-                              <th className="p-3.5">Total Shopping Spent</th>
-                              <th className="p-3.5">Orders Count</th>
-                              <th className="p-3.5">Registration Date</th>
-                              <th className="p-3.5 text-center">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {registeredCustomersList.map((cust, idx) => {
-                              const { totalSpent, ordersCount } = getCustomerStats(cust);
-                              const serialNo = idx + 1;
-                              const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
-                              const isMenuOpen = activeCustMenuId === cust._id;
-
-                              return (
-                                <tr key={cust._id} className="hover:bg-gray-50/80 transition-colors">
-                                  <td className="p-3.5 text-center">
-                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black">
-                                      #{serialNo}
-                                    </span>
-                                  </td>
-                                  <td className="p-3.5 font-black uppercase text-gray-900 flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xs shrink-0">
+                            return (
+                              <div
+                                key={`mob_cust_${cust._id}`}
+                                className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3"
+                              >
+                                {/* Card Top: Serial, Avatar, Name, ID & Delete */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-sm shrink-0">
                                       {(cust.fullName || 'C')[0].toUpperCase()}
                                     </div>
-                                    <div>
-                                      <span className="block font-black text-gray-900">{cust.fullName}</span>
-                                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mt-0.5">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px] font-black">
+                                          #{serialNo}
+                                        </span>
+                                        <span className="font-black text-gray-900 text-sm uppercase truncate">
+                                          {cust.fullName}
+                                        </span>
+                                      </div>
+                                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block mt-0.5">
                                         {uniqueId}
                                       </span>
                                     </div>
-                                  </td>
-                                  <td className="p-3.5 font-bold text-gray-600">{cust.email}</td>
-                                  <td className="p-3.5 font-bold text-teal-700">{cust.phone || '—'}</td>
-                                  <td className="p-3.5 font-black text-emerald-700 text-sm">
-                                    {currency} {totalSpent.toLocaleString('en-PK')}
-                                  </td>
-                                  <td className="p-3.5 font-black text-amber-800">
-                                    <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold">
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCustomer(cust._id, cust.fullName)}
+                                    className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer shrink-0"
+                                    title="Delete Customer Account"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                {/* Contact Details */}
+                                <div className="bg-gray-50/80 rounded-xl p-2.5 border border-gray-150 space-y-1.5 text-xs">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-gray-400 font-bold uppercase text-[9.5px]">Email:</span>
+                                    <span className="font-bold text-gray-700 truncate max-w-[200px]">{cust.email}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-gray-400 font-bold uppercase text-[9.5px]">Phone:</span>
+                                    <span className="font-bold text-teal-700">{cust.phone || '—'}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-gray-400 font-bold uppercase text-[9.5px]">Registered:</span>
+                                    <span className="font-medium text-gray-500">
+                                      {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Financial Summary 2-Col Grid */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2.5 text-center">
+                                    <span className="text-[9px] font-bold text-emerald-800 uppercase block">Total Spent</span>
+                                    <span className="text-sm font-black text-emerald-700 block mt-0.5">
+                                      {currency} {totalSpent.toLocaleString('en-PK')}
+                                    </span>
+                                  </div>
+                                  <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5 text-center">
+                                    <span className="text-[9px] font-bold text-amber-800 uppercase block">Orders Placed</span>
+                                    <span className="text-sm font-black text-amber-700 block mt-0.5">
                                       {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
                                     </span>
-                                  </td>
-                                  <td className="p-3.5 font-semibold text-gray-500">
-                                    {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                  </td>
-                                  <td className="p-3.5 text-center relative">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveCustMenuId(isMenuOpen ? null : cust._id);
-                                        }}
-                                        className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${isMenuOpen
-                                          ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
-                                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
-                                          }`}
-                                        title="Actions & Export Options"
-                                      >
-                                        <MoreVertical className="w-4 h-4" />
-                                      </button>
+                                  </div>
+                                </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteCustomer(cust._id, cust.fullName)}
-                                        className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95"
-                                        title="Delete Customer Account"
-                                      >
-                                        <Trash2 className="w-4 h-4 text-rose-600" />
-                                      </button>
-                                    </div>
+                                {/* Quick Action Buttons in 1 Line */}
+                                <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-gray-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
+                                    className="py-2 px-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                    title="Print Statement"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>Print</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
+                                    className="py-2 px-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                    title="PDF Statement"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>PDF</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWhatsAppCustomerShare(cust, idx)}
+                                    className="py-2 px-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                    title="Share on WhatsApp"
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                    <span>WhatsApp</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExportCustomerExcel(cust, idx)}
+                                    className="py-2 px-1 rounded-xl bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                    title="Export Excel"
+                                  >
+                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                    <span>Excel</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
 
-                                    {/* 3-Dot Dropdown Menu */}
-                                    {isMenuOpen && (
-                                      <div
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="absolute right-2 top-11 w-52 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 text-left"
-                                      >
+                        {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                        <div className="hidden md:block overflow-x-auto min-h-[320px] pb-28 relative">
+                          {/* Backdrop overlay to close dropdown on click outside */}
+                          {activeCustMenuId && (
+                            <div
+                              className="fixed inset-0 z-30"
+                              onClick={() => setActiveCustMenuId(null)}
+                            />
+                          )}
+
+                          <table className="w-full text-left text-xs text-gray-800">
+                            <thead className="bg-gray-100 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                              <tr>
+                                <th className="p-3.5 text-center">Serial #</th>
+                                <th className="p-3.5">Customer Name</th>
+                                <th className="p-3.5">Email Address</th>
+                                <th className="p-3.5">Phone / Contact</th>
+                                <th className="p-3.5">Total Shopping Spent</th>
+                                <th className="p-3.5">Orders Count</th>
+                                <th className="p-3.5">Registration Date</th>
+                                <th className="p-3.5 text-center">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {registeredCustomersList.map((cust, idx) => {
+                                const { totalSpent, ordersCount } = getCustomerStats(cust);
+                                const serialNo = idx + 1;
+                                const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+                                const isMenuOpen = activeCustMenuId === cust._id;
+
+                                return (
+                                  <tr key={cust._id} className="hover:bg-gray-50/80 transition-colors">
+                                    <td className="p-3.5 text-center">
+                                      <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black">
+                                        #{serialNo}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 font-black uppercase text-gray-900 flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xs shrink-0">
+                                        {(cust.fullName || 'C')[0].toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <span className="block font-black text-gray-900">{cust.fullName}</span>
+                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mt-0.5">
+                                          {uniqueId}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="p-3.5 font-bold text-gray-600">{cust.email}</td>
+                                    <td className="p-3.5 font-bold text-teal-700">{cust.phone || '—'}</td>
+                                    <td className="p-3.5 font-black text-emerald-700 text-sm">
+                                      {currency} {totalSpent.toLocaleString('en-PK')}
+                                    </td>
+                                    <td className="p-3.5 font-black text-amber-800">
+                                      <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold">
+                                        {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 font-semibold text-gray-500">
+                                      {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </td>
+                                    <td className="p-3.5 text-center relative">
+                                      <div className="flex items-center justify-center gap-1.5">
                                         <button
-                                          onClick={() => {
-                                            setActiveCustMenuId(null);
-                                            handlePrintRegisteredCustomerRecord(cust, idx);
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveCustMenuId(isMenuOpen ? null : cust._id);
                                           }}
-                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${isMenuOpen
+                                            ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                                            }`}
+                                          title="Actions & Export Options"
                                         >
-                                          <Printer className="w-4 h-4 text-indigo-600" />
-                                          <span>Print Statement</span>
+                                          <MoreVertical className="w-4 h-4" />
                                         </button>
 
                                         <button
-                                          onClick={() => {
-                                            setActiveCustMenuId(null);
-                                            handlePrintRegisteredCustomerRecord(cust, idx);
-                                          }}
-                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                                        >
-                                          <FileText className="w-4 h-4 text-rose-600" />
-                                          <span>PDF Statement</span>
-                                        </button>
-
-                                        <button
-                                          onClick={() => {
-                                            setActiveCustMenuId(null);
-                                            handleWhatsAppCustomerShare(cust, idx);
-                                          }}
-                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                                        >
-                                          <Send className="w-4 h-4 text-emerald-600" />
-                                          <span>WhatsApp</span>
-                                        </button>
-
-                                        <button
-                                          onClick={() => {
-                                            setActiveCustMenuId(null);
-                                            handleExportCustomerExcel(cust, idx);
-                                          }}
-                                          className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                                        >
-                                          <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                                          <span>Excel Sheet</span>
-                                        </button>
-
-                                        <div className="border-t border-gray-100 my-1"></div>
-
-                                        <button
-                                          onClick={() => {
-                                            setActiveCustMenuId(null);
-                                            handleDeleteCustomer(cust._id, cust.fullName);
-                                          }}
-                                          className="w-full px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          type="button"
+                                          onClick={() => handleDeleteCustomer(cust._id, cust.fullName)}
+                                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95"
+                                          title="Delete Customer Account"
                                         >
                                           <Trash2 className="w-4 h-4 text-rose-600" />
-                                          <span>Delete Account</span>
                                         </button>
                                       </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+
+                                      {/* 3-Dot Dropdown Menu */}
+                                      {isMenuOpen && (
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="absolute right-2 top-11 w-52 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 text-left"
+                                        >
+                                          <button
+                                            onClick={() => {
+                                              setActiveCustMenuId(null);
+                                              handlePrintRegisteredCustomerRecord(cust, idx);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          >
+                                            <Printer className="w-4 h-4 text-indigo-600" />
+                                            <span>Print Statement</span>
+                                          </button>
+
+                                          <button
+                                            onClick={() => {
+                                              setActiveCustMenuId(null);
+                                              handlePrintRegisteredCustomerRecord(cust, idx);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          >
+                                            <FileText className="w-4 h-4 text-rose-600" />
+                                            <span>PDF Statement</span>
+                                          </button>
+
+                                          <button
+                                            onClick={() => {
+                                              setActiveCustMenuId(null);
+                                              handleWhatsAppCustomerShare(cust, idx);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          >
+                                            <Send className="w-4 h-4 text-emerald-600" />
+                                            <span>WhatsApp</span>
+                                          </button>
+
+                                          <button
+                                            onClick={() => {
+                                              setActiveCustMenuId(null);
+                                              handleExportCustomerExcel(cust, idx);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-green-50 hover:text-green-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          >
+                                            <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                                            <span>Excel Sheet</span>
+                                          </button>
+
+                                          <div className="border-t border-gray-100 my-1"></div>
+
+                                          <button
+                                            onClick={() => {
+                                              setActiveCustMenuId(null);
+                                              handleDeleteCustomer(cust._id, cust.fullName);
+                                            }}
+                                            className="w-full px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                                          >
+                                            <Trash2 className="w-4 h-4 text-rose-600" />
+                                            <span>Delete Account</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -5778,80 +6047,67 @@ function StoreContent({ shopId }) {
               {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-sales' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-6 sm:p-7 rounded-[2rem] border border-slate-700/80 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-400">
-                          <TrendingUp className="w-5 h-5" />
+                  {/* Executive Sleek Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase tracking-widest leading-none">
+                          <span>Analytics</span>
+                          <span className="text-slate-600">&bull;</span>
+                          <span className="text-slate-400 font-bold">POS Bills &amp; Online Orders</span>
                         </div>
-                        <div>
-                          <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tight">
-                            Sales Analytics Report
-                          </h2>
-                          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                            Real-time Revenue, Orders, Egg Quantities &amp; Invoices
-                          </p>
-                        </div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
+                          Sales Analytics Report
+                        </h2>
+                        <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
+                          Real-time Revenue, Orders, Egg Quantities &amp; Invoices
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* Single Clean Line Action Buttons & Timeframe Selector */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
                       <button
                         onClick={() => setActiveView('walkin')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase shadow transition-all cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-300/40 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>+ New Walk-in</span>
+                        <Plus className="w-3.5 h-3.5" /> + New Walk-in
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-600 transition-all cursor-pointer shadow-sm hover:border-emerald-400"
-                        title="Print PDF Sales Report"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-slate-600 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Print PDF</span>
+                        <Printer className="w-3.5 h-3.5 text-emerald-400" /> Print PDF
                       </button>
-
                       <button
                         onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
-                        title="Share via WhatsApp"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Send className="w-3.5 h-3.5 text-white" />
-                        <span>WhatsApp</span>
+                        <Send className="w-3.5 h-3.5" /> WhatsApp
                       </button>
-
                       <button
                         onClick={() => handleExportExcelReport('sales', reportTimeframe)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xs uppercase border border-emerald-500/50 shadow transition-all cursor-pointer"
-                        title="Export Excel (.csv) Report"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-green-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Excel</span>
-                      </button>
-
-                      <button
-                        onClick={fetchShopSales}
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
-                        title="Refresh Sales"
-                      >
-                        <RefreshCw className="w-4 h-4" />
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
 
                       {/* Day / Month / Year Timeframe Selector */}
-                      <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+                      <div className="flex items-center gap-0.5 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 ml-1">
                         {[
-                          { id: 'ALL', label: 'All-Time' },
-                          { id: 'DAY', label: 'Today (Day)' },
-                          { id: 'MONTH', label: 'This Month' },
-                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All' },
+                          { id: 'DAY', label: 'Today' },
+                          { id: 'MONTH', label: 'Month' },
+                          { id: 'YEAR', label: 'Year' },
                         ].map(t => (
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
-                              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                            className={`px-2 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
+                              ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
                               : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                               }`}
                           >
@@ -6026,185 +6282,318 @@ function StoreContent({ shopId }) {
                       </div>
                     </div>
 
-                    {/* Sales Table */}
-                    <div className="overflow-x-auto rounded-2xl border border-gray-200">
-                      <table className="w-full text-left text-xs text-gray-800">
-                        <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                          <tr>
-                            <th className="p-3">#</th>
-                            <th className="p-3">Invoice / Source</th>
-                            <th className="p-3">Date &amp; Time</th>
-                            <th className="p-3">Customer</th>
-                            <th className="p-3">Items Purchased</th>
-                            <th className="p-3 text-center">Payment Breakdown</th>
-                            <th className="p-3 text-right">Total Amount</th>
-                            <th className="p-3 text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {filteredSalesForReport.filter(s => {
-                            const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
-                            const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
-                            const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
-                            const isCash = pMethod === 'CASH' || (Number(s.cashPaid) > 0 && !isBank && !isCredit);
-                            const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+                    {/* Sales Table & Mobile Cards */}
+                    {(() => {
+                      const displayedSalesReportList = filteredSalesForReport.filter(s => {
+                        const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+                        const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+                        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+                        const isCash = pMethod === 'CASH' || (Number(s.cashPaid) > 0 && !isBank && !isCredit);
+                        const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
 
-                            if (salesReportPaymentFilter === 'CASH') return isCash;
-                            if (salesReportPaymentFilter === 'BANK') return isBank;
-                            if (salesReportPaymentFilter === 'CREDIT') return isCredit;
-                            if (salesReportPaymentFilter === 'ONLINE') return isOnline;
-                            return true;
-                          }).length === 0 ? (
-                            <tr>
-                              <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
+                        if (salesReportPaymentFilter === 'CASH') return isCash;
+                        if (salesReportPaymentFilter === 'BANK') return isBank;
+                        if (salesReportPaymentFilter === 'CREDIT') return isCredit;
+                        if (salesReportPaymentFilter === 'ONLINE') return isOnline;
+                        return true;
+                      });
+
+                      return (
+                        <>
+                          {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                          <div className="block md:hidden p-3 space-y-3">
+                            {displayedSalesReportList.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 font-bold text-xs uppercase tracking-wider">
                                 No sales records found matching the selected filter.
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredSalesForReport.filter(s => {
-                              const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
-                              const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
-                              const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
-                              const isCash = pMethod === 'CASH' || (Number(s.cashPaid) > 0 && !isBank && !isCredit);
-                              const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+                              </div>
+                            ) : (
+                              displayedSalesReportList.map((s, idx) => {
+                                const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+                                const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                                const cust = s.customerName || 'Walk-in Customer';
+                                const phone = s.customerPhone || '';
+                                const total = Number(s.totalAmount) || 0;
+                                const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+                                
+                                const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+                                const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+                                const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
 
-                              if (salesReportPaymentFilter === 'CASH') return isCash;
-                              if (salesReportPaymentFilter === 'BANK') return isBank;
-                              if (salesReportPaymentFilter === 'CREDIT') return isCredit;
-                              if (salesReportPaymentFilter === 'ONLINE') return isOnline;
-                              return true;
-                            }).map((s, idx) => {
-                              const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
-                              const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                              const cust = s.customerName || 'Walk-in Customer';
-                              const phone = s.customerPhone || '';
-                              const total = Number(s.totalAmount) || 0;
-                              const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
-                              
-                              const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
-                              const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
-                              const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
-
-                              return (
-                                <tr key={s._id || idx} className="hover:bg-gray-50/80 transition-colors">
-                                  <td className="p-3 font-bold text-gray-400">{idx + 1}</td>
-                                  <td className="p-3">
-                                    <span className="font-black text-gray-900 block">{inv}</span>
-                                    {isOnline ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300 mt-0.5">
-                                        🌐 Online Order
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200 mt-0.5">
-                                        🏪 Shop POS Bill
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-[11px] font-bold text-gray-600">{sDate}</td>
-                                  <td className="p-3">
-                                    <div className="font-extrabold text-gray-900">{cust}</div>
-                                    {phone && <div className="text-[10px] text-teal-700 font-bold">📞 {phone}</div>}
-                                    {isOnline && <span className="text-[9px] text-indigo-600 font-bold">Logged-in User</span>}
-                                  </td>
-                                  <td className="p-3">
-                                    <div className="space-y-0.5 max-w-xs">
-                                      {(s.items || []).map((i, iIdx) => (
-                                        <span key={iIdx} className="inline-block bg-gray-100 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md mr-1 mb-0.5">
-                                          {i.name || i.title} (x{i.quantity})
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    {isCredit ? (
-                                      <div className="space-y-1">
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
-                                          <FileText className="w-2.5 h-2.5" /> Credit / Qaraz
-                                        </span>
-                                        <p className="text-[10px] font-black text-rose-700">
-                                          Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
-                                        </p>
+                                return (
+                                  <div key={`mob_sale_${s._id || idx}`} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                                    {/* Card Top: Serial, Invoice, Source & Total */}
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 border border-gray-200 rounded text-[10px] font-black">
+                                            #{idx + 1}
+                                          </span>
+                                          <span className="font-black text-gray-900 text-sm tracking-tight">{inv}</span>
+                                        </div>
+                                        <div className="mt-1">
+                                          {isOnline ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-50 text-teal-800 border border-teal-200">
+                                              🌐 Online Order
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                                              🏪 Shop POS Bill
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                    ) : isBank ? (
-                                      <div className="space-y-1">
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
-                                          <Building2 className="w-2.5 h-2.5" /> Bank Transfer
+
+                                      <div className="text-right">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase block">Total Amount</span>
+                                        <span className="text-base font-black text-emerald-700 block mt-0.5">
+                                          {currency} {total.toLocaleString('en-PK')}
                                         </span>
-                                        <p className="text-[10px] font-bold text-amber-800">
-                                          Paid: {currency} {(Number(s.bankPaid) || total).toLocaleString('en-PK')}
-                                        </p>
-                                        {(s.paymentProof || s.paymentReceipt) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setViewingReceiptModal(s.paymentProof || s.paymentReceipt)}
-                                            className="inline-flex items-center gap-1 text-[9px] text-indigo-600 font-bold hover:underline cursor-pointer bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200"
-                                          >
-                                            📷 View Receipt
-                                          </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Customer & Date Info */}
+                                    <div className="bg-gray-50/80 rounded-xl p-2.5 border border-gray-150 space-y-1 text-xs">
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-gray-400 font-bold uppercase text-[9.5px]">Customer:</span>
+                                        <span className="font-extrabold text-gray-900 truncate max-w-[180px]">{cust}</span>
+                                      </div>
+                                      {phone && (
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-gray-400 font-bold uppercase text-[9.5px]">Phone:</span>
+                                          <span className="font-bold text-teal-700">📞 {phone}</span>
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-gray-400 font-bold uppercase text-[9.5px]">Date &amp; Time:</span>
+                                        <span className="font-semibold text-gray-600">{sDate}</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Items Purchased */}
+                                    {s.items && s.items.length > 0 && (
+                                      <div>
+                                        <span className="text-[9.5px] font-black text-gray-400 uppercase tracking-wider block mb-1">Items Purchased:</span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {s.items.map((i, iIdx) => (
+                                            <span key={iIdx} className="bg-gray-100 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-gray-200">
+                                              {i.name || i.title} (x{i.quantity})
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Payment Breakdown Badge & Action Buttons */}
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2 flex-wrap">
+                                      <div>
+                                        {isCredit ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                            <FileText className="w-2.5 h-2.5" /> Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
+                                          </span>
+                                        ) : isBank ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                                            <Building2 className="w-2.5 h-2.5" /> Bank: {currency} {(Number(s.bankPaid) || total).toLocaleString('en-PK')}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <DollarSign className="w-2.5 h-2.5" /> Cash: {currency} {(Number(s.cashPaid) || total).toLocaleString('en-PK')}
+                                          </span>
                                         )}
                                       </div>
-                                    ) : (
-                                      <div className="space-y-0.5">
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                          <DollarSign className="w-2.5 h-2.5" /> Cash Paid
-                                        </span>
-                                        <p className="text-[10px] font-bold text-emerald-700">
-                                          {currency} {(Number(s.cashPaid) || total).toLocaleString('en-PK')}
-                                        </p>
+
+                                      {/* Action buttons */}
+                                      <div className="flex items-center gap-1.5 ml-auto">
+                                        <button
+                                          type="button"
+                                          onClick={() => setCompletedBill(s)}
+                                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                          title="View Bill"
+                                        >
+                                          <Receipt className="w-3.5 h-3.5" />
+                                          <span>Bill</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintCustomerSingleRecord(s)}
+                                          className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-lg transition-all cursor-pointer"
+                                          title="Print Invoice"
+                                        >
+                                          <Printer className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteSale(s._id)}
+                                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all cursor-pointer"
+                                          title="Delete Sale"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right font-black text-emerald-700">
-                                    {currency} {total.toLocaleString('en-PK')}
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setCompletedBill(s)}
-                                        className="p-1.5 bg-gray-100 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all cursor-pointer"
-                                        title="View Bill"
-                                      >
-                                        <Receipt className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handlePrintCustomerSingleRecord(s)}
-                                        className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all cursor-pointer"
-                                        title="Print Invoice"
-                                      >
-                                        <Printer className="w-3.5 h-3.5 text-gray-700" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteSale(s._id)}
-                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
-                                        title="Delete Sale"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
                                     </div>
-                                  </td>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+
+                          {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                          <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200">
+                            <table className="w-full text-left text-xs text-gray-800">
+                              <thead className="bg-gray-50 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                <tr>
+                                  <th className="p-3">#</th>
+                                  <th className="p-3">Invoice / Source</th>
+                                  <th className="p-3">Date &amp; Time</th>
+                                  <th className="p-3">Customer</th>
+                                  <th className="p-3">Items Purchased</th>
+                                  <th className="p-3 text-center">Payment Breakdown</th>
+                                  <th className="p-3 text-right">Total Amount</th>
+                                  <th className="p-3 text-center">Action</th>
                                 </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                        {filteredSalesForReport.length > 0 && (
-                          <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-black text-xs">
-                            <tr>
-                              <td colSpan="6" className="p-3 text-right text-gray-600 uppercase">
-                                Total Gross Sales:
-                              </td>
-                              <td className="p-3 text-right text-emerald-700 text-sm">
-                                {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
-                              </td>
-                              <td></td>
-                            </tr>
-                          </tfoot>
-                        )}
-                      </table>
-                    </div>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {displayedSalesReportList.length === 0 ? (
+                                  <tr>
+                                    <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
+                                      No sales records found matching the selected filter.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  displayedSalesReportList.map((s, idx) => {
+                                    const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+                                    const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                                    const cust = s.customerName || 'Walk-in Customer';
+                                    const phone = s.customerPhone || '';
+                                    const total = Number(s.totalAmount) || 0;
+                                    const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+                                    
+                                    const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+                                    const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+                                    const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+
+                                    return (
+                                      <tr key={s._id || idx} className="hover:bg-gray-50/80 transition-colors">
+                                        <td className="p-3 font-bold text-gray-400">{idx + 1}</td>
+                                        <td className="p-3">
+                                          <span className="font-black text-gray-900 block">{inv}</span>
+                                          {isOnline ? (
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300 mt-0.5">
+                                              🌐 Online Order
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200 mt-0.5">
+                                              🏪 Shop POS Bill
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="p-3 text-[11px] font-bold text-gray-600">{sDate}</td>
+                                        <td className="p-3">
+                                          <div className="font-extrabold text-gray-900">{cust}</div>
+                                          {phone && <div className="text-[10px] text-teal-700 font-bold">📞 {phone}</div>}
+                                          {isOnline && <span className="text-[9px] text-indigo-600 font-bold">Logged-in User</span>}
+                                        </td>
+                                        <td className="p-3">
+                                          <div className="space-y-0.5 max-w-xs">
+                                            {(s.items || []).map((i, iIdx) => (
+                                              <span key={iIdx} className="inline-block bg-gray-100 text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md mr-1 mb-0.5">
+                                                {i.name || i.title} (x{i.quantity})
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                          {isCredit ? (
+                                            <div className="space-y-1">
+                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                                <FileText className="w-2.5 h-2.5" /> Credit / Qaraz
+                                              </span>
+                                              <p className="text-[10px] font-black text-rose-700">
+                                                Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
+                                              </p>
+                                            </div>
+                                          ) : isBank ? (
+                                            <div className="space-y-1">
+                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                                                <Building2 className="w-2.5 h-2.5" /> Bank Transfer
+                                              </span>
+                                              <p className="text-[10px] font-bold text-amber-800">
+                                                Paid: {currency} {(Number(s.bankPaid) || total).toLocaleString('en-PK')}
+                                              </p>
+                                              {(s.paymentProof || s.paymentReceipt) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setViewingReceiptModal(s.paymentProof || s.paymentReceipt)}
+                                                  className="inline-flex items-center gap-1 text-[9px] text-indigo-600 font-bold hover:underline cursor-pointer bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200"
+                                                >
+                                                  📷 View Receipt
+                                                </button>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-0.5">
+                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                <DollarSign className="w-2.5 h-2.5" /> Cash Paid
+                                              </span>
+                                              <p className="text-[10px] font-bold text-emerald-700">
+                                                {currency} {(Number(s.cashPaid) || total).toLocaleString('en-PK')}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="p-3 text-right font-black text-emerald-700">
+                                          {currency} {total.toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="p-3 text-center">
+                                          <div className="flex items-center justify-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => setCompletedBill(s)}
+                                              className="p-1.5 bg-gray-100 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all cursor-pointer"
+                                              title="View Bill"
+                                            >
+                                              <Receipt className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handlePrintCustomerSingleRecord(s)}
+                                              className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all cursor-pointer"
+                                              title="Print Invoice"
+                                            >
+                                              <Printer className="w-3.5 h-3.5 text-gray-700" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteSale(s._id)}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
+                                              title="Delete Sale"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                              {displayedSalesReportList.length > 0 && (
+                                <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-black text-xs">
+                                  <tr>
+                                    <td colSpan="6" className="p-3 text-right text-gray-600 uppercase">
+                                      Total Gross Sales:
+                                    </td>
+                                    <td className="p-3 text-right text-emerald-700 text-sm">
+                                      {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                                    </td>
+                                    <td></td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -6212,77 +6601,62 @@ function StoreContent({ shopId }) {
               {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-profit' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Executive Dark Navy / Emerald Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 p-6 sm:p-7 rounded-[2rem] border border-slate-800 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-400">
-                          <DollarSign className="w-6 h-6" />
+                  {/* Executive Sleek Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase tracking-widest leading-none">
+                          <span>Financial Statement</span>
+                          <span className="text-slate-600">&bull;</span>
+                          <span className="text-slate-400 font-bold">P&amp;L Ledger</span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
-                            Official Financial Profit &amp; Loss Ledger
-                          </div>
-                          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-0.5">
-                            Pure Realized Net Profit Statement
-                          </h2>
-                          <p className="text-slate-400 text-xs font-medium mt-1">
-                            Sales Revenue minus Purchases (Petis • Trays • Eggs), Operating Expenses &amp; Damaged Stock Losses
-                          </p>
-                        </div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
+                          Pure Realized Net Profit Statement
+                        </h2>
+                        <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
+                          Revenue minus Purchases (Petis • Trays • Eggs), Expenses &amp; Damaged Stock Losses.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Single Clean Line Action Buttons & Timeframe Selector */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
                       <button
                         onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-700 transition-all cursor-pointer shadow-sm hover:border-emerald-400 flex items-center gap-1.5"
-                        title="Print PDF Profit Report"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Printer className="w-4 h-4 text-emerald-400" />
-                        <span>Print PDF</span>
+                        <Printer className="w-3.5 h-3.5" /> Print PDF
                       </button>
-
                       <button
                         onClick={() => handleWhatsAppReportShare('profit', reportTimeframe)}
-                        className="px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500/40 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
-                        title="Share via WhatsApp"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-700 to-green-800 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-500/40 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Send className="w-4 h-4 text-white" />
-                        <span>WhatsApp</span>
+                        <Send className="w-3.5 h-3.5" /> WhatsApp
                       </button>
-
                       <button
                         onClick={() => handleExportExcelReport('profit', reportTimeframe)}
-                        className="px-3.5 py-2.5 rounded-xl bg-green-800 hover:bg-green-700 text-white text-xs font-black uppercase tracking-wider border border-green-600/40 transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
-                        title="Export Excel Report"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-green-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
-                        <span>Excel Sheet</span>
-                      </button>
-
-                      <button
-                        onClick={() => { fetchShopSales(); fetchExpenses(); fetchDamagedProducts(); }}
-                        className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
-                        title="Refresh Data"
-                      >
-                        <RefreshCw className="w-4 h-4" />
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
 
                       {/* Day / Month / Year Timeframe Selector */}
-                      <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700">
+                      <div className="flex items-center gap-0.5 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 ml-1">
                         {[
-                          { id: 'ALL', label: 'All-Time' },
-                          { id: 'DAY', label: 'Today (Day)' },
-                          { id: 'MONTH', label: 'This Month' },
-                          { id: 'YEAR', label: 'This Year' },
+                          { id: 'ALL', label: 'All' },
+                          { id: 'DAY', label: 'Today' },
+                          { id: 'MONTH', label: 'Month' },
+                          { id: 'YEAR', label: 'Year' },
                         ].map(t => (
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
-                              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                            className={`px-2 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
+                              ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
                               }`}
                           >
                             {t.label}
@@ -6493,10 +6867,10 @@ function StoreContent({ shopId }) {
                   </div>
 
                   {/* ─── 3. Financial Reconciliation Statement Table (White & Gray) ─── */}
-                  <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div>
-                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                        <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
                           Financial Profit &amp; Loss Statement ({reportTimeframe})
                         </h3>
@@ -6504,12 +6878,147 @@ function StoreContent({ shopId }) {
                           Transparent ledger deducting product purchases, operating expenses &amp; damaged stock
                         </p>
                       </div>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                      <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full uppercase tracking-widest">
                         {shop?.name || 'Shop'} Accounts
                       </span>
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-gray-200">
+                    {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                    <div className="block md:hidden space-y-3">
+                      {/* Card 1: Total Sales Revenue */}
+                      <div className="bg-emerald-50/50 border-2 border-emerald-200 rounded-2xl p-3.5 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[10px] font-black">
+                              #1
+                            </span>
+                            <span className="font-black text-emerald-950 text-xs uppercase">
+                              (+) Total Sales Revenue
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[8.5px] font-black uppercase">
+                            Revenue
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-emerald-200/60">
+                          <span className="text-[11px] font-bold text-gray-600">
+                            {profitReportStats.filteredSalesCount} Sales Invoices
+                          </span>
+                          <span className="text-base font-black text-emerald-700">
+                            + {currency} {Number(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card 2: Purchased Products Cost */}
+                      <div className="bg-blue-50/50 border-2 border-blue-200 rounded-2xl p-3.5 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 border border-blue-300 rounded text-[10px] font-black">
+                              #2
+                            </span>
+                            <span className="font-black text-blue-950 text-xs uppercase">
+                              (-) Purchases / Restocks Cost
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 border border-blue-300 rounded-full text-[8.5px] font-black uppercase">
+                            Cost
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 text-[9px] font-black">
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                            📦 {profitReportStats.totalPurchasesPetis} Petis
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-cyan-50 text-cyan-800 border border-cyan-200 rounded">
+                            🍱 {profitReportStats.totalPurchasesTrays} Trays
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">
+                            🥚 {profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} Eggs
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-blue-200/60">
+                          <span className="text-[11px] font-bold text-gray-600">
+                            {profitReportStats.filteredPurchasesCount} Restocks
+                          </span>
+                          <span className="text-base font-black text-blue-700">
+                            - {currency} {Number(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card 3: Shop Operational Expenses */}
+                      <div className="bg-rose-50/50 border-2 border-rose-200 rounded-2xl p-3.5 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded text-[10px] font-black">
+                              #3
+                            </span>
+                            <span className="font-black text-rose-950 text-xs uppercase">
+                              (-) Shop Expenses (Bills, Rent)
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-full text-[8.5px] font-black uppercase">
+                            Overhead
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-rose-200/60">
+                          <span className="text-[11px] font-bold text-gray-600">
+                            {profitReportStats.filteredExpensesCount} Expense Logs
+                          </span>
+                          <span className="text-base font-black text-rose-700">
+                            - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card 4: Damaged Egg Loss */}
+                      <div className="bg-amber-50/50 border-2 border-amber-200 rounded-2xl p-3.5 shadow-sm space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-black">
+                              #4
+                            </span>
+                            <span className="font-black text-amber-950 text-xs uppercase">
+                              (-) Damaged Egg Loss
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[8.5px] font-black uppercase">
+                            Waste
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                          <span className="text-[11px] font-bold text-gray-600">
+                            {profitReportStats.filteredDamagedCount} Logs ({profitReportStats.totalDamagedEggs} Eggs)
+                          </span>
+                          <span className="text-base font-black text-amber-700">
+                            - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card 5: FINAL PURE REALIZED NET PROFIT */}
+                      <div className="bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl p-4 shadow-md space-y-2 border-2 border-emerald-500/40">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                            (=) 5. Realized Result
+                          </span>
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 rounded-full text-[8.5px] font-black uppercase">
+                            Net Balance
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                          <span className="text-xs font-black uppercase tracking-tight text-slate-200">
+                            Final Net Profit / Loss:
+                          </span>
+                          <span className={`text-lg font-black ${profitReportStats.finalNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                    <div className="hidden md:block overflow-x-auto rounded-2xl border border-gray-200">
                       <table className="w-full text-left text-xs text-gray-800">
                         <thead className="bg-gray-100 text-[10px] font-black text-gray-600 uppercase tracking-wider border-b border-gray-200">
                           <tr>
@@ -6637,51 +7146,52 @@ function StoreContent({ shopId }) {
               {/* ─── 3. EXPENSES & LOSS REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-expenses' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Executive Slate-Gray Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 sm:p-7 rounded-[2rem] border border-slate-700 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-rose-400">
-                          <FileText className="w-6 h-6" />
+                  {/* Executive Sleek Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-400 shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-rose-400 text-[10px] font-black uppercase tracking-widest leading-none">
+                          <span>Analytics</span>
+                          <span className="text-slate-600">&bull;</span>
+                          <span className="text-slate-400 font-bold">Shop Expenses &amp; Returns</span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 text-rose-300 text-xs font-black uppercase tracking-widest">
-                            Shop Expenses &amp; Returns Loss Analytics
-                          </div>
-                          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-0.5">
-                            Business Expenses &amp; Loss Report
-                          </h2>
-                          <p className="text-slate-300 text-xs font-medium mt-1">
-                            Track and analyze operating overheads, rent, utilities, transport, and egg breakage losses.
-                          </p>
-                        </div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
+                          Business Expenses &amp; Loss Report
+                        </h2>
+                        <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
+                          Track operating overheads, bills, rent, transport, and egg breakage losses.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Single Clean Line Action Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
                       <button
                         onClick={() => setShowAddExpenseModal(true)}
-                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-300/40 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> Log Expense
+                        <Plus className="w-3.5 h-3.5" /> Log Expense
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('expenses', reportTimeframe)}
-                        className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-rose-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Printer className="w-4 h-4" /> Print PDF Report
+                        <Printer className="w-3.5 h-3.5" /> Print PDF
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('expenses', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Send className="w-4 h-4" /> Share WhatsApp
+                        <Send className="w-3.5 h-3.5" /> WhatsApp
                       </button>
                       <button
                         onClick={() => handleExportExcelReport('expenses', reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-green-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
                     </div>
                   </div>
@@ -6969,153 +7479,271 @@ function StoreContent({ shopId }) {
                               </button>
                             </div>
                           ) : (
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200 min-h-[350px] pb-24">
-                              <table className="w-full text-left text-xs text-slate-800">
-                                <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                                  <tr>
-                                    <th className="p-3.5 text-center">#</th>
-                                    <th className="p-3.5">Expense Date</th>
-                                    <th className="p-3.5">Expense Title / Description</th>
-                                    <th className="p-3.5 text-center">Category</th>
-                                    <th className="p-3.5 text-center">Payment Status</th>
-                                    <th className="p-3.5">Amount (RS)</th>
-                                    <th className="p-3.5">Logged By / Notes</th>
-                                    <th className="p-3.5 text-center">Action</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {displayedExpenses.map((exp, idx) => {
-                                    const isNearBottom = idx >= Math.max(1, filteredExpForTable.length - 3);
-                                    return (
-                                      <tr key={exp._id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="p-3.5 text-center font-bold text-slate-400">
-                                          {idx + 1}
-                                        </td>
-                                        <td className="p-3.5 font-bold text-slate-600">
-                                          {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                        </td>
-                                        <td className="p-3.5 font-black text-slate-900 uppercase">
-                                          {exp.title}
-                                        </td>
-                                        <td className="p-3.5 text-center">
-                                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                            exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                              exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                                                exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                                                  exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                                    'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                            }`}>
-                                            {exp.category}
-                                          </span>
-                                        </td>
-                                        <td className="p-3.5 text-center">
-                                          {String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK') ? (
-                                            <div className="space-y-0.5">
-                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#152F12]/15 text-emerald-950 border border-[#2E6F28]/40">
-                                                <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Paid from Bank
-                                              </span>
-                                              <span className="block text-[8.5px] font-bold text-emerald-800">Bank Account Cut</span>
-                                            </div>
-                                          ) : (
-                                            <div className="space-y-0.5">
-                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                                <DollarSign className="w-2.5 h-2.5 text-emerald-700" /> Paid from Cash
-                                              </span>
-                                              <span className="block text-[8.5px] font-bold text-emerald-700">Cash in Drawer Cut</span>
-                                            </div>
-                                          )}
-                                        </td>
-                                        <td className="p-3.5 font-black text-rose-600 text-sm">
-                                          {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
-                                        </td>
-                                        <td className="p-3.5 text-slate-500 text-[11px]">
-                                          {exp.notes || exp.createdBy || 'Shop Admin'}
-                                        </td>
-                                        <td className="p-3.5 text-center relative">
-                                          <div className="relative inline-block text-left">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setActiveExpenseMenuId(activeExpenseMenuId === exp._id ? null : exp._id);
-                                              }}
-                                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200 hover:border-slate-300"
-                                              title="Actions"
-                                            >
-                                              <MoreVertical className="w-4 h-4" />
-                                            </button>
-
-                                            {activeExpenseMenuId === exp._id && (
-                                              <>
-                                                <div
-                                                  className="fixed inset-0 z-40"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveExpenseMenuId(null);
-                                                  }}
-                                                />
-                                                <div className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 w-48 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5 text-left space-y-0.5 animate-in fade-in zoom-in-95 duration-150`}>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setActiveExpenseMenuId(null);
-                                                      handleEditExpense(exp);
-                                                    }}
-                                                    className="w-full px-3 py-2 hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
-                                                  >
-                                                    <Edit className="w-4 h-4 text-indigo-600" /> Edit Expense
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setActiveExpenseMenuId(null);
-                                                      handlePrintSingleExpense(exp, idx);
-                                                    }}
-                                                    className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
-                                                  >
-                                                    <Printer className="w-4 h-4 text-rose-600" /> Print (PDF)
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setActiveExpenseMenuId(null);
-                                                      handleWhatsAppSingleExpense(exp, idx);
-                                                    }}
-                                                    className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
-                                                  >
-                                                    <Send className="w-4 h-4 text-emerald-600" /> WhatsApp
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setActiveExpenseMenuId(null);
-                                                      handleExportSingleExpenseExcel(exp, idx);
-                                                    }}
-                                                    className="w-full px-3 py-2 hover:bg-green-50 text-green-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
-                                                  >
-                                                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> Excel Sheet
-                                                  </button>
-                                                  <div className="border-t border-slate-100 my-1"></div>
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setActiveExpenseMenuId(null);
-                                                      handleDeleteExpense(exp._id);
-                                                    }}
-                                                    className="w-full px-3 py-2 hover:bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
-                                                  >
-                                                    <Trash2 className="w-4 h-4 text-red-600" /> Delete Entry
-                                                  </button>
-                                                </div>
-                                              </>
-                                            )}
+                            <>
+                              {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                              <div className="block md:hidden space-y-3">
+                                {displayedExpenses.map((exp, idx) => {
+                                  const isBank = String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK');
+                                  return (
+                                    <div key={`mob_exp_${exp._id || idx}`} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                                      {/* Card Top: Serial, Title, Category & Amount */}
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-black">
+                                              #{idx + 1}
+                                            </span>
+                                            <span className="font-black text-slate-900 text-sm tracking-tight uppercase">
+                                              {exp.title}
+                                            </span>
                                           </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
+                                          <div className="mt-1">
+                                            <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                              exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                                                  exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                    exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                              }`}>
+                                              {exp.category}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right">
+                                          <span className="text-[9px] font-bold text-slate-400 uppercase block">Expense Amount</span>
+                                          <span className="text-base font-black text-rose-600 block mt-0.5">
+                                            {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Date & Payment Details */}
+                                      <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 space-y-1 text-xs">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-slate-400 font-bold uppercase text-[9.5px]">Expense Date:</span>
+                                          <span className="font-bold text-slate-700">
+                                            {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-slate-400 font-bold uppercase text-[9.5px]">Paid From:</span>
+                                          {isBank ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#152F12]/15 text-emerald-950 border border-[#2E6F28]/40">
+                                              <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Bank Account
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                              <DollarSign className="w-2.5 h-2.5 text-emerald-700" /> Cash Drawer
+                                            </span>
+                                          )}
+                                        </div>
+                                        {(exp.notes || exp.createdBy) && (
+                                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                                            <span className="text-slate-400 font-bold uppercase text-[9.5px]">Logged By:</span>
+                                            <span className="font-semibold text-slate-600 truncate max-w-[170px]">{exp.notes || exp.createdBy || 'Shop Admin'}</span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Action Buttons in 1 Line */}
+                                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-1.5 flex-nowrap overflow-x-auto pb-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditExpense(exp)}
+                                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
+                                          title="Edit Expense"
+                                        >
+                                          <Edit className="w-3.5 h-3.5 text-indigo-600" />
+                                          <span>Edit</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintSingleExpense(exp, idx)}
+                                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition-all cursor-pointer shrink-0"
+                                          title="Print PDF"
+                                        >
+                                          <Printer className="w-3.5 h-3.5 text-rose-600" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleWhatsAppSingleExpense(exp, idx)}
+                                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition-all cursor-pointer shrink-0"
+                                          title="Share WhatsApp"
+                                        >
+                                          <Send className="w-3.5 h-3.5 text-emerald-600" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleExportSingleExpenseExcel(exp, idx)}
+                                          className="p-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-lg transition-all cursor-pointer shrink-0"
+                                          title="Excel Sheet"
+                                        >
+                                          <FileSpreadsheet className="w-3.5 h-3.5 text-green-600" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteExpense(exp._id)}
+                                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all cursor-pointer shrink-0 ml-auto"
+                                          title="Delete Entry"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                              <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 min-h-[350px] pb-24">
+                                <table className="w-full text-left text-xs text-slate-800">
+                                  <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                    <tr>
+                                      <th className="p-3.5 text-center">#</th>
+                                      <th className="p-3.5">Expense Date</th>
+                                      <th className="p-3.5">Expense Title / Description</th>
+                                      <th className="p-3.5 text-center">Category</th>
+                                      <th className="p-3.5 text-center">Payment Status</th>
+                                      <th className="p-3.5">Amount (RS)</th>
+                                      <th className="p-3.5">Logged By / Notes</th>
+                                      <th className="p-3.5 text-center">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {displayedExpenses.map((exp, idx) => {
+                                      const isNearBottom = idx >= Math.max(1, filteredExpForTable.length - 3);
+                                      return (
+                                        <tr key={exp._id} className="hover:bg-slate-50/80 transition-colors">
+                                          <td className="p-3.5 text-center font-bold text-slate-400">
+                                            {idx + 1}
+                                          </td>
+                                          <td className="p-3.5 font-bold text-slate-600">
+                                            {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                          </td>
+                                          <td className="p-3.5 font-black text-slate-900 uppercase">
+                                            {exp.title}
+                                          </td>
+                                          <td className="p-3.5 text-center">
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                              exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                                                  exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                    exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                              }`}>
+                                              {exp.category}
+                                            </span>
+                                          </td>
+                                          <td className="p-3.5 text-center">
+                                            {String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK') ? (
+                                              <div className="space-y-0.5">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#152F12]/15 text-emerald-950 border border-[#2E6F28]/40">
+                                                  <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Paid from Bank
+                                                </span>
+                                                <span className="block text-[8.5px] font-bold text-emerald-800">Bank Account Cut</span>
+                                              </div>
+                                            ) : (
+                                              <div className="space-y-0.5">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                                  <DollarSign className="w-2.5 h-2.5 text-emerald-700" /> Paid from Cash
+                                                </span>
+                                                <span className="block text-[8.5px] font-bold text-emerald-700">Cash in Drawer Cut</span>
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="p-3.5 font-black text-rose-600 text-sm">
+                                            {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
+                                          </td>
+                                          <td className="p-3.5 text-slate-500 text-[11px]">
+                                            {exp.notes || exp.createdBy || 'Shop Admin'}
+                                          </td>
+                                          <td className="p-3.5 text-center relative">
+                                            <div className="relative inline-block text-left">
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveExpenseMenuId(activeExpenseMenuId === exp._id ? null : exp._id);
+                                                }}
+                                                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200 hover:border-slate-300"
+                                                title="Actions"
+                                              >
+                                                <MoreVertical className="w-4 h-4" />
+                                              </button>
+
+                                              {activeExpenseMenuId === exp._id && (
+                                                <>
+                                                  <div
+                                                    className="fixed inset-0 z-40"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
+                                                    }}
+                                                  />
+                                                  <div className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 w-48 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5 text-left space-y-0.5 animate-in fade-in zoom-in-95 duration-150`}>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveExpenseMenuId(null);
+                                                        handleEditExpense(exp);
+                                                      }}
+                                                      className="w-full px-3 py-2 hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
+                                                    >
+                                                      <Edit className="w-4 h-4 text-indigo-600" /> Edit Expense
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveExpenseMenuId(null);
+                                                        handlePrintSingleExpense(exp, idx);
+                                                      }}
+                                                      className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
+                                                    >
+                                                      <Printer className="w-4 h-4 text-rose-600" /> Print (PDF)
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveExpenseMenuId(null);
+                                                        handleWhatsAppSingleExpense(exp, idx);
+                                                      }}
+                                                      className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
+                                                    >
+                                                      <Send className="w-4 h-4 text-emerald-600" /> WhatsApp
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveExpenseMenuId(null);
+                                                        handleExportSingleExpenseExcel(exp, idx);
+                                                      }}
+                                                      className="w-full px-3 py-2 hover:bg-green-50 text-green-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
+                                                    >
+                                                      <FileSpreadsheet className="w-4 h-4 text-green-600" /> Excel Sheet
+                                                    </button>
+                                                    <div className="border-t border-slate-100 my-1"></div>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveExpenseMenuId(null);
+                                                        handleDeleteExpense(exp._id);
+                                                      }}
+                                                      className="w-full px-3 py-2 hover:bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
+                                                    >
+                                                      <Trash2 className="w-4 h-4 text-red-600" /> Delete Entry
+                                                    </button>
+                                                  </div>
+                                                </>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </>
                           )}
                         </div>
                       );
@@ -7127,40 +7755,52 @@ function StoreContent({ shopId }) {
               {/* ─── 4. DAMAGED PRODUCTS VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'damaged-products' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-6 rounded-3xl border border-white/10 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest mb-1">
-                        <PackageX className="w-4 h-4" /> Damaged Stock & Inventory Loss Tracking
+                  {/* Executive Sleek Header Banner */}
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">
+                        <PackageX className="w-4 h-4" />
                       </div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tight">Damaged Products Loss Report</h2>
-                      <p className="text-slate-300 text-xs mt-1">
-                        Log egg breakages, cracked eggs, expired inventory, and transport losses dynamically.
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-amber-400 text-[10px] font-black uppercase tracking-widest leading-none">
+                          <span>Loss Tracking</span>
+                          <span className="text-slate-600">&bull;</span>
+                          <span className="text-slate-400 font-bold">Damaged &amp; Breakage Stock</span>
+                        </div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
+                          Damaged Products Loss Report
+                        </h2>
+                        <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
+                          Log egg breakages, cracked eggs, expired inventory, and transport losses dynamically.
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+
+                    {/* Single Clean Line Action Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
                       <button
                         onClick={() => setShowAddDamagedModal(true)}
-                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-300/40 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> + Log Damaged
+                        <Plus className="w-3.5 h-3.5" /> Log Damaged
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
-                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Printer className="w-4 h-4" /> Print PDF Report
+                        <Printer className="w-3.5 h-3.5" /> Print PDF
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
-                        className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-emerald-500/40 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Send className="w-4 h-4" /> Share WhatsApp
+                        <Send className="w-3.5 h-3.5" /> WhatsApp
                       </button>
                       <button
                         onClick={() => handleExportExcelReport('damaged', reportTimeframe)}
-                        className="px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all active:scale-95 border border-green-500/40 cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-green-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <FileSpreadsheet className="w-4 h-4" /> Generate Excel
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
                     </div>
                   </div>
@@ -7242,7 +7882,38 @@ function StoreContent({ shopId }) {
 
                     <div className="space-y-3">
                       <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Damaged Stock Period Statement</h4>
-                      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                      
+                      {/* Mobile Card for Period Statement */}
+                      <div className="block md:hidden bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-700 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
+                            {reportTimeframe === 'DAY' ? 'Today (Daily Damaged Report)' :
+                             reportTimeframe === 'MONTH' ? 'This Month (Monthly Damaged Report)' :
+                             reportTimeframe === 'YEAR' ? 'This Year (Yearly Damaged Report)' :
+                             'All-Time Cumulative Damaged Loss'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full font-black text-[9px] uppercase bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
+                            {reportTimeframe === 'DAY' ? 'Today Only' :
+                             reportTimeframe === 'MONTH' ? 'Monthly Only' :
+                             reportTimeframe === 'YEAR' ? 'Yearly Only' :
+                             'All-Time'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-700/80">
+                          <span className="text-xs font-bold text-slate-300">Damaged Loss Amount:</span>
+                          <span className="text-lg font-black text-amber-300">
+                            {currency} {(
+                              reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
+                              reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                              reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                              (dynamicExpenseStats.totalDamaged || 0)
+                            ).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Desktop Table for Period Statement */}
+                      <div className="hidden md:block overflow-x-auto rounded-2xl border border-zinc-200">
                         <table className="w-full text-left text-xs text-zinc-800">
                           <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
                             <tr>
@@ -7285,7 +7956,7 @@ function StoreContent({ shopId }) {
                       </div>
                     </div>
 
-                    {/* ─── DYNAMIC LOGGED DAMAGED PRODUCTS TABLE ─── */}
+                    {/* ─── DYNAMIC LOGGED DAMAGED PRODUCTS TABLE & CARDS ─── */}
                     <div className="space-y-3 pt-6 border-t border-zinc-100">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
@@ -7312,68 +7983,154 @@ function StoreContent({ shopId }) {
                           </button>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-                          <table className="w-full text-left text-xs text-zinc-800">
-                            <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
-                              <tr>
-                                <th className="p-3.5">Date & Time</th>
-                                <th className="p-3.5">Product Name</th>
-                                <th className="p-3.5">Reason / Cause</th>
-                                <th className="p-3.5 text-center">Damaged Qty</th>
-                                <th className="p-3.5">Unit Price</th>
-                                <th className="p-3.5">Total Loss (RS)</th>
-                                <th className="p-3.5">Logged By / Notes</th>
-                                <th className="p-3.5 text-center">Action</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-200">
-                              {damagedProductsList.map(dmg => (
-                                <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
-                                  <td className="p-3.5 font-bold text-slate-500">
-                                    {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                  </td>
-                                  <td className="p-3.5 font-black text-slate-900">
-                                    {dmg.productName}
-                                  </td>
-                                  <td className="p-3.5">
-                                    <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                      {dmg.reason || 'Egg Breakage'}
+                        <>
+                          {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                          <div className="block md:hidden space-y-3">
+                            {damagedProductsList.map((dmg, idx) => (
+                              <div key={`mob_dmg_${dmg._id || idx}`} className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                                {/* Card Top: Serial, Product Name, Reason & Total Loss */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-black">
+                                        #{idx + 1}
+                                      </span>
+                                      <span className="font-black text-slate-900 text-sm tracking-tight">
+                                        {dmg.productName}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8.5px] font-black uppercase tracking-wider border border-amber-200">
+                                        {dmg.reason || 'Egg Breakage'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Loss</span>
+                                    <span className="text-base font-black text-amber-700 block mt-0.5">
+                                      {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
                                     </span>
-                                  </td>
-                                  <td className="p-3.5 text-center font-black text-slate-900">
+                                  </div>
+                                </div>
+
+                                {/* Damaged Qty Badges */}
+                                <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 space-y-1.5 text-xs">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Damaged Qty:</span>
                                     {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
-                                      <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
-                                        {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
-                                        {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
-                                        {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                      <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                        {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black">{dmg.petiQuantity} Petis</span>}
+                                        {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black">{dmg.trayQuantity} Trays</span>}
+                                        {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black">{dmg.eggQuantity} Eggs</span>}
                                       </div>
                                     ) : (
-                                      <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                      <span className="font-bold text-slate-800">{dmg.quantity || dmg.deductedEggs || 0} Units</span>
                                     )}
-                                  </td>
-                                  <td className="p-3.5 font-bold text-slate-600">
-                                    {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
-                                  </td>
-                                  <td className="p-3.5 font-black text-amber-700 text-sm">
-                                    {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
-                                  </td>
-                                  <td className="p-3.5 text-slate-500 text-[11px]">
-                                    {dmg.notes || dmg.reportedBy || 'Shop Admin'}
-                                  </td>
-                                  <td className="p-3.5 text-center">
-                                    <button
-                                      onClick={() => handleDeleteDamaged(dmg._id)}
-                                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all"
-                                      title="Delete Entry"
-                                    >
-                                      Delete
-                                    </button>
-                                  </td>
+                                  </div>
+
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Unit Price:</span>
+                                    <span className="font-bold text-slate-700">
+                                      {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Date:</span>
+                                    <span className="font-semibold text-slate-600">
+                                      {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
+
+                                  {(dmg.notes || dmg.reportedBy) && (
+                                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                                      <span className="text-slate-400 font-bold uppercase text-[9.5px]">Reported By:</span>
+                                      <span className="font-medium text-slate-600 truncate max-w-[170px]">{dmg.notes || dmg.reportedBy || 'Shop Admin'}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDamaged(dmg._id)}
+                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
+                                    title="Delete Entry"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                          <div className="hidden md:block overflow-x-auto rounded-2xl border border-zinc-200">
+                            <table className="w-full text-left text-xs text-zinc-800">
+                              <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                                <tr>
+                                  <th className="p-3.5">Date &amp; Time</th>
+                                  <th className="p-3.5">Product Name</th>
+                                  <th className="p-3.5">Reason / Cause</th>
+                                  <th className="p-3.5 text-center">Damaged Qty</th>
+                                  <th className="p-3.5">Unit Price</th>
+                                  <th className="p-3.5">Total Loss (RS)</th>
+                                  <th className="p-3.5">Logged By / Notes</th>
+                                  <th className="p-3.5 text-center">Action</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody className="divide-y divide-zinc-200">
+                                {damagedProductsList.map(dmg => (
+                                  <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-3.5 font-bold text-slate-500">
+                                      {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </td>
+                                    <td className="p-3.5 font-black text-slate-900">
+                                      {dmg.productName}
+                                    </td>
+                                    <td className="p-3.5">
+                                      <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                        {dmg.reason || 'Egg Breakage'}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 text-center font-black text-slate-900">
+                                      {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
+                                        <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
+                                          {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
+                                          {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
+                                          {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                        </div>
+                                      ) : (
+                                        <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3.5 font-bold text-slate-600">
+                                      {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
+                                    </td>
+                                    <td className="p-3.5 font-black text-amber-700 text-sm">
+                                      {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                    </td>
+                                    <td className="p-3.5 text-slate-500 text-[11px]">
+                                      {dmg.notes || dmg.reportedBy || 'Shop Admin'}
+                                    </td>
+                                    <td className="p-3.5 text-center">
+                                      <button
+                                        onClick={() => handleDeleteDamaged(dmg._id)}
+                                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer"
+                                        title="Delete Entry"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -7386,80 +8143,142 @@ function StoreContent({ shopId }) {
         </div>
       </div>
 
-      {/* Product Detail Modal */}
+      {/* Product Detail Modal — 3D Blue Shadow & Gray-Blue Theme */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedItem(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedItem(null)}>
           <div
-            className="bg-[#1E293B] border border-slate-700 rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 text-white"
+            className="bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 border-2 border-blue-500/50 rounded-3xl w-full max-w-[370px] sm:max-w-[390px] overflow-hidden shadow-[0_20px_60px_-10px_rgba(37,99,235,0.55),0_0_35px_rgba(59,130,246,0.3)] animate-in zoom-in-95 duration-300 text-white"
             onClick={e => e.stopPropagation()}
           >
-            {selectedItem.images?.[0] && (
-              <div className="aspect-video overflow-hidden relative">
-                <img src={selectedItem.images[0]} alt={selectedItem.name} className="w-full h-full object-cover" />
-                <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 p-2.5 bg-black/60 hover:bg-black rounded-full text-white backdrop-blur-md transition-all">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <div className="p-6 sm:p-8 space-y-4">
-              <div>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">{selectedItem.category}</span>
-                <h2 className="text-2xl font-black text-white tracking-tight uppercase italic">{selectedItem.name}</h2>
-              </div>
-
-              {selectedItem.description && (
-                <p className="text-slate-300 text-xs leading-relaxed font-medium">{selectedItem.description}</p>
+            {/* Image Header with Glow Gradient */}
+            <div className="aspect-[16/10] overflow-hidden relative bg-slate-950 group">
+              {selectedItem.images?.[0] ? (
+                <img src={selectedItem.images[0]} alt={selectedItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                  <Egg className="w-16 h-16 text-blue-400/40" />
+                </div>
               )}
+              {/* Subtle Blue/Dark Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/40 pointer-events-none" />
 
-              <div className="flex items-center justify-between p-4 bg-slate-900 border border-slate-700 rounded-2xl">
+              {/* Category Pill */}
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-900/90 border border-blue-400/40 text-blue-300 text-[9.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-md">
+                {selectedItem.category || 'Egg Product'}
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="absolute top-3 right-3 p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-full text-white border border-white/20 backdrop-blur-md transition-all shadow-md active:scale-90 cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 space-y-3">
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight uppercase truncate">
+                  {selectedItem.name}
+                </h2>
+                {selectedItem.description ? (
+                  <p className="text-slate-300 text-[11px] leading-relaxed font-medium mt-0.5 line-clamp-2">
+                    {selectedItem.description}
+                  </p>
+                ) : (
+                  <p className="text-slate-400 text-[11px] font-medium mt-0.5">
+                    Fresh egg category: {selectedItem.category || 'Standard'}
+                  </p>
+                )}
+              </div>
+
+              {/* Gray-Blue Highlight Box: Price & Stock */}
+              <div className="flex items-center justify-between p-3 bg-slate-950/80 border border-blue-500/30 rounded-2xl shadow-inner">
                 <div>
-                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Price per unit</p>
-                  <p className="text-2xl font-black text-emerald-400">{currency} {selectedItem.price.toLocaleString()}</p>
+                  <p className="text-[9px] text-blue-300 font-black uppercase tracking-wider">Price per unit</p>
+                  <p className="text-xl font-black text-emerald-400 tracking-tight mt-0.5">
+                    {currency} {Number(selectedItem.price || 0).toLocaleString()}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Stock Status</p>
-                  <p className={`text-xl font-black ${(Number(selectedItem.stock) || 0) <= 0 ? 'text-red-400' : (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) ? 'text-amber-400' : 'text-white'}`}>
+                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Stock Status</p>
+                  <p className={`text-xs font-black px-2 py-0.5 rounded-lg inline-block mt-0.5 ${(Number(selectedItem.stock) || 0) <= 0
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5)
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}>
                     {(Number(selectedItem.stock) || 0) <= 0 ? 'Out of Stock' : `${selectedItem.stock} units`}
                   </p>
                 </div>
               </div>
 
+              {/* Units Breakdown Pills (Peti • Tray • Egg) */}
+              {(() => {
+                const tPerPeti = Number(selectedItem.traysPerPeti) || 12;
+                const ePerTray = Number(selectedItem.eggsPerTray) || 30;
+                const ePerPeti = Number(selectedItem.eggsPerPeti) || (tPerPeti * ePerTray);
+                const pPrice = Number(selectedItem.price) || 0;
+                const tPrice = selectedItem.trayPrice || (pPrice > 0 ? Math.round(pPrice / tPerPeti) : 0);
+                const ePrice = selectedItem.eggPrice || (pPrice > 0 ? Math.round((pPrice / ePerPeti) * 10) / 10 : 0);
+
+                return (
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-amber-300 block uppercase">📦 1 Peti</span>
+                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {pPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-sky-300 block uppercase">🍱 1 Tray</span>
+                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {tPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-emerald-300 block uppercase">🥚 1 Egg</span>
+                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {ePrice}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Low Stock or Out of Stock Alert */}
               {(Number(selectedItem.stock) || 0) > 0 && (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) && (
-                <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 font-bold text-xs flex items-center gap-2">
-                  <span>⚠️ Low Stock Warning: Only {selectedItem.stock} items left in stock!</span>
+                <div className="p-2 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 font-bold text-[10.5px] flex items-center gap-1.5">
+                  <span>⚠️ Low Stock: Only {selectedItem.stock} left in stock!</span>
                 </div>
               )}
 
               {(Number(selectedItem.stock) || 0) <= 0 && (
-                <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 font-bold text-xs flex items-center gap-2">
-                  <span>🚫 Out of Stock: This product is currently unavailable.</span>
+                <div className="p-2 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 font-bold text-[10.5px] flex items-center gap-1.5">
+                  <span>🚫 Out of Stock: Currently unavailable.</span>
                 </div>
               )}
 
+              {/* Action Buttons */}
               {isAdminUser ? (
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={() => { const item = selectedItem; setSelectedItem(null); setEditModalProduct(item); }}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-[11px] uppercase tracking-wider shadow-md border-t border-t-blue-300 border-b-2 border-b-indigo-950 transition-all active:scale-95 cursor-pointer"
                   >
-                    <Edit2 className="w-4 h-4" /> Edit Product
+                    <Edit2 className="w-3.5 h-3.5" /> Edit
                   </button>
                   <button
                     onClick={() => { const item = selectedItem; setSelectedItem(null); setDeleteDialog({ isOpen: true, item }); }}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl font-black text-[11px] uppercase tracking-wider shadow-md border-t border-t-rose-300 border-b-2 border-b-rose-950 transition-all active:scale-95 cursor-pointer"
                   >
-                    <Trash2 className="w-4 h-4" /> Delete Product
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
                 </div>
               ) : canBuy ? (
                 (Number(selectedItem.stock) || 0) > 0 ? (
                   <button
                     onClick={() => { handleAddToCart(selectedItem); setSelectedItem(null); }}
-                    className="w-full flex items-center justify-center gap-2 py-4 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl active:translate-y-[2px]"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-green-700 hover:from-emerald-500 hover:via-teal-600 hover:to-green-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_8px_25px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.8),0_0_20px_rgba(59,130,246,0.5)] border-t border-t-emerald-300/60 border-b-4 border-b-emerald-950 flex items-center justify-center gap-2 active:translate-y-0.5 transition-all cursor-pointer"
                   >
-                    <ShoppingCart className="w-4 h-4" />
-                    Add to Cart
+                    <ShoppingCart className="w-4 h-4 text-emerald-100" />
+                    <span>Add to Cart</span>
                   </button>
                 ) : null
               ) : null}
