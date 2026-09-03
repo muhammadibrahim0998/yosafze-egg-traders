@@ -388,13 +388,14 @@ function StoreContent({ shopId }) {
   }, [activeView]);
 
   useEffect(() => {
+    fetchDamagedProducts();
     if (activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit') {
       fetchShopSales();
     }
     if (activeView === 'registered-customers') {
       fetchRegisteredCustomers();
     }
-    if (activeView === 'report-expenses') {
+    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard') {
       fetchExpenses();
       fetchDamagedProducts();
     }
@@ -1624,7 +1625,11 @@ function StoreContent({ shopId }) {
   const [damagedFormData, setDamagedFormData] = useState({
     productName: '',
     productId: '',
-    quantity: '1',
+    petiQuantity: '',
+    trayQuantity: '',
+    eggQuantity: '',
+    unitType: 'egg',
+    quantity: '',
     unitPrice: '',
     reason: 'Egg Breakage / Crack',
     damageDate: new Date().toISOString().split('T')[0],
@@ -1653,23 +1658,59 @@ function StoreContent({ shopId }) {
 
   const handleAddDamagedSubmit = async (e) => {
     e.preventDefault();
-    if (!damagedFormData.productName || !damagedFormData.quantity) {
-      alert('Please enter product name and damaged quantity');
+    const pQty = Number(damagedFormData.petiQuantity || 0);
+    const tQty = Number(damagedFormData.trayQuantity || 0);
+    const eQty = Number(damagedFormData.eggQuantity || 0);
+    const rawQty = Number(damagedFormData.quantity || 0);
+
+    if (!damagedFormData.productName || (pQty <= 0 && tQty <= 0 && eQty <= 0 && rawQty <= 0)) {
+      alert('Please enter product name and at least one damaged quantity (Petis, Trays, or Eggs)');
       return;
     }
 
-    const qty = Number(damagedFormData.quantity) || 1;
-    const price = Number(damagedFormData.unitPrice) || 0;
-    const loss = qty * price;
+    const selectedProduct = (items || []).find(i => 
+      String(i._id) === String(damagedFormData.productId) || 
+      (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
+    );
+
+    const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
+    const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+    const ePerP = tPerP * ePerT;
+
+    const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
+    const pUnit = selectedProduct?.unitType || 'peti';
+
+    let eggRate = 0;
+    if (selectedProduct && basePrice > 0) {
+      if (pUnit === 'peti') eggRate = basePrice / ePerP;
+      else if (pUnit === 'tray') eggRate = basePrice / ePerT;
+      else eggRate = basePrice;
+    } else if (Number(damagedFormData.unitPrice) > 0) {
+      eggRate = Number(damagedFormData.unitPrice);
+    }
+
+    let totalEggsDmg = 0;
+    if (pQty > 0 || tQty > 0 || eQty > 0) {
+      totalEggsDmg = Math.round((pQty * ePerP) + (tQty * ePerT) + eQty);
+    } else {
+      totalEggsDmg = Math.round(rawQty);
+    }
+
+    const calculatedLoss = Math.round(totalEggsDmg * (eggRate || 0));
 
     const newDamagedItem = {
       _id: 'dmg_' + Date.now(),
       shopId,
       productName: damagedFormData.productName,
       productId: damagedFormData.productId || '',
-      quantity: qty,
-      unitPrice: price,
-      totalLoss: loss,
+      petiQuantity: pQty,
+      trayQuantity: tQty,
+      eggQuantity: eQty,
+      quantity: totalEggsDmg,
+      deductedEggs: totalEggsDmg,
+      unitType: pQty > 0 && tQty === 0 && eQty === 0 ? 'peti' : (tQty > 0 && pQty === 0 && eQty === 0 ? 'tray' : 'egg'),
+      unitPrice: Number(damagedFormData.unitPrice) || Math.round(eggRate * 10) / 10,
+      totalLoss: calculatedLoss,
       reason: damagedFormData.reason,
       damageDate: damagedFormData.damageDate ? new Date(damagedFormData.damageDate) : new Date(),
       notes: damagedFormData.notes || '',
@@ -1687,6 +1728,9 @@ function StoreContent({ shopId }) {
         if (data.data) {
           setDamagedProductsList(prev => [data.data, ...prev]);
         }
+        if (data.updatedItem) {
+          setItems(prev => prev.map(it => String(it._id) === String(data.updatedItem._id) ? data.updatedItem : it));
+        }
       } else {
         setDamagedProductsList(prev => [newDamagedItem, ...prev]);
       }
@@ -1698,21 +1742,27 @@ function StoreContent({ shopId }) {
     setDamagedFormData({
       productName: '',
       productId: '',
-      quantity: '1',
+      petiQuantity: '',
+      trayQuantity: '',
+      eggQuantity: '',
+      unitType: 'egg',
+      quantity: '',
       unitPrice: '',
       reason: 'Egg Breakage / Crack',
       damageDate: new Date().toISOString().split('T')[0],
       notes: ''
     });
+    await fetchCatalog();
     setTimeout(fetchDashboardStats, 300);
   };
 
   const handleDeleteDamaged = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this damaged product record?')) return;
+    if (!window.confirm('Are you sure you want to delete this damaged product record and restore stock?')) return;
     try {
       await fetch(`/api/damaged-products/${id}`, { method: 'DELETE' });
     } catch (e) { }
     setDamagedProductsList(prev => prev.filter(x => String(x._id) !== String(id)));
+    await fetchCatalog();
     setTimeout(fetchDashboardStats, 300);
   };
 
@@ -3293,6 +3343,34 @@ function StoreContent({ shopId }) {
           }
         });
 
+        let currentDmgList = damagedProductsList;
+        if (!currentDmgList || currentDmgList.length === 0) {
+          try {
+            const local = localStorage.getItem(`nexflow_damaged_${shopId}`);
+            currentDmgList = local ? JSON.parse(local) : [];
+          } catch(e) {}
+        }
+        let totalDamagedEggs = 0;
+        (currentDmgList || []).forEach(x => {
+          const qty = Number(x.quantity || 0);
+          const u = String(x.unitType || x.unit || 'egg').toLowerCase();
+          if (x.deductedEggs && Number(x.deductedEggs) > 0) {
+            totalDamagedEggs += Number(x.deductedEggs);
+          } else if (u === 'peti') {
+            totalDamagedEggs += qty * 360;
+          } else if (u === 'tray') {
+            totalDamagedEggs += qty * 30;
+          } else {
+            totalDamagedEggs += qty;
+          }
+        });
+        const totalDamagedPetis = Number((totalDamagedEggs / 360).toFixed(1));
+        const totalDamagedTrays = Math.round(totalDamagedEggs / 30);
+
+        const netPetisPurchased = Math.max(0, totalPetisPurchased - totalDamagedPetis);
+        const netTraysPurchased = Math.max(0, Math.round(totalPetisPurchased * 12) - totalDamagedTrays);
+        const netEggsPurchased = Math.max(0, Math.round(totalPetisPurchased * 360) - totalDamagedEggs);
+
         setDashStats(prev => ({
           ...prev,
           totalProducts: (data.items || []).length,
@@ -3305,9 +3383,12 @@ function StoreContent({ shopId }) {
           lowStock,
           expiredProducts: expiredProductsList.length,
           expiredProductsList,
-          totalPetisPurchased: Number(totalPetisPurchased.toFixed(1)),
-          totalTraysPurchased: Math.round(totalPetisPurchased * 12),
-          totalEggsPurchased: Math.round(totalPetisPurchased * 360),
+          totalPetisPurchased: Number(netPetisPurchased.toFixed(1)),
+          totalTraysPurchased: netTraysPurchased,
+          totalEggsPurchased: netEggsPurchased,
+          totalDamagedPetis,
+          totalDamagedTrays,
+          totalDamagedEggs,
           totalPurchasesCount,
           totalPurchaseCost: Math.round(totalPurchaseCost),
           cashPaidToSupplier: Math.round(cashPaidToSupplier),
@@ -7044,135 +7125,236 @@ function StoreContent({ shopId }) {
               </div>
               <button
                 onClick={() => setShowAddDamagedModal(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all"
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddDamagedSubmit} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
-                <select
-                  onChange={e => {
-                    const selected = items.find(i => String(i._id) === String(e.target.value));
-                    if (selected) {
-                      setDamagedFormData(prev => ({
-                        ...prev,
-                        productId: selected._id,
-                        productName: selected.name,
-                        unitPrice: selected.price || selected.salePrice || ''
-                      }));
-                    } else if (e.target.value === 'CUSTOM') {
-                      setDamagedFormData(prev => ({ ...prev, productId: '', productName: '' }));
-                    }
-                  }}
-                  className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
-                >
-                  <option value="">-- Select Catalog Item (Optional) --</option>
-                  {(items || []).map(i => (
-                    <option key={i._id} value={i._id}>{i.name} (RS {i.price || i.salePrice || 0})</option>
-                  ))}
-                  <option value="CUSTOM">Custom Product Name</option>
-                </select>
+            {(() => {
+              const selectedProduct = (items || []).find(i => 
+                String(i._id) === String(damagedFormData.productId) || 
+                (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
+              );
 
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Loman Brown Eggs, China Eggs..."
-                  value={damagedFormData.productName}
-                  onChange={e => setDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
-                />
-              </div>
+              const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
+              const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+              const ePerP = tPerP * ePerT;
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
-                  <select
-                    value={damagedFormData.reason}
-                    onChange={e => setDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
-                    <option value="Spoiled / Expired">Spoiled / Expired</option>
-                    <option value="Transport Damage">Transport Damage</option>
-                    <option value="Storage Loss">Storage Loss</option>
-                    <option value="Other">Other Cause</option>
-                  </select>
-                </div>
+              const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
+              const pUnit = selectedProduct?.unitType || 'peti';
 
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damaged Qty (Units) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    placeholder="e.g. 30"
-                    value={damagedFormData.quantity}
-                    onChange={e => setDamagedFormData(prev => ({ ...prev, quantity: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
+              let petiPrice = 0;
+              let trayPrice = 0;
+              let eggPrice = 0;
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Unit Price / Cost (RS)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={damagedFormData.unitPrice}
-                    onChange={e => setDamagedFormData(prev => ({ ...prev, unitPrice: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+              if (selectedProduct && basePrice > 0) {
+                if (pUnit === 'peti') {
+                  petiPrice = basePrice;
+                  trayPrice = Math.round((basePrice / tPerP) * 10) / 10;
+                  eggPrice = Math.round((basePrice / ePerP) * 10) / 10;
+                } else if (pUnit === 'tray') {
+                  petiPrice = Math.round(basePrice * tPerP);
+                  trayPrice = basePrice;
+                  eggPrice = Math.round((basePrice / ePerT) * 10) / 10;
+                } else {
+                  petiPrice = Math.round(basePrice * ePerP);
+                  trayPrice = Math.round(basePrice * ePerT);
+                  eggPrice = basePrice;
+                }
+              }
 
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
-                  <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700">
-                    RS {((Number(damagedFormData.quantity) || 0) * (Number(damagedFormData.unitPrice) || 0)).toLocaleString('en-PK')}
+              return (
+                <form onSubmit={handleAddDamagedSubmit} className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
+                    <select
+                      value={damagedFormData.productId || ''}
+                      onChange={e => {
+                        const selected = items.find(i => String(i._id) === String(e.target.value));
+                        if (selected) {
+                          const sTPerP = Number(selected.traysPerPeti) || 12;
+                          const sEPerT = Number(selected.eggsPerTray) || 30;
+                          const sEPerP = sTPerP * sEPerT;
+                          const sBasePrice = Number(selected.price || selected.costPrice || selected.salePrice || 0);
+                          const sUnit = selected.unitType || 'peti';
+
+                          let defaultPrice = sBasePrice;
+                          if (sUnit === 'peti') {
+                            defaultPrice = (damagedFormData.unitType === 'egg') 
+                              ? Math.round((sBasePrice / sEPerP) * 10) / 10 
+                              : (damagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 10) / 10 : sBasePrice);
+                          }
+
+                          setDamagedFormData(prev => ({
+                            ...prev,
+                            productId: selected._id,
+                            productName: selected.name,
+                            unitPrice: defaultPrice || ''
+                          }));
+                        } else if (e.target.value === 'CUSTOM') {
+                          setDamagedFormData(prev => ({ ...prev, productId: '', productName: '', unitType: 'egg', unitPrice: '' }));
+                        }
+                      }}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
+                    >
+                      <option value="">-- Select Catalog Item (Optional) --</option>
+                      {(items || []).map(i => (
+                        <option key={i._id} value={i._id}>
+                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} Petis / {i.eggQuantity || i.stock || 0} Eggs)
+                        </option>
+                      ))}
+                      <option value="CUSTOM">Custom Product Name</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Loman Brown Eggs, Golden Eggs..."
+                      value={damagedFormData.productName}
+                      onChange={e => setDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    />
                   </div>
-                </div>
-              </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
-                <input
-                  type="date"
-                  value={damagedFormData.damageDate}
-                  onChange={e => setDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
-                />
-              </div>
+                  {/* ─── 3 SEPARATE DAMAGED QUANTITY INPUTS: PETI, TRAY, EGG ─── */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600 block mb-1.5">
+                      Damaged Quantities (Petis / Trays / Eggs) *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {/* Petis Damaged */}
+                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 text-center focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis (پیټۍ)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={damagedFormData.petiQuantity}
+                          onChange={e => setDamagedFormData(prev => ({ ...prev, petiQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-amber-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-amber-700 font-bold block mt-0.5">
+                          {petiPrice > 0 ? `Rs. ${petiPrice}/Peti` : '360 Eggs'}
+                        </span>
+                      </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
-                <textarea
-                  rows="2"
-                  placeholder="e.g. Cracked during transport tray unloading..."
-                  value={damagedFormData.notes}
-                  onChange={e => setDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
-                ></textarea>
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddDamagedModal(false)}
-                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Save Damaged Log
-                </button>
-              </div>
-            </form>
+                      {/* Trays Damaged */}
+                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-2.5 text-center focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays (ټرې)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={damagedFormData.trayQuantity}
+                          onChange={e => setDamagedFormData(prev => ({ ...prev, trayQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-sky-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-sky-700 font-bold block mt-0.5">
+                          {trayPrice > 0 ? `Rs. ${trayPrice}/Tray` : '30 Eggs'}
+                        </span>
+                      </div>
+
+                      {/* Eggs Damaged */}
+                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-2.5 text-center focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs (هګۍ)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={damagedFormData.eggQuantity}
+                          onChange={e => setDamagedFormData(prev => ({ ...prev, eggQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-emerald-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-emerald-700 font-bold block mt-0.5">
+                          {eggPrice > 0 ? `Rs. ${eggPrice}/Egg` : '1 Egg'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
+                    <select
+                      value={damagedFormData.reason}
+                      onChange={e => setDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
+                      <option value="Spoiled / Expired">Spoiled / Expired</option>
+                      <option value="Transport Damage">Transport Damage</option>
+                      <option value="Storage Loss">Storage Loss</option>
+                      <option value="Other">Other Cause</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
+                    {(() => {
+                      const pQ = Number(damagedFormData.petiQuantity || 0);
+                      const tQ = Number(damagedFormData.trayQuantity || 0);
+                      const eQ = Number(damagedFormData.eggQuantity || 0);
+                      const totalDmgE = Math.round((pQ * ePerP) + (tQ * ePerT) + eQ);
+                      const totalLossCalc = Math.round((pQ * petiPrice) + (tQ * trayPrice) + (eQ * eggPrice));
+
+                      return (
+                        <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700 flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">RS {totalLossCalc.toLocaleString('en-PK')}</span>
+                            {totalDmgE > 0 && (
+                              <span className="text-[9.5px] text-amber-900 font-bold block">
+                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} Petis / {(totalDmgE / ePerT).toFixed(1)} Trays)
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-amber-800 font-bold">⚠️ Deducted automatically from product stock</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
+                    <input
+                      type="date"
+                      value={damagedFormData.damageDate}
+                      onChange={e => setDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                    <textarea
+                      rows="2"
+                      placeholder="e.g. Cracked during transport tray unloading..."
+                      value={damagedFormData.notes}
+                      onChange={e => setDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
+                    ></textarea>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddDamagedModal(false)}
+                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> Save Damaged Log
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
