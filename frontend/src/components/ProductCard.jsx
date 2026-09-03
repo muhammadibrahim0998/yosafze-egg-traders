@@ -1,5 +1,5 @@
 import {
-  ShoppingBag, ShoppingCart, Eye, Edit2, Trash2
+  ShoppingBag, ShoppingCart, Eye, Edit2, Trash2, AlertTriangle, Package, XCircle
 } from 'lucide-react';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
@@ -27,6 +27,11 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
     if (onDelete) onDelete(product);
   };
 
+  const stock = Number(product.stock) || 0;
+  const minStock = Number(product.minStock) || 5;
+  const isOutOfStock = stock <= 0;
+  const isLowStock = stock > 0 && stock <= minStock;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -34,7 +39,13 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
       whileHover={{ y: -4, scale: 1.02 }}
       transition={{ duration: 0.2 }}
       onClick={handleView}
-      className="group w-full bg-[#1E293B] border border-slate-700/60 hover:border-emerald-500/50 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col cursor-pointer select-none"
+      className={`group w-full bg-[#1E293B] border rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col cursor-pointer select-none ${
+        isOutOfStock 
+          ? 'border-red-500/40 opacity-80' 
+          : isLowStock 
+          ? 'border-amber-500/60 shadow-amber-500/10' 
+          : 'border-slate-700/60 hover:border-emerald-500/50'
+      }`}
     >
       {/* Aspect Square Image Container */}
       <div className="relative aspect-square w-full bg-slate-900 overflow-hidden">
@@ -42,7 +53,7 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
           <img
             src={product.images[0]}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+            className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -53,6 +64,23 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
         {/* Category Badge - Top Left */}
         <div className="absolute top-3 left-3 bg-[#111827]/90 px-3 py-1 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest border border-slate-700/80 backdrop-blur-md">
           {product.category || 'Egg'}
+        </div>
+
+        {/* Stock Status Badge - Top Right */}
+        <div className="absolute top-3 right-3">
+          {isOutOfStock ? (
+            <span className="bg-red-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-red-400 shadow-md backdrop-blur-md flex items-center gap-1">
+              <XCircle className="w-2.5 h-2.5" /> Out of Stock
+            </span>
+          ) : isLowStock ? (
+            <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md flex items-center gap-1 animate-pulse">
+              <AlertTriangle className="w-2.5 h-2.5" /> Low Stock ({stock})
+            </span>
+          ) : (
+            <span className="bg-emerald-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-400/60 shadow-md backdrop-blur-md flex items-center gap-1">
+              <Package className="w-2.5 h-2.5" /> In Stock ({stock})
+            </span>
+          )}
         </div>
       </div>
 
@@ -88,20 +116,38 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
               </div>
             );
           })()}
+
+          {/* Low Stock / Out of Stock Alert Banner */}
+          {isLowStock && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black text-[10px] uppercase justify-center shadow-sm">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>Low Stock: Only {stock} remaining!</span>
+            </div>
+          )}
+
+          {isOutOfStock && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 font-black text-[10px] uppercase justify-center shadow-sm">
+              <XCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+              <span>Out of Stock (0 remaining)</span>
+            </div>
+          )}
         </div>
 
         {/* Action Controls */}
         <div className="flex flex-col gap-1.5 w-full pt-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (product.stock > 0) addToCart(product);
-            }}
-            className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
-          >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            <span>{isShopAdmin() || isSuperAdmin() ? '+ ADD TO BILL' : '+ Add to Cart'}</span>
-          </button>
+          {/* Hide Add to Cart / Add to Bill button when stock <= 0 */}
+          {!isOutOfStock && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (stock > 0) addToCart(product);
+              }}
+              className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>{isShopAdmin() || isSuperAdmin() ? '+ ADD TO BILL' : '+ Add to Cart'}</span>
+            </button>
+          )}
 
           <div className="grid grid-cols-3 gap-1.5 w-full">
             <button

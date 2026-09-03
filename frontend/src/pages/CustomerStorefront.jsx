@@ -3964,8 +3964,8 @@ function StoreContent({ shopId }) {
                       <button
                         onClick={() => setActiveView('dashboard')}
                         className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : 'text-zinc-600 hover:text-zinc-950'
+                          ? 'bg-zinc-900 text-white shadow-md'
+                          : 'text-zinc-600 hover:text-zinc-950'
                           }`}
                       >
                         <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
@@ -3973,8 +3973,8 @@ function StoreContent({ shopId }) {
                       <button
                         onClick={() => setActiveView('products')}
                         className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : 'text-zinc-600 hover:text-zinc-950'
+                          ? 'bg-zinc-900 text-white shadow-md'
+                          : 'text-zinc-600 hover:text-zinc-950'
                           }`}
                       >
                         <ShoppingBag className="w-3.5 h-3.5" /> Products
@@ -4137,15 +4137,15 @@ function StoreContent({ shopId }) {
                               </div>
                             </div>
 
-                            {/* Total Sales */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Total Sales (Green Color with 3D Blue Shadow As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-emerald-600 via-green-600 to-emerald-700 rounded-xl text-white shadow-[0_10px_25px_rgba(37,99,235,0.35),_0_4px_10px_rgba(59,130,246,0.25)] flex items-center justify-between border border-emerald-400/50 border-b-4 border-b-emerald-900 hover:shadow-[0_16px_35px_rgba(37,99,235,0.45)] hover:-translate-y-1 transition-all duration-300">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Total Sales</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.totalOrders || 0} Orders</span>
+                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Total Sales</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{dashStats.totalOrders || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
-                                <DollarSign className="w-4 h-4 text-slate-700" />
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-md shrink-0">
+                                <DollarSign className="w-4 h-4 text-white" />
                               </div>
                             </div>
                           </div>
@@ -4223,14 +4223,14 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Stock Bought */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Stock Bought (Gray Color As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200/90 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-slate-400 hover:shadow transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Purchased</span>
+                                <span className="text-[9.5px] font-bold text-slate-600 uppercase tracking-wide block">Purchased</span>
                                 <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(Number(dashStats.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
+                                <span className="text-[8.5px] text-slate-500 font-bold block">{(dashStats.totalTraysPurchased || 0)} Trays</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
                                 <Truck className="w-4 h-4" />
                               </div>
                             </div>
@@ -4568,85 +4568,131 @@ function StoreContent({ shopId }) {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                      {items.map(item => (
-                        <div
-                          key={item._id}
-                          className="group bg-[#1E293B] border border-slate-700/60 hover:border-emerald-500/50 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl flex flex-col"
-                        >
-                          {/* Image Container */}
-                          <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-900 overflow-hidden relative">
-                            {item.images?.[0] ? (
-                              <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Egg className="w-12 h-12 text-slate-700" />
-                              </div>
-                            )}
-                            <div className="absolute top-3 left-3 bg-[#111827]/90 px-3 py-1 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest border border-slate-700">
-                              {item.category}
-                            </div>
-                          </button>
+                      {items.map(item => {
+                        const itemStock = Number(item.stock) || 0;
+                        const itemMinStock = Number(item.minStock) || 5;
+                        const itemOutOfStock = itemStock <= 0;
+                        const itemLowStock = itemStock > 0 && itemStock <= itemMinStock;
 
-                          {/* Item Info & Action */}
-                          <div className="p-4 flex flex-col flex-1 justify-between gap-3">
-                            <button onClick={() => setSelectedItem(item)} className="text-left space-y-1">
-                              <h3 className="font-black text-white text-sm leading-snug line-clamp-2 uppercase tracking-tight group-hover:text-emerald-300 transition-colors">
-                                {item.name}
-                              </h3>
-                              <p className="text-emerald-400 font-black text-lg">{currency} {item.price.toLocaleString()}</p>
+                        return (
+                          <div
+                            key={item._id}
+                            className={`group bg-[#1E293B] border rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl flex flex-col ${itemOutOfStock
+                              ? 'border-red-500/40 opacity-80'
+                              : itemLowStock
+                                ? 'border-amber-500/60 shadow-amber-500/10'
+                                : 'border-slate-700/60 hover:border-emerald-500/50'
+                              }`}
+                          >
+                            {/* Image Container */}
+                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-900 overflow-hidden relative">
+                              {item.images?.[0] ? (
+                                <img src={item.images[0]} alt={item.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${itemOutOfStock ? 'grayscale opacity-60' : ''}`} />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Egg className="w-12 h-12 text-slate-700" />
+                                </div>
+                              )}
+                              <div className="absolute top-3 left-3 bg-[#111827]/90 px-3 py-1 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest border border-slate-700">
+                                {item.category}
+                              </div>
+
+                              {/* Stock Badge - Top Right */}
+                              <div className="absolute top-3 right-3">
+                                {itemOutOfStock ? (
+                                  <span className="bg-red-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-red-400 shadow-md backdrop-blur-md">
+                                    Out of Stock
+                                  </span>
+                                ) : itemLowStock ? (
+                                  <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md animate-pulse">
+                                    ⚠️ Low Stock ({itemStock})
+                                  </span>
+                                ) : (
+                                  <span className="bg-emerald-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-400/60 shadow-md backdrop-blur-md">
+                                    Stock: {itemStock}
+                                  </span>
+                                )}
+                              </div>
                             </button>
 
-                            {isAdminUser ? (
-                              <div className="flex flex-col gap-1.5 w-full pt-1">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
-                                  className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
-                                  title="Add product to Customer Walk-in Bill"
-                                >
-                                  <Receipt className="w-3.5 h-3.5" />
-                                  <span>+ Add to Bill</span>
-                                </button>
-                                <div className="grid grid-cols-3 gap-1.5 w-full">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                    className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-600/60 shadow-md active:translate-y-[1px] transition-all cursor-pointer"
-                                    title="View Product Details"
-                                  >
-                                    <Eye className="w-3 h-3 text-emerald-400" />
-                                    <span>View</span>
-                                  </button>
-
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
-                                    className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-blue-400/30 border-b-2 border-indigo-900 active:translate-y-[1px] transition-all cursor-pointer"
-                                    title="Edit Product"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                    <span>Edit</span>
-                                  </button>
-
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
-                                    className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] transition-all cursor-pointer"
-                                    title="Delete Product"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    <span>Delete</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ) : canBuy ? (
-                              <button
-                                onClick={() => handleAddToCart(item)}
-                                className="w-full flex items-center justify-center gap-2 py-3 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all shadow-md active:translate-y-[2px] active:border-b-0"
-                              >
-                                <Plus className="w-4 h-4" />
-                                Add to Cart
+                            {/* Item Info & Action */}
+                            <div className="p-4 flex flex-col flex-1 justify-between gap-3">
+                              <button onClick={() => setSelectedItem(item)} className="text-left space-y-1">
+                                <h3 className="font-black text-white text-sm leading-snug line-clamp-2 uppercase tracking-tight group-hover:text-emerald-300 transition-colors">
+                                  {item.name}
+                                </h3>
+                                <p className="text-emerald-400 font-black text-lg">{currency} {item.price.toLocaleString()}</p>
                               </button>
-                            ) : null}
+
+                              {/* Low Stock / Out of Stock Banner */}
+                              {itemLowStock && (
+                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[10px] uppercase justify-center">
+                                  <span>⚠️ Low Stock: Only {itemStock} left!</span>
+                                </div>
+                              )}
+
+                              {itemOutOfStock && (
+                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 font-bold text-[10px] uppercase justify-center">
+                                  <span>Out of Stock (0 remaining)</span>
+                                </div>
+                              )}
+
+                              {isAdminUser ? (
+                                <div className="flex flex-col gap-1.5 w-full pt-1">
+                                  {!itemOutOfStock && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
+                                      className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
+                                      title="Add product to Customer Walk-in Bill"
+                                    >
+                                      <Receipt className="w-3.5 h-3.5" />
+                                      <span>+ Add to Bill</span>
+                                    </button>
+                                  )}
+                                  <div className="grid grid-cols-3 gap-1.5 w-full">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-600/60 shadow-md active:translate-y-[1px] transition-all cursor-pointer"
+                                      title="View Product Details"
+                                    >
+                                      <Eye className="w-3 h-3 text-emerald-400" />
+                                      <span>View</span>
+                                    </button>
+
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
+                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-blue-400/30 border-b-2 border-indigo-900 active:translate-y-[1px] transition-all cursor-pointer"
+                                      title="Edit Product"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                      <span>Edit</span>
+                                    </button>
+
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
+                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] transition-all cursor-pointer"
+                                      title="Delete Product"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : canBuy ? (
+                                !itemOutOfStock ? (
+                                  <button
+                                    onClick={() => handleAddToCart(item)}
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all shadow-md active:translate-y-[2px] active:border-b-0"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    Add to Cart
+                                  </button>
+                                ) : null
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </>
@@ -5323,11 +5369,10 @@ function StoreContent({ shopId }) {
                                           e.stopPropagation();
                                           setActiveCustMenuId(isMenuOpen ? null : cust._id);
                                         }}
-                                        className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${
-                                          isMenuOpen
-                                            ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
-                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
-                                        }`}
+                                        className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${isMenuOpen
+                                          ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
+                                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                                          }`}
                                         title="Actions & Export Options"
                                       >
                                         <MoreVertical className="w-4 h-4" />
@@ -5465,11 +5510,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              reportTimeframe === t.id
-                                ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
+                              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -5637,11 +5681,10 @@ function StoreContent({ shopId }) {
                                     </div>
                                   </td>
                                   <td className="p-3 text-center">
-                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                      isCash
-                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                        : 'bg-blue-100 text-blue-800 border border-blue-200'
-                                    }`}>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${isCash
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                      }`}>
                                       {method}
                                     </span>
                                   </td>
@@ -5763,11 +5806,10 @@ function StoreContent({ shopId }) {
                           <button
                             key={t.id}
                             onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                              reportTimeframe === t.id
-                                ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
+                              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                              }`}
                           >
                             {t.label}
                           </button>
@@ -6752,10 +6794,25 @@ function StoreContent({ shopId }) {
                   <p className="text-2xl font-black text-emerald-400">{currency} {selectedItem.price.toLocaleString()}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">In Stock</p>
-                  <p className="text-xl font-black text-white">{selectedItem.stock} <span className="text-xs text-slate-400">units</span></p>
+                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Stock Status</p>
+                  <p className={`text-xl font-black ${(Number(selectedItem.stock) || 0) <= 0 ? 'text-red-400' : (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) ? 'text-amber-400' : 'text-white'}`}>
+                    {(Number(selectedItem.stock) || 0) <= 0 ? 'Out of Stock' : `${selectedItem.stock} units`}
+                  </p>
                 </div>
               </div>
+
+              {/* Low Stock or Out of Stock Alert */}
+              {(Number(selectedItem.stock) || 0) > 0 && (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) && (
+                <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 font-bold text-xs flex items-center gap-2">
+                  <span>⚠️ Low Stock Warning: Only {selectedItem.stock} items left in stock!</span>
+                </div>
+              )}
+
+              {(Number(selectedItem.stock) || 0) <= 0 && (
+                <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 font-bold text-xs flex items-center gap-2">
+                  <span>🚫 Out of Stock: This product is currently unavailable.</span>
+                </div>
+              )}
 
               {isAdminUser ? (
                 <div className="flex items-center gap-3 pt-2">
@@ -6773,13 +6830,15 @@ function StoreContent({ shopId }) {
                   </button>
                 </div>
               ) : canBuy ? (
-                <button
-                  onClick={() => { handleAddToCart(selectedItem); setSelectedItem(null); }}
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl active:translate-y-[2px]"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Add to Cart
-                </button>
+                (Number(selectedItem.stock) || 0) > 0 ? (
+                  <button
+                    onClick={() => { handleAddToCart(selectedItem); setSelectedItem(null); }}
+                    className="w-full flex items-center justify-center gap-2 py-4 bg-[#1B3817] hover:bg-[#12290D] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-xl active:translate-y-[2px]"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Add to Cart
+                  </button>
+                ) : null
               ) : null}
             </div>
           </div>

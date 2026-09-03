@@ -251,7 +251,18 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
 
         if (dbItem) {
           // Deduct stock safely
-          dbItem.stock = Math.max(0, dbItem.stock - (item.quantity || 1));
+          const qty = Number(item.quantity) || 1;
+          dbItem.stock = Math.max(0, dbItem.stock - qty);
+          if (dbItem.unitType === 'peti') {
+            dbItem.petiQuantity = Math.max(0, (dbItem.petiQuantity || 0) - qty);
+          } else if (dbItem.unitType === 'tray') {
+            dbItem.trayQuantity = Math.max(0, (dbItem.trayQuantity || 0) - qty);
+          } else if (dbItem.unitType === 'egg') {
+            dbItem.eggQuantity = Math.max(0, (dbItem.eggQuantity || 0) - qty);
+          } else if ((dbItem.petiQuantity || 0) > 0) {
+            dbItem.petiQuantity = Math.max(0, dbItem.petiQuantity - qty);
+          }
+          dbItem.lastUpdated = new Date().toISOString().split('T')[0];
           await dbItem.save();
 
           const costPrice = dbItem.costPrice || 0;

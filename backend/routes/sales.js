@@ -124,10 +124,23 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
       if (!product) {
         throw new Error(`Product ${item.name} not found`);
       }
-      if (product.stock < item.quantity) {
-        throw new Error(`Insufficient stock for ${item.name}`);
+      const qty = Number(item.quantity) || 1;
+      if (product.stock < qty) {
+        throw new Error(`Insufficient stock for ${item.name}. Available: ${product.stock}, Requested: ${qty}`);
       }
-      product.stock -= item.quantity;
+      product.stock = Math.max(0, product.stock - qty);
+      
+      // Also deduct from peti / tray / egg quantity if tracked
+      if (product.unitType === 'peti') {
+        product.petiQuantity = Math.max(0, (product.petiQuantity || 0) - qty);
+      } else if (product.unitType === 'tray') {
+        product.trayQuantity = Math.max(0, (product.trayQuantity || 0) - qty);
+      } else if (product.unitType === 'egg') {
+        product.eggQuantity = Math.max(0, (product.eggQuantity || 0) - qty);
+      } else if ((product.petiQuantity || 0) > 0) {
+        product.petiQuantity = Math.max(0, product.petiQuantity - qty);
+      }
+
       product.lastUpdated = new Date().toISOString().split('T')[0];
       await product.save();
     }
