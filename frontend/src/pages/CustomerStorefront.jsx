@@ -3789,9 +3789,9 @@ function StoreContent({ shopId }) {
           />
         )}
 
-        {/* ─── Green Gradient Sidebar with Pure Intense 3D Blue Glowing Shadow ─────────────────────── */}
+        {/* ─── Luxury Dark Green Sidebar (Matches Navbar) with 3D Glowing Shadow ─────────────────────── */}
         <aside
-          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#2D5A27] via-[#24491F] to-[#1B3817] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#071306] via-[#152F12] to-[#0A1A08] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
             } ${!isDesktopOpen ? 'md:-ml-56' : 'md:ml-0'
             }`}
         >
@@ -4187,48 +4187,48 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Today */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Today (Green & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Today</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
+                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todaySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.todayOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Calendar className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* This Month */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* This Month (Yellow, Green & Orange Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-orange-500 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-orange-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">This Month</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
+                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Month</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.monthlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-orange-100/90 font-bold block">{dashStats.monthlyOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* This Year */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* This Year (Yellow, Green & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">This Year</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
+                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Year</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.yearlySales || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.yearlyOrdersCount || 0} Orders</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <ShoppingBag className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Total Sales (Green Color with 3D Blue Shadow As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-emerald-600 via-green-600 to-emerald-700 rounded-xl text-white shadow-[0_10px_25px_rgba(37,99,235,0.35),_0_4px_10px_rgba(59,130,246,0.25)] flex items-center justify-between border border-emerald-400/50 border-b-4 border-b-emerald-900 hover:shadow-[0_16px_35px_rgba(37,99,235,0.45)] hover:-translate-y-1 transition-all duration-300">
+                            {/* Total Sales (Orange, Yellow & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-orange-500 via-amber-400 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-orange-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Total Sales</span>
+                                <span className="text-[9.5px] font-bold text-orange-100 uppercase tracking-wide block">Total Sales</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{dashStats.totalOrders || 0} Orders</span>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{dashStats.totalOrders || 0} Orders</span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-md shrink-0">
                                 <DollarSign className="w-4 h-4 text-white" />
@@ -4248,50 +4248,50 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Petis */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Petis (Yellow & Green Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Petis</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">{dashStats.totalProducts || 0} Products</span>
+                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-amber-100">Petis</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockPetis || 0).toFixed(1)} Petis</h4>
+                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{dashStats.totalProducts || 0} Products</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Box className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Trays */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Trays (Gray & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-slate-600 via-sky-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Trays</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">Available</span>
+                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-sky-100">Trays</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockTrays || 0).toLocaleString('en-PK')} Trays</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Package className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Eggs */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Eggs (Gray & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-slate-700 via-blue-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-blue-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold uppercase tracking-wide block text-slate-500">Eggs</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">Available</span>
+                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-slate-200">Eggs</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
+                                <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <ShoppingBag className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Stock Worth */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Stock Worth (Yellow & Green Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-emerald-700 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Stock Worth</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">Total Valuation</span>
+                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Stock Worth</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">Total Valuation</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
@@ -4436,7 +4436,9 @@ function StoreContent({ shopId }) {
                               <div>
                                 <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Damaged Stock</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalDamagedPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-300 font-bold block">{dashStats.totalDamagedTrays || 0} Trays</span>
+                                <span className="text-[9px] text-slate-200 font-bold block mt-0.5">
+                                  {dashStats.totalDamagedTrays || 0} Trays • {(dashStats.totalDamagedEggs || 0).toLocaleString('en-PK')} Eggs
+                                </span>
                               </div>
                               <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <AlertCircle className="w-4 h-4" />
@@ -6469,7 +6471,7 @@ function StoreContent({ shopId }) {
                               </button>
                             </div>
                           ) : (
-                            <div className="overflow-x-auto rounded-2xl border border-slate-200 min-h-[280px]">
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200 min-h-[350px] pb-24">
                               <table className="w-full text-left text-xs text-slate-800">
                                 <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
                                   <tr>
@@ -6485,7 +6487,7 @@ function StoreContent({ shopId }) {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                   {filteredExpForTable.map((exp, idx) => {
-                                    const openUpward = idx >= 1 && filteredExpForTable.length <= 4;
+                                    const isNearBottom = idx >= Math.max(1, filteredExpForTable.length - 3);
                                     return (
                                       <tr key={exp._id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="p-3.5 text-center font-bold text-slate-400">
@@ -6526,7 +6528,7 @@ function StoreContent({ shopId }) {
                                                 e.stopPropagation();
                                                 setActiveExpenseMenuId(activeExpenseMenuId === exp._id ? null : exp._id);
                                               }}
-                                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200"
+                                              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200 hover:border-slate-300"
                                               title="Actions"
                                             >
                                               <MoreVertical className="w-4 h-4" />
@@ -6535,58 +6537,63 @@ function StoreContent({ shopId }) {
                                             {activeExpenseMenuId === exp._id && (
                                               <>
                                                 <div
-                                                  className="fixed inset-0 z-30"
+                                                  className="fixed inset-0 z-40"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setActiveExpenseMenuId(null);
                                                   }}
                                                 />
-                                                <div className={`absolute right-0 ${openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} z-40 w-44 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5 text-left space-y-0.5 animate-in fade-in zoom-in-95 duration-150`}>
+                                                <div className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-2' : 'top-full mt-2'} z-50 w-48 bg-white border border-slate-200 rounded-2xl shadow-2xl p-1.5 text-left space-y-0.5 animate-in fade-in zoom-in-95 duration-150`}>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
                                                       handleEditExpense(exp);
                                                     }}
-                                                    className="w-full px-3 py-2 hover:bg-indigo-50 text-indigo-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                    className="w-full px-3 py-2 hover:bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
                                                   >
-                                                    <Edit className="w-3.5 h-3.5" /> Edit Expense
+                                                    <Edit className="w-4 h-4 text-indigo-600" /> Edit Expense
                                                   </button>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
                                                       handlePrintSingleExpense(exp, idx);
                                                     }}
-                                                    className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                    className="w-full px-3 py-2 hover:bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
                                                   >
-                                                    <Printer className="w-3.5 h-3.5" /> Print (PDF)
+                                                    <Printer className="w-4 h-4 text-rose-600" /> Print (PDF)
                                                   </button>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
                                                       handleWhatsAppSingleExpense(exp, idx);
                                                     }}
-                                                    className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                    className="w-full px-3 py-2 hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
                                                   >
-                                                    <Send className="w-3.5 h-3.5" /> WhatsApp
+                                                    <Send className="w-4 h-4 text-emerald-600" /> WhatsApp
                                                   </button>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
                                                       handleExportSingleExpenseExcel(exp, idx);
                                                     }}
-                                                    className="w-full px-3 py-2 hover:bg-green-50 text-green-700 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                    className="w-full px-3 py-2 hover:bg-green-50 text-green-700 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
                                                   >
-                                                    <FileSpreadsheet className="w-3.5 h-3.5" /> Excel Sheet
+                                                    <FileSpreadsheet className="w-4 h-4 text-green-600" /> Excel Sheet
                                                   </button>
                                                   <div className="border-t border-slate-100 my-1"></div>
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
+                                                      setActiveExpenseMenuId(null);
                                                       handleDeleteExpense(exp._id);
                                                     }}
-                                                    className="w-full px-3 py-2 hover:bg-red-50 text-red-600 rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all cursor-pointer"
+                                                    className="w-full px-3 py-2 hover:bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2.5 transition-all cursor-pointer"
                                                   >
-                                                    <Trash2 className="w-3.5 h-3.5" /> Delete Entry
+                                                    <Trash2 className="w-4 h-4 text-red-600" /> Delete Entry
                                                   </button>
                                                 </div>
                                               </>
@@ -6824,7 +6831,15 @@ function StoreContent({ shopId }) {
                                     </span>
                                   </td>
                                   <td className="p-3.5 text-center font-black text-slate-900">
-                                    {dmg.quantity} Units
+                                    {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
+                                      <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
+                                        {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
+                                        {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
+                                        {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                      </div>
+                                    ) : (
+                                      <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                    )}
                                   </td>
                                   <td className="p-3.5 font-bold text-slate-600">
                                     {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
@@ -7225,7 +7240,7 @@ function StoreContent({ shopId }) {
                     <div className="grid grid-cols-3 gap-2.5">
                       {/* Petis Damaged */}
                       <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 text-center focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis (پیټۍ)</span>
+                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
                         <input
                           type="number"
                           min="0"
@@ -7242,7 +7257,7 @@ function StoreContent({ shopId }) {
 
                       {/* Trays Damaged */}
                       <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-2.5 text-center focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays (ټرې)</span>
+                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
                         <input
                           type="number"
                           min="0"
@@ -7259,7 +7274,7 @@ function StoreContent({ shopId }) {
 
                       {/* Eggs Damaged */}
                       <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-2.5 text-center focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs (هګۍ)</span>
+                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
                         <input
                           type="number"
                           min="0"
