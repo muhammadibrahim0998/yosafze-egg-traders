@@ -21,18 +21,21 @@ router.post('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
     const realShopId = await resolveShopId(shopId);
-    const { title, category, amount, paymentMethod, expenseDate, notes, createdBy } = req.body;
+    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy } = req.body;
 
     if (!title || amount === undefined || amount === null) {
       return res.status(400).json({ success: false, message: 'Title and amount are required' });
     }
+
+    const source = (paymentSource || paymentMethod || 'CASH').toUpperCase().includes('BANK') ? 'BANK' : 'CASH';
 
     const newExpense = new Expense({
       shopId: realShopId,
       title,
       category: category || 'Other',
       amount: Number(amount),
-      paymentMethod: paymentMethod || 'Paid',
+      paymentMethod: source,
+      paymentSource: source,
       expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
       notes: notes || '',
       createdBy: createdBy || 'Shop Admin'
@@ -49,12 +52,16 @@ router.post('/shop/:shopId', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, category, amount, paymentMethod, expenseDate, notes, createdBy } = req.body;
+    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy } = req.body;
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (category !== undefined) updateData.category = category;
     if (amount !== undefined) updateData.amount = Number(amount);
-    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (paymentMethod !== undefined || paymentSource !== undefined) {
+      const source = (paymentSource || paymentMethod || 'CASH').toUpperCase().includes('BANK') ? 'BANK' : 'CASH';
+      updateData.paymentMethod = source;
+      updateData.paymentSource = source;
+    }
     if (expenseDate !== undefined) updateData.expenseDate = new Date(expenseDate);
     if (notes !== undefined) updateData.notes = notes;
     if (createdBy !== undefined) updateData.createdBy = createdBy;

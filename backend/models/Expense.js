@@ -9,7 +9,8 @@ const expenseSchema = new mongoose.Schema({
     default: 'Other' 
   },
   amount: { type: Number, required: true },
-  paymentMethod: { type: String, default: 'Paid' },
+  paymentMethod: { type: String, enum: ['CASH', 'BANK', 'ONLINE', 'Paid'], default: 'CASH' },
+  paymentSource: { type: String, enum: ['CASH', 'BANK', 'ONLINE'], default: 'CASH' },
   expenseDate: { type: Date, default: Date.now },
   notes: { type: String, default: '' },
   createdBy: { type: String, default: 'Shop Admin' }

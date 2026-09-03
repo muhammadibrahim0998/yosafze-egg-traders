@@ -15,6 +15,7 @@ const CustomerSchema = new mongoose.Schema({
   cart: [{
     itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
     name: String,
+    unit: { type: String, default: 'egg' },
     price: Number,
     image: String,
     quantity: { type: Number, default: 1 }

@@ -538,7 +538,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             <div>
               <span style="color:#059669; text-transform:uppercase;">Customer:</span> <strong style="font-size:13px;">${customerName}</strong><br/>
               ${customerPhone ? `<span>Phone: ${customerPhone}</span><br/>` : ''}
-              <span>Payment: ${bill.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' : 'Cash'}</span>
+              <span>Payment: ${bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? 'Credit / Qaraz (Due Balance)' : (bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? 'Bank Transfer' : 'Cash Paid')}</span>
             </div>
             <div style="text-align:right;">
               <span class="serial-tag">SERIAL NO: #${serialNo}</span><br/>
@@ -624,12 +624,20 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
               </div>
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5 mb-1">
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    Serial: #{serialNo}
-                  </span>
-                  <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${bill.paymentMethod === 'BANK_TRANSFER' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}`}>
-                    {bill.paymentMethod === 'BANK_TRANSFER' ? '🏦 BANK' : '💵 CASH'}
-                  </span>
+                  <span className="text-[10px] font-mono font-bold text-slate-400 mr-2">Invoice: #{serialNo}</span>
+                  {bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-rose-950 text-rose-300 border border-rose-700 shadow-sm">
+                      📋 CREDIT / QARAZ
+                    </span>
+                  ) : bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-950 text-amber-300 border border-amber-700 shadow-sm">
+                      🏦 BANK TRANSFER
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-950 text-emerald-400 border border-emerald-700 shadow-sm">
+                      💵 CASH PAID
+                    </span>
+                  )}
                 </div>
                 <p className="text-[9px] text-slate-400">{saleDate}</p>
               </div>

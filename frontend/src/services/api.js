@@ -122,7 +122,38 @@ export const getSales = async (shopId) => {
 };
 
 export const createSale = async (saleData) => {
-  const response = await api.post('/sales', saleData);
+  const method = String(saleData.paymentMethod || 'CASH').toUpperCase();
+  let endpoint = '/sales';
+  if (method === 'CASH') endpoint = '/sales/cash';
+  else if (method === 'BANK_TRANSFER' || method === 'BANK' || method === 'ONLINE' || method === 'EASYPAISA') endpoint = '/sales/bank';
+  else if (method === 'CREDIT' || method === 'DUE') endpoint = '/sales/credit';
+
+  const response = await api.post(endpoint, saleData);
+  return response.data;
+};
+
+export const createCashSale = async (saleData) => {
+  const response = await api.post('/sales/cash', saleData);
+  return response.data;
+};
+
+export const createBankSale = async (saleData) => {
+  const response = await api.post('/sales/bank', saleData);
+  return response.data;
+};
+
+export const createCreditSale = async (saleData) => {
+  const response = await api.post('/sales/credit', saleData);
+  return response.data;
+};
+
+export const getSalesBreakdown = async (shopId) => {
+  const response = await api.get(`/sales/breakdown${shopId ? `/${shopId}` : ''}`);
+  return response.data;
+};
+
+export const getSalesByType = async (type, shopId) => {
+  const response = await api.get(`/sales/by-type/${type}`, { params: shopId ? { shopId } : {} });
   return response.data;
 };
 

@@ -63,8 +63,24 @@ const SaleSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['CASH', 'BANK_TRANSFER', 'EASYPAISA', 'ONLINE'],
+    enum: ['CASH', 'BANK_TRANSFER', 'BANK', 'ONLINE', 'EASYPAISA', 'CREDIT', 'DUE', 'SPLIT'],
     default: 'CASH'
+  },
+  cashPaid: {
+    type: Number,
+    default: 0
+  },
+  bankPaid: {
+    type: Number,
+    default: 0
+  },
+  dueAmount: {
+    type: Number,
+    default: 0
+  },
+  paymentReceipt: {
+    type: String,
+    default: ''
   },
   paymentProof: {
     type: String,
@@ -73,6 +89,30 @@ const SaleSchema = new mongoose.Schema({
   transactionId: {
     type: String,
     default: ''
+  },
+  isCredit: {
+    type: Boolean,
+    default: false
+  },
+  orderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order'
+  },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer'
+  },
+  customerEmail: {
+    type: String,
+    default: ''
+  },
+  isOnlineOrder: {
+    type: Boolean,
+    default: false
+  },
+  orderSource: {
+    type: String,
+    default: 'WALK_IN_POS'
   },
   approvalStatus: {
     type: String,

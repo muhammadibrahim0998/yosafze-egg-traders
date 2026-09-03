@@ -64,32 +64,44 @@ export function CustomerAuthProvider({ shopId, children }) {
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
-  const addToCart = async (item, quantity = 1) => {
+  const addToCart = async (item, quantity = 1, unit = 'egg', unitPrice = 0) => {
     if (!customer) return false;
+    const finalPrice = unitPrice > 0 ? unitPrice : item.price;
     const res = await fetch(`${API}/cart`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader },
-      body: JSON.stringify({ itemId: item._id, quantity })
+      body: JSON.stringify({ itemId: item._id, quantity, unit, price: finalPrice })
     });
     const data = await res.json();
     if (res.ok) { setCart(data.cart); return true; }
     throw new Error(data.message);
   };
 
-  const updateCartItem = async (itemId, quantity) => {
+  const updateCartItem = async (itemId, quantity, unit) => {
     const res = await fetch(`${API}/cart/${itemId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeader },
-      body: JSON.stringify({ quantity })
+      body: JSON.stringify({ quantity, unit })
     });
     const data = await res.json();
     if (res.ok) setCart(data.cart);
   };
 
-  const removeFromCart = async (itemId) => {
-    const res = await fetch(`${API}/cart/${itemId}`, {
+  const removeFromCart = async (itemId, unit) => {
+    const query = unit ? `?unit=${encodeURIComponent(unit)}` : '';
+    const res = await fetch(`${API}/cart/${itemId}${query}`, {
       method: 'DELETE',
       headers: authHeader
+    });
+    const data = await res.json();
+    if (res.ok) setCart(data.cart);
+  };
+
+  const updateCartItemUnit = async (itemId, currentUnit, newUnit) => {
+    const res = await fetch(`${API}/cart/${itemId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify({ unit: currentUnit, newUnit })
     });
     const data = await res.json();
     if (res.ok) setCart(data.cart);
@@ -115,7 +127,7 @@ export function CustomerAuthProvider({ shopId, children }) {
       customer, cart, cartOpen, setCartOpen,
       cartTotal, cartCount, authHeader,
       register, login, logout,
-      addToCart, updateCartItem, removeFromCart, clearCart,getMyOrders
+      addToCart, updateCartItem, updateCartItemUnit, removeFromCart, clearCart, getMyOrders
     }}>
       {children}
     </CustomerAuthContext.Provider>

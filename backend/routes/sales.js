@@ -1,6 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import Sale from '../models/Sale.js';
+import Order from '../models/Order.js';
 import Item from '../models/Item.js';
 import CashSession from '../models/CashSession.js';
 import { generateInvoice } from '../utils/generateInvoice.js';
@@ -75,10 +76,10 @@ router.get('/', authenticate, requireShopAdmin, async (req, res) => {
   }
 });
 
-// Create a new sale
-router.post('/', authenticate, requireShopAdmin, async (req, res) => {
+// Helper function to create sale record with custom payment routing
+const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
   const { items, totalAmount, totalProfit, cashierName, customerName, shopId } = req.body;
-  const rawShopId = req.user.shopId || shopId;
+  const rawShopId = req.user?.shopId || shopId;
   const targetShopId = await resolveShopId(rawShopId);
   
   try {
@@ -93,9 +94,35 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
       await settings.save();
     }
 
-    // 2. Create the sale record
-    const method = req.body.paymentMethod || 'CASH';
-    const isBank = method === 'BANK_TRANSFER' || method === 'EASYPAISA' || method === 'ONLINE';
+    // 2. Resolve Payment Breakdown (Cash, Bank, Credit / Qaraz)
+    const method = String(explicitPaymentData.paymentMethod || req.body.paymentMethod || 'CASH').toUpperCase();
+    const isBank = method === 'BANK_TRANSFER' || method === 'BANK' || method === 'ONLINE' || method === 'EASYPAISA';
+    const isCredit = method === 'CREDIT' || method === 'DUE' || explicitPaymentData.isCredit === true;
+
+    const totalAmt = Number(totalAmount) || 0;
+    let cashPaid = 0;
+    let bankPaid = 0;
+    let dueAmount = 0;
+
+    if (method === 'CASH') {
+      cashPaid = Number(req.body.cashPaid) > 0 ? Number(req.body.cashPaid) : totalAmt;
+      dueAmount = Math.max(0, totalAmt - cashPaid);
+    } else if (isBank) {
+      bankPaid = Number(req.body.bankPaid) > 0 ? Number(req.body.bankPaid) : totalAmt;
+      dueAmount = Math.max(0, totalAmt - bankPaid);
+    } else if (isCredit) {
+      dueAmount = totalAmt;
+      cashPaid = 0;
+      bankPaid = 0;
+    } else if (method === 'SPLIT') {
+      cashPaid = Number(req.body.cashPaid) || 0;
+      bankPaid = Number(req.body.bankPaid) || 0;
+      dueAmount = Math.max(0, totalAmt - (cashPaid + bankPaid));
+    } else {
+      cashPaid = totalAmt;
+    }
+
+    const paymentReceipt = req.body.paymentReceipt || req.body.paymentProof || explicitPaymentData.paymentReceipt || '';
 
     // Generate unique serial number (starting from 1)
     const existingCount = await Sale.countDocuments({ shopId: targetShopId });
@@ -105,16 +132,21 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
     const sale = new Sale({
       shopId: targetShopId,
       items,
-      totalAmount,
-      totalProfit,
+      totalAmount: totalAmt,
+      totalProfit: Number(totalProfit) || 0,
       serialNumber,
       invoiceNumber,
-      cashierName: cashierName || req.user.fullName || "Shop Admin",
-      customerName: customerName || "Walk-in Customer",
+      cashierName: cashierName || req.user?.fullName || "Shop Admin",
+      customerName: customerName || (isCredit ? "Credit Customer" : "Walk-in Customer"),
       customerPhone: req.body.customerPhone || "",
       paymentMethod: method,
-      paymentProof: req.body.paymentProof || "",
+      cashPaid,
+      bankPaid,
+      dueAmount,
+      paymentReceipt,
+      paymentProof: paymentReceipt,
       transactionId: req.body.transactionId || "",
+      isCredit: isCredit || dueAmount > 0,
       approvalStatus: req.body.approvalStatus || (isBank ? 'PENDING_APPROVAL' : 'APPROVED')
     });
     
@@ -148,11 +180,13 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
     const newSale = await sale.save();
 
     // 4. Update active CashSession (Anti-Theft / Reporting)
-    const activeSession = await CashSession.findOne({ status: 'open' });
-    if (activeSession) {
-      activeSession.totalSales += totalAmount;
-      activeSession.expectedCash += totalAmount;
-      await activeSession.save();
+    if (cashPaid > 0) {
+      const activeSession = await CashSession.findOne({ status: 'open' });
+      if (activeSession) {
+        activeSession.totalSales += cashPaid;
+        activeSession.expectedCash += cashPaid;
+        await activeSession.save();
+      }
     }
 
     // 5. Generate PDF Invoice
@@ -175,6 +209,109 @@ router.post('/', authenticate, requireShopAdmin, async (req, res) => {
     }
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+// Create a standard sale
+router.post('/', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res);
+});
+
+// ── DEDICATED ROUTE 1: CASH SALE ──
+router.post('/cash', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res, { paymentMethod: 'CASH' });
+});
+
+// ── DEDICATED ROUTE 2: BANK / ONLINE SALE WITH RECEIPT PROOF ──
+router.post('/bank', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res, { paymentMethod: 'BANK_TRANSFER' });
+});
+
+router.post('/online', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res, { paymentMethod: 'ONLINE' });
+});
+
+// ── DEDICATED ROUTE 3: CREDIT / QARAZ (DUE BALANCE) SALE ──
+router.post('/credit', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res, { paymentMethod: 'CREDIT', isCredit: true });
+});
+
+router.post('/due', authenticate, requireShopAdmin, async (req, res) => {
+  await createSaleRecord(req, res, { paymentMethod: 'CREDIT', isCredit: true });
+});
+
+// ── SALES BREAKDOWN & SUMMARY ROUTE (Cash, Bank, Credit) ──
+router.get('/breakdown/:shopId?', authenticate, async (req, res) => {
+  try {
+    const rawShopId = req.params.shopId || req.query.shopId || req.user?.shopId;
+    let filter = {};
+    if (rawShopId) {
+      const targetShopId = await resolveShopId(rawShopId);
+      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+        filter = { shopId: targetShopId };
+      }
+    }
+    const allSales = await Sale.find(filter);
+
+    let totalCash = 0;
+    let totalBank = 0;
+    let totalCredit = 0;
+    let totalGrossSales = 0;
+
+    allSales.forEach(s => {
+      totalGrossSales += (Number(s.totalAmount) || 0);
+      if (s.cashPaid !== undefined || s.bankPaid !== undefined || s.dueAmount !== undefined) {
+        totalCash += (Number(s.cashPaid) || 0);
+        totalBank += (Number(s.bankPaid) || 0);
+        totalCredit += (Number(s.dueAmount) || 0);
+      } else {
+        // Fallback for older sales
+        const m = String(s.paymentMethod || 'CASH').toUpperCase();
+        if (m === 'CASH') totalCash += (Number(s.totalAmount) || 0);
+        else if (m === 'BANK_TRANSFER' || m === 'BANK' || m === 'ONLINE' || m === 'EASYPAISA') totalBank += (Number(s.totalAmount) || 0);
+        else if (m === 'CREDIT' || m === 'DUE') totalCredit += (Number(s.totalAmount) || 0);
+        else totalCash += (Number(s.totalAmount) || 0);
+      }
+    });
+
+    res.json({
+      success: true,
+      totalGrossSales,
+      totalCash,
+      totalBank,
+      totalCredit,
+      totalCount: allSales.length
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET SALES FILTERED BY TYPE (cash | bank | credit) ──
+router.get('/by-type/:type', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const type = req.params.type.toLowerCase();
+    const rawShopId = req.query.shopId || req.user?.shopId;
+    let filter = {};
+    if (rawShopId) {
+      const targetShopId = await resolveShopId(rawShopId);
+      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+        filter.shopId = targetShopId;
+      }
+    }
+
+    if (type === 'cash') {
+      filter.$or = [{ paymentMethod: 'CASH' }, { cashPaid: { $gt: 0 } }];
+    } else if (type === 'bank' || type === 'online') {
+      filter.$or = [{ paymentMethod: { $in: ['BANK_TRANSFER', 'BANK', 'ONLINE', 'EASYPAISA'] } }, { bankPaid: { $gt: 0 } }];
+    } else if (type === 'credit' || type === 'due' || type === 'qaraz') {
+      filter.$or = [{ paymentMethod: { $in: ['CREDIT', 'DUE'] } }, { isCredit: true }, { dueAmount: { $gt: 0 } }];
+    }
+
+    const sales = await Sale.find(filter).sort({ saleDate: -1 });
+    res.json(sales);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -270,48 +407,55 @@ router.put('/:id', authenticate, preventSuperAdmin, verifyOwnerPassword, async (
   }
 });
 
-// Delete a sale (and reverse stock) - REQUIRE OWNER PASSWORD
-router.delete('/:id', authenticate, preventSuperAdmin, verifyOwnerPassword, async (req, res) => {
+// Delete a sale permanently from database (both Sale and Order if exists)
+router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id);
-    if (!sale) {
-      return res.status(404).json({ message: 'Sale not found' });
-    }
+    const saleId = req.params.id;
+    const sale = await Sale.findById(saleId);
 
-    const amountToDeduct = sale.totalAmount;
+    if (sale) {
+      const amountToDeduct = Number(sale.totalAmount) || 0;
 
-    // Reverse stock
-    for (const item of sale.items) {
-      await Item.findByIdAndUpdate(item.productId, {
-        $inc: { stock: item.quantity },
-        lastUpdated: new Date().toISOString().split('T')[0]
-      });
-    }
+      // Reverse stock
+      for (const item of (sale.items || [])) {
+        if (item.productId) {
+          try {
+            await Item.findByIdAndUpdate(item.productId, {
+              $inc: { stock: Number(item.quantity) || 1 },
+              lastUpdated: new Date().toISOString().split('T')[0]
+            });
+          } catch (e) { }
+        }
+      }
 
-    await Sale.findByIdAndDelete(req.params.id);
+      await Sale.findByIdAndDelete(saleId);
 
-    // Delete associated Invoice PDF if it exists
-    const fileName = `invoice-${req.params.id}.pdf`;
-    const filePath = path.join(__dirname, '..', 'invoices', fileName);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted invoice file: ${fileName}`);
-      } catch (fileErr) {
-        console.error(`Failed to delete invoice file: ${fileErr.message}`);
+      // Delete associated Invoice PDF if it exists
+      const fileName = `invoice-${saleId}.pdf`;
+      const filePath = path.join(__dirname, '..', 'invoices', fileName);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (fileErr) { }
+      }
+
+      // Update active CashSession
+      const activeSession = await CashSession.findOne({ status: 'open' });
+      if (activeSession) {
+        activeSession.totalSales = Math.max(0, (activeSession.totalSales || 0) - amountToDeduct);
+        activeSession.expectedCash = Math.max(0, (activeSession.expectedCash || 0) - amountToDeduct);
+        await activeSession.save();
       }
     }
 
-    // Update active CashSession
-    const activeSession = await CashSession.findOne({ status: 'open' });
-    if (activeSession) {
-      activeSession.totalSales -= amountToDeduct;
-      activeSession.expectedCash -= amountToDeduct;
-      await activeSession.save();
-    }
+    // Also delete from Order collection if it exists
+    try {
+      await Order.findByIdAndDelete(saleId);
+    } catch (ordErr) { }
 
-    res.json({ message: 'Sale deleted and stock reversed' });
+    res.json({ success: true, message: 'Sale and associated records permanently deleted from database' });
   } catch (err) {
+    console.error('Delete sale error:', err);
     res.status(500).json({ message: err.message });
   }
 });

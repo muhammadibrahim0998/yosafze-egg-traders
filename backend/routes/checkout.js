@@ -57,6 +57,42 @@ router.post('/', authenticateCustomer, async (req, res) => {
 
     await order.save();
 
+    // Automatically record this online customer transaction into Sale collection
+    try {
+      const saleItems = (customer.cart || []).map(item => ({
+        productId: item.productId || item._id,
+        name: item.name,
+        quantity: Number(item.quantity) || 1,
+        price: Number(item.price) || 0,
+        subtotal: (Number(item.price) || 0) * (Number(item.quantity) || 1),
+        profit: (Number(item.price) - Number(item.costPrice || 0)) * (Number(item.quantity) || 1)
+      }));
+
+      const newSale = new Sale({
+        shopId,
+        orderId: order._id,
+        items: saleItems,
+        totalAmount,
+        totalProfit: saleItems.reduce((s, i) => s + (i.profit || 0), 0),
+        saleDate: new Date(),
+        status: 'completed',
+        cashierName: 'Online Storefront',
+        customerName: customer.fullName || shippingDetails?.fullName || 'Online Customer',
+        customerPhone: customer.phone || shippingDetails?.phone || '',
+        customerEmail: customer.email || shippingDetails?.email || '',
+        customerId: customer._id,
+        paymentMethod: paymentMethod === 'COD' ? 'CASH' : (paymentMethod === 'STRIPE' ? 'ONLINE' : 'BANK_TRANSFER'),
+        cashPaid: paymentMethod === 'COD' ? totalAmount : 0,
+        bankPaid: (paymentMethod === 'STRIPE' || paymentMethod === 'EASYPAISA' || paymentMethod === 'BANK') ? totalAmount : 0,
+        dueAmount: 0,
+        isOnlineOrder: true,
+        orderSource: 'ONLINE_STOREFRONT'
+      });
+      await newSale.save();
+    } catch (saleErr) {
+      console.error('Failed to create sale for order:', saleErr);
+    }
+
     if (paymentMethod === 'COD') {
       // For Cash on Delivery, just confirm the order and clear the cart
       customer.cart = [];
@@ -290,18 +326,36 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
         }
       }
 
-      const sale = new Sale({
-        shopId: order.shopId,
-        items: saleItems,
-        totalAmount: order.totalAmount,
-        totalProfit,
-        saleDate: new Date(),
-        status: 'completed',
-        cashierName: req.user?.fullName || 'EasyPaisa Online',
-        customerName: order.customerId?.fullName || order.shippingDetails?.fullName || 'Online Customer'
-      });
-
-      await sale.save();
+      const existingSale = await Sale.findOne({ orderId: order._id });
+      if (existingSale) {
+        existingSale.approvalStatus = 'APPROVED';
+        existingSale.status = 'completed';
+        if (totalProfit) existingSale.totalProfit = totalProfit;
+        await existingSale.save();
+      } else {
+        const sale = new Sale({
+          shopId: order.shopId,
+          orderId: order._id,
+          customerId: order.customerId?._id || order.customerId,
+          items: saleItems,
+          totalAmount: order.totalAmount,
+          totalProfit,
+          saleDate: order.createdAt || new Date(),
+          status: 'completed',
+          cashierName: req.user?.fullName || 'Online Storefront',
+          customerName: order.customerId?.fullName || order.shippingDetails?.fullName || 'Online Customer',
+          customerEmail: order.customerId?.email || order.shippingDetails?.email || '',
+          customerPhone: order.customerId?.phone || order.shippingDetails?.phone || '',
+          paymentMethod: order.paymentMethod === 'COD' ? 'CASH' : (order.paymentMethod === 'STRIPE' ? 'ONLINE' : 'BANK_TRANSFER'),
+          cashPaid: order.paymentMethod === 'COD' ? order.totalAmount : 0,
+          bankPaid: order.paymentMethod !== 'COD' ? order.totalAmount : 0,
+          dueAmount: 0,
+          isOnlineOrder: true,
+          orderSource: 'ONLINE_STOREFRONT',
+          approvalStatus: 'APPROVED'
+        });
+        await sale.save();
+      }
     }
 
     await order.save();
