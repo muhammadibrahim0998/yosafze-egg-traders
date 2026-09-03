@@ -35,6 +35,8 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
   const watchedEggsPerTray = watch("eggsPerTray") || 30;
   const watchedCostPrice = watch("costPrice") || 0;
   const watchedAmountPaid = watch("amountPaidToSupplier") || 0;
+  const watchedPaymentMethod = watch("paymentMethod") || "Cash";
+  const isBankMode = String(watchedPaymentMethod).toLowerCase().includes('bank') || String(watchedPaymentMethod).toLowerCase().includes('online');
 
   // Live Unit & Stock Conversions
   const tPerPetiVal = Number(watchedTraysPerPeti) || 12;
@@ -201,9 +203,19 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
     }
 
     const dueAmt = Math.max(0, totalBill - paidAmt);
-    const determinedMethod = dueAmt > 0 && paidAmt === 0 
-      ? "Credit" 
-      : (dueAmt > 0 ? "Partial Cash" : "Cash");
+    const rawMethod = String(data.paymentMethod || "Cash").trim();
+    const isOnlineOrBank = rawMethod.toLowerCase().includes('bank') || rawMethod.toLowerCase().includes('online') || data.isOnlinePayment === true;
+
+    let determinedMethod = "Cash";
+    if (isOnlineOrBank) {
+      determinedMethod = dueAmt > 0 && paidAmt === 0 
+        ? "Credit" 
+        : (dueAmt > 0 ? "Partial Bank Transfer" : "Bank Transfer");
+    } else {
+      determinedMethod = dueAmt > 0 && paidAmt === 0 
+        ? "Credit" 
+        : (dueAmt > 0 ? "Partial Cash" : "Cash");
+    }
 
     const payload = {
       ...data,
@@ -226,8 +238,8 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
       amountPaidToSupplier: paidAmt,
       dueAmountToSupplier: dueAmt,
       paymentMethod: determinedMethod,
-      paymentReceipt: "",
-      isOnlinePayment: false,
+      paymentReceipt: data.paymentReceipt || "",
+      isOnlinePayment: isOnlineOrBank,
       images: images && images.length > 0 ? images : (product?.images || []),
       description: data.description ?? "",
       lastUpdated: new Date().toISOString().split("T")[0],
@@ -629,15 +641,46 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
             </div>
           </div>
 
-          {/* Section 4: Supplier Information & Cash Payment */}
+          {/* Section 4: Supplier Information & Payment Method (Cash & Bank Transfer) */}
           <div className="p-3.5 bg-slate-900/95 rounded-2xl border border-slate-700/80 space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 flex-wrap gap-2">
               <span className="text-xs font-black uppercase text-teal-300 flex items-center gap-2 tracking-wider">
-                <UserCheck className="w-4 h-4 text-teal-400" /> Supplier Information
+                <UserCheck className="w-4 h-4 text-teal-400" /> Supplier Information &amp; Payment
               </span>
-              <span className="text-[10px] font-black text-emerald-400 uppercase bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                💵 Cash Payment
-              </span>
+              
+              {/* Payment Method Switcher (Cash vs Bank Online) */}
+              <div className="flex items-center p-0.5 bg-slate-800 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("paymentMethod", "Cash");
+                    setValue("isOnlinePayment", false);
+                  }}
+                  disabled={mode === "view"}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                    !isBankMode
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Banknote className="w-3 h-3" /> Cash (نغد)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("paymentMethod", "Bank Transfer");
+                    setValue("isOnlinePayment", true);
+                  }}
+                  disabled={mode === "view"}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                    isBankMode
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CreditCard className="w-3 h-3" /> Bank / Online (بانک)
+                </button>
+              </div>
             </div>
 
             {/* Supplier Info Inputs */}
@@ -676,10 +719,12 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
               </div>
             </div>
 
-            {/* Cash Paid to Supplier with Quick Option Buttons */}
+            {/* Amount Paid to Supplier (Cash or Bank) with Quick Option Buttons */}
             <div className="space-y-2 pt-0.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-emerald-400 uppercase">Cash Paid to Supplier (Rs.)</label>
+                <label className={`text-xs font-black uppercase ${isBankMode ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                  {isBankMode ? '🏦 Bank / Online Paid Amount (Rs.)' : '💵 Cash Paid to Supplier (Rs.)'}
+                </label>
                 {calculatedTotalBill > 0 && mode !== "view" && (
                   <div className="flex gap-1.5">
                     <button
@@ -688,7 +733,11 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                         setValue("amountPaidToSupplier", calculatedTotalBill);
                         setHasUserEditedPayment(true);
                       }}
-                      className="px-2 py-0.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 text-[10px] font-black border border-emerald-500/40 cursor-pointer"
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black border cursor-pointer ${
+                        isBankMode
+                          ? 'bg-indigo-900/60 hover:bg-indigo-800 text-indigo-300 border-indigo-500/40'
+                          : 'bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border-emerald-500/40'
+                      }`}
                     >
                       ✓ 100% Paid
                     </button>
@@ -700,7 +749,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       }}
                       className="px-2 py-0.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-300 text-[10px] font-black border border-rose-500/40 cursor-pointer"
                     >
-                      ⚠️ 100% Credit
+                      ⚠️ 100% Credit (قرض)
                     </button>
                   </div>
                 )}
@@ -712,10 +761,40 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                   onChange: () => setHasUserEditedPayment(true)
                 })}
                 disabled={mode === "view"}
-                className="w-full bg-slate-800 border border-emerald-500/40 rounded-xl py-2 px-3 text-emerald-400 text-sm font-black outline-none focus:border-emerald-400"
+                className={`w-full bg-slate-800 border rounded-xl py-2 px-3 text-sm font-black outline-none ${
+                  isBankMode 
+                    ? 'border-indigo-500/40 text-indigo-400 focus:border-indigo-400' 
+                    : 'border-emerald-500/40 text-emerald-400 focus:border-emerald-400'
+                }`}
                 placeholder="Enter paid amount (0 if all credit)"
               />
             </div>
+
+            {/* If Bank Mode Selected, Optional Bank Details input */}
+            {isBankMode && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 animate-in fade-in duration-300">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-indigo-300 uppercase">Bank Name / Online Service</label>
+                  <input
+                    type="text"
+                    {...register("paymentReceipt")}
+                    disabled={mode === "view"}
+                    className="w-full bg-slate-800 border border-indigo-500/30 rounded-xl py-1.5 px-3 text-xs font-bold text-white outline-none focus:border-indigo-400 placeholder:text-slate-500"
+                    placeholder="e.g. Meezan Bank / HBL / EasyPaisa"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-indigo-300 uppercase">Bank Ref / Transaction ID</label>
+                  <input
+                    type="text"
+                    {...register("description")}
+                    disabled={mode === "view"}
+                    className="w-full bg-slate-800 border border-indigo-500/30 rounded-xl py-1.5 px-3 text-xs font-bold text-white outline-none focus:border-indigo-400 placeholder:text-slate-500"
+                    placeholder="e.g. TXN-984275923"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Bill Summary Banner */}
             <div className="grid grid-cols-3 gap-2 bg-slate-800/90 p-2.5 rounded-xl border border-slate-700 text-xs">
@@ -724,8 +803,12 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                 <span className="font-black text-amber-300 text-xs sm:text-sm">Rs. {calculatedTotalBill.toLocaleString()}</span>
               </div>
               <div className="flex flex-col border-l border-slate-700 pl-2">
-                <span className="text-[9px] font-black text-emerald-400 uppercase">Cash Paid:</span>
-                <span className="font-black text-emerald-400 text-xs sm:text-sm">Rs. {watchedPaidNum.toLocaleString()}</span>
+                <span className={`text-[9px] font-black uppercase ${isBankMode ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                  {isBankMode ? 'Bank Paid:' : 'Cash Paid:'}
+                </span>
+                <span className={`font-black text-xs sm:text-sm ${isBankMode ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                  Rs. {watchedPaidNum.toLocaleString()}
+                </span>
               </div>
               <div className="flex flex-col border-l border-slate-700 pl-2">
                 <span className="text-[9px] font-black text-rose-400 uppercase">Credit (Due):</span>

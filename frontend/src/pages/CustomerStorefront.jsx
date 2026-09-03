@@ -3282,7 +3282,11 @@ function StoreContent({ shopId }) {
 
           totalPurchaseCost += cost;
           dueToSupplier += due;
-          cashPaidToSupplier += paid;
+          if (isOnline) {
+            onlinePaidToSupplier += paid;
+          } else {
+            cashPaidToSupplier += paid;
+          }
 
           if (p.supplierName || paid > 0 || due > 0 || hasReceipt || petiQty > 0) {
             totalPurchasesCount++;
@@ -3307,6 +3311,7 @@ function StoreContent({ shopId }) {
           totalPurchasesCount,
           totalPurchaseCost: Math.round(totalPurchaseCost),
           cashPaidToSupplier: Math.round(cashPaidToSupplier),
+          bankPaidToSupplier: Math.round(onlinePaidToSupplier),
           onlinePaidToSupplier: Math.round(onlinePaidToSupplier),
           dueToSupplier: Math.round(dueToSupplier),
         }));
@@ -4016,74 +4021,74 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Today Net Profit */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Today Net Profit (Gray & Yellow As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
+                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
                                   Today Net {netStats.todayNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.todayNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.todayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                   {currency} {netStats.todayNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
                                   Gross: Rs.{netStats.todayGrossProfit} | Exp: Rs.{netStats.todayExp} | Loss: Rs.{netStats.todayDmg}
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Monthly Net Profit */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Monthly Net Profit (Gray & Yellow As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
+                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
                                   Month Net {netStats.monthlyNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.monthlyNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.monthlyNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                   {currency} {netStats.monthlyNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
                                   Gross: Rs.{netStats.monthlyGrossProfit} | Exp: Rs.{netStats.monthlyExp}
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
                                 <DollarSign className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Yearly Net Profit */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Yearly Net Profit (Yellow, Gray & Green As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-300 via-slate-200 to-emerald-400 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-amber-400 border-b-4 border-b-emerald-800 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">
+                                <span className="text-[9.5px] font-black text-slate-900 uppercase tracking-wide block">
                                   Year Net {netStats.yearlyNet >= 0 ? 'Profit' : 'Loss'}
                                 </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.yearlyNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.yearlyNet >= 0 ? 'text-emerald-950' : 'text-rose-950'}`}>
                                   {currency} {netStats.yearlyNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
+                                <span className="text-[8.5px] text-emerald-950 font-bold block mt-0.5">
                                   This Year Realized
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-emerald-700 border border-emerald-500 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Calendar className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* All-Time Cumulative Net Profit (Black Theme As Requested) */}
-                            <div className="p-3 bg-slate-900 rounded-xl text-white shadow-sm flex items-center justify-between border border-slate-800">
+                            {/* All-Time Cumulative Net Profit (Gray & Yellow As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wide block">
+                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
                                   All-Time Net Profit
                                 </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.totalNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.totalNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                   {currency} {netStats.totalNet.toLocaleString('en-PK')}
                                 </h4>
-                                <span className="text-[8px] text-zinc-300 font-bold block mt-0.5">
+                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
                                   Pure Realized Balance
                                 </span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-amber-400 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
                                 <Sparkles className="w-4 h-4" />
                               </div>
                             </div>
@@ -4222,7 +4227,7 @@ function StoreContent({ shopId }) {
                               Restock Summary
                             </span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
                             {/* Stock Bought (Gray Color As Requested) */}
                             <div className="p-3.5 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200/90 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-slate-400 hover:shadow transition-all">
                               <div>
@@ -4235,39 +4240,51 @@ function StoreContent({ shopId }) {
                               </div>
                             </div>
 
-                            {/* Purchase Cost */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Cash Paid to Supplier (Richer Vibrant Blue As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300 border-b-4 border-b-blue-900 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Total Cost</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">Total Investment</span>
+                                <span className="text-[9.5px] font-bold text-sky-100 uppercase tracking-wide block">Cash Paid</span>
+                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-sky-100/90 font-bold block">Paid in Cash</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
-                                <DollarSign className="w-4 h-4 text-slate-700" />
-                              </div>
-                            </div>
-
-                            {/* Cash Paid to Supplier */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
-                              <div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide block">Cash Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">Rs. {(dashStats.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-400 font-bold block">Paid to Supplier</span>
-                              </div>
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <Banknote className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Due Supplier Debt */}
-                            <div className="p-3 bg-white rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-200">
+                            {/* Bank Paid / Transfer (Yellow, Orange, Blue & Gray Blend As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-amber-300 via-orange-200 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-orange-400/80 border-b-4 border-b-orange-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wide block">Due Balance</span>
-                                <h4 className="text-lg sm:text-xl font-black text-rose-600 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-rose-400 font-bold block">Owed Debt</span>
+                                <span className="text-[9.5px] font-bold text-slate-800 uppercase tracking-wide block">Bank Paid</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(dashStats.bankPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-700 font-bold block">Paid via Bank</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500 flex items-center justify-center text-white shadow-sm shrink-0">
+                                <CreditCard className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Due Supplier Debt (Red and Gray Blend As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-rose-100 via-red-100 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-rose-300 border-b-4 border-b-rose-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                              <div>
+                                <span className="text-[9.5px] font-black text-rose-700 uppercase tracking-wide block">Due Balance</span>
+                                <h4 className="text-lg sm:text-xl font-black text-rose-950 mt-0.5">Rs. {(dashStats.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-slate-600 font-bold block">Owed Debt</span>
+                              </div>
+                              <div className="w-9 h-9 rounded-lg bg-rose-600 border border-rose-500 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <AlertCircle className="w-4 h-4" />
+                              </div>
+                            </div>
+
+                            {/* Total Cost / Investment (Moved to Right Side with Yellow & Green Color As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-br from-amber-400 via-yellow-400 to-emerald-500 rounded-xl text-slate-950 shadow-md flex items-center justify-between border border-amber-300 border-b-4 border-b-amber-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                              <div>
+                                <span className="text-[9.5px] font-black text-slate-900 uppercase tracking-wide block">Total Cost</span>
+                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(dashStats.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
+                                <span className="text-[8.5px] text-emerald-950 font-bold block">Total Investment</span>
+                              </div>
+                              <div className="w-9 h-9 rounded-lg bg-white/40 border border-white/50 flex items-center justify-center text-slate-950 shadow-sm shrink-0">
+                                <DollarSign className="w-4 h-4 text-slate-950 stroke-[2.5]" />
                               </div>
                             </div>
                           </div>
@@ -4284,38 +4301,38 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                            {/* Today's Expenses */}
-                            <div className="p-3 bg-rose-500 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Today's Expenses (Red, Blue, Green Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-sky-600 to-emerald-600 rounded-xl text-white shadow-md flex items-center justify-between border border-rose-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today Expense</span>
+                                <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Today Expense</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.todayExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.todayExpCount} Entries Today</span>
+                                <span className="text-[8.5px] text-emerald-100/90 font-semibold block">{dynamicExpenseStats.todayExpCount} Entries Today</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <FileText className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Monthly Expenses */}
-                            <div className="p-3 bg-rose-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Monthly Expenses (Red, Yellow, Black Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-amber-500 to-slate-950 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Month Expense</span>
+                                <span className="text-[9.5px] font-bold text-amber-200 uppercase tracking-wide block">Month Expense</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.monthExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.monthExpCount} Entries This Month</span>
+                                <span className="text-[8.5px] text-amber-100/90 font-semibold block">{dynamicExpenseStats.monthExpCount} Entries This Month</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <TrendingDown className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Total Cumulative Expenses */}
-                            <div className="p-3 bg-rose-700 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Total Cumulative Expenses (Yellow, Green, Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Total Expense</span>
+                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Total Expense</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.totalExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">{dynamicExpenseStats.totalExpCount} Total Entries</span>
+                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">{dynamicExpenseStats.totalExpCount} Total Entries</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <DollarSign className="w-4 h-4" />
                               </div>
                             </div>
@@ -4333,38 +4350,38 @@ function StoreContent({ shopId }) {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                            {/* Damaged Stock Quantity */}
-                            <div className="p-3 bg-red-600 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Damaged Stock Quantity (Red & Gray Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-red-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-rose-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Damaged Stock</span>
+                                <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Damaged Stock</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(dashStats.totalDamagedPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-white/80 font-bold block">{dashStats.totalDamagedTrays || 0} Trays</span>
+                                <span className="text-[8.5px] text-slate-300 font-bold block">{dashStats.totalDamagedTrays || 0} Trays</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <AlertCircle className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Today's Breakage Loss */}
-                            <div className="p-3 bg-red-700 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Today's Breakage Loss (Green & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Today Loss</span>
+                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today Loss</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.todayDamagedLoss || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">Today</span>
+                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">Today</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <TrendingDown className="w-4 h-4" />
                               </div>
                             </div>
 
-                            {/* Total Breakage Loss */}
-                            <div className="p-3 bg-red-800 rounded-xl text-white shadow-sm flex items-center justify-between">
+                            {/* Total Breakage Loss (Yellow, Green & Blue Gradient As Requested) */}
+                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-wide block">Total Loss</span>
+                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Total Loss</span>
                                 <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dashStats.totalDamagedLoss || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-white/80 font-semibold block">Total</span>
+                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">Total</span>
                               </div>
-                              <div className="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
                                 <DollarSign className="w-4 h-4" />
                               </div>
                             </div>
