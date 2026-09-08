@@ -44,7 +44,7 @@ app.set('trust proxy', 1);
 
 // Middleware
 const corsOptions = {
-  origin: ['https://nexflow-inventory.vercel.app', 'http://localhost:5173', 'http://localhost:5174'],
+  origin: '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-password', 'x-user-role'],
