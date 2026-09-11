@@ -168,15 +168,23 @@ export function ShopAdminCharts({
     (sales || []).forEach(s => {
       const total = Number(s.totalAmount) || Number(s.amount) || 0;
       const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
-      const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || Number(s.bankPaid) > 0;
-      const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || Number(s.dueAmount) > 0 || s.isCredit;
+      const hasDetailedBreakdown = s.cashPaid !== undefined || s.bankPaid !== undefined || s.dueAmount !== undefined;
 
-      if (isCredit) {
-        creditTotal += Number(s.dueAmount) || total;
-      } else if (isBank) {
-        bankTotal += Number(s.bankPaid) || total;
+      if (hasDetailedBreakdown) {
+        cashTotal += (Number(s.cashPaid) || 0);
+        bankTotal += (Number(s.bankPaid) || 0);
+        creditTotal += (Number(s.dueAmount) || 0);
       } else {
-        cashTotal += Number(s.cashPaid) || total;
+        const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA';
+        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || s.isCredit;
+
+        if (isCredit) {
+          creditTotal += total;
+        } else if (isBank) {
+          bankTotal += total;
+        } else {
+          cashTotal += total;
+        }
       }
     });
 

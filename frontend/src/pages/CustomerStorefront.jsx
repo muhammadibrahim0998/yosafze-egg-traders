@@ -23,7 +23,7 @@ import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -488,6 +488,8 @@ function StoreContent({ shopId }) {
   const [walkInCustomerName, setWalkInCustomerName] = useState('');
   const [walkInCustomerPhone, setWalkInCustomerPhone] = useState('');
   const [walkInPaymentMethod, setWalkInPaymentMethod] = useState('CASH');
+  const [walkInPaidAmount, setWalkInPaidAmount] = useState('');
+  const [walkInPartialDestination, setWalkInPartialDestination] = useState('CASH'); // 'CASH' | 'BANK'
   const [walkInTransactionId, setWalkInTransactionId] = useState('');
   const [walkInPaymentProof, setWalkInPaymentProof] = useState('');
   const [viewingReceiptModal, setViewingReceiptModal] = useState(null);
@@ -500,6 +502,78 @@ function StoreContent({ shopId }) {
   const [activeCustMenuId, setActiveCustMenuId] = useState(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [allShopOrders, setAllShopOrders] = useState([]);
+
+  // Credit Payment / Settlement Modal State
+  const [settlingCreditSale, setSettlingCreditSale] = useState(null);
+  const [settleMethod, setSettleMethod] = useState('CASH'); // 'CASH' | 'BANK'
+  const [settleAmount, setSettleAmount] = useState('');
+  const [settleTxId, setSettleTxId] = useState('');
+  const [settleReceiptProof, setSettleReceiptProof] = useState('');
+  const [isSettlingCredit, setIsSettlingCredit] = useState(false);
+
+  const handleOpenSettleCredit = (sale) => {
+    setSettlingCreditSale(sale);
+    const due = Number(sale.dueAmount) > 0 ? Number(sale.dueAmount) : Number(sale.totalAmount);
+    setSettleAmount(due);
+    setSettleMethod('CASH');
+    setSettleTxId('');
+    setSettleReceiptProof('');
+  };
+
+  const handleSubmitSettleCredit = async (e) => {
+    if (e) e.preventDefault();
+    if (!settlingCreditSale) return;
+    const amt = Number(settleAmount);
+    if (!amt || amt <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+
+    setIsSettlingCredit(true);
+    try {
+      const saleId = settlingCreditSale._id || settlingCreditSale.id;
+      const res = await settleCreditSale(saleId, {
+        paymentMethod: settleMethod,
+        amountPaid: amt,
+        transactionId: settleTxId,
+        paymentProof: settleReceiptProof,
+        paymentReceipt: settleReceiptProof
+      });
+
+      setAddedMsg(res.message || 'Credit payment recorded successfully!');
+      setTimeout(() => setAddedMsg(''), 3500);
+
+      const updatedSale = res.sale;
+      if (updatedSale) {
+        setShopSalesList(prev => (prev || []).map(s => String(s._id || s.id) === String(updatedSale._id) ? updatedSale : s));
+      } else {
+        setShopSalesList(prev => (prev || []).map(s => {
+          if (String(s._id || s.id) === String(saleId)) {
+            const newDue = Math.max(0, (Number(s.dueAmount !== undefined ? s.dueAmount : s.totalAmount) - amt));
+            return {
+              ...s,
+              dueAmount: newDue,
+              isCredit: newDue > 0,
+              cashPaid: settleMethod === 'CASH' ? ((Number(s.cashPaid) || 0) + amt) : (s.cashPaid || 0),
+              bankPaid: settleMethod === 'BANK' ? ((Number(s.bankPaid) || 0) + amt) : (s.bankPaid || 0),
+              paymentMethod: newDue === 0 ? (settleMethod === 'BANK' ? 'BANK_TRANSFER' : 'CASH') : s.paymentMethod
+            };
+          }
+          return s;
+        }));
+      }
+
+      setSettlingCreditSale(null);
+      await fetchDashboardStats();
+      await fetchShopSales();
+      await fetchRegisteredCustomers();
+    } catch (err) {
+      console.error("Settle credit error:", err);
+      alert(err?.response?.data?.message || err.message || 'Failed to settle credit');
+    } finally {
+      setIsSettlingCredit(false);
+    }
+  };
 
   const handleReceiptUpload = (e) => {
     const file = e.target.files?.[0];
@@ -539,18 +613,22 @@ function StoreContent({ shopId }) {
       return;
     }
     try {
-      const token = localStorage.getItem('nexflow_token');
+      const token = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
       const res = await fetch(`/api/sales/${saleId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+          'x-user-role': 'shop_admin'
         }
       });
       if (res.ok) {
         setAddedMsg('Sale record permanently deleted from database!');
         setTimeout(() => setAddedMsg(''), 3000);
-        setShopSalesList(prev => prev.filter(s => String(s._id || s.id) !== String(saleId)));
+        setShopSalesList(prev => prev.filter(s => String(s._id || s.id || s.orderId) !== String(saleId)));
         setAllShopOrders(prev => prev.filter(o => String(o._id || o.id) !== String(saleId)));
+        fetchShopSales();
+        fetchRegisteredCustomers();
         fetchDashboardStats();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -1177,9 +1255,46 @@ function StoreContent({ shopId }) {
       const totalAmount = saleItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
       const totalProfit = saleItems.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
 
-      const cashPaid = walkInPaymentMethod === 'CASH' ? totalAmount : 0;
-      const bankPaid = walkInPaymentMethod === 'BANK_TRANSFER' ? totalAmount : 0;
-      const dueAmount = walkInPaymentMethod === 'CREDIT' ? totalAmount : 0;
+      let cashPaid = 0;
+      let bankPaid = 0;
+      let dueAmount = 0;
+
+      const numPaid = walkInPaidAmount !== '' ? Number(walkInPaidAmount) : null;
+
+      if (walkInPaymentMethod === 'CREDIT') {
+        dueAmount = totalAmount;
+        cashPaid = 0;
+        bankPaid = 0;
+      } else if (walkInPaymentMethod === 'CASH') {
+        const actualPaid = (numPaid !== null && !isNaN(numPaid)) ? Math.min(totalAmount, Math.max(0, numPaid)) : totalAmount;
+        cashPaid = actualPaid;
+        bankPaid = 0;
+        dueAmount = Math.max(0, totalAmount - cashPaid);
+      } else if (walkInPaymentMethod === 'BANK_TRANSFER') {
+        const actualPaid = (numPaid !== null && !isNaN(numPaid)) ? Math.min(totalAmount, Math.max(0, numPaid)) : totalAmount;
+        bankPaid = actualPaid;
+        cashPaid = 0;
+        dueAmount = Math.max(0, totalAmount - bankPaid);
+      } else if (walkInPaymentMethod === 'PARTIAL' || walkInPaymentMethod === 'SPLIT') {
+        const actualPaid = (numPaid !== null && !isNaN(numPaid)) ? Math.min(totalAmount, Math.max(0, numPaid)) : Math.round(totalAmount / 2);
+        if (walkInPartialDestination === 'BANK') {
+          bankPaid = actualPaid;
+          cashPaid = 0;
+        } else {
+          cashPaid = actualPaid;
+          bankPaid = 0;
+        }
+        dueAmount = Math.max(0, totalAmount - actualPaid);
+      } else {
+        cashPaid = totalAmount;
+        dueAmount = 0;
+      }
+
+      const isCreditSale = dueAmount > 0;
+      const finalPaymentMethod = (cashPaid > 0 && bankPaid > 0) ? 'SPLIT' :
+        (dueAmount > 0 && (cashPaid > 0 || bankPaid > 0)) ? 'PARTIAL' :
+        dueAmount === totalAmount ? 'CREDIT' :
+        bankPaid > 0 ? 'BANK_TRANSFER' : 'CASH';
 
       const saleData = {
         shopId,
@@ -1187,28 +1302,37 @@ function StoreContent({ shopId }) {
         totalAmount,
         totalProfit,
         cashierName: user?.fullName || 'Shop Admin',
-        customerName: walkInCustomerName.trim() || (walkInPaymentMethod === 'CREDIT' ? 'Credit Customer' : 'Walk-in Customer'),
+        customerName: walkInCustomerName.trim() || (isCreditSale ? 'Credit Customer' : 'Walk-in Customer'),
         customerPhone: walkInCustomerPhone.trim(),
-        paymentMethod: walkInPaymentMethod,
+        paymentMethod: finalPaymentMethod,
         cashPaid,
         bankPaid,
         dueAmount,
-        isCredit: walkInPaymentMethod === 'CREDIT',
-        paymentReceipt: walkInPaymentProof,
-        paymentProof: walkInPaymentProof,
-        transactionId: walkInTransactionId.trim(),
-        approvalStatus: walkInPaymentMethod === 'BANK_TRANSFER' ? 'PENDING_APPROVAL' : 'APPROVED'
+        isCredit: isCreditSale,
+        paymentReceipt: bankPaid > 0 ? walkInPaymentProof : '',
+        paymentProof: bankPaid > 0 ? walkInPaymentProof : '',
+        transactionId: bankPaid > 0 ? walkInTransactionId.trim() : '',
+        approvalStatus: bankPaid > 0 ? 'PENDING_APPROVAL' : 'APPROVED'
       };
 
       const created = await createSale(saleData);
 
       const billData = {
         ...created,
+        _id: created?._id || created?.sale?._id || `sale_${Date.now()}`,
         customerPhone: walkInCustomerPhone.trim(),
         cashPaid,
         bankPaid,
         dueAmount,
-        isCredit: walkInPaymentMethod === 'CREDIT'
+        isCredit: isCreditSale,
+        paymentMethod: finalPaymentMethod,
+        items: saleItems,
+        totalAmount,
+        totalProfit,
+        cashierName: user?.fullName || 'Shop Admin',
+        customerName: walkInCustomerName.trim() || (isCreditSale ? 'Credit Customer' : 'Walk-in Customer'),
+        createdAt: new Date().toISOString(),
+        saleDate: new Date().toISOString()
       };
 
       setCompletedBill(billData);
@@ -1216,11 +1340,28 @@ function StoreContent({ shopId }) {
       setWalkInCustomerName('');
       setWalkInCustomerPhone('');
       setWalkInPaymentMethod('CASH');
+      setWalkInPaidAmount('');
+      setWalkInPartialDestination('CASH');
       setWalkInTransactionId('');
       setWalkInPaymentProof('');
-      fetchCatalog();
-      fetchDashboardStats();
-      fetchShopSales();
+
+      // Instantly prepend to shopSalesList so POS sales & reports update without refresh
+      setShopSalesList(prev => [billData, ...(prev || []).filter(s => String(s._id) !== String(billData._id))]);
+
+      // Instantly decrement item stock in memory
+      setItems(prev => (prev || []).map(p => {
+        const sold = saleItems.find(si => String(si.productId) === String(p._id));
+        if (!sold) return p;
+        const soldQty = Number(sold.quantity) || 0;
+        return {
+          ...p,
+          stock: Math.max(0, (Number(p.stock) || 0) - soldQty)
+        };
+      }));
+
+      await fetchCatalog();
+      await fetchDashboardStats();
+      await fetchShopSales();
     } catch (err) {
       alert(err.message || 'Failed to complete sale');
     } finally {
@@ -1231,7 +1372,16 @@ function StoreContent({ shopId }) {
   const handleEditProductSubmit = async (productData) => {
     try {
       const role = user?.role || 'shop_admin';
-      await updateItem(editModalProduct._id, productData, '', role);
+      const res = await updateItem(editModalProduct._id, productData, '', role);
+      const updatedItem = res?.item || res?.data || res || { ...editModalProduct, ...productData };
+
+      // Instantly update items in state
+      setItems(prev => (prev || []).map(p => 
+        String(p._id) === String(editModalProduct._id) 
+          ? { ...p, ...productData, ...(updatedItem._id ? updatedItem : {}) } 
+          : p
+      ));
+
       setAddedMsg('✅ Product updated successfully!');
       setEditModalProduct(null);
       await fetchCatalog();
@@ -1250,7 +1400,14 @@ function StoreContent({ shopId }) {
       const finalImages = (productData.images && productData.images.length > 0)
         ? productData.images
         : ['/egg2.png'];
-      await createItem({ ...productData, images: finalImages, shopId });
+      const res = await createItem({ ...productData, images: finalImages, shopId });
+      const newItem = res?.item || res?.data || res || { ...productData, images: finalImages, shopId, _id: `item_${Date.now()}` };
+
+      // Instantly add to items state
+      if (newItem && newItem._id) {
+        setItems(prev => [newItem, ...(prev || []).filter(p => String(p._id) !== String(newItem._id))]);
+      }
+
       setAddedMsg('✅ Product added successfully!');
       setAddProductModal(false);
       await fetchCatalog();
@@ -1409,15 +1566,23 @@ function StoreContent({ shopId }) {
       totalProfit += profit;
 
       const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
-      const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
-      const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+      const hasDetailedBreakdown = s.cashPaid !== undefined || s.bankPaid !== undefined || s.dueAmount !== undefined;
 
-      if (isCredit) {
-        creditSales += (Number(s.dueAmount) || amount);
-      } else if (isBank) {
-        bankSales += (Number(s.bankPaid) || amount);
+      if (hasDetailedBreakdown) {
+        cashSales += (Number(s.cashPaid) || 0);
+        bankSales += (Number(s.bankPaid) || 0);
+        creditSales += (Number(s.dueAmount) || 0);
       } else {
-        cashSales += (Number(s.cashPaid) || amount);
+        const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA';
+        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || s.isCredit;
+
+        if (isCredit) {
+          creditSales += amount;
+        } else if (isBank) {
+          bankSales += amount;
+        } else {
+          cashSales += amount;
+        }
       }
 
       (s.items || []).forEach(i => {
@@ -1440,6 +1605,7 @@ function StoreContent({ shopId }) {
       avgBill,
       cashSales,
       bankSales,
+      onlineSales: bankSales,
       creditSales
     };
   }, [filteredSalesForReport, reportTimeframe, dashStats]);
@@ -5091,6 +5257,10 @@ function StoreContent({ shopId }) {
                     onEditProduct={(p) => setEditModalProduct(p)}
                     onDeleteProduct={handleDirectDeleteProduct}
                     onViewProduct={(p) => setSelectedItem(p)}
+                    onRefresh={async () => {
+                      await fetchCatalog();
+                      await fetchDashboardStats();
+                    }}
                   />
                 </div>
               )}
@@ -5481,102 +5651,319 @@ function StoreContent({ shopId }) {
                             />
                           </div>
 
-                          {/* Payment Method - 3 Options: Cash, Bank, Credit / Qaraz */}
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Payment Method</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              {/* 1. Cash */}
-                              <button
-                                type="button"
-                                onClick={() => setWalkInPaymentMethod('CASH')}
-                                className={`py-2 px-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPaymentMethod === 'CASH'
-                                  ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-400'
-                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                  }`}
-                              >
-                                <DollarSign className="w-3.5 h-3.5" /> Cash
-                              </button>
+                          {/* Payment Method - 4 Options: Cash, Bank, Split/Partial, Credit */}
+                          {(() => {
+                            const walkInTotal = walkInCart.reduce((sum, i) => {
+                              const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
+                              return sum + (rate * (Number(i.quantity) || 1));
+                            }, 0);
 
-                              {/* 2. Bank / Online */}
-                              <button
-                                type="button"
-                                onClick={() => setWalkInPaymentMethod('BANK_TRANSFER')}
-                                className={`py-2 px-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPaymentMethod === 'BANK_TRANSFER'
-                                  ? 'bg-amber-500 text-white shadow-md border-2 border-amber-400'
-                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                  }`}
-                              >
-                                <Building2 className="w-3.5 h-3.5" /> Bank
-                              </button>
-
-                              {/* 3. Credit / Qaraz */}
-                              <button
-                                type="button"
-                                onClick={() => setWalkInPaymentMethod('CREDIT')}
-                                className={`py-2 px-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPaymentMethod === 'CREDIT'
-                                  ? 'bg-rose-600 text-white shadow-md border-2 border-rose-400'
-                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                  }`}
-                              >
-                                <FileText className="w-3.5 h-3.5" /> Credit
-                              </button>
-                            </div>
-
-                            {/* Bank Details & Receipt Upload */}
-                            {walkInPaymentMethod === 'BANK_TRANSFER' && (
-                              <div className="space-y-2 animate-in fade-in duration-200 bg-amber-50/70 border border-amber-200 rounded-2xl p-3">
-                                <div className="space-y-1">
-                                  <p className="text-[9px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1">
-                                    <Building2 className="w-3 h-3" /> Official Bank Account
-                                  </p>
-                                  {(() => {
-                                    const sName = (shop?.name || '').toLowerCase();
-                                    const sAddr = (shop?.address || '').toLowerCase();
-                                    if (sName.includes('mardan') || sAddr.includes('mardan')) {
-                                      return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Bank Al Habib: 2013008100773501</p>;
-                                    }
-                                    if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
-                                      return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Meezan Bank: 07190104740373</p>;
-                                    }
-                                    return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">UBL: 0109000306243543</p>;
-                                  })()}
-                                </div>
-                                <input
-                                  type="text"
-                                  placeholder="Bank Transaction / Ref ID"
-                                  value={walkInTransactionId}
-                                  onChange={e => setWalkInTransactionId(e.target.value)}
-                                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-amber-500 shadow-sm"
-                                />
-                                <div>
-                                  <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block mb-1">Upload Payment Receipt Proof</label>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleReceiptUpload}
-                                    className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
-                                  />
-                                  {walkInPaymentProof && (
-                                    <div className="mt-2 w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400 shadow-sm relative group">
-                                      <img src={walkInPaymentProof} alt="Receipt" className="w-full h-full object-cover" />
-                                    </div>
+                            return (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Payment Method</p>
+                                  {walkInPaymentMethod === 'PARTIAL' && (
+                                    <span className="text-[9.5px] font-black text-indigo-700 bg-indigo-50 border border-indigo-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                      ⚡ Split / Partial Active
+                                    </span>
                                   )}
                                 </div>
-                              </div>
-                            )}
 
-                              {/* Credit Notice */}
-                            {walkInPaymentMethod === 'CREDIT' && (
-                              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 space-y-1 animate-in fade-in duration-200">
-                                <p className="text-[10px] font-black text-rose-800 uppercase tracking-wider flex items-center gap-1">
-                                  <FileText className="w-3.5 h-3.5" /> Credit Sale (Due Balance)
-                                </p>
-                                <p className="text-[11px] text-rose-700 font-medium leading-tight">
-                                  This bill will be logged under <strong className="font-black uppercase">{walkInCustomerName.trim() || 'Credit Customer'}</strong> as an outstanding due balance.
-                                </p>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {/* 1. Cash */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWalkInPaymentMethod('CASH');
+                                      setWalkInPaidAmount('');
+                                    }}
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'CASH'
+                                      ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-400 scale-[1.02]'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                      }`}
+                                  >
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                    <span>Cash</span>
+                                  </button>
+
+                                  {/* 2. Bank / Online */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWalkInPaymentMethod('BANK_TRANSFER');
+                                      setWalkInPaidAmount('');
+                                    }}
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'BANK_TRANSFER'
+                                      ? 'bg-amber-500 text-white shadow-md border-2 border-amber-400 scale-[1.02]'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                      }`}
+                                  >
+                                    <Building2 className="w-3.5 h-3.5" />
+                                    <span>Bank</span>
+                                  </button>
+
+                                  {/* 3. Split / Partial */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWalkInPaymentMethod('PARTIAL');
+                                      if (!walkInPaidAmount && walkInTotal > 0) {
+                                        setWalkInPaidAmount(Math.round(walkInTotal / 2));
+                                      }
+                                    }}
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'PARTIAL'
+                                      ? 'bg-indigo-600 text-white shadow-md border-2 border-indigo-400 scale-[1.02]'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                      }`}
+                                  >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    <span>Split/Part</span>
+                                  </button>
+
+                                  {/* 4. Credit / Qaraz */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setWalkInPaymentMethod('CREDIT');
+                                      setWalkInPaidAmount('0');
+                                    }}
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'CREDIT'
+                                      ? 'bg-rose-600 text-white shadow-md border-2 border-rose-400 scale-[1.02]'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                      }`}
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>Credit</span>
+                                  </button>
+                                </div>
+
+                                {/* PARTIAL / SPLIT PAYMENT CONFIGURATION BOX */}
+                                {walkInPaymentMethod === 'PARTIAL' && (
+                                  <div className="space-y-2.5 animate-in fade-in duration-200 bg-gradient-to-br from-indigo-50/90 to-blue-50/70 border-2 border-indigo-200 rounded-2xl p-3 shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-1">
+                                        <CreditCard className="w-3.5 h-3.5 text-indigo-600" /> Partial Split Breakdown
+                                      </span>
+                                      <span className="text-[9.5px] font-black text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
+                                        Total: {currency} {walkInTotal.toLocaleString()}
+                                      </span>
+                                    </div>
+
+                                    {/* Choose Paid Destination: Cash or Bank */}
+                                    <div>
+                                      <label className="text-[9px] font-black text-gray-600 uppercase tracking-wider block mb-1">
+                                        Paid Upfront via:
+                                      </label>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPartialDestination('CASH')}
+                                          className={`py-1.5 px-2 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPartialDestination === 'CASH'
+                                            ? 'bg-emerald-600 text-white shadow-sm border border-emerald-400'
+                                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                            }`}
+                                        >
+                                          <DollarSign className="w-3 h-3" /> Cash Drawer
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPartialDestination('BANK')}
+                                          className={`py-1.5 px-2 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${walkInPartialDestination === 'BANK'
+                                            ? 'bg-amber-600 text-white shadow-sm border border-amber-400'
+                                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                                            }`}
+                                        >
+                                          <Building2 className="w-3 h-3" /> Bank Account
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Paid Amount Input with Presets */}
+                                    <div className="space-y-1.5">
+                                      <div className="flex justify-between items-center">
+                                        <label className="text-[9px] font-black text-gray-700 uppercase tracking-wider">
+                                          Amount Paid Now ({currency}):
+                                        </label>
+                                        <span className="text-[9.5px] font-black text-emerald-700">
+                                          Paid: {currency} {(Number(walkInPaidAmount) || 0).toLocaleString()}
+                                        </span>
+                                      </div>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={walkInTotal}
+                                        placeholder={`Enter amount (e.g. ${Math.round(walkInTotal / 2)})`}
+                                        value={walkInPaidAmount}
+                                        onChange={e => setWalkInPaidAmount(e.target.value)}
+                                        className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs font-black text-gray-900 outline-none focus:border-indigo-600 shadow-sm"
+                                      />
+                                      {/* Quick Percentage / Preset Buttons */}
+                                      <div className="grid grid-cols-4 gap-1 pt-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPaidAmount(Math.round(walkInTotal * 0.5))}
+                                          className="py-1 px-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9px] font-black uppercase cursor-pointer"
+                                        >
+                                          50% (Half)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPaidAmount(Math.round(walkInTotal * 0.25))}
+                                          className="py-1 px-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9px] font-black uppercase cursor-pointer"
+                                        >
+                                          25%
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPaidAmount(Math.round(walkInTotal * 0.75))}
+                                          className="py-1 px-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9px] font-black uppercase cursor-pointer"
+                                        >
+                                          75%
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setWalkInPaidAmount(walkInTotal)}
+                                          className="py-1 px-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9px] font-black uppercase cursor-pointer"
+                                        >
+                                          Full
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Live Dynamic Breakdown Box */}
+                                    {(() => {
+                                      const paid = Math.min(walkInTotal, Math.max(0, Number(walkInPaidAmount) || 0));
+                                      const remainingDue = Math.max(0, walkInTotal - paid);
+                                      return (
+                                        <div className="bg-white/90 border border-indigo-200 rounded-xl p-2.5 space-y-1.5 shadow-sm text-xs">
+                                          <div className="flex justify-between items-center">
+                                            <span className="font-bold text-gray-600 text-[10px] uppercase flex items-center gap-1">
+                                              {walkInPartialDestination === 'BANK' ? <Building2 className="w-3 h-3 text-amber-600" /> : <DollarSign className="w-3 h-3 text-emerald-600" />}
+                                              Paid Now ({walkInPartialDestination}):
+                                            </span>
+                                            <span className="font-black text-emerald-600 text-xs">
+                                              {currency} {paid.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                                            <span className="font-bold text-rose-700 text-[10px] uppercase flex items-center gap-1">
+                                              <FileText className="w-3 h-3 text-rose-600" /> Remaining Credit (Due):
+                                            </span>
+                                            <span className="font-black text-rose-600 text-xs">
+                                              {currency} {remainingDue.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          {remainingDue > 0 && (
+                                            <p className="text-[9.5px] text-rose-700 font-bold bg-rose-50 border border-rose-200 rounded-lg p-1.5 text-center mt-1">
+                                              ⚠️ {currency} {remainingDue.toLocaleString()} will be logged under <strong className="uppercase">{walkInCustomerName.trim() || 'Credit Customer'}</strong> as credit.
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {/* If Bank is chosen in Split Mode, show Bank info & Receipt upload */}
+                                    {walkInPartialDestination === 'BANK' && (
+                                      <div className="space-y-2 pt-1 border-t border-indigo-200/60">
+                                        <div className="space-y-1">
+                                          <p className="text-[9px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1">
+                                            <Building2 className="w-3 h-3" /> Branch Bank Account
+                                          </p>
+                                          {(() => {
+                                            const sName = (shop?.name || '').toLowerCase();
+                                            const sAddr = (shop?.address || '').toLowerCase();
+                                            if (sName.includes('mardan') || sAddr.includes('mardan')) {
+                                              return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Bank Al Habib: 2013008100773501</p>;
+                                            }
+                                            if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
+                                              return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Meezan Bank: 07190104740373</p>;
+                                            }
+                                            return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">UBL: 0109000306243543</p>;
+                                          })()}
+                                        </div>
+                                        <input
+                                          type="text"
+                                          placeholder="Bank Ref / Transaction ID (Optional)"
+                                          value={walkInTransactionId}
+                                          onChange={e => setWalkInTransactionId(e.target.value)}
+                                          className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-amber-500 shadow-sm"
+                                        />
+                                        <div>
+                                          <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block mb-1">Upload Receipt Proof (Optional)</label>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleReceiptUpload}
+                                            className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                                          />
+                                          {walkInPaymentProof && (
+                                            <div className="mt-2 w-14 h-14 rounded-xl overflow-hidden border-2 border-amber-400 shadow-sm relative group">
+                                              <img src={walkInPaymentProof} alt="Receipt" className="w-full h-full object-cover" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Bank Details & Receipt Upload */}
+                                {walkInPaymentMethod === 'BANK_TRANSFER' && (
+                                  <div className="space-y-2 animate-in fade-in duration-200 bg-amber-50/70 border border-amber-200 rounded-2xl p-3">
+                                    <div className="space-y-1">
+                                      <p className="text-[9px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1">
+                                        <Building2 className="w-3 h-3" /> Official Bank Account
+                                      </p>
+                                      {(() => {
+                                        const sName = (shop?.name || '').toLowerCase();
+                                        const sAddr = (shop?.address || '').toLowerCase();
+                                        if (sName.includes('mardan') || sAddr.includes('mardan')) {
+                                          return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Bank Al Habib: 2013008100773501</p>;
+                                        }
+                                        if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
+                                          return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">Meezan Bank: 07190104740373</p>;
+                                        }
+                                        return <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">UBL: 0109000306243543</p>;
+                                      })()}
+                                    </div>
+                                    <input
+                                      type="text"
+                                      placeholder="Bank Transaction / Ref ID"
+                                      value={walkInTransactionId}
+                                      onChange={e => setWalkInTransactionId(e.target.value)}
+                                      className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-amber-500 shadow-sm"
+                                    />
+                                    <div>
+                                      <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block mb-1">Upload Payment Receipt Proof</label>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleReceiptUpload}
+                                        className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                                      />
+                                      {walkInPaymentProof && (
+                                        <div className="mt-2 w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400 shadow-sm relative group">
+                                          <img src={walkInPaymentProof} alt="Receipt" className="w-full h-full object-cover" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Credit Notice */}
+                                {walkInPaymentMethod === 'CREDIT' && (
+                                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 space-y-1 animate-in fade-in duration-200">
+                                    <p className="text-[10px] font-black text-rose-800 uppercase tracking-wider flex items-center gap-1">
+                                      <FileText className="w-3.5 h-3.5" /> Full Credit Sale (100% Due Balance)
+                                    </p>
+                                    <p className="text-[11px] text-rose-700 font-medium leading-tight">
+                                      This bill of <strong>{currency} {walkInTotal.toLocaleString()}</strong> will be logged under <strong className="font-black uppercase">{walkInCustomerName.trim() || 'Credit Customer'}</strong> as an outstanding due balance.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            );
+                          })()}
 
                           {/* Bill Items List with Peti, Tray, Egg Unit Selectors */}
                           <div className="space-y-2 max-h-[260px] overflow-y-auto">
@@ -6413,9 +6800,18 @@ function StoreContent({ shopId }) {
                                     <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2 flex-wrap">
                                       <div>
                                         {isCredit ? (
-                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
-                                            <FileText className="w-2.5 h-2.5" /> Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
-                                          </span>
+                                          <div className="space-y-1">
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                              <FileText className="w-2.5 h-2.5" /> Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenSettleCredit(s)}
+                                              className="block px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                                            >
+                                              💳 Pay Credit
+                                            </button>
+                                          </div>
                                         ) : isBank ? (
                                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
                                             <Building2 className="w-2.5 h-2.5" /> Bank: {currency} {(Number(s.bankPaid) || total).toLocaleString('en-PK')}
@@ -6448,7 +6844,7 @@ function StoreContent({ shopId }) {
                                         </button>
                                         <button
                                           type="button"
-                                          onClick={() => handleDeleteSale(s._id)}
+                                          onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
                                           className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all cursor-pointer"
                                           title="Delete Sale"
                                         >
@@ -6536,6 +6932,14 @@ function StoreContent({ shopId }) {
                                               <p className="text-[10px] font-black text-rose-700">
                                                 Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
                                               </p>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenSettleCredit(s)}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer"
+                                                title="Receive / Clear Customer Credit"
+                                              >
+                                                💳 Pay Credit
+                                              </button>
                                             </div>
                                           ) : isBank ? (
                                             <div className="space-y-1">
@@ -6589,7 +6993,7 @@ function StoreContent({ shopId }) {
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => handleDeleteSale(s._id)}
+                                              onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
                                               className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
                                               title="Delete Sale"
                                             >
@@ -8806,6 +9210,174 @@ function StoreContent({ shopId }) {
             >
               Close Receipt Preview
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Settle / Pay Credit (Due) Modal */}
+      {settlingCreditSale && (
+        <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1E293B] border border-slate-700/80 rounded-[2rem] max-w-md w-full p-6 text-white space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setSettlingCreditSale(null)}
+              className="absolute top-5 right-5 p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black uppercase tracking-wider text-white">Receive Credit Payment</h3>
+                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                  {settlingCreditSale.invoiceNumber || 'Credit Bill'} • Outstanding Due
+                </p>
+              </div>
+            </div>
+
+            {/* Customer & Due Summary Card */}
+            <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-bold uppercase text-[10px]">Customer Name:</span>
+                <span className="font-black text-white uppercase">{settlingCreditSale.customerName || 'Credit Customer'}</span>
+              </div>
+              {settlingCreditSale.customerPhone && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold uppercase text-[10px]">Phone / WhatsApp:</span>
+                  <span className="font-bold text-teal-400">{settlingCreditSale.customerPhone}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
+                <span className="text-rose-400 font-black uppercase text-[11px]">Total Outstanding Due:</span>
+                <span className="text-xl font-black text-rose-400">
+                  {currency} {(Number(settlingCreditSale.dueAmount) > 0 ? Number(settlingCreditSale.dueAmount) : Number(settlingCreditSale.totalAmount) || 0).toLocaleString('en-PK')}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitSettleCredit} className="space-y-4">
+              {/* Payment Destination (Cash or Bank Transfer) */}
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2">
+                  Select Payment Destination:
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSettleMethod('CASH')}
+                    className={`p-3 rounded-xl border-2 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                      settleMethod === 'CASH'
+                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <DollarSign className="w-4 h-4" /> Cash Drawer
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettleMethod('BANK')}
+                    className={`p-3 rounded-xl border-2 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                      settleMethod === 'BANK'
+                        ? 'bg-amber-600 border-amber-400 text-white shadow-lg'
+                        : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4" /> Bank Account
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount being paid */}
+              <div>
+                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-1">
+                  Payment Amount Received ({currency}):
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={Number(settlingCreditSale.dueAmount) > 0 ? Number(settlingCreditSale.dueAmount) : Number(settlingCreditSale.totalAmount)}
+                  value={settleAmount}
+                  onChange={e => setSettleAmount(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm font-black outline-none focus:border-emerald-500 shadow-inner"
+                  placeholder="Enter amount paid"
+                />
+              </div>
+
+              {/* If Bank: Show bank account & optional transaction info */}
+              {settleMethod === 'BANK' && (
+                <div className="bg-amber-950/40 border border-amber-500/30 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in duration-200">
+                  <p className="text-[10px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" /> Official Branch Bank Account
+                  </p>
+                  {(() => {
+                    const sName = (shop?.name || '').toLowerCase();
+                    const sAddr = (shop?.address || '').toLowerCase();
+                    if (sName.includes('mardan') || sAddr.includes('mardan')) {
+                      return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">Bank Al Habib: 2013008100773501</p>;
+                    }
+                    if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
+                      return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">Meezan Bank: 07190104740373</p>;
+                    }
+                    return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">UBL: 0109000306243543</p>;
+                  })()}
+
+                  <input
+                    type="text"
+                    placeholder="Bank Transaction ID / Ref No (Optional)"
+                    value={settleTxId}
+                    onChange={e => setSettleTxId(e.target.value)}
+                    className="w-full bg-slate-900 border border-amber-400/40 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-amber-400"
+                  />
+
+                  <div>
+                    <label className="text-[9px] font-black text-amber-300 uppercase tracking-wider block mb-1">
+                      Upload Bank Receipt Proof (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onloadend = () => setSettleReceiptProof(reader.result);
+                        reader.readAsDataURL(file);
+                      }}
+                      className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                    />
+                    {settleReceiptProof && (
+                      <div className="mt-2 w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400 shadow-sm">
+                        <img src={settleReceiptProof} alt="Receipt Proof" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => setSettlingCreditSale(null)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSettlingCredit}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {isSettlingCredit ? 'Processing...' : settleMethod === 'BANK' ? 'Deposit into Bank' : 'Deposit into Cash'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

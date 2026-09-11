@@ -104,22 +104,31 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
     let bankPaid = 0;
     let dueAmount = 0;
 
-    if (method === 'CASH') {
-      cashPaid = Number(req.body.cashPaid) > 0 ? Number(req.body.cashPaid) : totalAmt;
-      dueAmount = Math.max(0, totalAmt - cashPaid);
+    if (req.body.cashPaid !== undefined || req.body.bankPaid !== undefined || req.body.dueAmount !== undefined) {
+      cashPaid = Math.max(0, Number(req.body.cashPaid) || 0);
+      bankPaid = Math.max(0, Number(req.body.bankPaid) || 0);
+      if (req.body.dueAmount !== undefined) {
+        dueAmount = Math.max(0, Number(req.body.dueAmount) || 0);
+      } else {
+        dueAmount = Math.max(0, totalAmt - (cashPaid + bankPaid));
+      }
+    } else if (method === 'CASH') {
+      cashPaid = totalAmt;
+      dueAmount = 0;
     } else if (isBank) {
-      bankPaid = Number(req.body.bankPaid) > 0 ? Number(req.body.bankPaid) : totalAmt;
-      dueAmount = Math.max(0, totalAmt - bankPaid);
+      bankPaid = totalAmt;
+      dueAmount = 0;
     } else if (isCredit) {
       dueAmount = totalAmt;
       cashPaid = 0;
       bankPaid = 0;
-    } else if (method === 'SPLIT') {
+    } else if (method === 'SPLIT' || method === 'PARTIAL') {
       cashPaid = Number(req.body.cashPaid) || 0;
       bankPaid = Number(req.body.bankPaid) || 0;
       dueAmount = Math.max(0, totalAmt - (cashPaid + bankPaid));
     } else {
       cashPaid = totalAmt;
+      dueAmount = 0;
     }
 
     const paymentReceipt = req.body.paymentReceipt || req.body.paymentProof || explicitPaymentData.paymentReceipt || '';
@@ -408,12 +417,25 @@ router.put('/:id', authenticate, preventSuperAdmin, verifyOwnerPassword, async (
 });
 
 // Delete a sale permanently from database (both Sale and Order if exists)
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
   try {
-    const saleId = req.params.id;
-    const sale = await Sale.findById(saleId);
+    const targetId = req.params.id;
+    if (!targetId) {
+      return res.status(400).json({ message: 'Target ID is required' });
+    }
 
-    if (sale) {
+    const isValidObjId = mongoose.Types.ObjectId.isValid(targetId);
+    let saleQuery = [];
+    if (isValidObjId) {
+      saleQuery.push({ _id: targetId });
+      saleQuery.push({ orderId: targetId });
+    }
+    saleQuery.push({ invoiceNumber: targetId });
+
+    // 1. Find all matching sales
+    const matchingSales = await Sale.find({ $or: saleQuery });
+
+    for (const sale of matchingSales) {
       const amountToDeduct = Number(sale.totalAmount) || 0;
 
       // Reverse stock
@@ -428,10 +450,10 @@ router.delete('/:id', authenticate, async (req, res) => {
         }
       }
 
-      await Sale.findByIdAndDelete(saleId);
+      await Sale.findByIdAndDelete(sale._id);
 
       // Delete associated Invoice PDF if it exists
-      const fileName = `invoice-${saleId}.pdf`;
+      const fileName = `invoice-${sale._id}.pdf`;
       const filePath = path.join(__dirname, '..', 'invoices', fileName);
       if (fs.existsSync(filePath)) {
         try {
@@ -446,12 +468,29 @@ router.delete('/:id', authenticate, async (req, res) => {
         activeSession.expectedCash = Math.max(0, (activeSession.expectedCash || 0) - amountToDeduct);
         await activeSession.save();
       }
+
+      // Delete linked order if any
+      if (sale.orderId) {
+        try {
+          await Order.findByIdAndDelete(sale.orderId);
+        } catch (e) { }
+      }
     }
 
-    // Also delete from Order collection if it exists
+    // 2. Also delete directly from Order collection
+    if (isValidObjId) {
+      try {
+        await Order.findByIdAndDelete(targetId);
+      } catch (ordErr) { }
+    }
     try {
-      await Order.findByIdAndDelete(saleId);
-    } catch (ordErr) { }
+      await Order.deleteMany({
+        $or: [
+          ...(isValidObjId ? [{ _id: targetId }] : []),
+          { orderNumber: targetId }
+        ]
+      });
+    } catch (e) { }
 
     res.json({ success: true, message: 'Sale and associated records permanently deleted from database' });
   } catch (err) {
@@ -472,6 +511,101 @@ router.patch('/:id/approve', authenticate, requireShopAdmin, async (req, res) =>
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// Helper logic for executing credit settlement
+const processCreditSettlement = async (saleId, { paymentMethod = 'CASH', amountPaid, transactionId, paymentProof, paymentReceipt }, res) => {
+  try {
+    const sale = await Sale.findById(saleId);
+    if (!sale) {
+      return res.status(404).json({ message: 'Sale not found' });
+    }
+
+    const currentDue = Number(sale.dueAmount) > 0 ? Number(sale.dueAmount) : Number(sale.totalAmount);
+    const settleAmount = amountPaid ? Math.min(Number(amountPaid), currentDue) : currentDue;
+
+    if (settleAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid payment amount' });
+    }
+
+    const method = String(paymentMethod).toUpperCase();
+    const isBank = method === 'BANK_TRANSFER' || method === 'BANK' || method === 'ONLINE' || method === 'EASYPAISA';
+
+    if (isBank) {
+      sale.bankPaid = (Number(sale.bankPaid) || 0) + settleAmount;
+      if (transactionId) sale.transactionId = transactionId;
+      if (paymentProof || paymentReceipt) {
+        sale.paymentProof = paymentProof || paymentReceipt;
+        sale.paymentReceipt = paymentProof || paymentReceipt;
+      }
+    } else {
+      // CASH
+      sale.cashPaid = (Number(sale.cashPaid) || 0) + settleAmount;
+      
+      // Update active CashSession
+      const activeSession = await CashSession.findOne({ status: 'open' });
+      if (activeSession) {
+        activeSession.totalSales = (Number(activeSession.totalSales) || 0) + settleAmount;
+        activeSession.expectedCash = (Number(activeSession.expectedCash) || 0) + settleAmount;
+        await activeSession.save();
+      }
+    }
+
+    const newDue = Math.max(0, currentDue - settleAmount);
+    sale.dueAmount = newDue;
+    sale.isCredit = newDue > 0;
+    
+    // If fully paid, update paymentMethod according to what was paid
+    if (newDue === 0) {
+      if ((Number(sale.bankPaid) || 0) > 0 && (Number(sale.cashPaid) || 0) === 0) {
+        sale.paymentMethod = 'BANK_TRANSFER';
+      } else if ((Number(sale.cashPaid) || 0) > 0 && (Number(sale.bankPaid) || 0) === 0) {
+        sale.paymentMethod = 'CASH';
+      } else if ((Number(sale.cashPaid) || 0) > 0 && (Number(sale.bankPaid) || 0) > 0) {
+        sale.paymentMethod = 'SPLIT';
+      } else {
+        sale.paymentMethod = isBank ? 'BANK_TRANSFER' : 'CASH';
+      }
+    }
+
+    await sale.save();
+
+    // Also update Order if it corresponds to an order
+    try {
+      const order = await Order.findById(saleId);
+      if (order) {
+        if (newDue === 0) {
+          order.paymentStatus = 'PAID';
+        }
+        order.paymentMethod = sale.paymentMethod;
+        await order.save();
+      }
+    } catch (e) { }
+
+    return res.json({
+      success: true,
+      message: `Credit of Rs. ${settleAmount.toLocaleString('en-PK')} settled via ${isBank ? 'Bank Transfer' : 'Cash'}`,
+      sale
+    });
+  } catch (err) {
+    console.error('Settle credit error:', err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ── DEDICATED ROUTE 1: SETTLE CREDIT VIA CASH ──
+router.patch('/:id/settle-cash', authenticate, requireShopAdmin, async (req, res) => {
+  await processCreditSettlement(req.params.id, { ...req.body, paymentMethod: 'CASH' }, res);
+});
+
+// ── DEDICATED ROUTE 2: SETTLE CREDIT VIA BANK TRANSFER ──
+router.patch('/:id/settle-bank', authenticate, requireShopAdmin, async (req, res) => {
+  await processCreditSettlement(req.params.id, { ...req.body, paymentMethod: 'BANK_TRANSFER' }, res);
+});
+
+// ── UNIFIED ROUTE: SETTLE CREDIT (Dynamic Cash or Bank) ──
+router.patch('/:id/settle-credit', authenticate, requireShopAdmin, async (req, res) => {
+  await processCreditSettlement(req.params.id, req.body, res);
 });
 
 export default router;

@@ -128,8 +128,11 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
           supplierLocation: product.supplierLocation || product.farmLocation || "",
           totalPurchaseCost: product.totalPurchaseCost || 0,
           amountPaidToSupplier: product.amountPaidToSupplier !== undefined ? product.amountPaidToSupplier : (product.totalPurchaseCost || 0),
+          cashPaidToSupplier: product.cashPaidToSupplier || 0,
+          bankPaidToSupplier: product.bankPaidToSupplier || 0,
           dueAmountToSupplier: product.dueAmountToSupplier || 0,
           paymentMethod: product.paymentMethod || "Cash",
+          isOnlinePayment: Boolean(product.isOnlinePayment),
           paymentReceipt: product.paymentReceipt || "",
           images: product.images || [],
           description: product.description || "",
@@ -206,6 +209,16 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
     const rawMethod = String(data.paymentMethod || "Cash").trim();
     const isOnlineOrBank = rawMethod.toLowerCase().includes('bank') || rawMethod.toLowerCase().includes('online') || data.isOnlinePayment === true;
 
+    let cashPaid = 0;
+    let bankPaid = 0;
+    if (isOnlineOrBank) {
+      bankPaid = paidAmt;
+      cashPaid = 0;
+    } else {
+      cashPaid = paidAmt;
+      bankPaid = 0;
+    }
+
     let determinedMethod = "Cash";
     if (isOnlineOrBank) {
       determinedMethod = dueAmt > 0 && paidAmt === 0 
@@ -236,6 +249,8 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
       supplierLocation: data.supplierLocation?.trim() || "",
       totalPurchaseCost: totalBill,
       amountPaidToSupplier: paidAmt,
+      cashPaidToSupplier: cashPaid,
+      bankPaidToSupplier: bankPaid,
       dueAmountToSupplier: dueAmt,
       paymentMethod: determinedMethod,
       paymentReceipt: data.paymentReceipt || "",

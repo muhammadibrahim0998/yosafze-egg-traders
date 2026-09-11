@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Truck, Plus, Search, Filter, Box, Banknote, CreditCard, AlertCircle, Image as ImageIcon, ExternalLink, ShieldCheck, X, FileSpreadsheet, ChevronDown, Printer, Share2, Eye, Edit2, Trash2 } from 'lucide-react';
+import { Truck, Plus, Search, Filter, Box, Banknote, CreditCard, AlertCircle, Image as ImageIcon, ExternalLink, ShieldCheck, X, FileSpreadsheet, ChevronDown, Printer, Share2, Eye, Edit2, Trash2, CheckCircle2, Building2, UploadCloud, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useProducts } from '../contexts/ProductContext';
-import { getItems, deleteItem } from '../services/api';
+import { getItems, deleteItem, settleSupplierCredit, uploadImages } from '../services/api';
 import { CountUpNumber } from './CountUpNumber.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,7 +15,7 @@ const getReceiptImg = (p) => {
   return null;
 };
 
-export function PurchasesManagement({ products: propProducts, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct }) {
+export function PurchasesManagement({ products: propProducts, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onRefresh }) {
   const productCtx = useProducts() || {};
   const contextProducts = productCtx.products || [];
   const [apiProducts, setApiProducts] = useState([]);
@@ -24,8 +24,20 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [localDeleteDialog, setLocalDeleteDialog] = useState({ isOpen: false, item: null, isDeleting: false });
-
   const [deletedIds, setDeletedIds] = useState(new Set());
+
+  // Supplier Credit Settlement State
+  const [settleModal, setSettleModal] = useState({
+    isOpen: false,
+    item: null,
+    paymentMethod: 'Cash', // 'Cash' | 'Bank Transfer'
+    amountPaid: '',
+    receiptFile: null,
+    receiptPreview: null,
+    isSubmitting: false,
+    error: null,
+    successMsg: null,
+  });
 
   const reloadItems = async () => {
     try {
@@ -33,6 +45,9 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
       const itemsList = Array.isArray(res) ? res : res?.items || res?.data || [];
       if (itemsList.length > 0) {
         setApiProducts(itemsList);
+      }
+      if (onRefresh) {
+        try { await onRefresh(); } catch (_) {}
       }
     } catch (err) {
       console.error('Failed to reload items:', err);
@@ -43,6 +58,119 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
   useEffect(() => {
     reloadItems();
   }, []);
+
+  const handleOpenSettleModal = (item, dueAmt) => {
+    setSettleModal({
+      isOpen: true,
+      item,
+      paymentMethod: 'Cash',
+      amountPaid: dueAmt !== undefined ? String(dueAmt) : String(item.dueAmountToSupplier || ''),
+      receiptFile: null,
+      receiptPreview: null,
+      isSubmitting: false,
+      error: null,
+      successMsg: null,
+    });
+  };
+
+  const handleReceiptFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSettleModal(prev => ({
+        ...prev,
+        receiptFile: file,
+        receiptPreview: URL.createObjectURL(file),
+      }));
+    }
+  };
+
+  const handleConfirmSettle = async (e) => {
+    if (e) e.preventDefault();
+    if (!settleModal.item) return;
+
+    const itemId = settleModal.item._id || settleModal.item.id;
+    const payAmt = Number(settleModal.amountPaid);
+    if (isNaN(payAmt) || payAmt <= 0) {
+      setSettleModal(prev => ({ ...prev, error: 'Please enter a valid amount greater than 0' }));
+      return;
+    }
+
+    setSettleModal(prev => ({ ...prev, isSubmitting: true, error: null }));
+
+    try {
+      let receiptUrl = '';
+      if (settleModal.receiptFile) {
+        const uploaded = await uploadImages([settleModal.receiptFile]);
+        if (uploaded && uploaded.length > 0) {
+          receiptUrl = uploaded[0];
+        }
+      }
+
+      const res = await settleSupplierCredit(itemId, {
+        paymentMethod: settleModal.paymentMethod,
+        amountPaid: payAmt,
+        paymentReceipt: receiptUrl || undefined,
+      });
+
+      const updatedItem = res?.item;
+
+      // Update apiProducts locally
+      setApiProducts(prev => prev.map(p => {
+        if (p._id === itemId) {
+          const currentDue = Number(p.dueAmountToSupplier) || 0;
+          const currentPaid = Number(p.amountPaidToSupplier) || 0;
+          return {
+            ...p,
+            ...(updatedItem || {}),
+            dueAmountToSupplier: Math.max(0, currentDue - payAmt),
+            amountPaidToSupplier: currentPaid + payAmt,
+            isOnlinePayment: settleModal.paymentMethod !== 'Cash' ? true : p.isOnlinePayment,
+            paymentReceipt: receiptUrl || p.paymentReceipt,
+          };
+        }
+        return p;
+      }));
+
+      if (productCtx?.fetchProducts) {
+        try { await productCtx.fetchProducts(); } catch (_) {}
+      }
+      if (onRefresh) {
+        try { await onRefresh(); } catch (_) {}
+      }
+
+      setSettleModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        successMsg: `Rs. ${payAmt.toLocaleString('en-PK')} successfully paid via ${settleModal.paymentMethod === 'Cash' ? 'Cash' : 'Bank Transfer'}!`,
+      }));
+
+      setTimeout(() => {
+        setSettleModal({
+          isOpen: false,
+          item: null,
+          paymentMethod: 'Cash',
+          amountPaid: '',
+          receiptFile: null,
+          receiptPreview: null,
+          isSubmitting: false,
+          error: null,
+          successMsg: null,
+        });
+        reloadItems();
+        if (onRefresh) {
+          try { onRefresh(); } catch (_) {}
+        }
+      }, 1200);
+    } catch (err) {
+      console.error('Error settling supplier credit:', err);
+      setSettleModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.response?.data?.message || err.message || 'Failed to pay credit',
+      }));
+    }
+  };
+
 
   const handleDeleteClick = async (item) => {
     if (!item) return;
@@ -120,7 +248,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
   const stats = useMemo(() => {
     let totalPurchasesCost = 0;
     let cashPaid = 0;
-    let onlinePaid = 0;
+    let bankPaid = 0;
     let totalDue = 0;
     let totalPetisPurchased = 0;
 
@@ -164,7 +292,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
       );
 
       // 2. Strict Routed Paid vs Due (Qaraz) calculation (No overlap)
-      const hasExplicitDue = p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) > 0;
+      const hasExplicitDue = p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) >= 0;
       let due = 0;
       let paid = 0;
 
@@ -173,20 +301,53 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
         due = Math.min(cost, Math.max(0, rawDue));
         paid = Math.max(0, cost - due);
       } else {
-        // 100% Cash / Bank Paid (No Qaraz)
+        // 100% Paid (No Qaraz)
         paid = cost;
         due = 0;
+      }
+
+      if (p.amountPaidToSupplier !== undefined && p.amountPaidToSupplier !== null && Number(p.amountPaidToSupplier) > 0) {
+        paid = Number(p.amountPaidToSupplier);
       }
 
       // 3. Aggregate totals
       totalPurchasesCost += isNaN(cost) ? 0 : cost;
       totalDue += isNaN(due) ? 0 : due;
-      cashPaid += isNaN(paid) ? 0 : paid;
+
+      let itemCashPaid = 0;
+      let itemBankPaid = 0;
+
+      if (p.cashPaidToSupplier !== undefined && p.cashPaidToSupplier !== null && Number(p.cashPaidToSupplier) > 0) {
+        itemCashPaid = Number(p.cashPaidToSupplier);
+      }
+      if (p.bankPaidToSupplier !== undefined && p.bankPaidToSupplier !== null && Number(p.bankPaidToSupplier) > 0) {
+        itemBankPaid = Number(p.bankPaidToSupplier);
+      }
+
+      if (itemCashPaid === 0 && itemBankPaid === 0 && paid > 0) {
+        const isStrictBank = (
+          pMethod.includes('bank') || 
+          pMethod.includes('easy') || 
+          pMethod.includes('jazz') || 
+          pMethod.includes('transfer') || 
+          pMethod.includes('online') ||
+          p.isOnlinePayment === true
+        );
+        if (isStrictBank) {
+          itemBankPaid = paid;
+        } else {
+          itemCashPaid = paid;
+        }
+      }
+
+      cashPaid += isNaN(itemCashPaid) ? 0 : itemCashPaid;
+      bankPaid += isNaN(itemBankPaid) ? 0 : itemBankPaid;
     });
 
     return {
       totalPurchasesCost: isNaN(totalPurchasesCost) ? 0 : Math.round(totalPurchasesCost),
       cashPaid: isNaN(cashPaid) ? 0 : Math.round(cashPaid),
+      bankPaid: isNaN(bankPaid) ? 0 : Math.round(bankPaid),
       totalDue: isNaN(totalDue) ? 0 : Math.round(totalDue),
       totalPetis: isNaN(totalPetisPurchased) ? 0 : Number(totalPetisPurchased.toFixed(1)),
       totalTrays: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 12),
@@ -237,23 +398,26 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(30, 72, 535, 42, 6, 6, 'FD');
 
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 116, 139);
-    doc.text('STOCK PURCHASED', 45, 87);
-    doc.text('TOTAL INVESTMENT', 180, 87);
-    doc.text('CASH PAID', 320, 87);
-    doc.text('DUE (CREDIT)', 455, 87);
+    doc.text('STOCK PURCHASED', 40, 87);
+    doc.text('TOTAL COST', 145, 87);
+    doc.text('CASH PAID', 250, 87);
+    doc.text('BANK PAID', 355, 87);
+    doc.text('DUE (CREDIT)', 460, 87);
 
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
-    doc.text(`${stats.totalPetis} Petis`, 45, 104);
+    doc.text(`${stats.totalPetis} Petis`, 40, 104);
     doc.setTextColor(5, 150, 105);
-    doc.text(`Rs. ${fmt(stats.totalPurchasesCost)}`, 180, 104);
+    doc.text(`Rs. ${fmt(stats.totalPurchasesCost)}`, 145, 104);
     doc.setTextColor(16, 185, 129);
-    doc.text(`Rs. ${fmt(stats.cashPaid)}`, 320, 104);
+    doc.text(`Rs. ${fmt(stats.cashPaid)}`, 250, 104);
+    doc.setTextColor(37, 99, 235);
+    doc.text(`Rs. ${fmt(stats.bankPaid)}`, 355, 104);
     doc.setTextColor(stats.totalDue > 0 ? 225 : 100, stats.totalDue > 0 ? 29 : 116, stats.totalDue > 0 ? 72 : 139);
-    doc.text(`Rs. ${fmt(stats.totalDue)}`, 455, 104);
+    doc.text(`Rs. ${fmt(stats.totalDue)}`, 460, 104);
 
     // Items Table
     const tableData = purchaseItems.map((item, idx) => {
@@ -429,6 +593,9 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     message += `📦 *Stock Restocked:* ${stats.totalPetis} Petis (${stats.totalTrays} Trays • ${fmt(stats.totalEggs)} Eggs)\n`;
     message += `💰 *Total Investment:* Rs. ${fmt(stats.totalPurchasesCost)}\n`;
     message += `💵 *Cash Paid:* Rs. ${fmt(stats.cashPaid)}\n`;
+    if (stats.bankPaid > 0) {
+      message += `🏦 *Bank Paid:* Rs. ${fmt(stats.bankPaid)}\n`;
+    }
     message += `⚠️ *Credit (Due):* Rs. ${fmt(stats.totalDue)}\n`;
     message += `===============================\n`;
     message += `🛒 *PURCHASED PRODUCTS:* (${purchaseItems.length} items)\n`;
@@ -567,8 +734,8 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
         </div>
       </div>
 
-      {/* Top 4 Dynamic Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Top 5 Dynamic Stat Cards (Cash & Bank Separated) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: Stock Purchased */}
         <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
@@ -585,7 +752,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
           </span>
         </div>
 
-        {/* Card 2: Cash Paid */}
+        {/* Card 2: Cash Paid (Separate) */}
         <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Cash Paid</span>
@@ -594,10 +761,22 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
             </div>
           </div>
           <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
-          <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Cash Paid</span>
+          <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
         </div>
 
-        {/* Card 3: Due Balance (Credit) */}
+        {/* Card 3: Bank Transfer Paid (Separate) */}
+        <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Bank Paid</span>
+            <div className="p-1.5 bg-blue-100 rounded-lg">
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            </div>
+          </div>
+          <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
+          <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
+        </div>
+
+        {/* Card 4: Due Balance (Credit) */}
         <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between ${stats.totalDue > 0 ? 'border-rose-300 bg-rose-50' : 'border-gray-200'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
@@ -611,17 +790,17 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
           </span>
         </div>
 
-        {/* Card 4: Grand Total Purchase Cost */}
-        <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+        {/* Card 5: Grand Total Purchase Cost */}
+        <div className="bg-white border-2 border-purple-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">
+            <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest">
               {timeframe === 'DAY' ? 'Today Cost' : timeframe === 'MONTH' ? 'Month Cost' : timeframe === 'YEAR' ? 'Year Cost' : 'Total Investment'}
             </span>
-            <div className="p-1.5 bg-blue-100 rounded-lg">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+            <div className="p-1.5 bg-purple-100 rounded-lg">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
             </div>
           </div>
-          <h4 className="text-xl sm:text-2xl font-black text-blue-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
+          <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
           <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
         </div>
       </div>
@@ -750,10 +929,16 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                   </div>
                 </div>
 
-                {/* Payment Breakdown (Cash Paid vs Credit) */}
+                {/* Payment Breakdown (Paid vs Credit) */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2">
-                    <span className="text-[9px] font-black text-emerald-700 uppercase block">💵 Cash Paid:</span>
+                    <span className="text-[9px] font-black text-emerald-700 uppercase block">
+                      {(Number(item.bankPaidToSupplier) > 0 && Number(item.cashPaidToSupplier) > 0)
+                        ? '💵 / 🏦 Paid:'
+                        : (Number(item.bankPaidToSupplier) > 0 || (item.isOnlinePayment && (Number(item.cashPaidToSupplier) || 0) === 0))
+                        ? '🏦 Bank Paid:'
+                        : '💵 Cash Paid:'}
+                    </span>
                     <span className="font-black text-emerald-700 text-xs">Rs. {fmt(paidAmount)}</span>
                   </div>
                   <div className={`rounded-xl p-2 border ${hasDue ? 'bg-rose-50 border-rose-200' : 'bg-gray-50 border-gray-200'}`}>
@@ -761,6 +946,18 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
                     <span className={`font-black text-xs ${hasDue ? 'text-rose-600' : 'text-gray-400'}`}>Rs. {fmt(dueBalanceAmount)}</span>
                   </div>
                 </div>
+
+                {/* Prominent Pay Credit Button if credit remains */}
+                {hasDue && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSettleModal(item, dueBalanceAmount)}
+                    className="w-full py-2 px-3 bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 cursor-pointer mt-1"
+                  >
+                    <CreditCard className="w-3.5 h-3.5 text-white" />
+                    <span>💳 Pay Credit (Rs. {fmt(dueBalanceAmount)})</span>
+                  </button>
+                )}
               </div>
 
               {/* Actions Footer: View, Edit, Delete */}
@@ -889,6 +1086,198 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
           </div>
         )}
       </AnimatePresence>
+
+      {/* Supplier Credit Settlement Modal */}
+      <AnimatePresence>
+        {settleModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative max-w-md w-full bg-slate-900 border border-slate-700 rounded-3xl p-6 text-white shadow-2xl space-y-4"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-rose-500/20 text-rose-400 rounded-xl">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black uppercase tracking-tight text-white">
+                      Pay Supplier Credit
+                    </h3>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase">
+                      {settleModal.item?.name} • <span className="text-teal-400">{settleModal.item?.supplierName || 'Supplier'}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettleModal(prev => ({ ...prev, isOpen: false, item: null }))}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Outstanding Due Banner */}
+              <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-3.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-rose-300 block tracking-wider">
+                    Total Pending Credit (Due)
+                  </span>
+                  <span className="text-xl font-black text-rose-400 tracking-tight">
+                    Rs. {fmt(settleModal.item?.dueAmountToSupplier || 0)}
+                  </span>
+                </div>
+                <span className="px-2.5 py-1 bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                  ⚠️ Credit Due
+                </span>
+              </div>
+
+              {/* Feedback messages */}
+              {settleModal.error && (
+                <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-xl text-rose-200 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{settleModal.error}</span>
+                </div>
+              )}
+              {settleModal.successMsg && (
+                <div className="p-3 bg-emerald-900/50 border border-emerald-700 rounded-xl text-emerald-200 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{settleModal.successMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleConfirmSettle} className="space-y-4">
+                {/* Payment Method Selector (Cash vs Bank Transfer) */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                    Select Payment Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSettleModal(prev => ({ ...prev, paymentMethod: 'Cash' }))}
+                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        settleModal.paymentMethod === 'Cash'
+                          ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/30'
+                          : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>💵 Cash</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSettleModal(prev => ({ ...prev, paymentMethod: 'Bank Transfer' }))}
+                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        settleModal.paymentMethod === 'Bank Transfer'
+                          ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-900/30'
+                          : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      <span>🏦 Bank Transfer</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Amount to Pay */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                      Payment Amount (Rs.)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSettleModal(prev => ({ ...prev, amountPaid: String(prev.item?.dueAmountToSupplier || 0) }))}
+                      className="text-[10px] font-black uppercase text-teal-400 hover:text-teal-300 underline"
+                    >
+                      Pay Full (Rs. {fmt(settleModal.item?.dueAmountToSupplier || 0)})
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max={settleModal.item?.dueAmountToSupplier || undefined}
+                    value={settleModal.amountPaid}
+                    onChange={(e) => setSettleModal(prev => ({ ...prev, amountPaid: e.target.value, error: null }))}
+                    placeholder="Enter amount to pay..."
+                    required
+                    className="w-full bg-slate-800 border border-slate-700 focus:border-teal-400 rounded-xl px-4 py-2.5 text-white font-black text-sm outline-none transition-all placeholder:text-slate-500"
+                  />
+                </div>
+
+                {/* Bank Transfer Receipt Attachment (Optional) */}
+                {settleModal.paymentMethod === 'Bank Transfer' && (
+                  <div className="space-y-1.5 animate-in fade-in">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                      Bank Transfer Receipt / Screenshot (Optional)
+                    </label>
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-blue-400 rounded-2xl p-3 cursor-pointer bg-slate-800/50 hover:bg-slate-800 transition-all">
+                      {settleModal.receiptPreview ? (
+                        <div className="flex items-center gap-2">
+                          <img src={settleModal.receiptPreview} alt="Receipt preview" className="w-12 h-12 object-cover rounded-lg border border-slate-600" />
+                          <span className="text-xs font-bold text-teal-400">Receipt Attached (Click to change)</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                          <UploadCloud className="w-5 h-5 text-blue-400" />
+                          <span>Upload Transfer Screenshot</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleReceiptFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettleModal(prev => ({ ...prev, isOpen: false, item: null }))}
+                    disabled={settleModal.isSubmitting}
+                    className="py-3 px-4 rounded-xl border border-slate-700 text-xs font-black uppercase text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={settleModal.isSubmitting}
+                    className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 transition-all shadow-lg active:scale-95 cursor-pointer ${
+                      settleModal.paymentMethod === 'Cash'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-950/40'
+                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/40'
+                    }`}
+                  >
+                    {settleModal.isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Confirm Pay (Rs. {fmt(settleModal.amountPaid || 0)})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Local Delete Confirmation Modal */}
       {localDeleteDialog.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -926,3 +1315,4 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     </div>
   );
 }
+

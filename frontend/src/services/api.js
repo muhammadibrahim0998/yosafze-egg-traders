@@ -102,6 +102,23 @@ export const deleteItem = async (id, password, role) => {
     }
   });
   return response.data;
+};export const settleSupplierCredit = async (id, paymentData) => {
+  const method = String(paymentData.paymentMethod || 'Cash').toUpperCase();
+  const endpoint = (method === 'BANK' || method === 'BANK_TRANSFER' || method === 'ONLINE')
+    ? `/items/${id}/settle-bank`
+    : `/items/${id}/settle-cash`;
+  const response = await api.patch(endpoint, paymentData);
+  return response.data;
+};
+
+export const settleSupplierCash = async (id, paymentData) => {
+  const response = await api.patch(`/items/${id}/settle-cash`, paymentData);
+  return response.data;
+};
+
+export const settleSupplierBank = async (id, paymentData) => {
+  const response = await api.patch(`/items/${id}/settle-bank`, paymentData);
+  return response.data;
 };
 
 // --- UPLOAD API ---
@@ -184,6 +201,25 @@ export const returnSale = async (id, returnData, password, role) => {
       'x-user-role': role
     }
   });
+  return response.data;
+};
+
+export const settleCreditViaCash = async (id, data) => {
+  const response = await api.patch(`/sales/${id}/settle-cash`, data);
+  return response.data;
+};
+
+export const settleCreditViaBank = async (id, data) => {
+  const response = await api.patch(`/sales/${id}/settle-bank`, data);
+  return response.data;
+};
+
+export const settleCreditSale = async (id, paymentData) => {
+  const method = String(paymentData.paymentMethod || 'CASH').toUpperCase();
+  const endpoint = (method === 'BANK' || method === 'BANK_TRANSFER' || method === 'ONLINE')
+    ? `/sales/${id}/settle-bank`
+    : `/sales/${id}/settle-cash`;
+  const response = await api.patch(endpoint, paymentData);
   return response.data;
 };
 

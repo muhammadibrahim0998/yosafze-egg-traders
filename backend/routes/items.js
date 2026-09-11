@@ -7,7 +7,8 @@ import {
   getItem,
   createItem,
   updateItem,
-  deleteItem
+  deleteItem,
+  settleSupplierCredit
 } from '../controllers/itemController.js';
 
 router.route('/')
@@ -16,6 +17,10 @@ router.route('/')
 
 router.route('/all')
   .get(authenticate, getItems);
+
+router.patch('/:id/settle-credit', authenticate, requireShopAdmin, settleSupplierCredit);
+router.patch('/:id/settle-cash', authenticate, requireShopAdmin, settleSupplierCredit);
+router.patch('/:id/settle-bank', authenticate, requireShopAdmin, settleSupplierCredit);
 
 router.route('/:id')
   .get(authenticate, getItem)

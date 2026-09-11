@@ -107,6 +107,14 @@ const itemSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  cashPaidToSupplier: {
+    type: Number,
+    default: 0
+  },
+  bankPaidToSupplier: {
+    type: Number,
+    default: 0
+  },
   dueAmountToSupplier: {
     type: Number,
     default: 0

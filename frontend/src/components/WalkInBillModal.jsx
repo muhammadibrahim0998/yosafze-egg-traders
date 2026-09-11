@@ -133,8 +133,15 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     doc.setTextColor(71, 85, 105);
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Phone / WhatsApp: ${customerPhone || 'Walk-in'}`, 18, 61);
-    doc.text(`Payment: ${bill.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer (Approved)' : 'Paid in Cash'}`, 18, 66);
+    let paymentDesc = 'Paid in Cash';
+    if (Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0)) {
+      paymentDesc = `Split: ${Number(bill.bankPaid) > 0 ? 'Bank' : 'Cash'} Paid (${currency} ${(Number(bill.cashPaid) || Number(bill.bankPaid) || 0).toLocaleString()}) + Due (${currency} ${(Number(bill.dueAmount) || 0).toLocaleString()})`;
+    } else if (bill.isCredit || bill.paymentMethod === 'CREDIT' || Number(bill.dueAmount) >= totalAmount) {
+      paymentDesc = `Credit Sale (Due: ${currency} ${(Number(bill.dueAmount) || totalAmount).toLocaleString()})`;
+    } else if (bill.paymentMethod === 'BANK_TRANSFER' || Number(bill.bankPaid) > 0) {
+      paymentDesc = 'Bank Transfer (Approved)';
+    }
+    doc.text(`Payment: ${paymentDesc}`, 18, 66);
 
     // Right Column
     doc.setFont('helvetica', 'bold');
@@ -625,12 +632,16 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5 mb-1">
                   <span className="text-[10px] font-mono font-bold text-slate-400 mr-2">Invoice: #{serialNo}</span>
-                  {bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? (
+                  {Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0) ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-950 text-amber-300 border border-amber-600 shadow-sm">
+                      ⚡ PARTIAL / CREDIT
+                    </span>
+                  ) : bill.paymentMethod === 'CREDIT' || Number(bill.dueAmount) >= totalAmount || bill.isCredit ? (
                     <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-rose-950 text-rose-300 border border-rose-700 shadow-sm">
                       📋 CREDIT
                     </span>
-                  ) : bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-950 text-amber-300 border border-amber-700 shadow-sm">
+                  ) : bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' || Number(bill.bankPaid) > 0 ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-blue-950 text-blue-300 border border-blue-700 shadow-sm">
                       🏦 BANK TRANSFER
                     </span>
                   ) : (
@@ -710,9 +721,21 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                 })}
               </tbody>
             </table>
-            <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 flex justify-between items-center">
-              <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total Amount</span>
-              <span className="text-xl font-black text-emerald-400">{currency} {totalAmount.toLocaleString()}</span>
+            <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total Amount</span>
+                <span className="text-xl font-black text-emerald-400">{currency} {totalAmount.toLocaleString()}</span>
+              </div>
+              {Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0) && (
+                <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-700/60 bg-slate-900/60 p-2 rounded-xl">
+                  <span className="text-slate-300 font-bold uppercase text-[10px]">
+                    💵 Paid ({Number(bill.bankPaid) > 0 ? 'Bank' : 'Cash'}): <strong className="text-emerald-400 font-black">{currency} {(Number(bill.cashPaid) || Number(bill.bankPaid) || 0).toLocaleString()}</strong>
+                  </span>
+                  <span className="text-rose-400 font-bold uppercase text-[10px]">
+                    ⚠️ Credit Due: <strong className="text-rose-400 font-black">{currency} {(Number(bill.dueAmount) || 0).toLocaleString()}</strong>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
