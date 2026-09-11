@@ -764,7 +764,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                       }}
                       className="px-2 py-0.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-rose-300 text-[10px] font-black border border-rose-500/40 cursor-pointer"
                     >
-                      ⚠️ 100% Credit (قرض)
+                      ⚠️ 100% Credit
                     </button>
                   </div>
                 )}

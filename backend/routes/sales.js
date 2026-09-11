@@ -94,7 +94,7 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
       await settings.save();
     }
 
-    // 2. Resolve Payment Breakdown (Cash, Bank, Credit / Qaraz)
+    // 2. Resolve Payment Breakdown (Cash, Bank, Credit)
     const method = String(explicitPaymentData.paymentMethod || req.body.paymentMethod || 'CASH').toUpperCase();
     const isBank = method === 'BANK_TRANSFER' || method === 'BANK' || method === 'ONLINE' || method === 'EASYPAISA';
     const isCredit = method === 'CREDIT' || method === 'DUE' || explicitPaymentData.isCredit === true;
@@ -240,7 +240,7 @@ router.post('/online', authenticate, requireShopAdmin, async (req, res) => {
   await createSaleRecord(req, res, { paymentMethod: 'ONLINE' });
 });
 
-// ── DEDICATED ROUTE 3: CREDIT / QARAZ (DUE BALANCE) SALE ──
+// ── DEDICATED ROUTE 3: CREDIT (DUE BALANCE) SALE ──
 router.post('/credit', authenticate, requireShopAdmin, async (req, res) => {
   await createSaleRecord(req, res, { paymentMethod: 'CREDIT', isCredit: true });
 });
@@ -313,7 +313,7 @@ router.get('/by-type/:type', authenticate, requireShopAdmin, async (req, res) =>
       filter.$or = [{ paymentMethod: 'CASH' }, { cashPaid: { $gt: 0 } }];
     } else if (type === 'bank' || type === 'online') {
       filter.$or = [{ paymentMethod: { $in: ['BANK_TRANSFER', 'BANK', 'ONLINE', 'EASYPAISA'] } }, { bankPaid: { $gt: 0 } }];
-    } else if (type === 'credit' || type === 'due' || type === 'qaraz') {
+    } else if (type === 'credit' || type === 'due') {
       filter.$or = [{ paymentMethod: { $in: ['CREDIT', 'DUE'] } }, { isCredit: true }, { dueAmount: { $gt: 0 } }];
     }
 

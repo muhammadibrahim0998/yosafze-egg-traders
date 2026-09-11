@@ -91,7 +91,7 @@ router.get('/:shopId', async (req, res) => {
       
       itemObj.totalPurchaseCost = Math.round(calculatedCost);
 
-      const isCreditMethod = pMethod.includes('credit') || pMethod.includes('due') || pMethod.includes('qaraz') || pMethod.includes('partial');
+      const isCreditMethod = pMethod.includes('credit') || pMethod.includes('due') || pMethod.includes('partial');
       const hasExplicitDue = itemObj.dueAmountToSupplier !== undefined && itemObj.dueAmountToSupplier !== null && Number(itemObj.dueAmountToSupplier) > 0;
 
       if (hasExplicitDue || isCreditMethod) {
@@ -99,7 +99,7 @@ router.get('/:shopId', async (req, res) => {
         itemObj.dueAmountToSupplier = Math.min(itemObj.totalPurchaseCost, Math.max(0, rawDue));
         itemObj.amountPaidToSupplier = Math.max(0, itemObj.totalPurchaseCost - itemObj.dueAmountToSupplier);
       } else {
-        // 100% Cash / Bank Paid (No Qaraz)
+        // 100% Cash / Bank Paid (No Credit)
         itemObj.amountPaidToSupplier = itemObj.totalPurchaseCost;
         itemObj.dueAmountToSupplier = 0;
       }

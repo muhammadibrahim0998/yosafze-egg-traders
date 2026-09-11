@@ -287,11 +287,10 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
 
       const isCredit = !isOnline && (
         pMethod.includes('credit') || 
-        pMethod.includes('due') || 
-        pMethod.includes('qaraz')
+        pMethod.includes('due')
       );
 
-      // 2. Strict Routed Paid vs Due (Qaraz) calculation (No overlap)
+      // 2. Strict Routed Paid vs Due (Credit) calculation (No overlap)
       const hasExplicitDue = p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) >= 0;
       let due = 0;
       let paid = 0;
@@ -301,7 +300,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
         due = Math.min(cost, Math.max(0, rawDue));
         paid = Math.max(0, cost - due);
       } else {
-        // 100% Paid (No Qaraz)
+        // 100% Paid (No Credit)
         paid = cost;
         due = 0;
       }
@@ -868,7 +867,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
             ? Number(item.totalPurchaseCost)
             : (itemPetis > 0 ? itemPetis * unitCost : (Number(item.stock || 0) * (unitCost / unitDivisor)));
           
-          const isCreditMethod = pMethod.toLowerCase().includes('credit') || pMethod.toLowerCase().includes('due') || pMethod.toLowerCase().includes('qaraz') || pMethod.toLowerCase().includes('partial');
+          const isCreditMethod = pMethod.toLowerCase().includes('credit') || pMethod.toLowerCase().includes('due') || pMethod.toLowerCase().includes('partial');
           const hasExplicitDue = item.dueAmountToSupplier !== undefined && item.dueAmountToSupplier !== null && Number(item.dueAmountToSupplier) > 0;
           
           let dueBalanceAmount = 0;

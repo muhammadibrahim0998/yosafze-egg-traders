@@ -62,12 +62,11 @@ export function PurchasedProductsLedgerCard({ products = [], onAddProduct, onEdi
 
       const isCredit = !isOnline && (
         pMethodLower.includes('credit') || 
-        pMethodLower.includes('due') || 
-        pMethodLower.includes('qaraz')
+        pMethodLower.includes('due')
       );
 
-      // Strict Routed Paid vs Due (Qaraz) calculation (No overlap)
-      const isCreditMethod = isCredit || pMethodLower.includes('credit') || pMethodLower.includes('due') || pMethodLower.includes('qaraz') || pMethodLower.includes('partial');
+      // Strict Routed Paid vs Due (Credit) calculation (No overlap)
+      const isCreditMethod = isCredit || pMethodLower.includes('credit') || pMethodLower.includes('due') || pMethodLower.includes('partial');
       const hasExplicitDue = p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) > 0;
       
       let due = 0;
@@ -78,7 +77,7 @@ export function PurchasedProductsLedgerCard({ products = [], onAddProduct, onEdi
         due = Math.min(cost, Math.max(0, rawDue));
         paid = Math.max(0, cost - due);
       } else {
-        // 100% Cash / Bank Paid (No Qaraz)
+        // 100% Cash / Bank Paid (No Credit)
         paid = cost;
         due = 0;
       }

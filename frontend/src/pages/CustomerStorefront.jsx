@@ -3856,8 +3856,7 @@ function StoreContent({ shopId }) {
 
           const isCredit = !isOnline && (
             pMethodLower.includes('credit') ||
-            pMethodLower.includes('due') ||
-            pMethodLower.includes('qaraz')
+            pMethodLower.includes('due')
           );
 
           let due = 0;
@@ -5720,7 +5719,7 @@ function StoreContent({ shopId }) {
                                     <span>Split/Part</span>
                                   </button>
 
-                                  {/* 4. Credit / Qaraz */}
+                                  {/* 4. Credit */}
                                   <button
                                     type="button"
                                     onClick={() => {
