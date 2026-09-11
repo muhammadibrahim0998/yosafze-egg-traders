@@ -538,7 +538,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             <div>
               <span style="color:#059669; text-transform:uppercase;">Customer:</span> <strong style="font-size:13px;">${customerName}</strong><br/>
               ${customerPhone ? `<span>Phone: ${customerPhone}</span><br/>` : ''}
-              <span>Payment: ${bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? 'Credit / Qaraz (Due Balance)' : (bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? 'Bank Transfer' : 'Cash Paid')}</span>
+              <span>Payment: ${bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? 'Credit (Due Balance)' : (bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? 'Bank Transfer' : 'Cash Paid')}</span>
             </div>
             <div style="text-align:right;">
               <span class="serial-tag">SERIAL NO: #${serialNo}</span><br/>
@@ -627,7 +627,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                   <span className="text-[10px] font-mono font-bold text-slate-400 mr-2">Invoice: #{serialNo}</span>
                   {bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? (
                     <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-rose-950 text-rose-300 border border-rose-700 shadow-sm">
-                      📋 CREDIT / QARAZ
+                      📋 CREDIT
                     </span>
                   ) : bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? (
                     <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-950 text-amber-300 border border-amber-700 shadow-sm">

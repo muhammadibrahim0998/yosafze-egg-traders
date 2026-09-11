@@ -5518,7 +5518,7 @@ function StoreContent({ shopId }) {
                                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                                   }`}
                               >
-                                <FileText className="w-3.5 h-3.5" /> Qaraz
+                                <FileText className="w-3.5 h-3.5" /> Credit
                               </button>
                             </div>
 
@@ -5565,14 +5565,14 @@ function StoreContent({ shopId }) {
                               </div>
                             )}
 
-                            {/* Credit / Qaraz Notice */}
+                              {/* Credit Notice */}
                             {walkInPaymentMethod === 'CREDIT' && (
                               <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 space-y-1 animate-in fade-in duration-200">
                                 <p className="text-[10px] font-black text-rose-800 uppercase tracking-wider flex items-center gap-1">
-                                  <FileText className="w-3.5 h-3.5" /> Credit Sale (Qaraz / Due Balance)
+                                  <FileText className="w-3.5 h-3.5" /> Credit Sale (Due Balance)
                                 </p>
                                 <p className="text-[11px] text-rose-700 font-medium leading-tight">
-                                  This bill will be logged under <strong className="font-black uppercase">{walkInCustomerName.trim() || 'Credit Customer'}</strong> as an outstanding due balance (Qaraz).
+                                  This bill will be logged under <strong className="font-black uppercase">{walkInCustomerName.trim() || 'Credit Customer'}</strong> as an outstanding due balance.
                                 </p>
                               </div>
                             )}
@@ -6182,11 +6182,11 @@ function StoreContent({ shopId }) {
                       </span>
                     </div>
 
-                    {/* Card 3: Blue - 📋 Credit / Qaraz Sales */}
+                    {/* Card 3: Blue - 📋 Credit Sales */}
                     <div className="bg-white border-2 border-blue-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-blue-800 uppercase tracking-widest flex items-center gap-1">
-                          📋 Credit / Qaraz (Due)
+                          📋 Credit (Due)
                         </span>
                         <div className="p-1.5 bg-blue-100 rounded-lg text-blue-700">
                           <FileText className="w-3.5 h-3.5" />
@@ -6196,7 +6196,7 @@ function StoreContent({ shopId }) {
                         {currency} {Number(salesReportStats.creditSales || 0).toLocaleString('en-PK')}
                       </h4>
                       <span className="text-[10px] font-black text-blue-600 uppercase mt-1 block">
-                        Customer Outstanding Qaraz
+                        Customer Outstanding Credit
                       </span>
                     </div>
 
@@ -6273,7 +6273,7 @@ function StoreContent({ shopId }) {
                               : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border-blue-400'
                           }`}
                         >
-                          📋 Qaraz ({filteredSalesForReport.filter(s => s.paymentMethod === 'CREDIT' || Number(s.dueAmount) > 0 || s.isCredit).length})
+                          📋 Credit ({filteredSalesForReport.filter(s => s.paymentMethod === 'CREDIT' || Number(s.dueAmount) > 0 || s.isCredit).length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('ONLINE')}
@@ -6531,7 +6531,7 @@ function StoreContent({ shopId }) {
                                           {isCredit ? (
                                             <div className="space-y-1">
                                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
-                                                <FileText className="w-2.5 h-2.5" /> Credit / Qaraz
+                                                <FileText className="w-2.5 h-2.5" /> Credit
                                               </span>
                                               <p className="text-[10px] font-black text-rose-700">
                                                 Due: {currency} {(Number(s.dueAmount) || total).toLocaleString('en-PK')}
