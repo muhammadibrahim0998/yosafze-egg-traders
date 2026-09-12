@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-// In development, use Vite proxy (empty string = same origin via Vite dev server proxy)
-// In production (Vercel), also use '' to force traffic through vercel.json rewrites.
-// Both cases: cookies work correctly because requests are same-origin.
-const API_BASE = '';
+// Use environment variable for API URL in production (e.g. https://api.yourdomain.com)
+// Fallback to empty string for Vite proxy (development) or Vercel rewrites.
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
