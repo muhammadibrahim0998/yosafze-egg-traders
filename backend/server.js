@@ -44,7 +44,12 @@ app.set('trust proxy', 1);
 
 // Middleware
 const corsOptions = {
-  origin: '*',
+  origin: [
+    'https://nexflow-inventory.vercel.app', 
+    'http://localhost:5173', 
+    'http://localhost:5174',
+    process.env.FRONTEND_URL // <-- Add this for dynamic hosting (e.g. Hostinger)
+  ].filter(Boolean),
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-password', 'x-user-role'],
