@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingBag, MapPin, Phone, Package,
-  ChevronDown, X, ArrowLeft, ShoppingCart,
+  ChevronDown, X, ArrowLeft, ArrowRight, ShoppingCart,
   Plus, Minus, Trash2, User, Lock, Mail, LogOut, Eye, EyeOff,
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
@@ -42,6 +42,14 @@ const getCategoryIcon = (category) => {
   return Layers;
 };
 
+const EGG_BACKGROUND_IMAGES = [
+  'https://images.unsplash.com/photo-1516467508483-a7212febe31a?q=85&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?q=85&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?q=85&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=85&w=1920&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=85&w=1920&auto=format&fit=crop'
+];
+
 // ─── Customer Register / Login Full Page Component ───────────────────────────
 function CustomerAuthView({ shopInfo }) {
   const navigate = useNavigate();
@@ -52,6 +60,15 @@ function CustomerAuthView({ shopInfo }) {
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [success, setSuccess] = useState('');
+  const [currentEggIndex, setCurrentEggIndex] = useState(0);
+
+  // 2-Second Timer to Change Egg Background Pictures automatically
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentEggIndex((prev) => (prev + 1) % EGG_BACKGROUND_IMAGES.length);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handle = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -73,121 +90,143 @@ function CustomerAuthView({ shopInfo }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#111827] text-white flex flex-col justify-center items-center p-4 relative overflow-hidden selection:bg-emerald-500/30">
-      {/* Background Decorative Glows */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-[#2D5A27]/20 rounded-full blur-[120px] pointer-events-none" />
+    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-950 select-none z-50 text-white">
+      
+      {/* Background Animated Egg Pictures (Z-0) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        {EGG_BACKGROUND_IMAGES.map((imgUrl, idx) => (
+          <div
+            key={idx}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
+              idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+            } transition-transform duration-[3000ms]`}
+            style={{ backgroundImage: `url("${imgUrl}")` }}
+          />
+        ))}
+        {/* Soft dark vignette so eggs are super clear & crisp */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/75" />
+      </div>
 
-      <div className="w-full max-w-md z-10 animate-in zoom-in-95 duration-500">
-        <button
-          onClick={() => navigate('/shop')}
-          className="mb-6 inline-flex items-center gap-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors uppercase tracking-widest bg-emerald-950/60 px-4 py-2 rounded-full border border-emerald-800/40 backdrop-blur-md"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Store Selector
-        </button>
+      {/* Centered Clean Compact Card (Z-10) */}
+      <div className="relative z-10 w-full max-w-[360px] animate-in zoom-in-95 duration-500 my-auto py-1">
+        
+        {/* Top Back Navigation Button */}
+        <div className="flex justify-start mb-2.5">
+          <button
+            onClick={() => navigate('/shop')}
+            className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-emerald-300 hover:text-emerald-200 uppercase tracking-widest bg-black/60 hover:bg-black/80 px-3 py-1.2 rounded-full border border-white/20 backdrop-blur-md transition-all shadow-md cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Store Selector</span>
+          </button>
+        </div>
 
-        <div className="bg-[#1E293B] border border-slate-700/60 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#2D5A27] via-emerald-500 to-[#1B3817]" />
+        <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-700/70 rounded-[1.75rem] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.7)] relative overflow-hidden text-zinc-100">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
 
-          <div className="text-center mb-8">
-            <div className="relative inline-block mb-4">
-              <div className="p-4 bg-white rounded-2xl shadow-inner">
+          <div className="text-center mb-3.5">
+            <div className="relative inline-block mb-1.5">
+              <div className="p-2 bg-white rounded-2xl shadow-xl border border-white/40">
                 {shopInfo?.logoUrl ? (
-                  <img src={shopInfo.logoUrl} alt={shopInfo.name} className="w-12 h-12 rounded-xl object-contain" />
+                  <img src={shopInfo.logoUrl} alt={shopInfo.name} className="w-8 h-8 rounded-lg object-contain" />
                 ) : (
-                  <img src={companyLogo} alt="Yousafzai Agri Foods" className="w-12 h-12 object-contain rounded-xl" />
+                  <img src={companyLogo} alt="Yousafzai Egg Traders" className="w-8 h-8 object-contain rounded-lg" />
                 )}
               </div>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-white uppercase italic">{shopInfo?.name || 'Customer Portal'}</h1>
-            <p className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1.5">
+            <h1 className="text-lg font-black tracking-tight text-white uppercase italic leading-tight">
+              {shopInfo?.name || 'Customer Portal'}
+            </h1>
+            <p className="text-emerald-400 text-[9px] font-black uppercase tracking-[0.2em] mt-0.5">
               Customer Store Login / Register
             </p>
           </div>
 
-          <div className="flex bg-slate-900/80 rounded-2xl p-1.5 mb-6 border border-slate-700/50">
+          <div className="flex bg-zinc-950/80 rounded-xl p-1 mb-3.5 border border-zinc-800">
             <button
               type="button"
               onClick={() => { setMode('register'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-lg' : 'text-slate-400 hover:text-white'
-                }`}
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all ${
+                mode === 'register' ? 'bg-emerald-600 text-white shadow-md border-t border-white/20' : 'text-zinc-400 hover:text-white'
+              }`}
             >
               1. Register
             </button>
             <button
               type="button"
               onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${mode === 'login' ? 'bg-[#1B3817] text-white border-t border-t-white/20 border-b-4 border-b-[#12290D] shadow-lg' : 'text-slate-400 hover:text-white'
-                }`}
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all ${
+                mode === 'login' ? 'bg-emerald-600 text-white shadow-md border-t border-white/20' : 'text-zinc-400 hover:text-white'
+              }`}
             >
               2. Sign In
             </button>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-300 text-xs font-bold">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-              {error}
+            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-bold animate-in fade-in">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-rose-400" />
+              <span>{error}</span>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-300 text-xs font-bold">
-              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-              {success}
+            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold animate-in fade-in">
+              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
+              <span>{success}</span>
             </div>
           )}
 
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="space-y-2.5">
             {mode === 'register' && (
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Full Name</label>
+              <div className="space-y-0.5">
+                <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Full Name</label>
                 <div className="relative group">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
                   <input
                     type="text"
                     placeholder="Enter your full name"
                     value={form.fullName}
                     onChange={handle('fullName')}
                     required
-                    className="w-full bg-slate-900/60 border border-slate-700/60 focus:border-emerald-500 rounded-2xl py-3.5 pl-11 pr-4 text-white text-xs font-bold placeholder:text-slate-500 outline-none transition-all"
+                    className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-3 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
                   />
                 </div>
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Email Address</label>
+            <div className="space-y-0.5">
+              <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Email Address</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
                 <input
                   type="email"
                   placeholder="customer@example.com"
                   value={form.email}
                   onChange={handle('email')}
                   required
-                  className="w-full bg-slate-900/60 border border-slate-700/60 focus:border-emerald-500 rounded-2xl py-3.5 pl-11 pr-4 text-white text-xs font-bold placeholder:text-slate-500 outline-none transition-all"
+                  className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-3 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Password</label>
+            <div className="space-y-0.5">
+              <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Password</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
                 <input
                   type={showPw ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={form.password}
                   onChange={handle('password')}
                   required
-                  className="w-full bg-slate-900/60 border border-slate-700/60 focus:border-emerald-500 rounded-2xl py-3.5 pl-11 pr-12 text-white text-xs font-bold placeholder:text-slate-500 outline-none transition-all"
+                  className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-9 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(p => !p)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                 >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
@@ -195,29 +234,50 @@ function CustomerAuthView({ shopInfo }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-[#1B3817] hover:bg-[#12290D] border-t border-t-white/20 border-b-4 border-b-[#12290D] disabled:opacity-50 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg active:translate-y-[2px] mt-4"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-[0.16em] transition-all shadow-lg active:scale-[0.98] mt-1 cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {loading ? (
-                mode === 'register' ? 'Registering...' : 'Signing In...'
-              ) : (
-                mode === 'register' ? 'Register Account & Continue' : 'Sign In to Store'
-              )}
+              <span>
+                {loading ? (
+                  mode === 'register' ? 'Registering...' : 'Signing In...'
+                ) : (
+                  mode === 'register' ? 'Register & Continue' : 'Sign In to Store'
+                )}
+              </span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>
 
-          <div className="mt-6 text-center pt-4 border-t border-slate-700/50">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              {mode === 'register' ? 'Already registered?' : "Need an account?"}
+          <div className="mt-3.5 text-center pt-2.5 border-t border-zinc-800">
+            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+              {mode === 'register' ? 'Already registered?' : 'Need an account?'}
               <button
                 type="button"
                 onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); }}
-                className="text-emerald-400 hover:text-emerald-300 underline font-black ml-1.5"
+                className="text-emerald-400 hover:text-emerald-300 underline font-black ml-1.5 cursor-pointer"
               >
                 {mode === 'register' ? 'Sign In Here' : 'Create Account Here'}
               </button>
             </p>
           </div>
         </div>
+
+        {/* 5 Slide Dots Indicator */}
+        <div className="mt-3 flex items-center justify-center gap-1.5">
+          {EGG_BACKGROUND_IMAGES.map((_, dotIdx) => (
+            <button
+              key={dotIdx}
+              type="button"
+              onClick={() => setCurrentEggIndex(dotIdx)}
+              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                dotIdx === currentEggIndex
+                  ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
+                  : 'w-1.5 bg-white/40 hover:bg-white/70'
+              }`}
+              title={`Egg Picture #${dotIdx + 1}`}
+            />
+          ))}
+        </div>
+
       </div>
     </div>
   );
@@ -5252,6 +5312,7 @@ function StoreContent({ shopId }) {
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
                   <PurchasesManagement
                     products={items}
+                    shopId={shopId}
                     onAddProduct={() => setAddProductModal(true)}
                     onEditProduct={(p) => setEditModalProduct(p)}
                     onDeleteProduct={handleDirectDeleteProduct}
@@ -9386,42 +9447,73 @@ function StoreContent({ shopId }) {
 }
 
 // ─── All Shops Selector List Component ───────────────────────────────────────
+// ─── All Shops Selector List Component ───────────────────────────────────────
 function ShopsList() {
   const navigate = useNavigate();
   const [allShops, setAllShops] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentEggIndex, setCurrentEggIndex] = useState(0);
 
   useEffect(() => {
-    fetch(API_CATALOG).then(r => r.json()).then(d => { setAllShops(d); setLoading(false); }).catch(() => setLoading(false));
+    const timer = setInterval(() => {
+      setCurrentEggIndex((prev) => (prev + 1) % EGG_BACKGROUND_IMAGES.length);
+    }, 2000);
+    return () => clearInterval(timer);
   }, []);
 
-  return (
-    <div className="min-h-screen bg-[#0f172a] text-white flex flex-col justify-center items-center p-4 sm:p-6 selection:bg-emerald-500/30 relative overflow-hidden">
-      {/* Background Decorative Glow */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-slate-800/40 rounded-full blur-[120px] pointer-events-none" />
+  useEffect(() => {
+    fetch(API_CATALOG)
+      .then(r => r.json())
+      .then(d => {
+        setAllShops(d || []);
+        setLoading(false);
+        // If only 1 shop exists, auto-navigate directly to it
+        if (Array.isArray(d) && d.length === 1 && d[0]?._id) {
+          navigate(`/shop/${d[0]._id}`, { replace: true });
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [navigate]);
 
-      <div className="max-w-5xl w-full z-10 py-6 sm:py-10">
+  return (
+    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-emerald-500/30 overflow-y-auto bg-slate-950 select-none z-50 text-white">
+      
+      {/* Background Animated Egg Pictures (Z-0) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        {EGG_BACKGROUND_IMAGES.map((imgUrl, idx) => (
+          <div
+            key={idx}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
+              idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+            } transition-transform duration-[3000ms]`}
+            style={{ backgroundImage: `url("${imgUrl}")` }}
+          />
+        ))}
+        {/* Soft dark vignette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/75" />
+      </div>
+
+      <div className="relative z-10 max-w-5xl w-full py-4 my-auto">
         {/* Top Header Navigation with Back Button */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-xs font-black text-emerald-400 hover:text-emerald-300 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer group"
+            className="inline-flex items-center gap-2 text-xs font-black text-emerald-400 hover:text-emerald-300 bg-black/70 hover:bg-black/90 border border-white/20 hover:border-emerald-500/50 px-4 py-2 rounded-xl shadow-lg transition-all cursor-pointer group backdrop-blur-md"
           >
             <ArrowLeft className="w-4 h-4 text-emerald-400 group-hover:-translate-x-1 transition-transform" />
-            <span className="uppercase tracking-wider">Back to SuperAdmin</span>
+            <span className="uppercase tracking-wider">Dashboard / Home</span>
           </button>
         </div>
 
-        <div className="text-center mb-8 space-y-2">
-          <div className="inline-flex p-2 bg-white rounded-2xl mb-1 shadow-xl">
-            <img src={companyLogo} alt="Yosafze Egg Traders" className="h-14 sm:h-16 w-auto object-contain drop-shadow-md" />
+        <div className="text-center mb-6 space-y-2">
+          <div className="inline-flex p-2 bg-white rounded-2xl mb-1 shadow-xl border border-white/40">
+            <img src={companyLogo} alt="Yosafze Egg Traders" className="h-12 sm:h-14 w-auto object-contain drop-shadow-md" />
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white uppercase italic">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase italic drop-shadow-md">
             YOSAFZE EGG TRADERS
           </h1>
-          <p className="text-emerald-400 font-black uppercase tracking-[0.25em] text-[11px]">
-            Multi-Branch Portal (Peshawar, Attock, Mardan & All Branches)
+          <p className="text-emerald-400 font-black uppercase tracking-[0.25em] text-[10px] bg-black/60 inline-block px-3 py-1 rounded-full border border-white/10 backdrop-blur-md">
+            Branch Portal (Peshawar, Attock, Mardan)
           </p>
         </div>
 
@@ -9435,7 +9527,7 @@ function ShopsList() {
               <button
                 key={s._id}
                 onClick={() => navigate(`/shop/${s._id}`)}
-                className="group bg-[#1E293B]/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/70 rounded-2xl p-4 sm:p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10 relative overflow-hidden flex flex-col justify-between"
+                className="group bg-slate-900/90 hover:bg-slate-800/95 border border-white/20 hover:border-emerald-500/80 rounded-2xl p-4 sm:p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-500/20 backdrop-blur-xl relative overflow-hidden flex flex-col justify-between cursor-pointer"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
@@ -9446,7 +9538,7 @@ function ShopsList() {
                         <img src={companyLogo} alt="Yosafze Egg Traders" className="w-7 h-7 object-contain rounded-lg" />
                       )}
                     </div>
-                    <div className="bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                    <div className="bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                       Branch #{idx + 1}
                     </div>
@@ -9454,16 +9546,16 @@ function ShopsList() {
 
                   <div className="mb-3">
                     <h2 className="text-base font-black text-white tracking-tight uppercase italic group-hover:text-emerald-300 transition-colors line-clamp-1">
-                      {s.name}
+                      {s.name || 'Yosafze Egg Traders'}
                     </h2>
                     {s.address && (
-                      <p className="text-slate-400 text-[11px] font-semibold mt-0.5 uppercase tracking-wider line-clamp-1">
+                      <p className="text-slate-300 text-[11px] font-semibold mt-0.5 uppercase tracking-wider line-clamp-1">
                         {s.address}
                       </p>
                     )}
                   </div>
 
-                  <div className="space-y-1 mb-4 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                  <div className="space-y-1 mb-4 bg-slate-950/70 p-2.5 rounded-xl border border-white/10">
                     <p className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
                       <span className="text-emerald-400 font-mono text-[9px] uppercase">Unique ID</span>
                       <span className="font-mono text-white text-[9px] truncate max-w-[140px]">{s._id}</span>
@@ -9488,6 +9580,23 @@ function ShopsList() {
             )}
           </div>
         )}
+
+        {/* 5 Slide Dots Indicator */}
+        <div className="mt-4 flex items-center justify-center gap-1.5">
+          {EGG_BACKGROUND_IMAGES.map((_, dotIdx) => (
+            <button
+              key={dotIdx}
+              type="button"
+              onClick={() => setCurrentEggIndex(dotIdx)}
+              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                dotIdx === currentEggIndex
+                  ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
+                  : 'w-1.5 bg-white/40 hover:bg-white/70'
+              }`}
+              title={`Egg Picture #${dotIdx + 1}`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

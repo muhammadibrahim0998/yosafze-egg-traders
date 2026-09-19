@@ -3,6 +3,7 @@ import { Truck, Plus, Search, Filter, Box, Banknote, CreditCard, AlertCircle, Im
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useProducts } from '../contexts/ProductContext';
+import { useUser } from '../contexts/UserContext';
 import { getItems, deleteItem, settleSupplierCredit, uploadImages } from '../services/api';
 import { CountUpNumber } from './CountUpNumber.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +16,9 @@ const getReceiptImg = (p) => {
   return null;
 };
 
-export function PurchasesManagement({ products: propProducts, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onRefresh }) {
+export function PurchasesManagement({ products: propProducts, shopId: propShopId, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onRefresh }) {
+  const { user } = useUser?.() || {};
+  const activeShopId = propShopId || (user?.shopId ? String(user.shopId) : null);
   const productCtx = useProducts() || {};
   const contextProducts = productCtx.products || [];
   const [apiProducts, setApiProducts] = useState([]);
@@ -41,7 +44,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
 
   const reloadItems = async () => {
     try {
-      const res = await getItems();
+      const res = await getItems(activeShopId);
       const itemsList = Array.isArray(res) ? res : res?.items || res?.data || [];
       if (itemsList.length > 0) {
         setApiProducts(itemsList);
@@ -57,7 +60,7 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
   // Fetch items directly if prop or context is empty
   useEffect(() => {
     reloadItems();
-  }, []);
+  }, [activeShopId]);
 
   const handleOpenSettleModal = (item, dueAmt) => {
     setSettleModal({
@@ -203,8 +206,10 @@ export function PurchasesManagement({ products: propProducts, onAddProduct, onEd
     const raw = (propProducts && propProducts.length > 0)
       ? propProducts
       : ((contextProducts && contextProducts.length > 0) ? contextProducts : apiProducts);
-    return raw.filter(p => !deletedIds.has(p._id));
-  }, [propProducts, contextProducts, apiProducts, deletedIds]);
+    return raw
+      .filter(p => !deletedIds.has(p._id))
+      .filter(p => !activeShopId || !p.shopId || String(p.shopId?._id || p.shopId) === String(activeShopId));
+  }, [propProducts, contextProducts, apiProducts, deletedIds, activeShopId]);
 
   // Timeframe date filtering logic
   const filteredByTimeframeProducts = useMemo(() => {

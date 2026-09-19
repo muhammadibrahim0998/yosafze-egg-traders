@@ -6,14 +6,16 @@ import { logSystemUpdate } from '../utils/updateHelper.js';
 // @desc    Get all items
 const getItems = async (req, res) => {
   try {
-    const queryShopId = req.query.shopId;
+    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? req.user?.shopId : null);
     let filter = {};
-    if (req.user?.role === 'super_admin') {
-      if (queryShopId) filter.shopId = queryShopId;
+    if (rawShopId) {
+      if (mongoose.Types.ObjectId.isValid(rawShopId)) {
+        filter.shopId = new mongoose.Types.ObjectId(rawShopId);
+      } else {
+        filter.shopId = rawShopId;
+      }
     } else if (req.user?.shopId) {
       filter.shopId = req.user.shopId;
-    } else if (queryShopId) {
-      filter.shopId = queryShopId;
     }
 
     const items = await Item.find(filter).sort({ createdAt: -1 });

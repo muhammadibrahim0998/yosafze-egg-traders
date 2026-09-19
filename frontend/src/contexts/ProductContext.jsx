@@ -86,9 +86,10 @@ export function ProductProvider({ children }) {
     }
     try {
       if (showSpinner) setLoading(true);
+      const activeShopId = user?.shopId ? String(user.shopId) : null;
       const [productsData, salesData] = await Promise.all([
-        getItems().catch(() => []),
-        getSales().catch(() => [])
+        getItems(activeShopId).catch(() => []),
+        getSales(activeShopId).catch(() => [])
       ]);
       setProducts(Array.isArray(productsData) ? productsData : []);
       setSales(Array.isArray(salesData) ? salesData : []);

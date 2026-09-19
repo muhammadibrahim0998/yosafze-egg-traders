@@ -205,6 +205,7 @@ export function ShopAdminDashboard({
       ) : activeTab === 'purchases' && isShopAdmin() ? (
         <PurchasesManagement
           products={products}
+          shopId={user?.shopId}
           onAddProduct={onAddProduct}
           onEditProduct={onEditProduct}
           onDeleteProduct={onDeleteProduct}
