@@ -6,13 +6,14 @@ dotenv.config();
 
 const seedDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/perfume_store');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/egge');
 
     // Only create or update the initial door-opener (Super Admin)
     let superAdmin = await User.findOne({ role: 'super_admin' });
     if (!superAdmin) {
       superAdmin = new User({
         username: 'ibrahim1530388@gmail.com',
+        email: 'ibrahim1530388@gmail.com',
         password: 'super12345',
         fullName: 'System Super Admin',
         role: 'super_admin'
@@ -21,6 +22,7 @@ const seedDB = async () => {
       console.log('✅ Super Admin created. Email: ibrahim1530388@gmail.com');
     } else {
       superAdmin.username = 'ibrahim1530388@gmail.com';
+      superAdmin.email = 'ibrahim1530388@gmail.com';
       superAdmin.password = 'super12345';
       await superAdmin.save();
       console.log('✅ Super Admin updated. Email: ibrahim1530388@gmail.com');

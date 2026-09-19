@@ -657,18 +657,18 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 sm:p-7 rounded-[2rem] border border-slate-700/80 shadow-2xl text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      {/* Header Banner (Clean Gray & White Theme) */}
+      <div className="bg-white p-6 sm:p-7 rounded-[2rem] border-2 border-slate-200 shadow-xl text-slate-900 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-teal-500/20 border border-teal-500/40 rounded-2xl text-teal-400">
+            <div className="p-2.5 bg-teal-100 border border-teal-200 rounded-2xl text-teal-700 shadow-sm">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase italic">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase italic text-slate-900">
                 Purchases Page
               </h2>
-              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
                 Full Stock Purchase Records • Day, Month &amp; Year Cost History
               </p>
             </div>
@@ -679,16 +679,16 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
           {/* Quick Actions: Print PDF, WhatsApp Share, Excel Export */}
           <button
             onClick={handlePrintPurchasesReport}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase tracking-wider border border-slate-600 transition-all cursor-pointer shadow-sm hover:border-teal-400"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black uppercase tracking-wider border border-slate-300 transition-all cursor-pointer shadow-sm hover:border-teal-500"
             title="Print PDF Purchases Report"
           >
-            <Printer className="w-3.5 h-3.5 text-teal-400" />
+            <Printer className="w-3.5 h-3.5 text-teal-600" />
             <span>Print PDF</span>
           </button>
 
           <button
             onClick={handleWhatsAppPurchasesShare}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider border border-emerald-500 transition-all cursor-pointer shadow-sm"
             title="Share via WhatsApp"
           >
             <Share2 className="w-3.5 h-3.5 text-white" />
@@ -697,10 +697,10 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
           <button
             onClick={handleExportPurchasesExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider border border-emerald-600 transition-all cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-black uppercase tracking-wider border border-teal-600 transition-all cursor-pointer shadow-sm"
             title="Export Excel (.csv) Report"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
             <span>Excel</span>
           </button>
 
@@ -715,7 +715,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
           )}
 
           {/* Day / Month / Year Timeframe Selector */}
-          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {[
               { id: 'ALL', label: 'All-Time' },
               { id: 'DAY', label: 'Today (Day)' },
@@ -727,8 +727,8 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                 onClick={() => setTimeframe(t.id)}
                 className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                   timeframe === t.id
-                    ? 'bg-teal-500 text-slate-950 shadow-md font-extrabold'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    ? 'bg-slate-900 text-white shadow-md font-extrabold'
+                    : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200'
                 }`}
               >
                 {t.label}

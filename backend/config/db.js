@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const connectDB = async () => {
   try {
-    const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/perfume_store';
+    const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/egge';
     const isAtlas = uri.includes('mongodb.net');
     
     console.log(`Attempting to connect to ${isAtlas ? 'MongoDB Atlas' : 'Local MongoDB'}...`);

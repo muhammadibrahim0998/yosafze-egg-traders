@@ -18,6 +18,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
 
   const saleDate = bill.saleDate ? new Date(bill.saleDate).toLocaleString() : new Date().toLocaleString();
   const customerName = bill.customerName || 'Walk-in Customer';
+  const customerEmail = bill.customerEmail || bill.email || bill.customerId?.email || '';
   const customerPhone = bill.customerPhone || '';
   const items = bill.items || [];
   const totalAmount = bill.totalAmount || 0;
@@ -133,6 +134,9 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     doc.setTextColor(71, 85, 105);
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
+    if (customerEmail) {
+      doc.text(`Email: ${customerEmail}`, 18, 60);
+    }
     let paymentDesc = 'Paid in Cash';
     if (Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0)) {
       paymentDesc = `Split: ${Number(bill.bankPaid) > 0 ? 'Bank' : 'Cash'} Paid (${currency} ${(Number(bill.cashPaid) || Number(bill.bankPaid) || 0).toLocaleString()}) + Due (${currency} ${(Number(bill.dueAmount) || 0).toLocaleString()})`;
@@ -141,7 +145,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     } else if (bill.paymentMethod === 'BANK_TRANSFER' || Number(bill.bankPaid) > 0) {
       paymentDesc = 'Bank Transfer (Approved)';
     }
-    doc.text(`Payment: ${paymentDesc}`, 18, 66);
+    doc.text(`Payment: ${paymentDesc}`, 18, customerEmail ? 66 : 63);
 
     // Right Column
     doc.setFont('helvetica', 'bold');
@@ -318,15 +322,19 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
               <td class="info-label">Customer Name:</td>
               <td class="info-val" style="font-weight: bold;">${customerName}</td>
               <td style="border:none;"></td>
-              <td class="info-label">Customer Phone:</td>
-              <td class="info-val" style="mso-number-format:'\\@'; font-weight: bold;">${customerPhone ? `="${customerPhone}"` : 'N/A'}</td>
+              <td class="info-label">Customer Email:</td>
+              <td class="info-val" style="font-weight: bold; color:#4338ca;">${customerEmail || 'N/A'}</td>
             </tr>
             <tr>
+              <td class="info-label">Customer Phone:</td>
+              <td class="info-val" style="mso-number-format:'\\@'; font-weight: bold;">${customerPhone ? `="${customerPhone}"` : 'N/A'}</td>
+              <td style="border:none;"></td>
               <td class="info-label">Store / Branch:</td>
               <td class="info-val">${shopName}</td>
-              <td style="border:none;"></td>
+            </tr>
+            <tr>
               <td class="info-label">Branch Bank:</td>
-              <td class="info-val">${branchBank.bank} (${branchBank.accountNo})</td>
+              <td colspan="4" class="info-val">${branchBank.bank} (${branchBank.accountNo})</td>
             </tr>
             <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
             <tr style="height: 32px;">
@@ -383,6 +391,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     text += `🔢 *Invoice:* ${invoiceDisplay} (Serial: #${serialNo})\n`;
     text += `📅 *Date:* ${saleDate}\n`;
     text += `👤 *Customer:* ${customerName}\n`;
+    if (customerEmail) text += `📧 *Email:* ${customerEmail}\n`;
     if (targetPhone || customerPhone) text += `📞 *Phone:* ${targetPhone || customerPhone}\n`;
     text += `🏦 *Branch Bank:* ${branchBank.bank}\n`;
     text += `💳 *Account No:* ${branchBank.accountNo}\n`;
@@ -544,6 +553,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
           <div class="meta">
             <div>
               <span style="color:#059669; text-transform:uppercase;">Customer:</span> <strong style="font-size:13px;">${customerName}</strong><br/>
+              ${customerEmail ? `<span>Email: <strong style="color:#4338ca;">${customerEmail}</strong></span><br/>` : ''}
               ${customerPhone ? `<span>Phone: ${customerPhone}</span><br/>` : ''}
               <span>Payment: ${bill.paymentMethod === 'CREDIT' || bill.dueAmount > 0 || bill.isCredit ? 'Credit (Due Balance)' : (bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' ? 'Bank Transfer' : 'Cash Paid')}</span>
             </div>

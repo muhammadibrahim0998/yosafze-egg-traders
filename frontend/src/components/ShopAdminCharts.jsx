@@ -296,33 +296,33 @@ export function ShopAdminCharts({
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
       
-      {/* ─── Executive Header with Live Analytics Badge & Timeframe Selector ──────── */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-5 rounded-3xl border border-slate-700/80 shadow-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* ─── Executive Header with Live Analytics Badge & Timeframe Selector (Light Gray Theme) ──────── */}
+      <div className="bg-gradient-to-r from-slate-100 via-gray-100 to-slate-100 p-4 sm:p-5 rounded-3xl border border-slate-300 shadow-sm text-slate-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)] shrink-0">
+          <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-2xl text-emerald-700 shadow-xs shrink-0">
             <Sparkles className="w-5 h-5 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
                 Live Dynamic Analytics
               </span>
-              <span className="text-slate-500 text-xs">•</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-slate-400 text-xs">•</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                 Real-Time Financial Curves
               </span>
             </div>
-            <h2 className="text-base sm:text-xl font-black uppercase tracking-tight text-white mt-1">
+            <h2 className="text-base sm:text-xl font-black uppercase tracking-tight text-slate-900 mt-1">
               Shop Performance &amp; Revenue Analytics
             </h2>
-            <p className="text-xs text-slate-400 font-medium hidden sm:block">
+            <p className="text-xs text-slate-600 font-medium hidden sm:block">
               Interactive financial curves, stock movements, and real-time revenue distributions.
             </p>
           </div>
         </div>
 
         {/* Timeframe Selector */}
-        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-700/80 w-full sm:w-auto justify-between sm:justify-start">
+        <div className="flex items-center gap-1 bg-slate-200/90 p-1 rounded-2xl border border-slate-300 w-full sm:w-auto justify-between sm:justify-start">
           {[
             { id: '7D', label: '7 Days' },
             { id: '14D', label: '14 Days' },
@@ -334,8 +334,8 @@ export function ShopAdminCharts({
               onClick={() => setTimeframe(t.id)}
               className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 timeframe === t.id
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-extrabold shadow-md shadow-emerald-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-emerald-600 text-white font-extrabold shadow-sm'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70'
               }`}
             >
               {t.label}

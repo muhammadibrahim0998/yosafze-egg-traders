@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Search, ShoppingBag, MapPin, Phone, Package,
-  ChevronDown, X, ArrowLeft, ArrowRight, ShoppingCart,
+  ChevronDown, ChevronUp, X, ArrowLeft, ArrowRight, ShoppingCart,
   Plus, Minus, Trash2, User, Lock, Mail, LogOut, Eye, EyeOff,
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
@@ -20,12 +20,14 @@ import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal.j
 import WalkInBillModal from '../components/WalkInBillModal.jsx';
 import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
+import { CreditManagement } from '../components/CreditManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 const API_CATALOG = '/api/catalog';
 
@@ -536,6 +538,7 @@ function StoreContent({ shopId }) {
     if (activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard') {
       fetchShopSales();
       fetchRegisteredCustomers();
+      fetchCatalog();
     }
     if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard') {
       fetchExpenses();
@@ -547,6 +550,7 @@ function StoreContent({ shopId }) {
   const [walkInCart, setWalkInCart] = useState([]);
   const [walkInCustomerName, setWalkInCustomerName] = useState('');
   const [walkInCustomerPhone, setWalkInCustomerPhone] = useState('');
+  const [walkInCustomerEmail, setWalkInCustomerEmail] = useState('');
   const [walkInPaymentMethod, setWalkInPaymentMethod] = useState('CASH');
   const [walkInPaidAmount, setWalkInPaidAmount] = useState('');
   const [walkInPartialDestination, setWalkInPartialDestination] = useState('CASH'); // 'CASH' | 'BANK'
@@ -559,7 +563,10 @@ function StoreContent({ shopId }) {
   const [salesPaymentTab, setSalesPaymentTab] = useState('ALL');
   const [loadingSales, setLoadingSales] = useState(false);
   const [registeredCustomersList, setRegisteredCustomersList] = useState([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerFilterTab, setCustomerFilterTab] = useState('ALL'); // 'ALL' | 'ONLINE' | 'PHYSICAL'
   const [activeCustMenuId, setActiveCustMenuId] = useState(null);
+  const [activeCustGroupMenuId, setActiveCustGroupMenuId] = useState(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [allShopOrders, setAllShopOrders] = useState([]);
 
@@ -728,23 +735,173 @@ function StoreContent({ shopId }) {
     }
   };
 
+  const unifiedCustomersList = useMemo(() => {
+    const onlineList = (registeredCustomersList || []).map(c => ({
+      ...c,
+      accountType: 'Online Account',
+      isOnline: true
+    }));
+
+    const registeredPhones = new Set(
+      onlineList.map(c => (c.phone || '').trim().replace(/\D/g, '')).filter(p => p.length >= 7)
+    );
+    const registeredEmails = new Set(
+      onlineList.map(c => (c.email || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const registeredNames = new Set(
+      onlineList.map(c => (c.fullName || c.name || '').trim().toLowerCase()).filter(Boolean)
+    );
+
+    const physicalMap = new Map();
+
+    // 1. Scan shopSalesList for walk-in / physical customers
+    (shopSalesList || []).forEach(s => {
+      const rawName = (s.customerName || s.name || '').trim();
+      const rawPhone = (s.customerPhone || s.phone || '').trim();
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      const rawEmail = (s.customerEmail || '').trim().toLowerCase();
+
+      if (!rawName && !rawPhone) return;
+      const normName = rawName.toLowerCase();
+      if (cleanPhone && registeredPhones.has(cleanPhone)) return;
+      if (rawEmail && registeredEmails.has(rawEmail)) return;
+      if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'cash customer' && registeredNames.has(normName)) return;
+
+      const isGeneric = !normName || normName === 'walk-in' || normName === 'walkin' || normName === 'cash customer' || normName === 'walk-in customer' || normName === 'walk-in / physical customer';
+      let key = '';
+      if (rawEmail && rawEmail.length >= 4) {
+        key = `email_${rawEmail}`;
+      } else if (!isGeneric && cleanPhone && cleanPhone.length >= 7) {
+        key = `cust_${normName}_${cleanPhone}`;
+      } else if (!isGeneric) {
+        key = `name_${normName}`;
+      } else if (cleanPhone && cleanPhone.length >= 7) {
+        key = `phone_${cleanPhone}`;
+      } else {
+        key = `sale_${s._id || s.id}`;
+      }
+
+      if (!physicalMap.has(key)) {
+        physicalMap.set(key, {
+          _id: `phys_${key}`,
+          fullName: rawName || 'Walk-in / Physical Customer',
+          phone: rawPhone || '—',
+          email: rawEmail || 'Physical Store POS',
+          accountType: 'Physical / Walk-in',
+          isOnline: false,
+          createdAt: s.saleDate || s.createdAt || Date.now()
+        });
+      } else {
+        const existing = physicalMap.get(key);
+        if ((!existing.phone || existing.phone === '—') && rawPhone) existing.phone = rawPhone;
+        if (rawEmail && (!existing.email || existing.email === 'Physical Store POS')) existing.email = rawEmail;
+        if (rawName && (!existing.fullName || existing.fullName === 'Walk-in / Physical Customer')) existing.fullName = rawName;
+      }
+    });
+
+    // 2. Scan allShopOrders for orders
+    (allShopOrders || []).forEach(o => {
+      const rawName = (o.shippingDetails?.fullName || o.customerName || o.fullName || '').trim();
+      const rawPhone = (o.shippingDetails?.phone || o.phone || o.customerPhone || '').trim();
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      const rawEmail = (o.shippingDetails?.email || o.email || '').trim().toLowerCase();
+
+      if (!rawName && !rawPhone) return;
+      const normName = rawName.toLowerCase();
+      if (cleanPhone && registeredPhones.has(cleanPhone)) return;
+      if (rawEmail && registeredEmails.has(rawEmail)) return;
+      if (normName && registeredNames.has(normName)) return;
+
+      const isGeneric = !normName || normName === 'order customer' || normName === 'guest' || normName === 'online customer';
+      let key = '';
+      if (rawEmail && rawEmail.length >= 4) {
+        key = `order_email_${rawEmail}`;
+      } else if (!isGeneric && cleanPhone && cleanPhone.length >= 7) {
+        key = `order_${normName}_${cleanPhone}`;
+      } else if (!isGeneric) {
+        key = `order_name_${normName}`;
+      } else if (cleanPhone && cleanPhone.length >= 7) {
+        key = `order_phone_${cleanPhone}`;
+      } else {
+        key = `order_${o._id || o.id}`;
+      }
+
+      if (!physicalMap.has(key)) {
+        physicalMap.set(key, {
+          _id: `ord_${key}`,
+          fullName: rawName || 'Order Customer',
+          phone: rawPhone || '—',
+          email: rawEmail || 'Online / Phone Order',
+          accountType: 'Online Order (Guest)',
+          isOnline: false,
+          createdAt: o.createdAt || o.orderDate || Date.now()
+        });
+      } else {
+        const existing = physicalMap.get(key);
+        if ((!existing.phone || existing.phone === '—') && rawPhone) existing.phone = rawPhone;
+        if (rawEmail && (!existing.email || existing.email === 'Online / Phone Order')) existing.email = rawEmail;
+        if (rawName && (!existing.fullName || existing.fullName === 'Order Customer')) existing.fullName = rawName;
+      }
+    });
+
+    return [...onlineList, ...Array.from(physicalMap.values())];
+  }, [registeredCustomersList, shopSalesList, allShopOrders]);
+
+  const filteredUnifiedCustomers = useMemo(() => {
+    return (unifiedCustomersList || []).filter(cust => {
+      if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
+      if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
+      if (customerSearch.trim()) {
+        const q = customerSearch.toLowerCase();
+        const matchName = (cust.fullName || '').toLowerCase().includes(q);
+        const matchPhone = (cust.phone || '').toLowerCase().includes(q);
+        const matchEmail = (cust.email || '').toLowerCase().includes(q);
+        if (!matchName && !matchPhone && !matchEmail) return false;
+      }
+      return true;
+    });
+  }, [unifiedCustomersList, customerFilterTab, customerSearch]);
+
   const getCustomerStats = (cust) => {
     const custId = String(cust._id || '').toLowerCase();
+    const isOnline = cust.isOnline === true;
     const name = (cust.fullName || cust.name || '').toLowerCase().trim();
     const email = (cust.email || '').toLowerCase().trim();
     const phone = (cust.phone || '').trim().replace(/\D/g, '');
 
-    // 1. Matching Sales from database
+    const isGenericName = !name || name === 'walk-in' || name === 'walkin' || name === 'cash customer' || name === 'walk-in customer' || name === 'walk-in / physical customer' || name === 'order customer';
+
+    // 1. Matching Sales from database strictly for THIS customer
     const matchingSales = (shopSalesList || []).filter(s => {
       const sId = String(s.customerId || s.user || s.userId || '').toLowerCase();
       const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
       const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
       const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
 
-      if (custId && sId && custId === sId) return true;
-      if (email && cEmail && (email === cEmail || cEmail.includes(email) || email.includes(cEmail))) return true;
-      if (name && cName && (cName === name || cName.includes(name) || name.includes(cName))) return true;
-      if (phone && cPhone && phone.length >= 7 && cPhone.length >= 7 && (cPhone.includes(phone) || phone.includes(cPhone))) return true;
+      if (isOnline) {
+        if (custId && sId && custId === sId) return true;
+        if (email && cEmail && email === cEmail) return true;
+        if (phone && phone.length >= 7 && cPhone === phone && (name && cName && name === cName)) return true;
+        return false;
+      }
+
+      // Physical / Walk-in:
+      if (email && email !== 'physical store pos' && email !== 'online / phone order' && cEmail) {
+        return cEmail === email;
+      }
+      if (phone && phone.length >= 7 && !isGenericName) {
+        return cPhone === phone && (cName === name || !cName);
+      }
+      if (!isGenericName) {
+        return cName === name;
+      }
+      if (phone && phone.length >= 7) {
+        return cPhone === phone;
+      }
+      if (custId.startsWith('phys_sale_')) {
+        const targetSaleId = custId.replace('phys_sale_', '');
+        return String(s._id || s.id) === targetSaleId;
+      }
       return false;
     });
 
@@ -752,7 +909,7 @@ function StoreContent({ shopId }) {
       matchingSales.map(s => String(s.orderId || s._id || '')).filter(Boolean)
     );
 
-    // 2. Matching Orders that are NOT already recorded in matchingSales
+    // 2. Matching Orders strictly for THIS customer
     const standaloneOrders = (allShopOrders || []).filter(o => {
       const oId = String(o._id || o.id || '');
       if (oId && coveredOrderIds.has(oId)) return false;
@@ -762,17 +919,49 @@ function StoreContent({ shopId }) {
       const shipEmail = (o.shippingDetails?.email || o.email || o.customerEmail || '').toLowerCase().trim();
       const shipPhone = (o.shippingDetails?.phone || o.phone || o.customerPhone || '').trim().replace(/\D/g, '');
 
-      if (custId && oCustId && custId === oCustId) return true;
-      if (email && shipEmail && (email === shipEmail || shipEmail.includes(email) || email.includes(shipEmail))) return true;
-      if (name && shipName && (shipName === name || shipName.includes(name) || name.includes(shipName))) return true;
-      if (phone && shipPhone && phone.length >= 7 && shipPhone.length >= 7 && (shipPhone.includes(phone) || phone.includes(shipPhone))) return true;
+      if (isOnline) {
+        if (custId && oCustId && custId === oCustId) return true;
+        if (email && shipEmail && email === shipEmail) return true;
+        if (phone && phone.length >= 7 && shipPhone === phone && (name && shipName && name === shipName)) return true;
+        return false;
+      }
+
+      if (email && email !== 'physical store pos' && email !== 'online / phone order' && shipEmail) {
+        return shipEmail === email;
+      }
+      if (phone && phone.length >= 7 && !isGenericName) {
+        return shipPhone === phone && (shipName === name || !shipName);
+      }
+      if (!isGenericName) {
+        return shipName === name;
+      }
+      if (phone && phone.length >= 7) {
+        return shipPhone === phone;
+      }
+      if (custId.startsWith('ord_order_')) {
+        const targetOrderId = custId.replace('ord_order_', '');
+        return String(o._id || o.id) === targetOrderId;
+      }
       return false;
     });
 
     const salesTotal = matchingSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const ordersTotal = standaloneOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.grandTotal) || 0), 0);
 
+    const salesCreditDue = matchingSales.reduce((sum, s) => {
+      const isCredit = s.isCredit || s.paymentMethod === 'CREDIT' || s.paymentMethod === 'DUE' || Number(s.dueAmount) > 0;
+      const due = Number(s.dueAmount !== undefined ? s.dueAmount : (isCredit ? s.totalAmount : 0));
+      return sum + (due > 0 ? due : 0);
+    }, 0);
+
+    const ordersCreditDue = standaloneOrders.reduce((sum, o) => {
+      const isCredit = o.isCredit || o.paymentMethod === 'CREDIT' || o.paymentMethod === 'DUE' || Number(o.dueAmount) > 0;
+      const due = Number(o.dueAmount !== undefined ? o.dueAmount : (isCredit ? (o.totalAmount || o.grandTotal) : 0));
+      return sum + (due > 0 ? due : 0);
+    }, 0);
+
     const totalSpent = salesTotal + ordersTotal;
+    const totalCreditDue = salesCreditDue + ordersCreditDue;
     const ordersCount = matchingSales.length + standaloneOrders.length;
 
     const combinedHistory = [
@@ -780,213 +969,372 @@ function StoreContent({ shopId }) {
         date: s.saleDate || s.createdAt,
         items: (s.items || []).map(i => `${i.name || 'Product'} (${i.quantity || 1})`).join(', '),
         amount: Number(s.totalAmount) || 0,
+        due: Number(s.dueAmount !== undefined ? s.dueAmount : (s.isCredit ? s.totalAmount : 0)),
         type: s.isOnlineOrder ? 'Online Order' : 'POS Sale'
       })),
       ...standaloneOrders.map(o => ({
         date: o.createdAt || o.orderDate,
         items: (o.items || []).map(i => `${i.name || 'Product'} (${i.quantity || 1})`).join(', '),
         amount: Number(o.totalAmount || o.grandTotal) || 0,
+        due: Number(o.dueAmount !== undefined ? o.dueAmount : (o.isCredit ? (o.totalAmount || o.grandTotal) : 0)),
         type: 'Online Order'
       }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    return { totalSpent, ordersCount, combinedHistory };
+    return { totalSpent, totalCreditDue, ordersCount, combinedHistory };
   };
 
+  // ─── Directory Overall Cumulative Summary (All Customers Grand Total) ───
+  const directorySummaryStats = useMemo(() => {
+    let totalAllCustomersSpent = 0;
+    let totalAllCustomersDue = 0;
+    let totalAllCustomersOrders = 0;
+
+    (unifiedCustomersList || []).forEach(cust => {
+      const { totalSpent, totalCreditDue, ordersCount } = getCustomerStats(cust);
+      totalAllCustomersSpent += totalSpent;
+      totalAllCustomersDue += totalCreditDue;
+      totalAllCustomersOrders += ordersCount;
+    });
+
+    return {
+      totalCustomers: (unifiedCustomersList || []).length,
+      totalSpent: totalAllCustomersSpent,
+      totalDue: totalAllCustomersDue,
+      totalOrders: totalAllCustomersOrders
+    };
+  }, [unifiedCustomersList, shopSalesList, allShopOrders]);
+
   const handleWhatsAppCustomerShare = (cust, index = 0) => {
-    const shopName = shop?.name || 'Yosafze Egg Traders';
-    const name = cust.fullName || 'Registered Customer';
-    const phone = cust.phone || '';
-    const email = cust.email || 'N/A';
-    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-    const serialNo = index + 1;
-    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
-    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = cust.fullName || 'Registered Customer';
+      const phone = cust.phone || '';
+      const email = cust.email || 'N/A';
+      const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+      const serialNo = index + 1;
+      const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+      const { totalSpent = 0, totalCreditDue = 0, ordersCount = 0, combinedHistory = [] } = getCustomerStats(cust);
 
-    let text = `📄 *CUSTOMER ACCOUNT STATEMENT - ${shopName.toUpperCase()}*\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `🔢 *Serial No:* #${serialNo} (${uniqueId})\n`;
-    text += `👤 *Customer Name:* ${name}\n`;
-    if (phone) text += `📞 *Phone:* ${phone}\n`;
-    text += `📧 *Email:* ${email}\n`;
-    text += `📅 *Registration Date:* ${regDate}\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `📊 *Total Orders:* ${ordersCount} ${ordersCount === 1 ? 'Order' : 'Orders'}\n`;
-    text += `💰 *Total Shopping Spent:* RS ${totalSpent.toLocaleString('en-PK')}\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      let text = `📄 *CUSTOMER ACCOUNT STATEMENT - ${shopName.toUpperCase()}*\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `🔢 *Serial No:* #${serialNo} (${uniqueId})\n`;
+      text += `👤 *Customer Name:* ${name}\n`;
+      if (phone) text += `📞 *Phone:* ${phone}\n`;
+      text += `📧 *Email:* ${email}\n`;
+      text += `📅 *Registration Date:* ${regDate}\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `📊 *Total Orders:* ${ordersCount} ${ordersCount === 1 ? 'Order' : 'Orders'}\n`;
+      text += `💰 *Total Shopping Spent:* RS ${totalSpent.toLocaleString('en-PK')}\n`;
+      if (totalCreditDue > 0) {
+        text += `⚠️ *Outstanding Credit Due:* RS ${totalCreditDue.toLocaleString('en-PK')}\n`;
+      }
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (combinedHistory.length > 0) {
-      text += `📦 *TRANSACTION BREAKDOWN:*\n`;
-      combinedHistory.forEach((item, idx) => {
-        const dateStr = new Date(item.date).toLocaleDateString('en-PK');
-        text += `${idx + 1}. [${dateStr}] ${item.items} = RS ${item.amount.toLocaleString('en-PK')} (${item.type})\n`;
-      });
-    } else {
-      text += `_No purchase history recorded yet._\n`;
+      if (combinedHistory.length > 0) {
+        text += `📦 *TRANSACTION BREAKDOWN:*\n`;
+        combinedHistory.forEach((item, idx) => {
+          const dateStr = new Date(item.date).toLocaleDateString('en-PK');
+          text += `${idx + 1}. [${dateStr}] ${item.items} = RS ${item.amount.toLocaleString('en-PK')} (${item.type})\n`;
+        });
+      } else {
+        text += `_No purchase history recorded yet._\n`;
+      }
+
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `🙏 *Thank you for shopping with ${shopName}!*`;
+
+      const encodedText = encodeURIComponent(text);
+      let cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.startsWith('0092')) cleanPhone = '92' + cleanPhone.slice(4);
+      else if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
+      else if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) cleanPhone = '92' + cleanPhone;
+
+      const whatsappUrl = cleanPhone
+        ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+        : `https://web.whatsapp.com/send?text=${encodedText}`;
+
+      window.open(whatsappUrl, '_blank');
+    } catch (err) {
+      console.error('WhatsApp customer share error:', err);
+      toast.error('Failed to prepare WhatsApp message');
     }
-
-    text += `━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `🙏 *Thank you for shopping with ${shopName}!*`;
-
-    const encodedText = encodeURIComponent(text);
-    let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0092')) cleanPhone = '92' + cleanPhone.slice(4);
-    else if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
-    else if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) cleanPhone = '92' + cleanPhone;
-
-    const whatsappUrl = cleanPhone
-      ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
-      : `https://web.whatsapp.com/send?text=${encodedText}`;
-
-    window.open(whatsappUrl, '_blank');
   };
 
   const handleExportCustomerExcel = (cust, index = 0) => {
-    const shopName = shop?.name || 'Yosafze Egg Traders';
-    const name = cust.fullName || 'Registered Customer';
-    const email = cust.email || 'N/A';
-    const phone = cust.phone || 'N/A';
-    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-    const serialNo = index + 1;
-    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
-    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = cust.fullName || 'Registered Customer';
+      const email = cust.email || 'N/A';
+      const phone = cust.phone || 'N/A';
+      const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+      const serialNo = index + 1;
+      const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+      const { totalSpent = 0, totalCreditDue = 0, ordersCount = 0, combinedHistory = [] } = getCustomerStats(cust);
 
-    const formattedRowsHtml = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
-      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-        <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 10px; vertical-align: middle;">${idx + 1}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: middle;">${new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-        <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7; padding: 7px 10px; vertical-align: middle;">${item.type}</td>
-        <td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 12px; vertical-align: middle; text-transform: uppercase;">${item.items}</td>
-        <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #047857; padding: 7px 12px; vertical-align: middle;">RS ${item.amount.toLocaleString()}</td>
-      </tr>
-    `).join('') : `
-      <tr>
-        <td colspan="5" style="text-align: center; padding: 18px; border: 1px solid #cbd5e1; color: #64748b; font-weight: bold; background-color: #f8fafc;">No transaction history recorded yet for this customer</td>
-      </tr>
-    `;
+      const formattedRowsHtml = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 10px; vertical-align: middle;">${idx + 1}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: middle;">${new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: #0284c7; padding: 7px 10px; vertical-align: middle;">${item.type}</td>
+          <td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 12px; vertical-align: middle; text-transform: uppercase;">${item.items}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #047857; padding: 7px 12px; vertical-align: middle;">RS ${item.amount.toLocaleString()}</td>
+        </tr>
+      `).join('') : `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 18px; border: 1px solid #cbd5e1; color: #64748b; font-weight: bold; background-color: #f8fafc;">No transaction history recorded yet for this customer</td>
+        </tr>
+      `;
 
-    const excelTemplate = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <!--[if gte mso 9]>
-        <xml>
-          <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-              <x:ExcelWorksheet>
-                <x:Name>Customer_${uniqueId}</x:Name>
-                <x:WorksheetOptions>
-                  <x:DisplayGridlines/>
-                </x:WorksheetOptions>
-              </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-          </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
-        <style>
-          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
-          .header-banner { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
-          .sub-banner { background-color: #1e293b; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
-          .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 12px; }
-          .info-val { font-weight: 600; color: #0f172a; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 7px 12px; }
-          .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
-          .tot-lbl { background-color: #0f172a; color: #ffffff; font-weight: 900; font-size: 11pt; text-align: right; border: 1px solid #0f172a; padding: 10px 14px; }
-          .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
-          .footer-note { color: #64748b; font-size: 9pt; font-style: italic; text-align: center; height: 26px; vertical-align: middle; border: none; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <colgroup>
-            <col width="60" />
-            <col width="190" />
-            <col width="140" />
-            <col width="300" />
-            <col width="170" />
-          </colgroup>
-          <tr>
-            <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
-          </tr>
-          <tr>
-            <td colspan="5" class="sub-banner">OFFICIAL REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</td>
-          </tr>
-          <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr>
-            <td colspan="2" class="info-label">Customer Serial &amp; ID:</td>
-            <td colspan="3" class="info-val" style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} &nbsp;(${uniqueId})</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Customer Full Name:</td>
-            <td colspan="3" class="info-val" style="font-weight: 900; text-transform: uppercase;">${name}</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Contact Phone / WhatsApp:</td>
-            <td colspan="3" class="info-val" style="mso-number-format:'\\@'; font-weight: bold; color: #047857;">${phone}</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Email Address:</td>
-            <td colspan="3" class="info-val" style="color: #334155; font-weight: 600;">${email}</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Registration Date:</td>
-            <td colspan="3" class="info-val">${regDate}</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Total Orders Placed:</td>
-            <td colspan="3" class="info-val" style="color: #0284c7; font-weight: bold;">${ordersCount} Orders</td>
-          </tr>
-          <tr>
-            <td colspan="2" class="info-label">Store Branch:</td>
-            <td colspan="3" class="info-val" style="font-weight: bold;">${shopName}</td>
-          </tr>
-          <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr style="height: 32px;">
-            <th class="col-header" style="text-align: center;">#</th>
-            <th class="col-header">Transaction Date</th>
-            <th class="col-header" style="text-align: center;">Order Type</th>
-            <th class="col-header" style="text-align: left;">Items Purchased</th>
-            <th class="col-header" style="text-align: right;">Paid Amount</th>
-          </tr>
-          ${formattedRowsHtml}
-          <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr>
-            <td colspan="4" class="tot-lbl">TOTAL PURCHASES AMOUNT:</td>
-            <td class="tot-val">RS ${totalSpent.toLocaleString()}</td>
-          </tr>
-          <tr style="height: 12px;"><td colspan="5" style="border:none;"></td></tr>
-          <tr>
-            <td colspan="5" class="footer-note">Official Customer Statement • Generated via Yosafze Egg Traders Financial System</td>
-          </tr>
-        </table>
-      </body>
-      </html>
-    `;
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Customer_${uniqueId}</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+            .header-banner { background-color: #0f172a; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #0f172a; vertical-align: middle; }
+            .sub-banner { background-color: #1e293b; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #1e293b; vertical-align: middle; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .info-val { font-weight: 600; color: #0f172a; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
+            .tot-lbl { background-color: #0f172a; color: #ffffff; font-weight: 900; font-size: 11pt; text-align: right; border: 1px solid #0f172a; padding: 10px 14px; }
+            .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+            .footer-note { color: #64748b; font-size: 9pt; font-style: italic; text-align: center; height: 26px; vertical-align: middle; border: none; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <colgroup>
+              <col width="60" />
+              <col width="190" />
+              <col width="140" />
+              <col width="300" />
+              <col width="170" />
+            </colgroup>
+            <tr>
+              <td colspan="5" class="header-banner">${shopName.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="sub-banner">OFFICIAL REGISTERED CUSTOMER STATEMENT &amp; TRANSACTION RECORD</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="2" class="info-label">Customer Serial &amp; ID:</td>
+              <td colspan="3" class="info-val" style="color: #d97706; font-weight: 900;">SERIAL #${serialNo} &nbsp;(${uniqueId})</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Customer Full Name:</td>
+              <td colspan="3" class="info-val" style="font-weight: 900; text-transform: uppercase;">${name}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Contact Phone / WhatsApp:</td>
+              <td colspan="3" class="info-val" style="mso-number-format:'\\@'; font-weight: bold; color: #047857;">${phone}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Email Address:</td>
+              <td colspan="3" class="info-val" style="color: #334155; font-weight: 600;">${email}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Registration Date:</td>
+              <td colspan="3" class="info-val">${regDate}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Total Orders Placed:</td>
+              <td colspan="3" class="info-val" style="color: #0284c7; font-weight: bold;">${ordersCount} Orders</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Store Branch:</td>
+              <td colspan="3" class="info-val" style="font-weight: bold;">${shopName}</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr style="height: 32px;">
+              <th class="col-header" style="text-align: center;">#</th>
+              <th class="col-header">Transaction Date</th>
+              <th class="col-header" style="text-align: center;">Order Type</th>
+              <th class="col-header" style="text-align: left;">Items Purchased</th>
+              <th class="col-header" style="text-align: right;">Paid Amount</th>
+            </tr>
+            ${formattedRowsHtml}
+            <tr style="height: 10px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="4" class="tot-lbl">TOTAL PURCHASES AMOUNT:</td>
+              <td class="tot-val">RS ${totalSpent.toLocaleString()}</td>
+            </tr>
+            ${totalCreditDue > 0 ? `
+            <tr>
+              <td colspan="4" class="tot-lbl" style="color: #e11d48;">OUTSTANDING CREDIT DUE:</td>
+              <td class="tot-val" style="color: #e11d48; border-color: #e11d48; background-color: #fff1f2;">RS ${totalCreditDue.toLocaleString()}</td>
+            </tr>
+            ` : ''}
+            <tr style="height: 12px;"><td colspan="5" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="5" class="footer-note">Official Customer Statement • Generated via Yosafze Egg Traders Financial System</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
 
-    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Customer_${uniqueId}_${name.replace(/\s+/g, '_')}_Statement.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Customer_${uniqueId}_${name.replace(/\s+/g, '_')}_Statement.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Excel Statement downloaded successfully');
+    } catch (err) {
+      console.error('Customer Excel export error:', err);
+      toast.error('Failed to export Excel statement');
+    }
+  };
+
+  const handleDownloadCustomerPDF = (cust, index = 0) => {
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = cust.fullName || 'Registered Customer';
+      const email = cust.email || 'N/A';
+      const phone = cust.phone || 'N/A';
+      const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+      const serialNo = index + 1;
+      const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+      const { totalSpent = 0, totalCreditDue = 0, ordersCount = 0, combinedHistory = [] } = getCustomerStats(cust);
+
+      const doc = new jsPDF('portrait', 'pt', 'a4');
+
+      // Top Banner
+      doc.setFillColor(15, 23, 42); // Slate-900
+      doc.rect(0, 0, 595.28, 65, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(shopName.toUpperCase(), 30, 30);
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 211, 153);
+      doc.text('OFFICIAL REGISTERED CUSTOMER STATEMENT & TRANSACTION RECORD', 30, 46);
+
+      // Customer Info Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(30, 80, 535, 75, 6, 6, 'FD');
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CUSTOMER ID:', 45, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`SERIAL #${serialNo} (${uniqueId})`, 135, 100);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('NAME:', 45, 118);
+      doc.setFont('helvetica', 'normal');
+      doc.text(name.toUpperCase(), 135, 118);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('PHONE / WHATSAPP:', 45, 136);
+      doc.setFont('helvetica', 'normal');
+      doc.text(phone, 155, 136);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('EMAIL:', 320, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(email, 380, 100);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('REGISTERED:', 320, 118);
+      doc.setFont('helvetica', 'normal');
+      doc.text(regDate, 395, 118);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('ORDERS PLACED:', 320, 136);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${ordersCount} Orders`, 415, 136);
+
+      // Table Data
+      const tableBody = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => [
+        idx + 1,
+        new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        item.type,
+        item.items,
+        `RS ${item.amount.toLocaleString('en-PK')}`
+      ]) : [
+        ['-', 'No transaction history recorded yet', '-', '-', '-']
+      ];
+
+      autoTable(doc, {
+        startY: 170,
+        head: [['#', 'Transaction Date', 'Order Type', 'Items Purchased', 'Paid Amount']],
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 8.5 },
+        columnStyles: {
+          0: { cellWidth: 25, halign: 'center' },
+          1: { cellWidth: 110 },
+          2: { cellWidth: 80, halign: 'center' },
+          3: { cellWidth: 200 },
+          4: { cellWidth: 100, halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] }
+        },
+        margin: { left: 30, right: 30 }
+      });
+
+      const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 380;
+
+      // Summary
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(16, 185, 129);
+      doc.roundedRect(30, finalY, 535, 28, 4, 4, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(6, 95, 70);
+      doc.text('TOTAL LIFETIME PURCHASES AMOUNT:', 45, finalY + 18);
+      doc.setTextColor(4, 120, 87);
+      doc.setFontSize(11);
+      doc.text(`RS ${totalSpent.toLocaleString('en-PK')}`, 545, finalY + 18, { align: 'right' });
+
+      const pdfFileName = `Customer_${uniqueId}_${name.replace(/\s+/g, '_')}_Statement.pdf`;
+      doc.save(pdfFileName);
+      toast.success(`PDF Statement downloaded: ${pdfFileName}`);
+    } catch (err) {
+      console.error('Customer PDF export error:', err);
+      handlePrintRegisteredCustomerRecord(cust, index);
+    }
   };
 
   const handlePrintRegisteredCustomerRecord = (cust, index = 0) => {
-    const shopName = shop?.name || 'Yosafze Egg Traders';
-    const name = cust.fullName || 'Registered Customer';
-    const email = cust.email || 'N/A';
-    const phone = cust.phone || 'N/A';
-    const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-    const serialNo = index + 1;
-    const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
-    const { totalSpent, ordersCount, combinedHistory } = getCustomerStats(cust);
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = cust.fullName || 'Registered Customer';
+      const email = cust.email || 'N/A';
+      const phone = cust.phone || 'N/A';
+      const regDate = new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+      const serialNo = index + 1;
+      const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
+      const { totalSpent = 0, totalCreditDue = 0, ordersCount = 0, combinedHistory = [] } = getCustomerStats(cust);
 
-    const printWin = window.open('', '_blank');
-    if (!printWin) {
-      alert('Please allow popups to print customer statement');
-      return;
-    }
+      const printWin = window.open('', '_blank');
+      if (!printWin) {
+        alert('Please allow popups to print customer statement');
+        return;
+      }
 
     let salesRows = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
@@ -1107,6 +1455,16 @@ function StoreContent({ shopId }) {
                 <div class="val">RS ${totalSpent.toLocaleString('en-PK')}</div>
               </div>
 
+              ${totalCreditDue > 0 ? `
+              <div class="amount-hero" style="background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); border-color: #f43f5e; margin-top: -12px;">
+                <div>
+                  <div class="lbl" style="color: #9f1239;">OUTSTANDING CREDIT (DUE):</div>
+                  <div class="sub" style="color: #be123c;">Remaining Unpaid Credit Balance</div>
+                </div>
+                <div class="val" style="color: #e11d48;">RS ${totalCreditDue.toLocaleString('en-PK')}</div>
+              </div>
+              ` : ''}
+
               <div class="signatures">
                 <div class="sign-line">Customer Signature</div>
                 <div class="sign-line">${shopName} Authorized Stamp</div>
@@ -1123,9 +1481,17 @@ function StoreContent({ shopId }) {
     printWin.document.close();
     printWin.focus();
     setTimeout(() => printWin.print(), 300);
-  };
+  } catch (err) {
+    console.error('Customer print error:', err);
+    toast.error('Failed to open print statement window');
+  }
+};
 
   const handleDeleteCustomer = async (customerId, customerName) => {
+    if (String(customerId).startsWith('phys_') || String(customerId).startsWith('ord_')) {
+      alert(`Customer "${customerName || 'Customer'}" is generated from physical POS bills/orders history. To remove this customer, manage or delete the corresponding POS sales record.`);
+      return;
+    }
     if (!window.confirm(`Are you sure you want to permanently delete customer account "${customerName || 'Customer'}"? This action cannot be undone.`)) {
       return;
     }
@@ -1364,6 +1730,7 @@ function StoreContent({ shopId }) {
         cashierName: user?.fullName || 'Shop Admin',
         customerName: walkInCustomerName.trim() || (isCreditSale ? 'Credit Customer' : 'Walk-in Customer'),
         customerPhone: walkInCustomerPhone.trim(),
+        customerEmail: walkInCustomerEmail.trim().toLowerCase(),
         paymentMethod: finalPaymentMethod,
         cashPaid,
         bankPaid,
@@ -1381,6 +1748,7 @@ function StoreContent({ shopId }) {
         ...created,
         _id: created?._id || created?.sale?._id || `sale_${Date.now()}`,
         customerPhone: walkInCustomerPhone.trim(),
+        customerEmail: walkInCustomerEmail.trim().toLowerCase(),
         cashPaid,
         bankPaid,
         dueAmount,
@@ -1399,6 +1767,7 @@ function StoreContent({ shopId }) {
       setWalkInCart([]);
       setWalkInCustomerName('');
       setWalkInCustomerPhone('');
+      setWalkInCustomerEmail('');
       setWalkInPaymentMethod('CASH');
       setWalkInPaidAmount('');
       setWalkInPartialDestination('CASH');
@@ -1509,6 +1878,8 @@ function StoreContent({ shopId }) {
   const [reportTimeframe, setReportTimeframe] = useState('ALL'); // 'DAY', 'MONTH', 'YEAR', 'ALL'
   const [salesReportSearchTerm, setSalesReportSearchTerm] = useState('');
   const [salesReportPaymentFilter, setSalesReportPaymentFilter] = useState('ALL');
+  const [salesReportViewMode, setSalesReportViewMode] = useState('GROUPED_CUSTOMERS'); // 'GROUPED_CUSTOMERS' | 'ALL_INVOICES'
+  const [expandedCustomerSalesId, setExpandedCustomerSalesId] = useState(null);
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [dashStats, setDashStats] = useState({
     totalProducts: 0,
@@ -1603,13 +1974,629 @@ function StoreContent({ shopId }) {
       const q = salesReportSearchTerm.toLowerCase();
       const inv = (s.invoiceNumber || s.serialNumber || '').toString().toLowerCase();
       const cust = (s.customerName || '').toLowerCase();
+      const email = (s.customerEmail || s.email || '').toLowerCase();
       const phone = (s.customerPhone || '').toLowerCase();
       const cashier = (s.cashierName || '').toLowerCase();
       const itemsStr = (s.items || []).map(i => i.name).join(' ').toLowerCase();
 
-      return inv.includes(q) || cust.includes(q) || phone.includes(q) || cashier.includes(q) || itemsStr.includes(q);
+      return inv.includes(q) || cust.includes(q) || email.includes(q) || phone.includes(q) || cashier.includes(q) || itemsStr.includes(q);
     });
   }, [unifiedSalesList, reportTimeframe, salesReportSearchTerm]);
+
+  // ─── Customer-Wise Grouped Sales (Unique Email / Account Aggregation) ───
+  const getCustomerIdentityGroupKey = (s) => {
+    const email = (s?.customerEmail || s?.email || '').trim().toLowerCase();
+    const phone = (s?.customerPhone || s?.phone || '').trim().replace(/\D/g, '');
+    const rawName = (s?.customerName || s?.name || '').trim();
+    const normName = rawName.toLowerCase();
+
+    if (email && email.length >= 4) {
+      return `email_${email}`;
+    }
+    if (s?.customerId) {
+      return `cid_${String(s.customerId?._id || s.customerId)}`;
+    }
+    if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'walk-in customer' && phone && phone.length >= 7) {
+      return `cust_${normName}_${phone}`;
+    }
+    if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'walk-in customer') {
+      return `name_${normName}`;
+    }
+    if (phone && phone.length >= 7) {
+      return `phone_${phone}`;
+    }
+    return `sale_${s?._id || s?.id || 'unknown'}`;
+  };
+
+  const customerWiseSalesReport = useMemo(() => {
+    const map = new Map();
+
+    (filteredSalesForReport || []).forEach((s, idx) => {
+      const email = (s.customerEmail || s.email || '').trim().toLowerCase();
+      const phone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+      const rawPhone = (s.customerPhone || s.phone || '').trim();
+      const rawName = (s.customerName || s.name || '').trim();
+      const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+
+      const groupKey = getCustomerIdentityGroupKey(s);
+
+      const total = Number(s.totalAmount) || 0;
+      const isCredit = s.isCredit || s.paymentMethod === 'CREDIT' || s.paymentMethod === 'DUE' || Number(s.dueAmount) > 0;
+      const due = Number(s.dueAmount !== undefined && s.dueAmount !== null ? s.dueAmount : (isCredit ? total : 0));
+      const cash = Number(s.cashPaid) || (s.paymentMethod === 'CASH' && !isCredit ? (total - due) : 0);
+      const bank = Number(s.bankPaid) || (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' ? (total - due) : 0);
+
+      if (!map.has(groupKey)) {
+        map.set(groupKey, {
+          id: groupKey,
+          customerName: rawName || 'Customer',
+          aliasNames: rawName ? [rawName] : [],
+          customerEmail: email || '',
+          customerPhone: rawPhone || '',
+          isOnline: isOnline,
+          invoices: [s],
+          totalSpent: total,
+          totalDue: due > 0 ? due : 0,
+          totalCash: cash,
+          totalBank: bank,
+          lastPurchaseDate: s.saleDate || s.createdAt || Date.now()
+        });
+      } else {
+        const item = map.get(groupKey);
+        item.invoices.push(s);
+        item.totalSpent += total;
+        if (due > 0) item.totalDue += due;
+        item.totalCash += cash;
+        item.totalBank += bank;
+        if (rawName && !item.aliasNames.includes(rawName)) {
+          item.aliasNames.push(rawName);
+        }
+        if (!item.customerEmail && email) item.customerEmail = email;
+        if ((!item.customerPhone || item.customerPhone === '—') && rawPhone) item.customerPhone = rawPhone;
+        if ((!item.customerName || item.customerName === 'Customer') && rawName) item.customerName = rawName;
+        if (isOnline) item.isOnline = true;
+        const currentLast = new Date(item.lastPurchaseDate || 0).getTime();
+        const thisDate = new Date(s.saleDate || s.createdAt || 0).getTime();
+        if (thisDate > currentLast) {
+          item.lastPurchaseDate = s.saleDate || s.createdAt;
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [filteredSalesForReport]);
+
+  const handlePrintCustomerSalesReportStatement = (custGroup) => {
+    const shopName = shop?.name || 'Yosafze Egg Traders';
+    const name = custGroup.customerName || 'Customer';
+    const aliasNames = custGroup.aliasNames || [];
+    const email = custGroup.customerEmail || 'N/A';
+    const phone = custGroup.customerPhone || 'N/A';
+    const invoices = custGroup.invoices || [];
+    const totalSpent = Number(custGroup.totalSpent) || 0;
+    const totalDue = Number(custGroup.totalDue) || 0;
+    const totalCash = Number(custGroup.totalCash) || 0;
+    const totalBank = Number(custGroup.totalBank) || 0;
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print customer statement');
+      return;
+    }
+
+    let salesRows = invoices.length > 0 ? invoices.map((inv, idx) => {
+      const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+      const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const itemsList = (inv.items || []).map(i => `${i.name || 'Item'} (x${i.quantity || 1})`).join(', ');
+      const pMethod = String(inv.paymentMethod || 'CASH').toUpperCase();
+      const isCredit = pMethod === 'CREDIT' || Number(inv.dueAmount) > 0 || inv.isCredit;
+      const due = Number(inv.dueAmount) || (isCredit ? Number(inv.totalAmount) : 0);
+      const amount = Number(inv.totalAmount) || 0;
+      const billCustName = inv.customerName || '';
+
+      return `
+        <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold;">${idx + 1}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-weight:bold; color:#0f172a;">
+            ${invNo}
+            ${billCustName && billCustName !== name ? `<div style="font-size:9px; color:#64748b; font-weight:normal;">Name: ${billCustName}</div>` : ''}
+          </td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; color:#475569;">${invDate}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; text-transform:uppercase;">${itemsList || '—'}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center;">
+            <span style="font-size:10px; font-weight:800; padding:3px 8px; border-radius:4px; ${isCredit ? 'background:#ffe4e6; color:#be123c;' : 'background:#ecfdf5; color:#047857;'}">
+              ${pMethod}
+            </span>
+          </td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857;">RS ${amount.toLocaleString('en-PK')}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:${due > 0 ? '#e11d48' : '#64748b'};">${due > 0 ? `RS ${due.toLocaleString('en-PK')}` : 'PAID'}</td>
+        </tr>
+      `;
+    }).join('') : `
+      <tr>
+        <td colspan="7" style="padding:20px; text-align:center; color:#64748b; font-weight:bold;">No invoices recorded for this customer</td>
+      </tr>
+    `;
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Customer Sales Statement - ${name} - ${shopName}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; padding: 20px; color: #0f172a; background: #f8fafc; font-size: 12px; margin: 0; }
+            .wrapper { max-width: 760px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1.5px solid #cbd5e1; overflow: hidden; }
+            .header { background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f172a 100%); color: #ffffff; padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; }
+            .header h1 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+            .header p { margin: 4px 0 0; font-size: 10px; font-weight: 800; color: #a7f3d0; letter-spacing: 1px; text-transform: uppercase; }
+            .badge { background: #f59e0b; color: #0f172a; padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 12px; text-align: center; }
+            .content { padding: 24px 28px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
+            .info-box .lbl { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+            .info-box .val { font-size: 13px; font-weight: 800; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-top: 12px; }
+            th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 9.5px; padding: 9px 10px; text-align: left; border: 1px solid #0f172a; }
+            .summary-box { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+            .card-tot { background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 14px 18px; }
+            .card-due { background: #fff1f2; border: 1.5px solid #f43f5e; border-radius: 12px; padding: 14px 18px; }
+            .card-lbl { font-size: 10px; font-weight: 900; text-transform: uppercase; }
+            .card-val { font-size: 20px; font-weight: 900; margin-top: 4px; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; padding-top: 18px; border-top: 1px dashed #cbd5e1; text-align: center; }
+            .sign-line { border-top: 1.5px solid #94a3b8; padding-top: 6px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; }
+            .footer { margin-top: 20px; text-align: center; font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
+            @media print {
+              body { background: #ffffff; padding: 0; }
+              .wrapper { border: 1px solid #94a3b8; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="wrapper">
+            <div class="header">
+              <div>
+                <h1>${shopName.toUpperCase()}</h1>
+                <p>CUSTOMER SALES STATEMENT &amp; LEDGER REPORT</p>
+              </div>
+              <div class="badge">
+                ${invoices.length} ${invoices.length === 1 ? 'INVOICE' : 'INVOICES'}
+              </div>
+            </div>
+            <div class="content">
+              <div class="info-grid">
+                <div class="info-box">
+                  <div class="lbl">Customer Primary Name</div>
+                  <div class="val" style="text-transform: uppercase;">
+                    ${name}
+                    ${aliasNames.length > 1 ? `<div style="font-size:9.5px; color:#64748b; font-weight:bold; margin-top:3px; text-transform:none;">Names on bills: ${aliasNames.join(', ')}</div>` : ''}
+                  </div>
+                </div>
+                <div class="info-box">
+                  <div class="lbl">Unique Customer Email</div>
+                  <div class="val" style="color: #4f46e5;">${email}</div>
+                </div>
+                <div class="info-box">
+                  <div class="lbl">Phone / WhatsApp</div>
+                  <div class="val" style="color: #047857;">${phone}</div>
+                </div>
+                <div class="info-box">
+                  <div class="lbl">Statement Date</div>
+                  <div class="val">${new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                </div>
+              </div>
+
+              <div style="font-size: 11px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px;">
+                Customer Invoices &amp; Purchases Breakdown (${invoices.length} Orders)
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th style="text-align:center; width:35px;">#</th>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th style="text-align:center;">Payment</th>
+                    <th style="text-align:right;">Amount</th>
+                    <th style="text-align:right;">Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${salesRows}
+                </tbody>
+              </table>
+
+              <div class="summary-box">
+                <div class="card-tot">
+                  <div class="card-lbl" style="color:#065f46;">Total Sales Purchases:</div>
+                  <div class="card-val" style="color:#047857;">RS ${totalSpent.toLocaleString('en-PK')}</div>
+                </div>
+                <div class="card-due">
+                  <div class="card-lbl" style="color:#9f1239;">Remaining Credit Due:</div>
+                  <div class="card-val" style="color:#e11d48;">RS ${totalDue.toLocaleString('en-PK')}</div>
+                </div>
+              </div>
+
+              <div class="signatures">
+                <div class="sign-line">Customer Signature</div>
+                <div class="sign-line">${shopName} Authorized Sign</div>
+              </div>
+
+              <div class="footer">
+                Generated via Yosafze Egg Traders Sales Management System
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => printWin.print(), 300);
+  };
+
+  const handleWhatsAppCustomerGroupShare = (custGroup) => {
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = custGroup.customerName || 'Customer';
+      const email = custGroup.customerEmail || '';
+      const phone = custGroup.customerPhone || '';
+      const invoices = custGroup.invoices || [];
+      const totalSpent = Number(custGroup.totalSpent) || 0;
+      const totalDue = Number(custGroup.totalDue) || 0;
+      const totalCash = Number(custGroup.totalCash) || 0;
+      const totalBank = Number(custGroup.totalBank) || 0;
+      const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      let text = `🌟 *${shopName.toUpperCase()}* 🌟\n`;
+      text += `📄 *CUSTOMER SALES STATEMENT & LEDGER REPORT*\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `👤 *Customer Name:* ${name}\n`;
+      if (custGroup.aliasNames && custGroup.aliasNames.length > 1) {
+        text += `🏷️ *Names on bills:* ${custGroup.aliasNames.join(', ')}\n`;
+      }
+      if (email && email !== 'N/A' && email !== '—') text += `📧 *Email:* ${email}\n`;
+      if (phone && phone !== 'N/A' && phone !== '—') text += `📞 *Phone:* ${phone}\n`;
+      text += `📅 *Statement Date:* ${dateStr}\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `🧾 *Total Invoices / Bills:* ${invoices.length}\n`;
+      text += `💰 *Total Sales Purchases:* RS ${totalSpent.toLocaleString('en-PK')}\n`;
+      if (totalCash > 0) text += `💵 *Paid in Cash:* RS ${totalCash.toLocaleString('en-PK')}\n`;
+      if (totalBank > 0) text += `🏦 *Paid via Bank:* RS ${totalBank.toLocaleString('en-PK')}\n`;
+      if (totalDue > 0) {
+        text += `⚠️ *Remaining Credit Due:* RS ${totalDue.toLocaleString('en-PK')}\n`;
+      } else {
+        text += `✅ *Credit Status:* Fully Paid (No Due)\n`;
+      }
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (invoices.length > 0) {
+        text += `📦 *INVOICES BREAKDOWN:*\n`;
+        invoices.slice(0, 15).forEach((inv, idx) => {
+          const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+          const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK');
+          const pMethod = String(inv.paymentMethod || 'CASH').toUpperCase();
+          const amount = Number(inv.totalAmount) || 0;
+          const due = Number(inv.dueAmount) || 0;
+          text += `${idx + 1}. [${invNo}] ${invDate} | RS ${amount.toLocaleString('en-PK')} (${pMethod}${due > 0 ? ` - Due: RS ${due.toLocaleString('en-PK')}` : ''})\n`;
+        });
+        if (invoices.length > 15) {
+          text += `_...and ${invoices.length - 15} more invoices_\n`;
+        }
+      } else {
+        text += `_No invoices recorded yet._\n`;
+      }
+
+      text += `━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `🙏 *Thank you for your business with ${shopName}!*`;
+
+      const encodedText = encodeURIComponent(text);
+      let cleanPhone = (phone || '').replace(/\D/g, '');
+      if (cleanPhone.startsWith('0092')) cleanPhone = '92' + cleanPhone.slice(4);
+      else if (cleanPhone.startsWith('0')) cleanPhone = '92' + cleanPhone.slice(1);
+      else if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) cleanPhone = '92' + cleanPhone;
+
+      const whatsappUrl = cleanPhone
+        ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+        : `https://web.whatsapp.com/send?text=${encodedText}`;
+
+      window.open(whatsappUrl, '_blank');
+      toast.success('Opening WhatsApp statement share');
+    } catch (err) {
+      console.error('WhatsApp customer group share error:', err);
+      toast.error('Failed to prepare WhatsApp message');
+    }
+  };
+
+  const handleExportCustomerGroupExcel = (custGroup) => {
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = custGroup.customerName || 'Customer';
+      const email = custGroup.customerEmail || '—';
+      const phone = custGroup.customerPhone || '—';
+      const invoices = custGroup.invoices || [];
+      const totalSpent = Number(custGroup.totalSpent) || 0;
+      const totalDue = Number(custGroup.totalDue) || 0;
+      const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      const formattedRowsHtml = invoices.length > 0 ? invoices.map((inv, idx) => {
+        const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+        const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const itemsList = (inv.items || []).map(i => `${i.name || 'Item'} (x${i.quantity || 1})`).join(', ');
+        const pMethod = String(inv.paymentMethod || 'CASH').toUpperCase();
+        const isCredit = pMethod === 'CREDIT' || Number(inv.dueAmount) > 0 || inv.isCredit;
+        const due = Number(inv.dueAmount) || (isCredit ? Number(inv.totalAmount) : 0);
+        const amount = Number(inv.totalAmount) || 0;
+
+        return `
+          <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="text-align: center; border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 10px; vertical-align: middle;">${idx + 1}</td>
+            <td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 7px 10px; vertical-align: middle; color: #0f172a;">${invNo}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: middle; color: #475569;">${invDate}</td>
+            <td style="border: 1px solid #cbd5e1; font-weight: 600; padding: 7px 12px; vertical-align: middle; text-transform: uppercase;">${itemsList || '—'}</td>
+            <td style="border: 1px solid #cbd5e1; text-align: center; font-weight: bold; color: ${isCredit ? '#be123c' : '#047857'}; padding: 7px 10px; vertical-align: middle;">${pMethod}</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: 900; color: #047857; padding: 7px 12px; vertical-align: middle;">RS ${amount.toLocaleString('en-PK')}</td>
+            <td style="text-align: right; border: 1px solid #cbd5e1; font-weight: bold; color: ${due > 0 ? '#e11d48' : '#64748b'}; padding: 7px 12px; vertical-align: middle;">${due > 0 ? `RS ${due.toLocaleString('en-PK')}` : 'PAID'}</td>
+          </tr>
+        `;
+      }).join('') : `
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 18px; border: 1px solid #cbd5e1; color: #64748b; font-weight: bold; background-color: #f8fafc;">No invoices recorded for this customer</td>
+        </tr>
+      `;
+
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Sales_Report_${name.replace(/\s+/g, '_')}</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+            .header-banner { background-color: #064e3b; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; border: 1px solid #064e3b; vertical-align: middle; }
+            .sub-banner { background-color: #0f172a; color: #34d399; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; border: 1px solid #0f172a; vertical-align: middle; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .info-val { font-weight: 600; color: #0f172a; background-color: #ffffff; border: 1px solid #cbd5e1; padding: 7px 12px; }
+            .col-header { background-color: #0f172a; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #0f172a; padding: 8px 6px; }
+            .tot-lbl { background-color: #0f172a; color: #ffffff; font-weight: 900; font-size: 11pt; text-align: right; border: 1px solid #0f172a; padding: 10px 14px; }
+            .tot-val { background-color: #ecfdf5; color: #047857; font-weight: 900; font-size: 13pt; text-align: right; border: 2px solid #059669; padding: 10px 14px; }
+            .footer-note { color: #64748b; font-size: 9pt; font-style: italic; text-align: center; height: 26px; vertical-align: middle; border: none; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <colgroup>
+              <col width="50" />
+              <col width="140" />
+              <col width="160" />
+              <col width="260" />
+              <col width="110" />
+              <col width="140" />
+              <col width="130" />
+            </colgroup>
+            <tr>
+              <td colspan="7" class="header-banner">${shopName.toUpperCase()}</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="sub-banner">CUSTOMER SALES STATEMENT &amp; LEDGER REPORT</td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="2" class="info-label">Customer Name:</td>
+              <td colspan="5" class="info-val" style="font-weight: 900; text-transform: uppercase;">${name}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Customer Email:</td>
+              <td colspan="5" class="info-val" style="color: #4f46e5; font-weight: bold;">${email}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Contact Phone:</td>
+              <td colspan="5" class="info-val" style="mso-number-format:'\\@'; font-weight: bold; color: #047857;">${phone}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Statement Date:</td>
+              <td colspan="5" class="info-val">${dateStr}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="info-label">Total Invoices / Bills:</td>
+              <td colspan="5" class="info-val" style="color: #0284c7; font-weight: bold;">${invoices.length} Bills</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr style="height: 32px;">
+              <th class="col-header" style="text-align: center;">#</th>
+              <th class="col-header">Invoice No</th>
+              <th class="col-header">Date</th>
+              <th class="col-header" style="text-align: left;">Items Purchased</th>
+              <th class="col-header" style="text-align: center;">Payment</th>
+              <th class="col-header" style="text-align: right;">Amount</th>
+              <th class="col-header" style="text-align: right;">Due</th>
+            </tr>
+            ${formattedRowsHtml}
+            <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="5" class="tot-lbl">TOTAL SALES PURCHASES:</td>
+              <td colspan="2" class="tot-val">RS ${totalSpent.toLocaleString('en-PK')}</td>
+            </tr>
+            ${totalDue > 0 ? `
+            <tr>
+              <td colspan="5" class="tot-lbl" style="color: #e11d48;">REMAINING CREDIT DUE:</td>
+              <td colspan="2" class="tot-val" style="color: #e11d48; border-color: #e11d48; background-color: #fff1f2;">RS ${totalDue.toLocaleString('en-PK')}</td>
+            </tr>
+            ` : ''}
+            <tr style="height: 12px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="7" class="footer-note">Customer Sales Statement • Generated via Yosafze Egg Traders Financial System</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Sales_Report_${name.replace(/\s+/g, '_')}_Statement.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Excel Statement generated successfully');
+    } catch (err) {
+      console.error('Customer group Excel export error:', err);
+      toast.error('Failed to export Excel statement');
+    }
+  };
+
+  const handleDownloadCustomerGroupPDF = (custGroup) => {
+    try {
+      const shopName = shop?.name || 'Yosafze Egg Traders';
+      const name = custGroup.customerName || 'Customer';
+      const email = custGroup.customerEmail || 'N/A';
+      const phone = custGroup.customerPhone || 'N/A';
+      const invoices = custGroup.invoices || [];
+      const totalSpent = Number(custGroup.totalSpent) || 0;
+      const totalDue = Number(custGroup.totalDue) || 0;
+      const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      const doc = new jsPDF('portrait', 'pt', 'a4');
+
+      // Top Banner
+      doc.setFillColor(6, 78, 59); // Emerald-900
+      doc.rect(0, 0, 595.28, 65, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(shopName.toUpperCase(), 30, 30);
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 211, 153);
+      doc.text('CUSTOMER SALES STATEMENT & LEDGER REPORT', 30, 46);
+
+      // Customer Info Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(30, 80, 535, 75, 6, 6, 'FD');
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CUSTOMER NAME:', 45, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(name.toUpperCase(), 145, 100);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('PHONE / WHATSAPP:', 45, 118);
+      doc.setFont('helvetica', 'normal');
+      doc.text(phone, 155, 118);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('STATEMENT DATE:', 45, 136);
+      doc.setFont('helvetica', 'normal');
+      doc.text(dateStr, 145, 136);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('CUSTOMER EMAIL:', 320, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(email, 415, 100);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL INVOICES:', 320, 118);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${invoices.length} Bills`, 415, 118);
+
+      // Invoices Table Data
+      const tableBody = invoices.length > 0 ? invoices.map((inv, idx) => {
+        const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
+        const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+        const itemsList = (inv.items || []).map(i => `${i.name || 'Item'} (x${i.quantity || 1})`).join(', ');
+        const pMethod = String(inv.paymentMethod || 'CASH').toUpperCase();
+        const isCredit = pMethod === 'CREDIT' || Number(inv.dueAmount) > 0 || inv.isCredit;
+        const due = Number(inv.dueAmount) || (isCredit ? Number(inv.totalAmount) : 0);
+        const amount = Number(inv.totalAmount) || 0;
+
+        return [
+          idx + 1,
+          invNo,
+          invDate,
+          itemsList || '—',
+          pMethod,
+          `RS ${amount.toLocaleString('en-PK')}`,
+          due > 0 ? `RS ${due.toLocaleString('en-PK')}` : 'PAID'
+        ];
+      }) : [
+        ['-', 'No invoices recorded', '-', '-', '-', '-', '-']
+      ];
+
+      autoTable(doc, {
+        startY: 170,
+        head: [['#', 'Invoice No', 'Date', 'Items Purchased', 'Payment', 'Amount', 'Due']],
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 8.5 },
+        columnStyles: {
+          0: { cellWidth: 25, halign: 'center' },
+          1: { cellWidth: 80, fontStyle: 'bold' },
+          2: { cellWidth: 65 },
+          3: { cellWidth: 170 },
+          4: { cellWidth: 65, halign: 'center' },
+          5: { cellWidth: 70, halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] },
+          6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
+        },
+        margin: { left: 30, right: 30 }
+      });
+
+      const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 380;
+
+      // Summary Card
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(16, 185, 129);
+      doc.roundedRect(30, finalY, 535, 28, 4, 4, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(6, 95, 70);
+      doc.text('TOTAL SALES PURCHASES AMOUNT:', 45, finalY + 18);
+      doc.setTextColor(4, 120, 87);
+      doc.setFontSize(11);
+      doc.text(`RS ${totalSpent.toLocaleString('en-PK')}`, 545, finalY + 18, { align: 'right' });
+
+      if (totalDue > 0) {
+        doc.setFillColor(255, 241, 242);
+        doc.setDrawColor(244, 63, 94);
+        doc.roundedRect(30, finalY + 34, 535, 28, 4, 4, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(159, 18, 57);
+        doc.text('REMAINING CREDIT DUE (UNPAID):', 45, finalY + 52);
+        doc.setTextColor(225, 29, 72);
+        doc.setFontSize(11);
+        doc.text(`RS ${totalDue.toLocaleString('en-PK')}`, 545, finalY + 52, { align: 'right' });
+      }
+
+      const pdfFileName = `Sales_Report_${name.replace(/\s+/g, '_')}_Statement.pdf`;
+      doc.save(pdfFileName);
+      toast.success(`PDF Statement downloaded: ${pdfFileName}`);
+    } catch (err) {
+      console.error('Customer Group PDF export error:', err);
+      handlePrintCustomerSalesReportStatement(custGroup);
+    }
+  };
 
   const salesReportStats = useMemo(() => {
     let totalRevenue = 0;
@@ -2906,7 +3893,8 @@ function StoreContent({ shopId }) {
     filteredSalesForReport.slice(0, 8).forEach((s, idx) => {
       const inv = s.invoiceNumber || `#${s.serialNumber || idx + 1}`;
       const cust = s.customerName || 'Walk-in Customer';
-      message += `${idx + 1}. *${inv}* - ${cust} | Rs. ${(s.totalAmount || 0).toLocaleString('en-PK')} (${s.paymentMethod || 'CASH'})\n`;
+      const email = s.customerEmail || s.email || s.customerId?.email || '';
+      message += `${idx + 1}. *${inv}* - ${cust}${email ? ` (${email})` : ''} | Rs. ${(s.totalAmount || 0).toLocaleString('en-PK')} (${s.paymentMethod || 'CASH'})\n`;
     });
 
     if (filteredSalesForReport.length > 8) {
@@ -3165,7 +4153,8 @@ function StoreContent({ shopId }) {
       const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
       const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
       const cust = s.customerName || 'Walk-in Customer';
-      const phone = s.customerPhone ? `<br/><small style="color:#64748b;">${s.customerPhone}</small>` : '';
+      const email = s.customerEmail || s.email || s.customerId?.email || '';
+      const phone = s.customerPhone || s.phone || '';
       const itemsList = (s.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ') || 'Eggs';
       const method = s.paymentMethod || 'CASH';
       const total = Number(s.totalAmount) || 0;
@@ -3175,7 +4164,11 @@ function StoreContent({ shopId }) {
           <td style="text-align:center;">${idx + 1}</td>
           <td><strong>${inv}</strong></td>
           <td>${sDate}</td>
-          <td>${cust}${phone}</td>
+          <td>
+            <strong>${cust}</strong>
+            ${email ? `<br/><small style="color:#4f46e5; font-weight:bold;">✉️ ${email}</small>` : ''}
+            ${phone ? `<br/><small style="color:#059669; font-weight:bold;">📞 ${phone}</small>` : ''}
+          </td>
           <td>${itemsList}</td>
           <td style="text-align:center;"><span class="badge ${method === 'CASH' ? 'badge-cash' : 'badge-bank'}">${method}</span></td>
           <td style="text-align:right; font-weight:bold; color:#047857;">Rs. ${total.toLocaleString('en-PK')}</td>
@@ -3584,19 +4577,21 @@ function StoreContent({ shopId }) {
     csvRows.push([`"Total Sales Count"`, shopSalesList.length]);
     csvRows.push([`"Total Revenue"`, `RS ${shopSalesList.reduce((sum, s) => sum + (s.totalAmount || 0), 0)}`]);
     csvRows.push([]);
-    csvRows.push([`"#"`, `"Serial No"`, `"Invoice ID"`, `"Date & Time"`, `"Customer Name"`, `"Phone"`, `"Payment Method"`, `"Items Breakdown"`, `"Total Paid (RS)"`]);
+    csvRows.push([`"#"`, `"Serial No"`, `"Invoice ID"`, `"Date & Time"`, `"Customer Name"`, `"Customer Email"`, `"Phone"`, `"Payment Method"`, `"Items Breakdown"`, `"Total Paid (RS)"`]);
 
     shopSalesList.forEach((s, idx) => {
       const serialNo = s.serialNumber || (s.invoiceNumber ? s.invoiceNumber.replace(/\D/g, '') : '') || String(s._id || '').slice(-6);
       const invoiceDisplay = s.invoiceNumber || `INV-${String(serialNo).padStart(5, '0')}`;
       const dateStr = new Date(s.saleDate || s.createdAt).toLocaleString();
       const itemsStr = (s.items || []).map(i => `${i.name} (${i.quantity})`).join('; ');
+      const customerEmail = s.customerEmail || s.email || s.customerId?.email || 'N/A';
       csvRows.push([
         idx + 1,
         `"#${serialNo}"`,
         `"${invoiceDisplay}"`,
         `"${dateStr}"`,
         `"${s.customerName || 'Walk-in Customer'}"`,
+        `"${customerEmail}"`,
         `="${s.customerPhone || 'N/A'}"`,
         `"${s.paymentMethod || 'CASH'}"`,
         `"${itemsStr}"`,
@@ -3620,10 +4615,20 @@ function StoreContent({ shopId }) {
 
   const handlePrintCustomerSingleRecord = (sale) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
+    const shopAddress = shop?.address || '';
+    const shopPhone = shop?.phone || '';
     const customerName = sale.customerName || 'Walk-in Customer';
-    const customerPhone = sale.customerPhone || '';
-    const saleDate = new Date(sale.saleDate || sale.createdAt).toLocaleString();
-    const totalAmount = sale.totalAmount || 0;
+    const customerEmail = sale.customerEmail || sale.email || sale.customerId?.email || '';
+    const customerPhone = sale.customerPhone || sale.phone || '';
+    const saleDate = new Date(sale.saleDate || sale.createdAt || Date.now()).toLocaleString('en-PK', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const rawSerial = sale.serialNumber || (sale.invoiceNumber ? sale.invoiceNumber.replace(/\D/g, '') : '') || String(sale._id || '').slice(-6);
+    const serialNo = String(rawSerial);
+    const invoiceDisplay = sale.invoiceNumber || `INV-${serialNo.padStart(5, '0')}`;
+    const paymentMethod = String(sale.paymentMethod || 'CASH').toUpperCase();
+    const isCredit = paymentMethod === 'CREDIT' || Number(sale.dueAmount) > 0 || sale.isCredit;
+    const totalAmount = Number(sale.totalAmount) || 0;
     const items = sale.items || [];
 
     const printWin = window.open('', '_blank');
@@ -3633,12 +4638,12 @@ function StoreContent({ shopId }) {
     }
 
     let itemsHtml = items.map((item, idx) => `
-      <tr>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center;">${idx + 1}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold;">${item.name}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#059669;">${item.quantity}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right;">RS ${(item.price || 0).toLocaleString()}</td>
-        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold;">RS ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#64748b;">${idx + 1}</td>
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; font-weight:800; color:#0f172a;">${item.name}</td>
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:center; font-weight:900; color:#059669;">${item.quantity}</td>
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-weight:600; color:#475569;">RS ${(item.price || 0).toLocaleString()}</td>
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857;">RS ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
       </tr>
     `).join('');
 
@@ -3646,57 +4651,119 @@ function StoreContent({ shopId }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Customer Bill Statement - ${customerName}</title>
+          <title>Customer Bill Statement - ${customerName} - ${shopName}</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
-            .header { text-align: center; border-bottom: 3px double #059669; padding-bottom: 15px; margin-bottom: 25px; }
-            .header h1 { margin: 0; color: #047857; text-transform: uppercase; font-size: 24px; font-weight: 900; }
-            .header p { margin: 4px 0 0; color: #475569; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; }
-            .meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 20px; background: #f8fafc; padding: 14px 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 11px; color: #475569; padding: 10px; border: 1px solid #cbd5e1; text-align: left; }
-            .total-bar { margin-top: 20px; padding: 15px 20px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 12px; display: flex; justify-content: space-between; font-weight: 900; font-size: 16px; color: #047857; }
-            .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; }
-            .sign { border-top: 2px solid #cbd5e1; width: 200px; text-align: center; padding-top: 6px; }
+            @page { size: A4 portrait; margin: 12mm 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 12px; margin: 0; }
+            .header-banner { background: linear-gradient(135deg, #064e3b 0%, #047857 55%, #0f172a 100%); color: #ffffff; padding: 20px 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+            .header-banner h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; }
+            .header-banner p { margin: 4px 0 0; font-size: 10.5px; font-weight: 700; color: #a7f3d0; letter-spacing: 1.5px; text-transform: uppercase; }
+            .serial-badge { background: #f59e0b; color: #0f172a; padding: 6px 14px; border-radius: 8px; font-weight: 900; font-size: 13px; text-align: right; }
+            
+            .info-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+            .info-item { display: flex; flex-direction: column; gap: 3px; }
+            .info-item .lbl { font-size: 9.5px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+            .info-item .val { font-size: 13.5px; font-weight: 800; color: #0f172a; }
+            .info-item .val-email { font-size: 12.5px; font-weight: 800; color: #4338ca; }
+            .info-item .val-phone { font-size: 12.5px; font-weight: 800; color: #047857; }
+            .pay-pill { display: inline-block; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; }
+            
+            table { width: 100%; border-collapse: collapse; border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; margin-top: 10px; }
+            th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 10px; padding: 10px 12px; text-align: left; letter-spacing: 0.5px; }
+            
+            .total-bar { margin-top: 18px; padding: 14px 20px; background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .total-bar .tot-lbl { font-weight: 900; font-size: 13px; color: #065f46; letter-spacing: 0.5px; }
+            .total-bar .tot-val { font-weight: 900; font-size: 20px; color: #047857; }
+            
+            .footer { margin-top: 45px; display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 2px solid #94a3b8; width: 200px; text-align: center; padding-top: 6px; text-transform: uppercase; }
+            .verified-tag { margin-top: 25px; text-align: center; font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+            @media print {
+              body { padding: 0; background: #ffffff; }
+              .header-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .info-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .total-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>${shopName}</h1>
-            <p>Customer Sales Record & Bill Statement</p>
-          </div>
-          <div class="meta">
+          <div class="header-banner">
             <div>
-              <span style="color:#059669; text-transform:uppercase;">Customer Name:</span> <strong style="font-size:14px;">${customerName}</strong><br/>
-              ${customerPhone ? `<span style="color:#475569;">Phone / Contact: ${customerPhone}</span>` : ''}
+              <h1>${shopName}</h1>
+              <p>CUSTOMER SALES RECORD &amp; OFFICIAL BILL STATEMENT</p>
+              ${shopAddress || shopPhone ? `<div style="font-size:9.5px; color:#d1fae5; margin-top:4px;">${shopAddress} ${shopPhone ? `• Phone: ${shopPhone}` : ''}</div>` : ''}
             </div>
-            <div style="text-align:right;">
-              <span>Date: ${saleDate}</span><br/>
-              <span>Invoice ID: #${(sale._id || '').slice(-8).toUpperCase()}</span>
+            <div class="serial-badge">
+              <div>SERIAL #${serialNo}</div>
+              <div style="font-size:9.5px; font-weight:700; margin-top:2px;">${invoiceDisplay}</div>
             </div>
           </div>
+
+          <div class="info-card">
+            <div class="info-item">
+              <span class="lbl">Customer Name</span>
+              <span class="val" style="text-transform:uppercase;">${customerName}</span>
+              ${customerEmail ? `
+                <span class="lbl" style="margin-top:6px;">Customer Email</span>
+                <span class="val-email">✉️ ${customerEmail}</span>
+              ` : `
+                <span class="lbl" style="margin-top:6px;">Customer Email</span>
+                <span class="val-email" style="color:#94a3b8;">✉️ Not Provided</span>
+              `}
+            </div>
+
+            <div class="info-item" style="text-align:right;">
+              <span class="lbl">Invoice Date &amp; Time</span>
+              <span class="val" style="font-size:12px;">📅 ${saleDate}</span>
+              
+              <div style="margin-top:6px; display:flex; justify-content:flex-end; gap:12px;">
+                ${customerPhone ? `
+                  <div style="text-align:right;">
+                    <span class="lbl" style="display:block;">Phone / Contact</span>
+                    <span class="val-phone">📞 ${customerPhone}</span>
+                  </div>
+                ` : ''}
+                <div style="text-align:right;">
+                  <span class="lbl" style="display:block;">Payment</span>
+                  <span class="pay-pill" style="${isCredit ? 'background:#ffe4e6; color:#be123c;' : 'background:#dcfce7; color:#15803d;'}">
+                    ${paymentMethod}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <table>
             <thead>
               <tr>
-                <th style="text-align:center;">#</th>
+                <th style="width:35px; text-align:center;">#</th>
                 <th>Item Description</th>
-                <th style="text-align:center;">Qty</th>
-                <th style="text-align:right;">Unit Price</th>
-                <th style="text-align:right;">Subtotal</th>
+                <th style="width:70px; text-align:center;">Qty</th>
+                <th style="width:110px; text-align:right;">Unit Price</th>
+                <th style="width:130px; text-align:right;">Subtotal</th>
               </tr>
             </thead>
             <tbody>
               ${itemsHtml}
             </tbody>
           </table>
+
           <div class="total-bar">
-            <span>GRAND TOTAL AMOUNT PAID:</span>
-            <span>RS ${totalAmount.toLocaleString('en-PK')}</span>
+            <span class="tot-lbl">GRAND TOTAL AMOUNT PAID:</span>
+            <span class="tot-val">RS ${totalAmount.toLocaleString('en-PK')}</span>
           </div>
+
           <div class="footer">
             <div class="sign">Customer Signature</div>
             <div class="sign">Yosafze Egg Traders Stamp</div>
           </div>
+
+          <div class="verified-tag">
+            Verified Computer-Generated Statement • Yosafze Egg Traders Management System
+          </div>
+
           <script>
             window.onload = function() { window.print(); }
           </script>
@@ -4621,633 +5688,238 @@ function StoreContent({ shopId }) {
           <main id="main-store-content" className={`flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 scroll-smooth ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'}`}>
             <div className="max-w-7xl mx-auto space-y-3">
 
-              {/* ─── Header Banner (always visible) ─── */}
-              <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex items-center justify-between gap-4 overflow-hidden w-full ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
-                <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
-                  <ShoppingBag className="w-24 h-24 sm:w-32 sm:h-32 text-emerald-400" />
-                </div>
-                <div className="relative z-10 flex items-center justify-between w-full gap-4 flex-wrap">
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-700 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-sm">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {user?.fullName || customer?.fullName || 'Shop Admin'}
-                    </span>
-                    <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-zinc-900 truncate">
-                      {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : '📦 Products & Inventory Catalog'}
-                    </h1>
+              {/* ─── Header Banner (visible only on Dashboard & Products) ─── */}
+              {(activeView === 'dashboard' || activeView === 'products') && (
+                <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex items-center justify-between gap-4 overflow-hidden w-full ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
+                  <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
+                    <ShoppingBag className="w-24 h-24 sm:w-32 sm:h-32 text-emerald-400" />
                   </div>
-
-                  {/* Right-Aligned 3D Action Buttons with Tabs */}
-                  <div className="flex items-center gap-2 ml-auto flex-wrap">
-                    {/* View Switcher Tabs */}
-                    <div className="flex items-center p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
-                      <button
-                        onClick={() => setActiveView('dashboard')}
-                        className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
-                          ? 'bg-zinc-900 text-white shadow-md'
-                          : 'text-zinc-600 hover:text-zinc-950'
-                          }`}
-                      >
-                        <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
-                      </button>
-                      <button
-                        onClick={() => setActiveView('products')}
-                        className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
-                          ? 'bg-zinc-900 text-white shadow-md'
-                          : 'text-zinc-600 hover:text-zinc-950'
-                          }`}
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" /> Products
-                      </button>
+                  <div className="relative z-10 flex items-center justify-between w-full gap-4 flex-wrap">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-700 text-[10px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {user?.fullName || customer?.fullName || 'Shop Admin'}
+                      </span>
+                      <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-zinc-900 truncate">
+                        {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : '📦 Products & Inventory Catalog'}
+                      </h1>
                     </div>
 
-                    {isAdminUser && (
-                      <button
-                        onClick={() => setAddProductModal(true)}
-                        className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-md border-b-2 border-amber-800 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
-                        <span>+ Add Product</span>
-                      </button>
-                    )}
+                    {/* Right-Aligned 3D Action Buttons with Tabs */}
+                    <div className="flex items-center gap-2 ml-auto flex-wrap">
+                      {/* View Switcher Tabs */}
+                      <div className="flex items-center p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
+                        <button
+                          onClick={() => setActiveView('dashboard')}
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                            }`}
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                        </button>
+                        <button
+                          onClick={() => setActiveView('products')}
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                            }`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" /> Products
+                        </button>
+                      </div>
+
+                      {isAdminUser && (
+                        <button
+                          onClick={() => setAddProductModal(true)}
+                          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-md border-b-2 border-amber-800 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
+                          <span>+ Add Product</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* ─── DASHBOARD VIEW ─── */}
               {activeView === 'dashboard' && (
                 <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                  {/* ─── SHOP ADMIN DASHBOARD (CLEAN WHITE THEME) ─── */}
+                  {/* ─── SHOP ADMIN DASHBOARD (CLEAN THEME) ─── */}
                   {isAdminUser ? (
                     <div className="space-y-4">
 
-                      {/* ─── MASTER EXECUTIVE FINANCIAL CARD: TOTAL SALES & (=) FINAL PURE REALIZED NET PROFIT ─── */}
-                      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 border-2 border-emerald-500/40 rounded-3xl p-4 sm:p-6 shadow-2xl text-white space-y-5 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-                        <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                      {/* ─── EXECUTIVE BUSINESS DASHBOARD: 5 CORE FINAL RESULTS (CLEAN GRAY & WHITE THEME) ─── */}
+                      <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 sm:p-6 shadow-xl text-slate-900 space-y-5 relative overflow-hidden">
 
-                        {/* Top Header with Timeframe Toggles */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3 relative z-10">
+                        {/* Top Header with Timeframe Toggles & Report Link */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 relative z-10">
                           <div>
-                            <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
-                              <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                              Executive Financial Master Performance
+                            <div className="flex items-center gap-2 text-amber-600 text-xs font-black uppercase tracking-widest">
+                              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                              Executive Financial Summary
                             </div>
-                            <h2 className="text-base sm:text-xl font-black text-white uppercase tracking-tight mt-0.5 flex items-center gap-2">
-                              <span>(=) FINAL PURE REALIZED NET PROFIT &amp; TOTAL SALES</span>
+                            <h2 className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tight mt-0.5 flex items-center gap-2">
+                              <span>Final Business Performance Results</span>
                             </h2>
                           </div>
 
-                          {/* Timeframe Switcher */}
-                          <div className="flex items-center bg-slate-800/90 border border-slate-600 rounded-2xl p-1 shadow-inner gap-1">
-                            {[
-                              { id: 'DAY', label: 'Today' },
-                              { id: 'MONTH', label: 'This Month' },
-                              { id: 'YEAR', label: 'This Year' },
-                              { id: 'ALL', label: 'All-Time' },
-                            ].map(t => (
-                              <button
-                                key={t.id}
-                                onClick={() => setReportTimeframe(t.id)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                  reportTimeframe === t.id
-                                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md scale-105'
-                                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                                }`}
-                              >
-                                {t.label}
-                              </button>
-                            ))}
+                          {/* Controls: Timeframe Filter + View Full Report */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Timeframe Switcher */}
+                            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-2xl p-1 shadow-inner gap-1">
+                              {[
+                                { id: 'DAY', label: 'Today' },
+                                { id: 'MONTH', label: 'This Month' },
+                                { id: 'YEAR', label: 'This Year' },
+                                { id: 'ALL', label: 'All-Time' },
+                              ].map(t => (
+                                <button
+                                  key={t.id}
+                                  onClick={() => setReportTimeframe(t.id)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    reportTimeframe === t.id
+                                      ? 'bg-slate-900 text-white shadow-md scale-105'
+                                      : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              onClick={() => { setActiveView('report-profit'); }}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                            >
+                              <FileSpreadsheet className="w-3.5 h-3.5" /> Full Report
+                            </button>
                           </div>
                         </div>
 
-                        {/* Top 2 Main Highlight Banners: Total Sales & (=) FINAL PURE REALIZED NET PROFIT */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                          {/* 1. Total Sales Card */}
-                          <div className="bg-gradient-to-r from-emerald-900/80 via-teal-900/60 to-slate-900/90 border-2 border-emerald-400/50 rounded-2xl p-4 sm:p-5 shadow-xl flex items-center justify-between">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 text-emerald-300 text-[11px] font-black uppercase tracking-widest">
-                                <ShoppingBag className="w-4 h-4 text-emerald-400" />
-                                Total Sales Revenue ({reportTimeframe === 'DAY' ? 'Today' : reportTimeframe === 'MONTH' ? 'This Month' : reportTimeframe === 'YEAR' ? 'This Year' : 'All-Time'})
+                        {/* ─── 5 FINAL RESULT CARDS IN EXACT SEQUENCE (GRAY & WHITE THEME) ─── */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 relative z-10">
+                          
+                          {/* 1. TOTAL SALE */}
+                          <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-1.5">
+                                <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                                1. Total Sale
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                                <DollarSign className="w-4 h-4" />
                               </div>
-                              <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                            </div>
+                            <div>
+                              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                                 Rs. {(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                               </h3>
-                              <p className="text-xs text-emerald-200/90 font-bold">
-                                🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; {profitReportStats.filteredPurchasesEggs > 0 ? `${(profitReportStats.filteredPurchasesEggs / 360).toFixed(1)} Petis Sold` : 'Live POS & Online'}
+                              <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                                🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales
                               </p>
-                            </div>
-                            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0 shadow-lg">
-                              <DollarSign className="w-7 h-7" />
                             </div>
                           </div>
 
-                          {/* 2. (=) FINAL PURE REALIZED NET PROFIT */}
-                          <div className={`bg-gradient-to-r ${profitReportStats.finalNetProfit >= 0 ? 'from-emerald-950 via-slate-900 to-amber-950/80 border-amber-400/60' : 'from-rose-950 via-slate-900 to-red-950/80 border-rose-500/60'} border-2 rounded-2xl p-4 sm:p-5 shadow-xl flex items-center justify-between`}>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 text-amber-300 text-[11px] font-black uppercase tracking-widest">
-                                <Sparkles className="w-4 h-4 text-amber-400" />
-                                (=) FINAL PURE REALIZED NET PROFIT
+                          {/* 2. TOTAL EXPENSE */}
+                          <div className="bg-gradient-to-br from-white via-slate-50 to-rose-50/50 border-2 border-rose-200 hover:border-rose-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-rose-700 flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-rose-600" />
+                                2. Total Expense
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 shrink-0">
+                                <TrendingDown className="w-4 h-4" />
                               </div>
-                              <h3 className={`text-2xl sm:text-3xl font-black tracking-tight ${profitReportStats.finalNetProfit >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
-                                Rs. {(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
+                            </div>
+                            <div>
+                              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                Rs. {(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
                               </h3>
-                              <p className="text-xs text-slate-300 font-bold">
-                                {profitReportStats.finalNetProfit >= 0 ? '✅ Pure Realized Cash Surplus' : '⚠️ Net Financial Deficit'}
+                              <p className="text-[10px] text-rose-700 font-bold mt-1">
+                                🧾 {profitReportStats.filteredExpensesCount || 0} Logs &bull; Shop Overhead
                               </p>
                             </div>
-                            <div className={`w-14 h-14 rounded-2xl ${profitReportStats.finalNetProfit >= 0 ? 'bg-amber-500/20 border-amber-400/50 text-amber-300' : 'bg-rose-500/20 border-rose-400/50 text-rose-300'} border flex items-center justify-center shrink-0 shadow-lg`}>
-                              <TrendingUp className="w-7 h-7" />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 4-Item Realized Breakdown Grid */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1 relative z-10">
-                          {/* 1. (+) Sales Revenue */}
-                          <div className="bg-slate-800/80 border border-emerald-500/30 rounded-xl p-3">
-                            <span className="text-[9.5px] font-bold uppercase text-emerald-400 block tracking-wider">(+) Sales Revenue</span>
-                            <span className="text-sm sm:text-base font-black text-white block mt-0.5">
-                              + Rs. {(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
-                            </span>
-                            <span className="text-[8px] text-slate-400 font-bold block mt-0.5">{profitReportStats.filteredSalesCount || 0} Orders</span>
                           </div>
 
-                          {/* 2. (-) Purchases Cost */}
-                          <div className="bg-slate-800/80 border border-sky-500/30 rounded-xl p-3">
-                            <span className="text-[9.5px] font-bold uppercase text-sky-400 block tracking-wider">(-) Purchases / Restocks</span>
-                            <span className="text-sm sm:text-base font-black text-white block mt-0.5">
-                              - Rs. {(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}
-                            </span>
-                            <span className="text-[8px] text-slate-400 font-bold block mt-0.5">{profitReportStats.totalPurchasesPetis || 0} Petis</span>
-                          </div>
-
-                          {/* 3. (-) Expenses */}
-                          <div className="bg-slate-800/80 border border-rose-500/30 rounded-xl p-3">
-                            <span className="text-[9.5px] font-bold uppercase text-rose-400 block tracking-wider">(-) Shop Expenses</span>
-                            <span className="text-sm sm:text-base font-black text-white block mt-0.5">
-                              - Rs. {(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
-                            </span>
-                            <span className="text-[8px] text-slate-400 font-bold block mt-0.5">{profitReportStats.filteredExpensesCount || 0} Logs</span>
-                          </div>
-
-                          {/* 4. (-) Damaged Stock */}
-                          <div className="bg-slate-800/80 border border-amber-500/30 rounded-xl p-3">
-                            <span className="text-[9.5px] font-bold uppercase text-amber-400 block tracking-wider">(-) Damaged Egg Loss</span>
-                            <span className="text-sm sm:text-base font-black text-white block mt-0.5">
-                              - Rs. {(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
-                            </span>
-                            <span className="text-[8px] text-slate-400 font-bold block mt-0.5">{profitReportStats.totalDamagedEggs || 0} Broken Eggs</span>
-                          </div>
-                        </div>
-
-                        {/* Direct Jump to Profit Report */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs flex-wrap gap-2">
-                          <span className="text-slate-400 text-[10px] font-bold uppercase">
-                            Yosafze Egg Traders Financial Ledger &bull; Real-time MongoDB Synchronized
-                          </span>
-                          <button
-                            onClick={() => { setActiveView('report-profit'); }}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow transition-all cursor-pointer"
-                          >
-                            <FileSpreadsheet className="w-3.5 h-3.5" /> View Full Profit &amp; Loss Report
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* ─── EXECUTIVE BUSINESS DASHBOARD (CLEAN & MINIMAL) ─── */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-5 shadow-xl text-slate-900 space-y-4">
-
-                        {/* ─── LINE 1: 💰 REALIZED NET PROFIT & LOSS ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
-                              <DollarSign className="w-3.5 h-3.5 text-slate-700" /> 1. Realized Net Profit / Loss
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full uppercase">
-                              Sales Profit - Expenses - Damaged Loss
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Today Net Profit (Gray & Yellow As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
-                                  Today Net {netStats.todayNet >= 0 ? 'Profit' : 'Loss'}
-                                </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.todayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {currency} {netStats.todayNet.toLocaleString('en-PK')}
-                                </h4>
-                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
-                                  Gross: Rs.{netStats.todayGrossProfit} | Exp: Rs.{netStats.todayExp} | Loss: Rs.{netStats.todayDmg}
-                                </span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
-                                <TrendingUp className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Monthly Net Profit (Gray & Yellow As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
-                                  Month Net {netStats.monthlyNet >= 0 ? 'Profit' : 'Loss'}
-                                </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.monthlyNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {currency} {netStats.monthlyNet.toLocaleString('en-PK')}
-                                </h4>
-                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
-                                  Gross: Rs.{netStats.monthlyGrossProfit} | Exp: Rs.{netStats.monthlyExp}
-                                </span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
-                                <DollarSign className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Yearly Net Profit (Yellow, Gray & Green As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-300 via-slate-200 to-emerald-400 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-amber-400 border-b-4 border-b-emerald-800 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-black text-slate-900 uppercase tracking-wide block">
-                                  Year Net {netStats.yearlyNet >= 0 ? 'Profit' : 'Loss'}
-                                </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.yearlyNet >= 0 ? 'text-emerald-950' : 'text-rose-950'}`}>
-                                  {currency} {netStats.yearlyNet.toLocaleString('en-PK')}
-                                </h4>
-                                <span className="text-[8.5px] text-emerald-950 font-bold block mt-0.5">
-                                  This Year Realized
-                                </span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-emerald-700 border border-emerald-500 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <Calendar className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* All-Time Cumulative Net Profit (Gray & Yellow As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-slate-200 via-amber-100 to-slate-100 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-amber-400 hover:shadow transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-slate-700 uppercase tracking-wide block">
-                                  All-Time Net Profit
-                                </span>
-                                <h4 className={`text-lg sm:text-xl font-black mt-0.5 ${netStats.totalNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {currency} {netStats.totalNet.toLocaleString('en-PK')}
-                                </h4>
-                                <span className="text-[8px] text-slate-500 font-bold block mt-0.5">
-                                  Pure Realized Balance
-                                </span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
-                                <Sparkles className="w-4 h-4" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── LINE 2: 🛒 SALES & REVENUE ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
-                              <ShoppingBag className="w-3.5 h-3.5 text-slate-700" /> 2. Sales &amp; Revenue
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              Sales Volume &amp; Invoices
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Today (Green & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.todayRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.todayOrders || 0} Orders</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <Calendar className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* This Month (Yellow, Green & Orange Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-orange-500 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-orange-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Month</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.monthRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-orange-100/90 font-bold block">{salesLiveBreakdown.monthOrders || 0} Orders</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <TrendingUp className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* This Year (Yellow, Green & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">This Year</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.yearRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.yearOrders || 0} Orders</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <ShoppingBag className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Total Sales (Orange, Yellow & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-orange-500 via-amber-400 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-orange-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-orange-100 uppercase tracking-wide block">Total Sales</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(salesLiveBreakdown.totalRevenue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">{salesLiveBreakdown.totalOrders || 0} Orders</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <DollarSign className="w-4 h-4 text-white" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── LINE 3: 📦 AVAILABLE STOCK ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
-                              <Box className="w-3.5 h-3.5 text-slate-700" /> 3. Available Stock
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              Inventory Count &amp; Worth
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                            {/* Petis (Yellow & Green Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-amber-100">Petis</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{Number(stockLiveBreakdown.totalPetis || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">{stockLiveBreakdown.totalProducts || 0} Products</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <Box className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Trays (Gray & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-slate-600 via-sky-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-sky-100">Trays</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(stockLiveBreakdown.totalTrays || 0).toLocaleString('en-PK')} Trays</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <Package className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Eggs (Gray & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-slate-700 via-blue-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-blue-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold uppercase tracking-wide block text-slate-200">Eggs</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(stockLiveBreakdown.totalStockEggs || 0).toLocaleString('en-PK')} Eggs</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-bold block">Available</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <ShoppingBag className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Stock Worth (Yellow & Green Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-emerald-700 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Stock Worth</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(stockLiveBreakdown.totalInventoryValue || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-emerald-100/90 font-bold block">Total Valuation</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <TrendingUp className="w-4 h-4" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── LINE 4: 🚚 PURCHASES & RESTOCK ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-slate-800 flex items-center gap-1.5 tracking-wider">
-                              <Truck className="w-3.5 h-3.5 text-slate-700" /> 4. Purchases &amp; Restock
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              Restock Summary
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-                            {/* Stock Bought (Gray Color As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200/90 rounded-xl text-slate-900 shadow-sm flex items-center justify-between border border-slate-300 hover:border-slate-400 hover:shadow transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-slate-600 uppercase tracking-wide block">Purchased</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">{(Number(purchasesLiveBreakdown.totalPetisPurchased) || 0).toFixed(1)} Petis</h4>
-                                <span className="text-[8.5px] text-slate-500 font-bold block">{(purchasesLiveBreakdown.totalTraysPurchased || 0)} Trays</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-slate-300/80 border border-slate-400/60 flex items-center justify-center text-slate-800 shrink-0">
-                                <Truck className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Cash Paid to Supplier (Richer Vibrant Blue As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-600 rounded-xl text-white shadow-md flex items-center justify-between border border-sky-300 border-b-4 border-b-blue-900 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-sky-100 uppercase tracking-wide block">Cash Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(purchasesLiveBreakdown.cashPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-sky-100/90 font-bold block">Paid in Cash</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <Banknote className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Bank Paid / Transfer (Yellow, Orange, Blue & Gray Blend As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-amber-300 via-orange-200 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-orange-400/80 border-b-4 border-b-orange-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-slate-800 uppercase tracking-wide block">Bank Paid</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(purchasesLiveBreakdown.bankPaidToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-700 font-bold block">Paid via Bank</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <CreditCard className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Due Supplier Debt (Red and Gray Blend As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-rose-100 via-red-100 to-slate-200 rounded-xl text-slate-950 shadow-md flex items-center justify-between border-2 border-rose-300 border-b-4 border-b-rose-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-black text-rose-700 uppercase tracking-wide block">Due Balance</span>
-                                <h4 className="text-lg sm:text-xl font-black text-rose-950 mt-0.5">Rs. {(purchasesLiveBreakdown.dueToSupplier || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-slate-600 font-bold block">Owed Debt</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-rose-600 border border-rose-500 flex items-center justify-center text-white shadow-sm shrink-0">
+                          {/* 3. TOTAL DAMAGED PRODUCT */}
+                          <div className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                3. Total Damaged
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
                                 <AlertCircle className="w-4 h-4" />
                               </div>
                             </div>
-
-                            {/* Total Cost / Investment (Moved to Right Side with Yellow & Green Color As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-br from-amber-400 via-yellow-400 to-emerald-500 rounded-xl text-slate-950 shadow-md flex items-center justify-between border border-amber-300 border-b-4 border-b-amber-700 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-black text-slate-900 uppercase tracking-wide block">Total Cost</span>
-                                <h4 className="text-lg sm:text-xl font-black text-slate-950 mt-0.5">Rs. {(purchasesLiveBreakdown.totalPurchaseCost || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-emerald-950 font-bold block">Total Investment</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/40 border border-white/50 flex items-center justify-center text-slate-950 shadow-sm shrink-0">
-                                <DollarSign className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── LINE 5: 💸 SHOP EXPENSES (Red Theme As Requested) ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-rose-800 flex items-center gap-1.5 tracking-wider">
-                              <FileText className="w-3.5 h-3.5 text-rose-600" /> 5. Shop Expenses
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              Expense Summary
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                            {/* Today's Expenses (Red, Blue, Green Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-sky-600 to-emerald-600 rounded-xl text-white shadow-md flex items-center justify-between border border-rose-300/40 border-b-4 border-b-emerald-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Today Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.todayExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-emerald-100/90 font-semibold block">{dynamicExpenseStats.todayExpCount} Entries Today</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <FileText className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Monthly Expenses (Red, Yellow, Black Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-amber-500 to-slate-950 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-200 uppercase tracking-wide block">Month Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.monthExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-amber-100/90 font-semibold block">{dynamicExpenseStats.monthExpCount} Entries This Month</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <TrendingDown className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Total Cumulative Expenses (Yellow, Green, Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Total Expense</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.totalExp || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">{dynamicExpenseStats.totalExpCount} Total Entries</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <DollarSign className="w-4 h-4" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── LINE 6: 🥚 DAMAGED STOCK & LOSS (Red Theme As Requested) ─── */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                            <span className="text-[11px] font-black uppercase text-red-800 flex items-center gap-1.5 tracking-wider">
-                              <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> 6. Damaged Stock &amp; Loss
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">
-                              Damages &amp; Loss Summary
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                            {/* Damaged Stock Quantity (Red & Gray Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-rose-600 via-red-600 to-slate-800 rounded-xl text-white shadow-md flex items-center justify-between border border-rose-300/40 border-b-4 border-b-slate-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-rose-100 uppercase tracking-wide block">Damaged Stock</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">{(Number(dynamicExpenseStats.totalDamagedEggs || 0) / 360).toFixed(1)} Petis</h4>
-                                <span className="text-[9px] text-slate-200 font-bold block mt-0.5">
-                                  {Math.round(Number(dynamicExpenseStats.totalDamagedEggs || 0) / 30)} Trays • {(Number(dynamicExpenseStats.totalDamagedEggs || 0)).toLocaleString('en-PK')} Eggs
-                                </span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <AlertCircle className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Today's Breakage Loss (Green & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-700 rounded-xl text-white shadow-md flex items-center justify-between border border-emerald-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-emerald-100 uppercase tracking-wide block">Today Loss</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.todayDamaged || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">Today</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <TrendingDown className="w-4 h-4" />
-                              </div>
-                            </div>
-
-                            {/* Total Breakage Loss (Yellow, Green & Blue Gradient As Requested) */}
-                            <div className="p-3.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-blue-600 rounded-xl text-white shadow-md flex items-center justify-between border border-amber-300/40 border-b-4 border-b-blue-950 hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                              <div>
-                                <span className="text-[9.5px] font-bold text-amber-100 uppercase tracking-wide block">Total Loss</span>
-                                <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">Rs. {(dynamicExpenseStats.totalDamaged || 0).toLocaleString('en-PK')}</h4>
-                                <span className="text-[8.5px] text-blue-100/90 font-semibold block">Total</span>
-                              </div>
-                              <div className="w-9 h-9 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white shadow-sm shrink-0">
-                                <DollarSign className="w-4 h-4" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ─── BILLTEN ALERT ROW (3 ALERT PANELS AT BOTTOM) ─── */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-
-                          {/* Alert 1: Low Stock Items */}
-                          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                            <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
                             <div>
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">LOW STOCK ITEMS</span>
-                              <span className="text-lg font-black text-slate-900">{stockLiveBreakdown.lowStockCount || 0}</span>
+                              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                Rs. {(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
+                              </h3>
+                              <p className="text-[10px] text-amber-700 font-bold mt-1">
+                                🥚 {((profitReportStats.totalDamagedEggs || 0) / 360).toFixed(1)} Petis &bull; {(profitReportStats.totalDamagedEggs || 0).toLocaleString('en-PK')} Eggs
+                              </p>
                             </div>
                           </div>
 
-                          {/* Alert 2: Negative / Damaged Stock */}
-                          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                            <div className="w-4 h-4 rounded-full bg-rose-500 shrink-0 animate-pulse" />
+                          {/* 4. TOTAL PROFIT */}
+                          <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-100/70 border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                4. Total Profit
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <TrendingUp className="w-4 h-4" />
+                              </div>
+                            </div>
                             <div>
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">DAMAGED STOCK</span>
-                              <span className="text-lg font-black text-slate-900">{damagedProductsList.length || (dynamicExpenseStats.totalDamaged > 0 ? 1 : 0)}</span>
+                              <h3 className="text-xl sm:text-2xl font-black text-emerald-800 tracking-tight">
+                                Rs. {((profitReportStats.finalNetProfit || 0) >= 0 ? (profitReportStats.finalNetProfit || 0) : 0).toLocaleString('en-PK')}
+                              </h3>
+                              <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                                💰 Realized Net Profit
+                              </p>
                             </div>
                           </div>
 
-                          {/* Alert 3: Expiring Products */}
-                          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-                            <div className="w-4 h-4 rounded-full bg-slate-300 shrink-0" />
+                          {/* 5. TOTAL LOSS */}
+                          <div className="bg-gradient-to-br from-white via-slate-50 to-rose-100/70 border-2 border-rose-300 hover:border-rose-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-rose-800 flex items-center gap-1.5">
+                                <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                                5. Total Loss
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <AlertTriangle className="w-4 h-4" />
+                              </div>
+                            </div>
                             <div>
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">EXPIRING PRODUCTS</span>
-                              <span className="text-lg font-black text-slate-900">{items.filter(i => i.expiryDate && new Date(i.expiryDate) <= new Date(Date.now() + 7 * 86400000)).length}</span>
+                              <h3 className="text-xl sm:text-2xl font-black text-rose-800 tracking-tight">
+                                Rs. {((profitReportStats.finalNetProfit || 0) < 0 ? Math.abs(profitReportStats.finalNetProfit || 0) : (profitReportStats.totalDamagedLoss || 0)).toLocaleString('en-PK')}
+                              </h3>
+                              <p className="text-[10px] text-rose-700 font-bold mt-1">
+                                {(profitReportStats.finalNetProfit || 0) < 0 ? '⚠️ Realized Net Deficit' : '⚠️ Breakage & Waste Loss'}
+                              </p>
                             </div>
                           </div>
 
                         </div>
-
-                        {/* ─── DYNAMIC CHARTS & GRAPHS FOR SHOP ADMIN ─── */}
-                        <div className="pt-4">
-                          <ShopAdminCharts
-                            sales={shopSalesList}
-                            products={items}
-                            expenses={expensesList}
-                            damaged={damagedProductsList}
-                            dashStats={dashStats}
-                            profitReportStats={profitReportStats}
-                            currency={currency}
-                          />
-                        </div>
-
                       </div>
 
-                      {/* EasyPaisa & Customer Orders Verification */}
-                      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
-                        <OrdersManagement shopId={shopId} />
+                      {/* ─── DYNAMIC CHARTS & GRAPHS ANALYTICS ON DASHBOARD ─── */}
+                      <div className="pt-2 animate-in fade-in duration-500">
+                        <ShopAdminCharts
+                          sales={shopSalesList}
+                          products={items}
+                          expenses={expensesList}
+                          damaged={damagedProductsList}
+                          dashStats={dashStats}
+                          profitReportStats={profitReportStats}
+                          currency={currency}
+                        />
                       </div>
                     </div>
                   ) : (
@@ -5709,6 +6381,67 @@ function StoreContent({ shopId }) {
                               onChange={e => setWalkInCustomerPhone(e.target.value)}
                               className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 font-mono transition-colors"
                             />
+                            <input
+                              type="email"
+                              placeholder="Customer Email (e.g. customer@gmail.com)"
+                              value={walkInCustomerEmail}
+                              onChange={e => setWalkInCustomerEmail(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors"
+                            />
+
+                            {/* Existing Customer History Quick Detection */}
+                            {(() => {
+                              const cleanEmail = walkInCustomerEmail.trim().toLowerCase();
+                              const cleanPhone = walkInCustomerPhone.trim().replace(/\D/g, '');
+                              if (!cleanEmail && (!cleanPhone || cleanPhone.length < 7)) return null;
+
+                              const matchingHistory = (unifiedSalesList || []).filter(s => {
+                                const sEmail = (s.customerEmail || s.email || '').trim().toLowerCase();
+                                const sPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+                                if (cleanEmail && sEmail && cleanEmail === sEmail) return true;
+                                if (cleanPhone && sPhone && cleanPhone === sPhone) return true;
+                                return false;
+                              });
+
+                              if (matchingHistory.length === 0) return null;
+
+                              const totalSpent = matchingHistory.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+                              const totalDue = matchingHistory.reduce((sum, s) => {
+                                const isCredit = s.isCredit || s.paymentMethod === 'CREDIT' || Number(s.dueAmount) > 0;
+                                return sum + (Number(s.dueAmount) || (isCredit ? Number(s.totalAmount) : 0));
+                              }, 0);
+                              const prevName = matchingHistory[0]?.customerName;
+                              const prevPhone = matchingHistory[0]?.customerPhone;
+
+                              return (
+                                <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-2.5 text-xs text-indigo-950 space-y-1 animate-in fade-in duration-200">
+                                  <div className="flex items-center justify-between font-black">
+                                    <span className="flex items-center gap-1 text-[10px] text-indigo-800 uppercase">
+                                      <Users className="w-3 h-3 text-indigo-600" /> Existing Customer ({matchingHistory.length} Purchases)
+                                    </span>
+                                    <span className="px-1.5 py-0.5 bg-indigo-200 text-indigo-800 rounded text-[9px] font-black">
+                                      {matchingHistory.length} {matchingHistory.length === 1 ? 'Bill' : 'Bills'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10.5px]">
+                                    <span>Total Shopping: <strong className="text-emerald-700">{currency} {totalSpent.toLocaleString('en-PK')}</strong></span>
+                                    {totalDue > 0 && <span className="text-rose-700 font-bold">⚠️ Due: {currency} {totalDue.toLocaleString('en-PK')}</span>}
+                                  </div>
+                                  {(!walkInCustomerName || !walkInCustomerPhone) && prevName && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!walkInCustomerName && prevName) setWalkInCustomerName(prevName);
+                                        if (!walkInCustomerPhone && prevPhone) setWalkInCustomerPhone(prevPhone);
+                                      }}
+                                      className="mt-1 w-full py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9.5px] font-black uppercase transition-all cursor-pointer"
+                                    >
+                                      ⚡ Auto-fill ({prevName})
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* Payment Method - 4 Options: Cash, Bank, Split/Partial, Credit */}
@@ -6186,7 +6919,7 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
-              {/* ─── REGISTERED CUSTOMERS DIRECTORY VIEW FOR SHOP ADMIN ─── */}
+              {/* ─── REGISTERED & PHYSICAL CUSTOMERS DIRECTORY VIEW ─── */}
               {activeView === 'registered-customers' && isAdminUser && (
                 <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Top Header Banner */}
@@ -6195,9 +6928,9 @@ function StoreContent({ shopId }) {
                       <div className="flex items-center gap-2 text-indigo-400 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-0.5">
                         <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Customer Management Directory
                       </div>
-                      <h2 className="text-lg sm:text-2xl font-black uppercase italic tracking-tight">Registered Customers Directory</h2>
+                      <h2 className="text-lg sm:text-2xl font-black uppercase italic tracking-tight">Customer Accounts &amp; Directory</h2>
                       <p className="text-slate-300 text-[11px] sm:text-xs mt-0.5 leading-relaxed">
-                        View all customer accounts registered to this shop and print individual customer statement records.
+                        Complete directory of both Online Registered Customers and Physical Walk-in Store Customers.
                       </p>
                     </div>
 
@@ -6210,11 +6943,124 @@ function StoreContent({ shopId }) {
                     </button>
                   </div>
 
+                  {/* ─── Overall Cumulative Summary Metrics Banner (All Customers Grand Total) ─── */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Total Directory</span>
+                        <Users className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-gray-900">
+                        {directorySummaryStats.totalCustomers} Accounts
+                      </div>
+                      <div className="text-[10.5px] font-bold text-gray-400 mt-1">
+                        🌐 {unifiedCustomersList.filter(c => c.isOnline).length} Online • 🏬 {unifiedCustomersList.filter(c => !c.isOnline).length} Physical
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-emerald-50/40 to-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">All Customers Spent</span>
+                        <DollarSign className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-emerald-700">
+                        {currency} {directorySummaryStats.totalSpent.toLocaleString('en-PK')}
+                      </div>
+                      <div className="text-[10.5px] font-bold text-emerald-600 mt-1">
+                        Total Lifetime Cumulative Sales
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-rose-50/40 to-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-rose-700">Total Credit Due (All)</span>
+                        <CreditCard className="w-4 h-4 text-rose-600" />
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-rose-600">
+                        {currency} {directorySummaryStats.totalDue.toLocaleString('en-PK')}
+                      </div>
+                      <div className="text-[10.5px] font-bold text-rose-500 mt-1">
+                        Total Outstanding Receivables
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-amber-50/40 to-white">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">All Orders Placed</span>
+                        <ShoppingBag className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-amber-800">
+                        {directorySummaryStats.totalOrders} Orders
+                      </div>
+                      <div className="text-[10.5px] font-bold text-amber-700 mt-1">
+                        Combined Total Bills &amp; Invoices
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs & Search Bar */}
+                  <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-3 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="flex items-center bg-gray-100 p-1 rounded-2xl gap-1.5 overflow-x-auto">
+                      <button
+                        onClick={() => setCustomerFilterTab('ALL')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                          customerFilterTab === 'ALL'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>All Customers ({unifiedCustomersList.length})</span>
+                      </button>
+
+                      <button
+                        onClick={() => setCustomerFilterTab('ONLINE')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                          customerFilterTab === 'ONLINE'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <span>🌐 Online Accounts ({unifiedCustomersList.filter(c => c.isOnline).length})</span>
+                      </button>
+
+                      <button
+                        onClick={() => setCustomerFilterTab('PHYSICAL')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                          customerFilterTab === 'PHYSICAL'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <span>🏬 Physical / Walk-in ({unifiedCustomersList.filter(c => !c.isOnline).length})</span>
+                      </button>
+                    </div>
+
+                    <div className="relative flex-1 sm:max-w-xs">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={customerSearch}
+                        onChange={e => setCustomerSearch(e.target.value)}
+                        placeholder="Search name, phone, email..."
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-500 focus:bg-white shadow-inner"
+                      />
+                      {customerSearch && (
+                        <button
+                          onClick={() => setCustomerSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl overflow-visible shadow-sm">
                     <div className="p-3.5 sm:p-5 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
                       <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
                         <Users className="w-4 h-4 text-indigo-600" />
-                        All Registered Customer Accounts ({registeredCustomersList.length})
+                        Customer Accounts List ({filteredUnifiedCustomers.length})
                       </h3>
                       <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full uppercase tracking-widest">
                         {shop?.name || 'Shop'} Portal
@@ -6223,18 +7069,18 @@ function StoreContent({ shopId }) {
 
                     {loadingCustomers ? (
                       <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
-                        Loading registered customers directory...
+                        Loading customers directory...
                       </div>
-                    ) : registeredCustomersList.length === 0 ? (
+                    ) : filteredUnifiedCustomers.length === 0 ? (
                       <div className="p-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
-                        No registered customer accounts found for this shop yet
+                        No customer accounts found matching your criteria
                       </div>
                     ) : (
                       <>
                         {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
                         <div className="block md:hidden p-3 space-y-3">
-                          {registeredCustomersList.map((cust, idx) => {
-                            const { totalSpent, ordersCount } = getCustomerStats(cust);
+                          {filteredUnifiedCustomers.map((cust, idx) => {
+                            const { totalSpent, totalCreditDue = 0, ordersCount = 0 } = getCustomerStats(cust);
                             const serialNo = idx + 1;
                             const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
 
@@ -6246,7 +7092,9 @@ function StoreContent({ shopId }) {
                                 {/* Card Top: Serial, Avatar, Name, ID & Delete */}
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-sm shrink-0">
+                                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-black text-sm shrink-0 ${
+                                      cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    }`}>
                                       {(cust.fullName || 'C')[0].toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
@@ -6258,9 +7106,16 @@ function StoreContent({ shopId }) {
                                           {cust.fullName}
                                         </span>
                                       </div>
-                                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block mt-0.5">
-                                        {uniqueId}
-                                      </span>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">
+                                          {uniqueId}
+                                        </span>
+                                        <span className={`px-2 py-0.2 rounded-full text-[8.5px] font-black uppercase ${
+                                          cust.isOnline ? 'bg-indigo-100 text-indigo-800' : 'bg-teal-100 text-teal-800'
+                                        }`}>
+                                          {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
 
@@ -6285,25 +7140,37 @@ function StoreContent({ shopId }) {
                                     <span className="font-bold text-teal-700">{cust.phone || '—'}</span>
                                   </div>
                                   <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-gray-400 font-bold uppercase text-[9.5px]">Registered:</span>
+                                    <span className="text-gray-400 font-bold uppercase text-[9.5px]">Registered / Seen:</span>
                                     <span className="font-medium text-gray-500">
                                       {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </span>
                                   </div>
                                 </div>
 
-                                {/* Financial Summary 2-Col Grid */}
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2.5 text-center">
-                                    <span className="text-[9px] font-bold text-emerald-800 uppercase block">Total Spent</span>
-                                    <span className="text-sm font-black text-emerald-700 block mt-0.5">
+                                {/* Financial Summary 3-Col Grid */}
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2 text-center">
+                                    <span className="text-[8.5px] font-bold text-emerald-800 uppercase block">Total Spent</span>
+                                    <span className="text-xs font-black text-emerald-700 block mt-0.5">
                                       {currency} {totalSpent.toLocaleString('en-PK')}
                                     </span>
                                   </div>
-                                  <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5 text-center">
-                                    <span className="text-[9px] font-bold text-amber-800 uppercase block">Orders Placed</span>
-                                    <span className="text-sm font-black text-amber-700 block mt-0.5">
-                                      {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
+                                  <div className={`border rounded-xl p-2 text-center ${
+                                    totalCreditDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-gray-50/80 border-gray-200'
+                                  }`}>
+                                    <span className={`text-[8.5px] font-bold uppercase block ${
+                                      totalCreditDue > 0 ? 'text-rose-800' : 'text-gray-500'
+                                    }`}>Credit Due</span>
+                                    <span className={`text-xs font-black block mt-0.5 ${
+                                      totalCreditDue > 0 ? 'text-rose-600 font-black' : 'text-gray-600'
+                                    }`}>
+                                      {currency} {totalCreditDue.toLocaleString('en-PK')}
+                                    </span>
+                                  </div>
+                                  <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2 text-center">
+                                    <span className="text-[8.5px] font-bold text-amber-800 uppercase block">Orders</span>
+                                    <span className="text-xs font-black text-amber-700 block mt-0.5">
+                                      {ordersCount}
                                     </span>
                                   </div>
                                 </div>
@@ -6321,7 +7188,7 @@ function StoreContent({ shopId }) {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handlePrintRegisteredCustomerRecord(cust, idx)}
+                                    onClick={() => handleDownloadCustomerPDF(cust, idx)}
                                     className="py-2 px-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
                                     title="PDF Statement"
                                   >
@@ -6367,17 +7234,19 @@ function StoreContent({ shopId }) {
                               <tr>
                                 <th className="p-3.5 text-center">Serial #</th>
                                 <th className="p-3.5">Customer Name</th>
-                                <th className="p-3.5">Email Address</th>
+                                <th className="p-3.5">Account Type</th>
+                                <th className="p-3.5">Email / Source</th>
                                 <th className="p-3.5">Phone / Contact</th>
                                 <th className="p-3.5">Total Shopping Spent</th>
+                                <th className="p-3.5">Remaining Credit Due</th>
                                 <th className="p-3.5">Orders Count</th>
-                                <th className="p-3.5">Registration Date</th>
+                                <th className="p-3.5">Date Added</th>
                                 <th className="p-3.5 text-center">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {registeredCustomersList.map((cust, idx) => {
-                                const { totalSpent, ordersCount } = getCustomerStats(cust);
+                              {filteredUnifiedCustomers.map((cust, idx) => {
+                                const { totalSpent, totalCreditDue = 0, ordersCount = 0 } = getCustomerStats(cust);
                                 const serialNo = idx + 1;
                                 const uniqueId = `CUST-${String(serialNo).padStart(4, '0')}`;
                                 const isMenuOpen = activeCustMenuId === cust._id;
@@ -6390,7 +7259,9 @@ function StoreContent({ shopId }) {
                                       </span>
                                     </td>
                                     <td className="p-3.5 font-black uppercase text-gray-900 flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xs shrink-0">
+                                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-black text-xs shrink-0 ${
+                                        cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      }`}>
                                         {(cust.fullName || 'C')[0].toUpperCase()}
                                       </div>
                                       <div>
@@ -6400,10 +7271,30 @@ function StoreContent({ shopId }) {
                                         </span>
                                       </div>
                                     </td>
+                                    <td className="p-3.5">
+                                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                                        cust.isOnline
+                                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      }`}>
+                                        {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
+                                      </span>
+                                    </td>
                                     <td className="p-3.5 font-bold text-gray-600">{cust.email}</td>
                                     <td className="p-3.5 font-bold text-teal-700">{cust.phone || '—'}</td>
                                     <td className="p-3.5 font-black text-emerald-700 text-sm">
                                       {currency} {totalSpent.toLocaleString('en-PK')}
+                                    </td>
+                                    <td className="p-3.5">
+                                      {totalCreditDue > 0 ? (
+                                        <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-black whitespace-nowrap">
+                                          {currency} {totalCreditDue.toLocaleString('en-PK')} Due
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10.5px] font-bold">
+                                          Rs. 0 (Cleared)
+                                        </span>
+                                      )}
                                     </td>
                                     <td className="p-3.5 font-black text-amber-800">
                                       <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold">
@@ -6460,7 +7351,7 @@ function StoreContent({ shopId }) {
                                           <button
                                             onClick={() => {
                                               setActiveCustMenuId(null);
-                                              handlePrintRegisteredCustomerRecord(cust, idx);
+                                              handleDownloadCustomerPDF(cust, idx);
                                             }}
                                             className="w-full px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
                                           >
@@ -6666,19 +7557,50 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* Search, Payment Filter Tabs and Invoices Section */}
+                  {/* Search, View Mode Selector, Payment Filter Tabs and Invoices Section */}
                   <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                          <Receipt className="w-4 h-4 text-emerald-600" /> Itemized Sales & Customer Orders ({filteredSalesForReport.length})
+                          <Receipt className="w-4 h-4 text-emerald-600" /> Sales &amp; Customer Ledger Reports
                         </h3>
                         <p className="text-[10px] text-gray-400 font-bold uppercase">
-                          Unified POS bills & online purchases • Filtered by <strong className="text-gray-700">{reportTimeframe}</strong>
+                          Unified POS bills &amp; customer orders • Filtered by <strong className="text-gray-700">{reportTimeframe}</strong>
                         </p>
                       </div>
 
-                      {/* Payment & Order Origin Tabs (ALL, CASH, BANK, CREDIT, ONLINE, POS) */}
+                      {/* Main View Mode Selector (All Invoices vs Customer-Wise Grouped) */}
+                      <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setSalesReportViewMode('ALL_INVOICES')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                            salesReportViewMode === 'ALL_INVOICES'
+                              ? 'bg-emerald-700 text-white shadow-md'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          <span>All Invoices ({filteredSalesForReport.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSalesReportViewMode('GROUPED_CUSTOMERS')}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                            salesReportViewMode === 'GROUPED_CUSTOMERS'
+                              ? 'bg-indigo-700 text-white shadow-md'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Customer-Wise Grouped ({customerWiseSalesReport.length})</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Toolbar */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-gray-100">
+                      {/* Payment & Order Origin Tabs */}
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setSalesReportPaymentFilter('ALL')}
@@ -6735,13 +7657,13 @@ function StoreContent({ shopId }) {
                       </div>
 
                       {/* Search Input */}
-                      <div className="flex items-center gap-2 bg-gray-100 px-3.5 py-1.5 rounded-xl w-full sm:w-64 border border-gray-200">
+                      <div className="flex items-center gap-2 bg-gray-100 px-3.5 py-1.5 rounded-xl w-full sm:w-72 border border-gray-200">
                         <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                         <input
                           type="text"
                           value={salesReportSearchTerm}
                           onChange={(e) => setSalesReportSearchTerm(e.target.value)}
-                          placeholder="Search Invoice, Customer..."
+                          placeholder="Search Invoice, Name, Email, Phone..."
                           className="bg-transparent text-xs font-bold outline-none w-full text-gray-800 placeholder:text-gray-400"
                         />
                         {salesReportSearchTerm && (
@@ -6755,8 +7677,578 @@ function StoreContent({ shopId }) {
                       </div>
                     </div>
 
-                    {/* Sales Table & Mobile Cards */}
-                    {(() => {
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    {/* VIEW 1: CUSTOMER-WISE GROUPED VIEW (د پیرودونکو جلا لست) */}
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    {salesReportViewMode === 'GROUPED_CUSTOMERS' && (
+                      <div className="space-y-4">
+                        {/* Mobile Cards for Customer Groups */}
+                        <div className="block md:hidden space-y-3">
+                          {customerWiseSalesReport.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 font-bold text-xs uppercase tracking-wider">
+                              No customer sales records found.
+                            </div>
+                          ) : (
+                            customerWiseSalesReport.map((custGroup, idx) => {
+                              const isExpanded = expandedCustomerSalesId === custGroup.id;
+                              return (
+                                <div key={custGroup.id || idx} className="bg-white border-2 border-indigo-150 rounded-2xl p-4 shadow-sm space-y-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white font-black text-sm flex items-center justify-center shadow-sm shrink-0">
+                                        {(custGroup.customerName || 'C').charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div className="font-extrabold text-gray-900 text-sm">{custGroup.customerName}</div>
+                                        {custGroup.aliasNames && custGroup.aliasNames.length > 1 && (
+                                          <div className="text-[9.5px] text-gray-500 font-semibold italic">
+                                            Names on bills: {custGroup.aliasNames.join(', ')}
+                                          </div>
+                                        )}
+                                        {custGroup.isOnline ? (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300 mt-0.5">
+                                            🌐 Online Account
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200 mt-0.5">
+                                            🏪 Walk-in POS
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-[10.5px] font-black">
+                                      {custGroup.invoices.length} {custGroup.invoices.length === 1 ? 'Bill' : 'Bills'}
+                                    </span>
+                                  </div>
+
+                                  {/* Contact Details with Email clearly highlighted */}
+                                  <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-150 space-y-1.5 text-xs">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="text-gray-400 font-bold uppercase text-[9.5px]">Unique Email:</span>
+                                      <span className="font-bold text-indigo-700 truncate max-w-[190px]">
+                                        {custGroup.customerEmail ? `✉️ ${custGroup.customerEmail}` : '—'}
+                                      </span>
+                                    </div>
+                                    {custGroup.customerPhone && (
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-gray-400 font-bold uppercase text-[9.5px]">Phone:</span>
+                                        <span className="font-bold text-teal-700">📞 {custGroup.customerPhone}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="text-gray-400 font-bold uppercase text-[9.5px]">Total Purchases:</span>
+                                      <span className="font-black text-emerald-700">{currency} {Number(custGroup.totalSpent || 0).toLocaleString('en-PK')}</span>
+                                    </div>
+                                    {custGroup.totalDue > 0 && (
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-rose-500 font-bold uppercase text-[9.5px]">Outstanding Due:</span>
+                                        <span className="font-black text-rose-700">{currency} {Number(custGroup.totalDue || 0).toLocaleString('en-PK')}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="flex items-center justify-between pt-1 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedCustomerSalesId(isExpanded ? null : custGroup.id)}
+                                      className={`flex-1 py-1.5 px-2 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                                        isExpanded
+                                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                                      }`}
+                                      title={isExpanded ? "Close Bills" : `View Invoices (${custGroup.invoices.length})`}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronUp className={`w-3.5 h-3.5 ${isExpanded ? 'text-white' : 'text-emerald-600'}`} />
+                                      ) : (
+                                        <ChevronDown className={`w-3.5 h-3.5 ${isExpanded ? 'text-white' : 'text-emerald-600'}`} />
+                                      )}
+                                      <span>({custGroup.invoices.length} Bills)</span>
+                                    </button>
+
+                                    {/* 3-Dot Dropdown Actions */}
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveCustGroupMenuId(activeCustGroupMenuId === custGroup.id ? null : custGroup.id);
+                                        }}
+                                        className={`py-1.5 px-2.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center transition-all cursor-pointer shadow-xs border ${
+                                          activeCustGroupMenuId === custGroup.id
+                                            ? 'bg-emerald-600 text-white border-emerald-700'
+                                            : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                                        }`}
+                                        title="Customer Statement Actions (Print, PDF, WhatsApp, Excel)"
+                                      >
+                                        <MoreVertical className="w-3.5 h-3.5" />
+                                      </button>
+                                      {activeCustGroupMenuId === custGroup.id && (
+                                        <>
+                                          <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveCustGroupMenuId(null);
+                                            }}
+                                          />
+                                          <div
+                                            className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 text-left animate-in fade-in zoom-in-95 duration-100"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <div className="px-3 py-1 text-[9.5px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1 flex items-center justify-between">
+                                              <span>Customer Statement</span>
+                                              <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveCustGroupMenuId(null);
+                                                handlePrintCustomerSalesReportStatement(custGroup);
+                                              }}
+                                              className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                              <Printer className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                              <span>Print Statement</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveCustGroupMenuId(null);
+                                                handleDownloadCustomerGroupPDF(custGroup);
+                                              }}
+                                              className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                              <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                              <span>Download PDF</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveCustGroupMenuId(null);
+                                                handleWhatsAppCustomerGroupShare(custGroup);
+                                              }}
+                                              className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                              <Send className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                              <span>Share on WhatsApp</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveCustGroupMenuId(null);
+                                                handleExportCustomerGroupExcel(custGroup);
+                                              }}
+                                              className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-green-50 hover:text-green-800 flex items-center gap-2 transition-colors cursor-pointer border-t border-gray-100 mt-1 pt-2"
+                                            >
+                                              <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                                              <span>Generate Excel</span>
+                                            </button>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Expanded Invoices for this customer */}
+                                  {isExpanded && (
+                                    <div className="pt-2 border-t border-indigo-100 space-y-2">
+                                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block">Customer Bills Breakdown:</span>
+                                      {custGroup.invoices.map((inv, invIdx) => {
+                                        const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(invIdx + 1).padStart(4, '0')}`);
+                                        const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+                                        const invTotal = Number(inv.totalAmount) || 0;
+                                        const isCredit = inv.isCredit || inv.paymentMethod === 'CREDIT' || Number(inv.dueAmount) > 0;
+                                        return (
+                                          <div key={inv._id || invIdx} className="bg-indigo-50/50 rounded-xl p-2.5 border border-indigo-100 text-xs flex items-center justify-between gap-2">
+                                            <div>
+                                              <div className="font-black text-gray-900 text-xs">{invNo} <span className="font-normal text-gray-500 text-[10px]">({invDate})</span></div>
+                                              <div className="text-[10px] text-gray-600 font-bold mt-0.5">
+                                                {(inv.items || []).map(i => `${i.name || 'Item'} (x${i.quantity || 1})`).join(', ')}
+                                              </div>
+                                              <div className="mt-1">
+                                                {isCredit ? (
+                                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-black bg-rose-100 text-rose-700 border border-rose-300">
+                                                    Due: {currency} {(Number(inv.dueAmount) || invTotal).toLocaleString('en-PK')}
+                                                  </span>
+                                                ) : (
+                                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                    Paid: {currency} {invTotal.toLocaleString('en-PK')}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => setCompletedBill(inv)}
+                                                className="p-1.5 bg-white text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-all cursor-pointer"
+                                                title="View Bill"
+                                              >
+                                                <Receipt className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handlePrintCustomerSingleRecord(inv)}
+                                                className="p-1.5 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-all cursor-pointer"
+                                                title="Print Invoice"
+                                              >
+                                                <Printer className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Desktop Table for Customer Groups */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-left text-xs text-gray-800">
+                            <thead className="bg-gray-100 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-200">
+                              <tr>
+                                <th className="p-2.5 text-center w-10">#</th>
+                                <th className="p-2.5 w-[26%]">Customer &amp; Email ID</th>
+                                <th className="p-2.5 text-center w-[13%]">Contact Phone</th>
+                                <th className="p-2.5 text-center w-[11%]">Invoices / Bills</th>
+                                <th className="p-2.5 text-center w-[13%]">Payment Breakdown</th>
+                                <th className="p-2.5 text-center w-[11%]">Credit Due</th>
+                                <th className="p-2.5 text-right w-[12%]">Total Purchases</th>
+                                <th className="p-2.5 text-center w-[100px] whitespace-nowrap">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {customerWiseSalesReport.length === 0 ? (
+                                <tr>
+                                  <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
+                                    No customer sales records found.
+                                  </td>
+                                </tr>
+                              ) : (
+                                customerWiseSalesReport.map((custGroup, idx) => {
+                                  const isExpanded = expandedCustomerSalesId === custGroup.id;
+                                  return (
+                                    <React.Fragment key={custGroup.id || idx}>
+                                      <tr className={`hover:bg-blue-50/40 transition-colors ${isExpanded ? 'bg-blue-50/60' : ''}`}>
+                                        <td className="p-2.5 text-center font-bold text-gray-400 align-middle">{idx + 1}</td>
+                                        <td className="p-2.5 align-middle">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-[11px] flex items-center justify-center shadow-xs shrink-0">
+                                              {(custGroup.customerName || 'C').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <div className="font-extrabold text-gray-900 text-xs truncate max-w-[200px]">
+                                                {custGroup.customerName}
+                                              </div>
+                                              {custGroup.aliasNames && custGroup.aliasNames.length > 1 && (
+                                                <div className="text-[9px] text-gray-500 font-semibold italic truncate max-w-[200px]">
+                                                  Names on bills: {custGroup.aliasNames.join(', ')}
+                                                </div>
+                                              )}
+                                              <div className="text-[10px] font-bold text-blue-700 truncate max-w-[200px]" title={custGroup.customerEmail || 'No Email'}>
+                                                {custGroup.customerEmail ? `✉️ ${custGroup.customerEmail}` : <span className="text-gray-400 italic">No Email Provided</span>}
+                                              </div>
+                                              <div>
+                                                {custGroup.isOnline ? (
+                                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[7.5px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300">
+                                                    🌐 Online Account
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[7.5px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                                                    🏪 Physical POS
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="p-2.5 text-center text-[10.5px] font-bold text-teal-700 align-middle">
+                                          {custGroup.customerPhone ? `📞 ${custGroup.customerPhone}` : '—'}
+                                        </td>
+                                        <td className="p-2.5 text-center align-middle">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                                            <Receipt className="w-2.5 h-2.5" />
+                                            <span>{custGroup.invoices.length} {custGroup.invoices.length === 1 ? 'Bill' : 'Bills'}</span>
+                                          </span>
+                                        </td>
+                                        <td className="p-2.5 text-center text-[10px] font-bold space-y-0.5 align-middle">
+                                          {custGroup.totalCash > 0 && (
+                                            <div className="text-emerald-700">💵 Cash: {currency} {custGroup.totalCash.toLocaleString('en-PK')}</div>
+                                          )}
+                                          {custGroup.totalBank > 0 && (
+                                            <div className="text-amber-700">🏦 Bank: {currency} {custGroup.totalBank.toLocaleString('en-PK')}</div>
+                                          )}
+                                          {custGroup.totalCash === 0 && custGroup.totalBank === 0 && custGroup.totalDue === 0 && (
+                                            <div className="text-gray-400">—</div>
+                                          )}
+                                        </td>
+                                        <td className="p-2.5 text-center align-middle">
+                                          {custGroup.totalDue > 0 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                              <FileText className="w-2.5 h-2.5" /> Due: {currency} {custGroup.totalDue.toLocaleString('en-PK')}
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                              ✓ Paid
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="p-2.5 text-right font-black text-emerald-700 text-xs align-middle">
+                                          {currency} {custGroup.totalSpent.toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="p-2.5 text-center align-middle whitespace-nowrap">
+                                          <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedCustomerSalesId(isExpanded ? null : custGroup.id)}
+                                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
+                                                isExpanded
+                                                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                                              }`}
+                                              title={isExpanded ? "Close Bills" : `View Invoices (${custGroup.invoices.length})`}
+                                            >
+                                              {isExpanded ? (
+                                                <ChevronUp className="w-4 h-4 text-white shrink-0" />
+                                              ) : (
+                                                <ChevronDown className="w-4 h-4 text-emerald-700 shrink-0" />
+                                              )}
+                                            </button>
+
+                                            {/* 3-Dot Dropdown Menu for Customer Actions */}
+                                            <div className="relative">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveCustGroupMenuId(activeCustGroupMenuId === custGroup.id ? null : custGroup.id);
+                                                }}
+                                                className={`w-7 h-7 rounded-lg border transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 ${
+                                                  activeCustGroupMenuId === custGroup.id
+                                                    ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
+                                                    : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                                                }`}
+                                                title="Customer Statement Actions (Print, PDF, WhatsApp, Excel)"
+                                              >
+                                                <MoreVertical className="w-3.5 h-3.5" />
+                                              </button>
+
+                                              {activeCustGroupMenuId === custGroup.id && (
+                                                <>
+                                                  <div
+                                                    className="fixed inset-0 z-40"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setActiveCustGroupMenuId(null);
+                                                    }}
+                                                  />
+                                                  <div
+                                                    className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 text-left animate-in fade-in zoom-in-95 duration-100"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    <div className="px-3 py-1 text-[9.5px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-1 flex items-center justify-between">
+                                                      <span>Customer Statement</span>
+                                                      <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
+                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        handlePrintCustomerSalesReportStatement(custGroup);
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                                    >
+                                                      <Printer className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                      <span>Print Statement</span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        handleDownloadCustomerGroupPDF(custGroup);
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-red-50 hover:text-red-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                                    >
+                                                      <FileText className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                                      <span>Download PDF</span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        handleWhatsAppCustomerGroupShare(custGroup);
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer"
+                                                    >
+                                                      <Send className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                                      <span>Share on WhatsApp</span>
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        handleExportCustomerGroupExcel(custGroup);
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-gray-700 hover:bg-green-50 hover:text-green-800 flex items-center gap-2 transition-colors cursor-pointer border-t border-gray-100 mt-1 pt-2"
+                                                    >
+                                                      <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                                                      <span>Generate Excel</span>
+                                                    </button>
+                                                  </div>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+
+                                      {/* Sub-row Accordion for this Customer's Invoices */}
+                                      {isExpanded && (
+                                        <tr>
+                                          <td colSpan="8" className="p-3 bg-slate-50/80 border-y border-gray-200">
+                                            <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-xs space-y-2.5">
+                                              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                                <div className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-1.5">
+                                                  <Receipt className="w-3.5 h-3.5 text-blue-600" />
+                                                  <span>All Invoices for {custGroup.customerName} ({custGroup.invoices.length} Bills)</span>
+                                                </div>
+                                                <div className="text-[11px] font-bold text-gray-500">
+                                                  Email: <strong className="text-blue-700">{custGroup.customerEmail || '—'}</strong>
+                                                </div>
+                                              </div>
+
+                                              <table className="w-full text-left text-xs border border-gray-200 rounded-lg overflow-hidden">
+                                                <thead className="bg-gray-100 text-[9px] font-black text-gray-700 uppercase border-b border-gray-200">
+                                                  <tr>
+                                                    <th className="p-2 text-center w-8">#</th>
+                                                    <th className="p-2">Invoice / Bill</th>
+                                                    <th className="p-2">Date</th>
+                                                    <th className="p-2">Items Purchased</th>
+                                                    <th className="p-2 text-center">Payment Breakdown</th>
+                                                    <th className="p-2 text-right">Total</th>
+                                                    <th className="p-2 text-center">Actions</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                  {custGroup.invoices.map((s, invIdx) => {
+                                                    const invNo = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(invIdx + 1).padStart(4, '0')}`);
+                                                    const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                                                    const invTotal = Number(s.totalAmount) || 0;
+                                                    const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+                                                    const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+                                                    const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+
+                                                    return (
+                                                      <tr key={s._id || invIdx} className="hover:bg-gray-50">
+                                                        <td className="p-2 text-center font-bold text-gray-400">{invIdx + 1}</td>
+                                                        <td className="p-2 font-black text-gray-900">{invNo}</td>
+                                                        <td className="p-2 text-[10.5px] text-gray-600">{sDate}</td>
+                                                        <td className="p-2">
+                                                          <div className="space-y-0.5">
+                                                            {(s.items || []).map((i, iIdx) => (
+                                                              <span key={iIdx} className="inline-block bg-gray-100 text-gray-800 text-[9px] font-bold px-1.5 py-0.5 rounded mr-1">
+                                                                {i.name || i.title} (x{i.quantity})
+                                                              </span>
+                                                            ))}
+                                                          </div>
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                          {isCredit ? (
+                                                            <div className="space-y-1">
+                                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                                                Due: {currency} {(Number(s.dueAmount) || invTotal).toLocaleString('en-PK')}
+                                                              </span>
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => handleOpenSettleCredit(s)}
+                                                                className="block mx-auto px-2 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer"
+                                                              >
+                                                                💳 Pay Credit
+                                                              </button>
+                                                            </div>
+                                                          ) : isBank ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                                                              Bank: {currency} {(Number(s.bankPaid) || invTotal).toLocaleString('en-PK')}
+                                                            </span>
+                                                          ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                              Cash: {currency} {(Number(s.cashPaid) || invTotal).toLocaleString('en-PK')}
+                                                            </span>
+                                                          )}
+                                                        </td>
+                                                        <td className="p-2 text-right font-black text-emerald-700 text-xs">
+                                                          {currency} {invTotal.toLocaleString('en-PK')}
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                          <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => setCompletedBill(s)}
+                                                              className="p-1 bg-gray-100 hover:bg-emerald-100 text-emerald-700 rounded transition-all cursor-pointer"
+                                                              title="View Bill"
+                                                            >
+                                                              <Receipt className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => handlePrintCustomerSingleRecord(s)}
+                                                              className="p-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-all cursor-pointer"
+                                                              title="Print Invoice"
+                                                            >
+                                                              <Printer className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
+                                                              className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded transition-all cursor-pointer"
+                                                              title="Delete Sale"
+                                                            >
+                                                              <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                          </div>
+                                                        </td>
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                            {customerWiseSalesReport.length > 0 && (
+                              <tfoot className="bg-gray-50 border-t border-gray-200 font-black text-xs">
+                                <tr>
+                                  <td colSpan="6" className="p-2.5 text-right text-gray-800 uppercase text-[11px]">
+                                    Total Combined Sales ({customerWiseSalesReport.length} Customers):
+                                  </td>
+                                  <td className="p-2.5 text-right text-emerald-700 text-xs font-black">
+                                    {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                                  </td>
+                                  <td></td>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    {/* VIEW 2: ALL INDIVIDUAL INVOICES VIEW (with Email displayed) */}
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    {salesReportViewMode === 'ALL_INVOICES' && (() => {
                       const displayedSalesReportList = filteredSalesForReport.filter(s => {
                         const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
                         const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
@@ -6784,6 +8276,7 @@ function StoreContent({ shopId }) {
                                 const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
                                 const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                                 const cust = s.customerName || 'Walk-in Customer';
+                                const email = s.customerEmail || s.email || '';
                                 const phone = s.customerPhone || '';
                                 const total = Number(s.totalAmount) || 0;
                                 const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
@@ -6830,6 +8323,12 @@ function StoreContent({ shopId }) {
                                         <span className="text-gray-400 font-bold uppercase text-[9.5px]">Customer:</span>
                                         <span className="font-extrabold text-gray-900 truncate max-w-[180px]">{cust}</span>
                                       </div>
+                                      {email && (
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="text-gray-400 font-bold uppercase text-[9.5px]">Email:</span>
+                                          <span className="font-bold text-indigo-700 truncate max-w-[180px]">✉️ {email}</span>
+                                        </div>
+                                      )}
                                       {phone && (
                                         <div className="flex items-center justify-between text-[11px]">
                                           <span className="text-gray-400 font-bold uppercase text-[9.5px]">Phone:</span>
@@ -6840,6 +8339,29 @@ function StoreContent({ shopId }) {
                                         <span className="text-gray-400 font-bold uppercase text-[9.5px]">Date &amp; Time:</span>
                                         <span className="font-semibold text-gray-600">{sDate}</span>
                                       </div>
+
+                                      {/* Customer Orders History Button */}
+                                      {(() => {
+                                        const gKey = getCustomerIdentityGroupKey(s);
+                                        const custStats = customerWiseSalesReport.find(c => c.id === gKey);
+                                        const purchaseCount = custStats?.invoices?.length || 1;
+                                        return (
+                                          <div className="pt-1.5 border-t border-gray-200/60 flex items-center justify-between">
+                                            <span className="text-gray-500 font-black uppercase text-[9px]">Total Purchases:</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSalesReportViewMode('GROUPED_CUSTOMERS');
+                                                setExpandedCustomerSalesId(gKey);
+                                              }}
+                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-300 transition-all cursor-pointer shadow-xs"
+                                            >
+                                              <Users className="w-2.5 h-2.5" />
+                                              <span>{purchaseCount} {purchaseCount === 1 ? 'Order Recorded' : 'Orders Recorded'} (View All)</span>
+                                            </button>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
 
                                     {/* Items Purchased */}
@@ -6945,6 +8467,7 @@ function StoreContent({ shopId }) {
                                     const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
                                     const sDate = new Date(s.saleDate || s.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                                     const cust = s.customerName || 'Walk-in Customer';
+                                    const email = s.customerEmail || s.email || '';
                                     const phone = s.customerPhone || '';
                                     const total = Number(s.totalAmount) || 0;
                                     const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
@@ -6952,6 +8475,10 @@ function StoreContent({ shopId }) {
                                     const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
                                     const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
                                     const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+
+                                    const gKey = getCustomerIdentityGroupKey(s);
+                                    const custStats = customerWiseSalesReport.find(c => c.id === gKey);
+                                    const purchaseCount = custStats?.invoices?.length || 1;
 
                                     return (
                                       <tr key={s._id || idx} className="hover:bg-gray-50/80 transition-colors">
@@ -6971,8 +8498,33 @@ function StoreContent({ shopId }) {
                                         <td className="p-3 text-[11px] font-bold text-gray-600">{sDate}</td>
                                         <td className="p-3">
                                           <div className="font-extrabold text-gray-900">{cust}</div>
+                                          {email && (
+                                            <div className="text-[10.5px] text-indigo-700 font-bold truncate max-w-[170px]" title={email}>
+                                              ✉️ {email}
+                                            </div>
+                                          )}
                                           {phone && <div className="text-[10px] text-teal-700 font-bold">📞 {phone}</div>}
-                                          {isOnline && <span className="text-[9px] text-indigo-600 font-bold">Logged-in User</span>}
+                                          {isOnline && <span className="text-[9px] text-teal-700 font-bold block">Logged-in User</span>}
+                                          
+                                          {/* Customer Purchase Count / History Quick Action */}
+                                          <div className="mt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSalesReportViewMode('GROUPED_CUSTOMERS');
+                                                setExpandedCustomerSalesId(gKey);
+                                              }}
+                                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs border ${
+                                                purchaseCount > 1
+                                                  ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-300 ring-1 ring-indigo-200'
+                                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                                              }`}
+                                              title="Click to view all invoices/orders of this customer"
+                                            >
+                                              <Users className="w-2.5 h-2.5 text-indigo-600" />
+                                              <span>{purchaseCount} {purchaseCount === 1 ? 'Order' : 'Orders'} (View History)</span>
+                                            </button>
+                                          </div>
                                         </td>
                                         <td className="p-3">
                                           <div className="space-y-0.5 max-w-xs">
@@ -9276,84 +10828,84 @@ function StoreContent({ shopId }) {
 
       {/* Settle / Pay Credit (Due) Modal */}
       {settlingCreditSale && (
-        <div className="fixed inset-0 z-[400] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#1E293B] border border-slate-700/80 rounded-[2rem] max-w-md w-full p-6 text-white space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-150">
+          <div className="bg-[#212631] border border-slate-700/90 rounded-2xl max-w-[380px] w-full p-4 text-white space-y-3 shadow-2xl relative">
             <button
               onClick={() => setSettlingCreditSale(null)}
-              className="absolute top-5 right-5 p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute top-3.5 right-3.5 p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
             {/* Header */}
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/30">
-                <CreditCard className="w-6 h-6" />
+            <div className="flex items-center gap-2.5 pr-8">
+              <div className="p-2 bg-emerald-500/15 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+                <CreditCard className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-lg font-black uppercase tracking-wider text-white">Receive Credit Payment</h3>
-                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Receive Credit Payment</h3>
+                <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">
                   {settlingCreditSale.invoiceNumber || 'Credit Bill'} • Outstanding Due
                 </p>
               </div>
             </div>
 
             {/* Customer & Due Summary Card */}
-            <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-bold uppercase text-[10px]">Customer Name:</span>
-                <span className="font-black text-white uppercase">{settlingCreditSale.customerName || 'Credit Customer'}</span>
+            <div className="bg-[#171a21] border border-slate-700/70 rounded-xl p-2.5 space-y-1 text-xs">
+              <div className="flex justify-between items-center text-[10.5px]">
+                <span className="text-slate-400 font-bold uppercase text-[9px]">Customer:</span>
+                <span className="font-extrabold text-white uppercase truncate max-w-[190px]">{settlingCreditSale.customerName || 'Credit Customer'}</span>
               </div>
               {settlingCreditSale.customerPhone && (
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-bold uppercase text-[10px]">Phone / WhatsApp:</span>
-                  <span className="font-bold text-teal-400">{settlingCreditSale.customerPhone}</span>
+                <div className="flex justify-between items-center text-[10.5px]">
+                  <span className="text-slate-400 font-bold uppercase text-[9px]">Phone / WhatsApp:</span>
+                  <span className="font-bold text-teal-400">📞 {settlingCreditSale.customerPhone}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2 border-t border-slate-700/50">
-                <span className="text-rose-400 font-black uppercase text-[11px]">Total Outstanding Due:</span>
-                <span className="text-xl font-black text-rose-400">
+              <div className="flex justify-between items-center pt-1.5 border-t border-slate-700/50">
+                <span className="text-rose-400 font-black uppercase text-[10px]">Outstanding Due:</span>
+                <span className="text-base font-black text-rose-400">
                   {currency} {(Number(settlingCreditSale.dueAmount) > 0 ? Number(settlingCreditSale.dueAmount) : Number(settlingCreditSale.totalAmount) || 0).toLocaleString('en-PK')}
                 </span>
               </div>
             </div>
 
-            <form onSubmit={handleSubmitSettleCredit} className="space-y-4">
+            <form onSubmit={handleSubmitSettleCredit} className="space-y-2.5">
               {/* Payment Destination (Cash or Bank Transfer) */}
               <div>
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-2">
-                  Select Payment Destination:
+                <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest block mb-1.5">
+                  Payment Destination:
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setSettleMethod('CASH')}
-                    className={`p-3 rounded-xl border-2 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
                       settleMethod === 'CASH'
-                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg'
-                        : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
+                        : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <DollarSign className="w-4 h-4" /> Cash Drawer
+                    <DollarSign className="w-3.5 h-3.5" /> Cash Drawer
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setSettleMethod('BANK')}
-                    className={`p-3 rounded-xl border-2 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
                       settleMethod === 'BANK'
-                        ? 'bg-amber-600 border-amber-400 text-white shadow-lg'
-                        : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:bg-slate-800'
+                        ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                        : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <Building2 className="w-4 h-4" /> Bank Account
+                    <Building2 className="w-3.5 h-3.5" /> Bank Account
                   </button>
                 </div>
               </div>
 
               {/* Amount being paid */}
               <div>
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-1">
+                <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest block mb-1">
                   Payment Amount Received ({currency}):
                 </label>
                 <input
@@ -9363,27 +10915,27 @@ function StoreContent({ shopId }) {
                   max={Number(settlingCreditSale.dueAmount) > 0 ? Number(settlingCreditSale.dueAmount) : Number(settlingCreditSale.totalAmount)}
                   value={settleAmount}
                   onChange={e => setSettleAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm font-black outline-none focus:border-emerald-500 shadow-inner"
+                  className="w-full bg-[#14171e] border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs font-black outline-none focus:border-emerald-500 shadow-inner"
                   placeholder="Enter amount paid"
                 />
               </div>
 
               {/* If Bank: Show bank account & optional transaction info */}
               {settleMethod === 'BANK' && (
-                <div className="bg-amber-950/40 border border-amber-500/30 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in duration-200">
-                  <p className="text-[10px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5" /> Official Branch Bank Account
+                <div className="bg-[#171a21] border border-amber-500/40 rounded-xl p-2.5 space-y-2 animate-in fade-in duration-150">
+                  <p className="text-[9px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                    <Building2 className="w-3 h-3" /> Branch Bank Account:
                   </p>
                   {(() => {
                     const sName = (shop?.name || '').toLowerCase();
                     const sAddr = (shop?.address || '').toLowerCase();
                     if (sName.includes('mardan') || sAddr.includes('mardan')) {
-                      return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">Bank Al Habib: 2013008100773501</p>;
+                      return <p className="text-[11px] font-mono font-black text-amber-200 bg-black/50 border border-amber-400/30 px-2.5 py-1 rounded-lg">Bank Al Habib: 2013008100773501</p>;
                     }
                     if (sName.includes('peshawar') || sAddr.includes('peshawar')) {
-                      return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">Meezan Bank: 07190104740373</p>;
+                      return <p className="text-[11px] font-mono font-black text-amber-200 bg-black/50 border border-amber-400/30 px-2.5 py-1 rounded-lg">Meezan Bank: 07190104740373</p>;
                     }
-                    return <p className="text-xs font-mono font-black text-amber-200 bg-black/40 border border-amber-400/30 px-3 py-1.5 rounded-lg">UBL: 0109000306243543</p>;
+                    return <p className="text-[11px] font-mono font-black text-amber-200 bg-black/50 border border-amber-400/30 px-2.5 py-1 rounded-lg">UBL: 0109000306243543</p>;
                   })()}
 
                   <input
@@ -9391,11 +10943,11 @@ function StoreContent({ shopId }) {
                     placeholder="Bank Transaction ID / Ref No (Optional)"
                     value={settleTxId}
                     onChange={e => setSettleTxId(e.target.value)}
-                    className="w-full bg-slate-900 border border-amber-400/40 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-amber-400"
+                    className="w-full bg-[#12141a] border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white outline-none focus:border-amber-400"
                   />
 
                   <div>
-                    <label className="text-[9px] font-black text-amber-300 uppercase tracking-wider block mb-1">
+                    <label className="text-[8.5px] font-black text-amber-300 uppercase tracking-wider block mb-1">
                       Upload Bank Receipt Proof (Optional)
                     </label>
                     <input
@@ -9408,10 +10960,10 @@ function StoreContent({ shopId }) {
                         reader.onloadend = () => setSettleReceiptProof(reader.result);
                         reader.readAsDataURL(file);
                       }}
-                      className="w-full text-xs text-slate-300 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
+                      className="w-full text-[10.5px] text-slate-300 file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[9px] file:font-black file:uppercase file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer"
                     />
                     {settleReceiptProof && (
-                      <div className="mt-2 w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400 shadow-sm">
+                      <div className="mt-1.5 w-12 h-12 rounded-lg overflow-hidden border border-amber-400 shadow-xs">
                         <img src={settleReceiptProof} alt="Receipt Proof" className="w-full h-full object-cover" />
                       </div>
                     )}
@@ -9420,20 +10972,20 @@ function StoreContent({ shopId }) {
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/60">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-700/60">
                 <button
                   type="button"
                   onClick={() => setSettlingCreditSale(null)}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all"
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSettlingCredit}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-black uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="w-3.5 h-3.5" />
                   {isSettlingCredit ? 'Processing...' : settleMethod === 'BANK' ? 'Deposit into Bank' : 'Deposit into Cash'}
                 </button>
               </div>

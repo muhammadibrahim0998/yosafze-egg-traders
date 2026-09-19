@@ -148,6 +148,8 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
       cashierName: cashierName || req.user?.fullName || "Shop Admin",
       customerName: customerName || (isCredit ? "Credit Customer" : "Walk-in Customer"),
       customerPhone: req.body.customerPhone || "",
+      customerEmail: req.body.customerEmail || "",
+      customerId: req.body.customerId || undefined,
       paymentMethod: method,
       cashPaid,
       bankPaid,

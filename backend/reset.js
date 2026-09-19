@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const run = async () => {
-  await mongoose.connect('mongodb://127.0.0.1:27017/perfume_store');
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/egge');
   const db = mongoose.connection.db;
   const users = db.collection('users');
   
