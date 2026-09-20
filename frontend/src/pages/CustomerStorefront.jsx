@@ -20,6 +20,7 @@ import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal.j
 import WalkInBillModal from '../components/WalkInBillModal.jsx';
 import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
+import { VendorsManagement } from './VendorsManagement.jsx';
 import { CreditManagement } from '../components/CreditManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
@@ -92,7 +93,7 @@ function CustomerAuthView({ shopInfo }) {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-950 select-none z-50 text-white">
+    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-100 select-none z-50 text-slate-900">
       
       {/* Background Animated Egg Pictures (Z-0) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -105,8 +106,8 @@ function CustomerAuthView({ shopInfo }) {
             style={{ backgroundImage: `url("${imgUrl}")` }}
           />
         ))}
-        {/* Soft dark vignette so eggs are super clear & crisp */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/75" />
+        {/* Soft light gray vignette so egg images look crisp with excellent contrast */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/90 via-slate-100/70 to-slate-200/85 backdrop-blur-[1px]" />
       </div>
 
       {/* Centered Clean Compact Card (Z-10) */}
@@ -116,19 +117,19 @@ function CustomerAuthView({ shopInfo }) {
         <div className="flex justify-start mb-2.5">
           <button
             onClick={() => navigate('/shop')}
-            className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-emerald-300 hover:text-emerald-200 uppercase tracking-widest bg-black/60 hover:bg-black/80 px-3 py-1.2 rounded-full border border-white/20 backdrop-blur-md transition-all shadow-md cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-slate-800 hover:text-emerald-700 uppercase tracking-widest bg-white/90 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200 backdrop-blur-md transition-all shadow-sm cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Store Selector</span>
           </button>
         </div>
 
-        <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-700/70 rounded-[1.75rem] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.7)] relative overflow-hidden text-zinc-100">
+        <div className="bg-white border border-slate-200 rounded-[1.75rem] p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.08)] relative overflow-hidden text-slate-900">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
 
           <div className="text-center mb-3.5">
             <div className="relative inline-block mb-1.5">
-              <div className="p-2 bg-white rounded-2xl shadow-xl border border-white/40">
+              <div className="p-2 bg-slate-50 rounded-2xl shadow-sm border border-slate-200">
                 {shopInfo?.logoUrl ? (
                   <img src={shopInfo.logoUrl} alt={shopInfo.name} className="w-8 h-8 rounded-lg object-contain" />
                 ) : (
@@ -136,20 +137,20 @@ function CustomerAuthView({ shopInfo }) {
                 )}
               </div>
             </div>
-            <h1 className="text-lg font-black tracking-tight text-white uppercase italic leading-tight">
+            <h1 className="text-lg font-black tracking-tight text-slate-900 uppercase italic leading-tight">
               {shopInfo?.name || 'Customer Portal'}
             </h1>
-            <p className="text-emerald-400 text-[9px] font-black uppercase tracking-[0.2em] mt-0.5">
+            <p className="text-emerald-600 text-[9px] font-black uppercase tracking-[0.2em] mt-0.5">
               Customer Store Login / Register
             </p>
           </div>
 
-          <div className="flex bg-zinc-950/80 rounded-xl p-1 mb-3.5 border border-zinc-800">
+          <div className="flex bg-slate-100 rounded-xl p-1 mb-3.5 border border-slate-200">
             <button
               type="button"
               onClick={() => { setMode('register'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all ${
-                mode === 'register' ? 'bg-emerald-600 text-white shadow-md border-t border-white/20' : 'text-zinc-400 hover:text-white'
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${
+                mode === 'register' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               1. Register
@@ -157,8 +158,8 @@ function CustomerAuthView({ shopInfo }) {
             <button
               type="button"
               onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all ${
-                mode === 'login' ? 'bg-emerald-600 text-white shadow-md border-t border-white/20' : 'text-zinc-400 hover:text-white'
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${
+                mode === 'login' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               2. Sign In
@@ -166,14 +167,14 @@ function CustomerAuthView({ shopInfo }) {
           </div>
 
           {error && (
-            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-bold animate-in fade-in">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-rose-400" />
+            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold animate-in fade-in">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-rose-600" />
               <span>{error}</span>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold animate-in fade-in">
-              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400" />
+            <div className="flex items-center gap-1.5 p-2.5 mb-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold animate-in fade-in">
+              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
               <span>{success}</span>
             </div>
           )}
@@ -181,52 +182,52 @@ function CustomerAuthView({ shopInfo }) {
           <form onSubmit={submit} className="space-y-2.5">
             {mode === 'register' && (
               <div className="space-y-0.5">
-                <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Full Name</label>
+                <label className="text-[8.5px] font-black text-slate-500 uppercase tracking-wider pl-1">Full Name</label>
                 <div className="relative group">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                   <input
                     type="text"
                     placeholder="Enter your full name"
                     value={form.fullName}
                     onChange={handle('fullName')}
                     required
-                    className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-3 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl py-2 pl-9 pr-3 text-slate-900 text-xs font-semibold placeholder:text-slate-400 outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
             )}
 
             <div className="space-y-0.5">
-              <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Email Address</label>
+              <label className="text-[8.5px] font-black text-slate-500 uppercase tracking-wider pl-1">Email Address</label>
               <div className="relative group">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                 <input
                   type="email"
                   placeholder="customer@example.com"
                   value={form.email}
                   onChange={handle('email')}
                   required
-                  className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-3 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl py-2 pl-9 pr-3 text-slate-900 text-xs font-semibold placeholder:text-slate-400 outline-none transition-all shadow-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-0.5">
-              <label className="text-[8.5px] font-black text-zinc-400 uppercase tracking-wider pl-1">Password</label>
+              <label className="text-[8.5px] font-black text-slate-500 uppercase tracking-wider pl-1">Password</label>
               <div className="relative group">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                 <input
                   type={showPw ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={form.password}
                   onChange={handle('password')}
                   required
-                  className="w-full bg-zinc-950/70 border border-zinc-700/80 focus:border-emerald-500 focus:bg-zinc-900 rounded-xl py-2 pl-9 pr-9 text-white text-xs font-semibold placeholder:text-zinc-500 outline-none transition-all shadow-inner"
+                  className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 focus:bg-white rounded-xl py-2 pl-9 pr-9 text-slate-900 text-xs font-semibold placeholder:text-slate-400 outline-none transition-all shadow-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
                 >
                   {showPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -236,7 +237,7 @@ function CustomerAuthView({ shopInfo }) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-[0.16em] transition-all shadow-lg active:scale-[0.98] mt-1 cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-[0.16em] transition-all shadow-md shadow-emerald-600/20 active:scale-[0.98] mt-1 cursor-pointer flex items-center justify-center gap-1.5"
             >
               <span>
                 {loading ? (
@@ -249,13 +250,13 @@ function CustomerAuthView({ shopInfo }) {
             </button>
           </form>
 
-          <div className="mt-3.5 text-center pt-2.5 border-t border-zinc-800">
-            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+          <div className="mt-3.5 text-center pt-2.5 border-t border-slate-200">
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
               {mode === 'register' ? 'Already registered?' : 'Need an account?'}
               <button
                 type="button"
                 onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); }}
-                className="text-emerald-400 hover:text-emerald-300 underline font-black ml-1.5 cursor-pointer"
+                className="text-emerald-600 hover:text-emerald-700 underline font-black ml-1.5 cursor-pointer"
               >
                 {mode === 'register' ? 'Sign In Here' : 'Create Account Here'}
               </button>
@@ -272,8 +273,8 @@ function CustomerAuthView({ shopInfo }) {
               onClick={() => setCurrentEggIndex(dotIdx)}
               className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                 dotIdx === currentEggIndex
-                  ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
-                  : 'w-1.5 bg-white/40 hover:bg-white/70'
+                  ? 'w-6 bg-emerald-600 shadow-sm shadow-emerald-600/50'
+                  : 'w-1.5 bg-slate-400/50 hover:bg-slate-600/70'
               }`}
               title={`Egg Picture #${dotIdx + 1}`}
             />
@@ -581,6 +582,49 @@ function StoreContent({ shopId }) {
   const handleOpenSettleCredit = (sale) => {
     setSettlingCreditSale(sale);
     const due = Number(sale.dueAmount) > 0 ? Number(sale.dueAmount) : Number(sale.totalAmount);
+    setSettleAmount(due);
+    setSettleMethod('CASH');
+    setSettleTxId('');
+    setSettleReceiptProof('');
+  };
+
+  const handleOpenCustomerCredit = (cust) => {
+    if (!cust) return;
+    const cEmail = (cust.email || cust.customerEmail || '').toLowerCase().trim();
+    const cPhone = (cust.phone || cust.customerPhone || '').trim();
+    const cName = (cust.fullName || cust.customerName || '').toLowerCase().trim();
+
+    // Look for matching unpaid credit sales for this customer
+    const creditSales = (shopSalesList || []).filter(s => {
+      const sDue = Number(s.dueAmount !== undefined ? s.dueAmount : s.totalAmount);
+      const isCred = s.isCredit || String(s.paymentMethod).toUpperCase() === 'CREDIT' || sDue > 0;
+      if (!isCred) return false;
+      const sEmail = (s.customerEmail || '').toLowerCase().trim();
+      const sPhone = (s.customerPhone || '').trim();
+      const sCustName = (s.customerName || '').toLowerCase().trim();
+
+      return (
+        (cEmail && sEmail === cEmail) ||
+        (cPhone && sPhone === cPhone) ||
+        (cName && (sCustName === cName || sCustName.includes(cName) || cName.includes(sCustName)))
+      );
+    });
+
+    const targetSale = creditSales[0] || {
+      _id: cust._id || cust.id,
+      customerName: cust.fullName || cust.customerName || 'Credit Customer',
+      customerPhone: cust.phone || cust.customerPhone || '',
+      customerEmail: cust.email || cust.customerEmail || '',
+      invoiceNumber: 'Customer Credit Ledger',
+      dueAmount: cust.totalCreditDue || 0,
+      totalAmount: cust.totalSpent || cust.totalCreditDue || 0
+    };
+
+    const due = cust.totalCreditDue !== undefined && Number(cust.totalCreditDue) > 0 
+      ? Number(cust.totalCreditDue) 
+      : (Number(targetSale.dueAmount) > 0 ? Number(targetSale.dueAmount) : Number(targetSale.totalAmount) || 0);
+
+    setSettlingCreditSale(targetSale);
     setSettleAmount(due);
     setSettleMethod('CASH');
     setSettleTxId('');
@@ -1800,14 +1844,20 @@ function StoreContent({ shopId }) {
 
   const handleEditProductSubmit = async (productData) => {
     try {
+      const finalImages = (productData.images && productData.images.length > 0)
+        ? productData.images
+        : ((Array.isArray(editModalProduct?.images) && editModalProduct.images.length > 0)
+            ? editModalProduct.images
+            : (editModalProduct?.image ? [editModalProduct.image] : ['/egg2.png']));
+      const payload = { ...productData, images: finalImages };
       const role = user?.role || 'shop_admin';
-      const res = await updateItem(editModalProduct._id, productData, '', role);
-      const updatedItem = res?.item || res?.data || res || { ...editModalProduct, ...productData };
+      const res = await updateItem(editModalProduct._id, payload, '', role);
+      const updatedItem = res?.item || res?.data || res || { ...editModalProduct, ...payload };
 
       // Instantly update items in state
       setItems(prev => (prev || []).map(p => 
         String(p._id) === String(editModalProduct._id) 
-          ? { ...p, ...productData, ...(updatedItem._id ? updatedItem : {}) } 
+          ? { ...p, ...payload, ...(updatedItem._id ? updatedItem : {}) } 
           : p
       ));
 
@@ -5700,7 +5750,7 @@ function StoreContent({ shopId }) {
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {user?.fullName || customer?.fullName || 'Shop Admin'}
                       </span>
                       <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-zinc-900 truncate">
-                        {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : '📦 Products & Inventory Catalog'}
+                        {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : activeView === 'vendors' ? '🏢 Vendors & Suppliers Directory' : '📦 Products & Inventory Catalog'}
                       </h1>
                     </div>
 
@@ -5725,6 +5775,15 @@ function StoreContent({ shopId }) {
                             }`}
                         >
                           <ShoppingBag className="w-3.5 h-3.5" /> Products
+                        </button>
+                        <button
+                          onClick={() => setActiveView('vendors')}
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'vendors'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                            }`}
+                        >
+                          <Building2 className="w-3.5 h-3.5" /> Vendors
                         </button>
                       </div>
 
@@ -5979,6 +6038,14 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
+              {/* ─── VENDORS & SUPPLIERS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'vendors' && (
+                <VendorsManagement
+                  onAddProduct={() => setAddProductModal(true)}
+                  onEditProduct={(p) => setEditModalProduct(p)}
+                />
+              )}
+
               {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'purchases' && (
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
@@ -6102,16 +6169,18 @@ function StoreContent({ shopId }) {
                               }`}
                           >
                             {/* Image Container with Smooth Zoom & Blue Overlay */}
-                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-950 overflow-hidden relative cursor-pointer text-left">
-                              {item.images?.[0] ? (
-                                <img src={item.images[0]} alt={item.name} className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                                  <Egg className="w-14 h-14 text-blue-400/40 group-hover:scale-110 group-hover:text-blue-300 transition-all duration-500" />
-                                </div>
-                              )}
+                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-950 overflow-hidden relative cursor-pointer text-left w-full">
+                              <img
+                                src={(item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || '/egg2.png')}
+                                alt={item.name}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = '/egg2.png';
+                                }}
+                                className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
+                              />
                               {/* Dark to Blue Gradient Overlay on Card Bottom */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/20 opacity-80 group-hover:opacity-50 transition-opacity duration-500 pointer-events-none" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/10 opacity-70 group-hover:opacity-40 transition-opacity duration-500 pointer-events-none" />
 
                               {/* Category Badge - Glows Blue on Hover */}
                               <div className="absolute top-3 left-3 bg-slate-950/85 group-hover:bg-blue-600/90 text-blue-300 group-hover:text-white px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-400/30 group-hover:border-blue-300 shadow-md backdrop-blur-md transition-all duration-300">
@@ -7166,6 +7235,17 @@ function StoreContent({ shopId }) {
                                     }`}>
                                       {currency} {totalCreditDue.toLocaleString('en-PK')}
                                     </span>
+                                    {totalCreditDue > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenCustomerCredit(cust)}
+                                        className="w-full mt-1.5 py-1 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                                        title="Pay Customer Credit"
+                                      >
+                                        <CreditCard className="w-3 h-3" />
+                                        <span>Pay Credit</span>
+                                      </button>
+                                    )}
                                   </div>
                                   <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2 text-center">
                                     <span className="text-[8.5px] font-bold text-amber-800 uppercase block">Orders</span>
@@ -7287,9 +7367,20 @@ function StoreContent({ shopId }) {
                                     </td>
                                     <td className="p-3.5">
                                       {totalCreditDue > 0 ? (
-                                        <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-black whitespace-nowrap">
-                                          {currency} {totalCreditDue.toLocaleString('en-PK')} Due
-                                        </span>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-black whitespace-nowrap">
+                                            {currency} {totalCreditDue.toLocaleString('en-PK')} Due
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenCustomerCredit(cust)}
+                                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                            title="Pay Customer Credit"
+                                          >
+                                            <CreditCard className="w-3.5 h-3.5" />
+                                            <span>Pay Credit</span>
+                                          </button>
+                                        </div>
                                       ) : (
                                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10.5px] font-bold">
                                           Rs. 0 (Cleared)
@@ -7306,6 +7397,18 @@ function StoreContent({ shopId }) {
                                     </td>
                                     <td className="p-3.5 text-center relative">
                                       <div className="flex items-center justify-center gap-1.5">
+                                        {totalCreditDue > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenCustomerCredit(cust)}
+                                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 shadow-xs text-[11px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer active:scale-95 shrink-0"
+                                            title="Pay Customer Credit"
+                                          >
+                                            <CreditCard className="w-3.5 h-3.5" />
+                                            <span>Pay Credit</span>
+                                          </button>
+                                        )}
+
                                         <button
                                           type="button"
                                           onClick={(e) => {
@@ -7337,6 +7440,19 @@ function StoreContent({ shopId }) {
                                           onClick={(e) => e.stopPropagation()}
                                           className="absolute right-2 top-11 w-52 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 text-left"
                                         >
+                                          {totalCreditDue > 0 && (
+                                            <button
+                                              onClick={() => {
+                                                setActiveCustMenuId(null);
+                                                handleOpenCustomerCredit(cust);
+                                              }}
+                                              className="w-full px-3 py-2.5 text-xs font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer mb-1 border border-emerald-200"
+                                            >
+                                              <CreditCard className="w-4 h-4 text-emerald-600" />
+                                              <span>💳 Pay Customer Credit</span>
+                                            </button>
+                                          )}
+
                                           <button
                                             onClick={() => {
                                               setActiveCustMenuId(null);
@@ -7740,9 +7856,25 @@ function StoreContent({ shopId }) {
                                       <span className="font-black text-emerald-700">{currency} {Number(custGroup.totalSpent || 0).toLocaleString('en-PK')}</span>
                                     </div>
                                     {custGroup.totalDue > 0 && (
-                                      <div className="flex items-center justify-between text-[11px]">
+                                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-rose-100">
                                         <span className="text-rose-500 font-bold uppercase text-[9.5px]">Outstanding Due:</span>
-                                        <span className="font-black text-rose-700">{currency} {Number(custGroup.totalDue || 0).toLocaleString('en-PK')}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-black text-rose-700">{currency} {Number(custGroup.totalDue || 0).toLocaleString('en-PK')}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
+                                              if (firstCreditInv) {
+                                                handleOpenSettleCredit(firstCreditInv);
+                                              } else {
+                                                handleOpenCustomerCredit(custGroup);
+                                              }
+                                            }}
+                                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+                                          >
+                                            <CreditCard className="w-2.5 h-2.5" /> Pay Credit
+                                          </button>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -7801,6 +7933,26 @@ function StoreContent({ shopId }) {
                                               <span>Customer Statement</span>
                                               <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                             </div>
+
+                                            {custGroup.totalDue > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActiveCustGroupMenuId(null);
+                                                  const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
+                                                  if (firstCreditInv) {
+                                                    handleOpenSettleCredit(firstCreditInv);
+                                                  } else {
+                                                    handleOpenCustomerCredit(custGroup);
+                                                  }
+                                                }}
+                                                className="w-full px-3 py-2 text-xs font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                              >
+                                                <CreditCard className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                <span>💳 Pay Customer Credit</span>
+                                              </button>
+                                            )}
+
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -7990,9 +8142,27 @@ function StoreContent({ shopId }) {
                                         </td>
                                         <td className="p-2.5 text-center align-middle">
                                           {custGroup.totalDue > 0 ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
-                                              <FileText className="w-2.5 h-2.5" /> Due: {currency} {custGroup.totalDue.toLocaleString('en-PK')}
-                                            </span>
+                                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                                <FileText className="w-2.5 h-2.5" /> Due: {currency} {custGroup.totalDue.toLocaleString('en-PK')}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
+                                                  if (firstCreditInv) {
+                                                    handleOpenSettleCredit(firstCreditInv);
+                                                  } else {
+                                                    handleOpenCustomerCredit(custGroup);
+                                                  }
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                                title="Pay Customer Credit"
+                                              >
+                                                <CreditCard className="w-2.5 h-2.5" />
+                                                <span>Pay Credit</span>
+                                              </button>
+                                            </div>
                                           ) : (
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
                                               ✓ Paid
@@ -8004,6 +8174,25 @@ function StoreContent({ shopId }) {
                                         </td>
                                         <td className="p-2.5 text-center align-middle whitespace-nowrap">
                                           <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                            {custGroup.totalDue > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
+                                                  if (firstCreditInv) {
+                                                    handleOpenSettleCredit(firstCreditInv);
+                                                  } else {
+                                                    handleOpenCustomerCredit(custGroup);
+                                                  }
+                                                }}
+                                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
+                                                title="Pay Customer Credit"
+                                              >
+                                                <CreditCard className="w-3 h-3" />
+                                                <span>Pay Credit</span>
+                                              </button>
+                                            )}
+
                                             <button
                                               type="button"
                                               onClick={() => setExpandedCustomerSalesId(isExpanded ? null : custGroup.id)}
@@ -8056,6 +8245,26 @@ function StoreContent({ shopId }) {
                                                       <span>Customer Statement</span>
                                                       <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                                     </div>
+
+                                                    {custGroup.totalDue > 0 && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setActiveCustGroupMenuId(null);
+                                                          const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
+                                                          if (firstCreditInv) {
+                                                            handleOpenSettleCredit(firstCreditInv);
+                                                          } else {
+                                                            handleOpenCustomerCredit(custGroup);
+                                                          }
+                                                        }}
+                                                        className="w-full px-3 py-2 text-xs font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                                      >
+                                                        <CreditCard className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                        <span>💳 Pay Customer Credit</span>
+                                                      </button>
+                                                    )}
+
                                                     <button
                                                       type="button"
                                                       onClick={() => {
@@ -10358,6 +10567,7 @@ function StoreContent({ shopId }) {
         onSave={handleEditProductSubmit}
         product={editModalProduct}
         categories={categories}
+        suppliers={items}
         title="Edit Product"
         mode="edit"
       />
@@ -10369,6 +10579,7 @@ function StoreContent({ shopId }) {
         onSave={handleAddProductSubmit}
         product={null}
         categories={categories}
+        suppliers={items}
         title="Add New Product"
         mode="add"
       />

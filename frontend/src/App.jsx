@@ -13,6 +13,7 @@ import { ProductDetail } from "./pages/ProductDetail";
 import { CartModal } from "./components/CartModal";
 import { ProductModal } from "./components/ProductModal";
 import { PurchasesManagement } from "./components/PurchasesManagement";
+import { VendorsManagement } from "./pages/VendorsManagement";
 import { ReceiptModal } from "./components/ReceiptModal";
 import { EditSaleModal } from "./components/EditSaleModal";
 import { ExportModal } from "./components/ExportModal";
@@ -346,6 +347,8 @@ export default function App() {
                 <Route path="/help" element={<HelpView />} />
                 <Route path="/team" element={(isShopAdmin() || isSuperAdmin()) ? <TeamView /> : <Navigate to="/" />} />
                 <Route path="/purchases" element={isShopAdmin() ? <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
+                <Route path="/vendors" element={(isShopAdmin() || isSuperAdmin()) ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
+                <Route path="/suppliers" element={(isShopAdmin() || isSuperAdmin()) ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
               </Routes>
             </div>

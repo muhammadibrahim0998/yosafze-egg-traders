@@ -62,8 +62,8 @@ const resetLogins = async () => {
     erpUser.status = 'active';
     await erpUser.save();
 
-    // 3. Super Admin
-    let superAdmin = await User.findOne({ role: 'super_admin' });
+    // 3. Super Admin (superadmin@gmail.com)
+    let superAdmin = await User.findOne({ username: 'superadmin@gmail.com' });
     if (!superAdmin) {
       superAdmin = new User({
         username: 'superadmin@gmail.com',
@@ -79,6 +79,25 @@ const resetLogins = async () => {
     superAdmin.status = 'active';
     await superAdmin.save();
 
+    // 4. Super Admin (ibrahim1530388@gmail.com)
+    let ibrahimAdmin = await User.findOne({ 
+      $or: [{ username: 'ibrahim1530388@gmail.com' }, { email: 'ibrahim1530388@gmail.com' }] 
+    });
+    if (!ibrahimAdmin) {
+      ibrahimAdmin = new User({
+        username: 'ibrahim1530388@gmail.com',
+        email: 'ibrahim1530388@gmail.com',
+        fullName: 'System Super Admin',
+        role: 'super_admin',
+        status: 'active'
+      });
+    }
+    ibrahimAdmin.username = 'ibrahim1530388@gmail.com';
+    ibrahimAdmin.email = 'ibrahim1530388@gmail.com';
+    ibrahimAdmin.password = 'admin123';
+    ibrahimAdmin.status = 'active';
+    await ibrahimAdmin.save();
+
     // Test verify logins
     const testAdmin = await User.findOne({ username: 'admin@yosafze.com' });
     const isMatch1 = await testAdmin.comparePassword('admin123');
@@ -88,12 +107,16 @@ const resetLogins = async () => {
     const isMatch2 = await testSuper.comparePassword('admin123');
     console.log('Password check for superadmin@gmail.com (admin123):', isMatch2 ? '✅ MATCH' : '❌ FAILED');
 
+    const testIbrahim = await User.findOne({ username: 'ibrahim1530388@gmail.com' });
+    const isMatch3 = await testIbrahim.comparePassword('admin123');
+    console.log('Password check for ibrahim1530388@gmail.com (admin123):', isMatch3 ? '✅ MATCH' : '❌ FAILED');
+
     console.log('\n--- AVAILABLE LOGINS ---');
     console.log('1. Shop Admin (Yosafze Egg Traders):');
     console.log('   Username/Email: admin@yosafze.com (or erp@gmail.com)');
     console.log('   Password:       admin123');
     console.log('2. Super Admin:');
-    console.log('   Username/Email: superadmin@gmail.com');
+    console.log('   Username/Email: ibrahim1530388@gmail.com (or superadmin@gmail.com)');
     console.log('   Password:       admin123');
 
     process.exit(0);

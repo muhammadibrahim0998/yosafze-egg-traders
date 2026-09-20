@@ -127,14 +127,13 @@ const server = createServer(app);
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.warn(`⚠️  Port ${PORT} is in use. Killing old process and retrying...`);
-    // On Windows: find and kill process on PORT, then retry
-    exec(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${PORT}') do taskkill /PID %a /F`, () => {
-      setTimeout(() => {
+    console.warn(`⚠️  Port ${PORT} is in use. Retrying in 1.5s...`);
+    setTimeout(() => {
+      try {
         server.close();
-        server.listen(PORT);
-      }, 1000);
-    });
+      } catch (e) {}
+      server.listen(PORT);
+    }, 1500);
   } else {
     console.error('Server error:', err);
     process.exit(1);

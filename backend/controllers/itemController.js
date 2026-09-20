@@ -210,6 +210,17 @@ const updateItem = async (req, res) => {
       }
     }
 
+    if (req.body.images !== undefined) {
+      if (Array.isArray(req.body.images) && req.body.images.length > 0 && req.body.images[0]) {
+        updateData.images = req.body.images;
+      } else if (typeof req.body.images === 'string' && req.body.images.trim()) {
+        updateData.images = [req.body.images.trim()];
+      } else {
+        const existing = await Item.findById(id);
+        updateData.images = (existing?.images && existing.images.length > 0 && existing.images[0]) ? existing.images : ['/egg2.png'];
+      }
+    }
+
     // Branch scoping: Shop admin can only update their own shop's item (super admin can update any)
     const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
       ? { _id: id }

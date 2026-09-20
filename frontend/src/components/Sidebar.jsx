@@ -144,6 +144,11 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
                 <NavItem to="/purchases" icon={Truck} label="Purchases" />
               )}
 
+              {/* Vendors / Suppliers Management */}
+              {(isShopAdmin() || isSuperAdmin()) && (
+                <NavItem to="/vendors" icon={Building2} label="Vendors (Suppliers)" />
+              )}
+
               {/* Only Shop Admin & Super Admin can manage teams */}
               {(isShopAdmin() || isSuperAdmin()) && (
                 <NavItem to="/team" icon={Users} label="Team Management" />

@@ -60,7 +60,7 @@ export function LoginView() {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 overflow-y-auto bg-slate-950 select-none z-50">
+    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 overflow-y-auto bg-slate-100 select-none z-50">
       
       {/* ─── FULL CLEAR BACKGROUND EGG PICTURES SLIDESHOW (Z-0) ─── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -76,8 +76,8 @@ export function LoginView() {
           />
         ))}
 
-        {/* Soft dark vignette so eggs are super clear & crisp while text stays readable */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/75" />
+        {/* Soft light gray vignette for high readability while keeping egg photos visible */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/90 via-slate-100/70 to-slate-200/85 backdrop-blur-[1px]" />
       </div>
 
       {/* ─── CENTERED COMPACT CLEAN FLOATING LOGIN CARD (Z-10) ─── */}
@@ -85,7 +85,7 @@ export function LoginView() {
         
         {/* Top Logo & Branding Floating Badge */}
         <div className="text-center mb-2.5">
-          <div className="inline-flex p-2 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl mb-1.5 hover:scale-105 transition-transform duration-300 border border-white/50">
+          <div className="inline-flex p-2 bg-white rounded-2xl shadow-md mb-1.5 hover:scale-105 transition-transform duration-300 border border-slate-200/80">
             <img
               src={companyLogo}
               alt="Yousafzai Egg Traders"
@@ -93,15 +93,15 @@ export function LoginView() {
             />
           </div>
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 bg-black/70 backdrop-blur-md border border-white/20 rounded-full text-emerald-300 text-[9px] font-black uppercase tracking-widest shadow-lg">
-              <Sparkles className="w-3 h-3 text-emerald-400" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md border border-slate-200 rounded-full text-emerald-800 text-[9.5px] font-black uppercase tracking-widest shadow-sm">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
               Yosafzai Egg Traders • Portal
             </div>
           </div>
         </div>
 
         {/* Card Body */}
-        <div className="w-full bg-white/95 backdrop-blur-xl rounded-[1.75rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] p-5 sm:p-6 relative border border-white/60 flex flex-col text-slate-900">
+        <div className="w-full bg-white rounded-[1.75rem] shadow-[0_20px_50px_rgba(0,0,0,0.08)] p-5 sm:p-6 relative border border-slate-200/90 flex flex-col text-slate-900">
           
           {/* Top Emerald Header Line */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-b-full shadow-sm" />
@@ -191,15 +191,15 @@ export function LoginView() {
           </form>
 
           {/* Customer Portal Button */}
-          <div className="mt-3.5 pt-3 border-t border-slate-200/80 text-center space-y-1.5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+          <div className="mt-3.5 pt-3 border-t border-slate-200 text-center space-y-1.5">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">
               Are you a Customer?
             </p>
             <Link
               to="/shop"
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-black text-white rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-[0.98]"
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-[0.98]"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
               <span>Customer Register & Shop</span>
             </Link>
           </div>
@@ -220,8 +220,8 @@ export function LoginView() {
               onClick={() => setCurrentEggIndex(dotIdx)}
               className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                 dotIdx === currentEggIndex
-                  ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
-                  : 'w-1.5 bg-white/40 hover:bg-white/70'
+                  ? 'w-6 bg-emerald-600 shadow-sm shadow-emerald-600/50'
+                  : 'w-1.5 bg-slate-400/50 hover:bg-slate-600/70'
               }`}
               title={`Egg Picture #${dotIdx + 1}`}
             />

@@ -49,17 +49,15 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
     >
       {/* Aspect Square Image Container */}
       <div className="relative aspect-square w-full bg-slate-900 overflow-hidden">
-        {product.images?.[0] ? (
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <ShoppingBag className="w-12 h-12 text-slate-700" />
-          </div>
-        )}
+        <img
+          src={(product.images && product.images.length > 0 && product.images[0]) ? product.images[0] : (product.image || '/egg2.png')}
+          alt={product.name}
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/egg2.png';
+          }}
+          className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
+        />
 
         {/* Category Badge - Top Left */}
         <div className="absolute top-3 left-3 bg-[#111827]/90 px-3 py-1 rounded-full text-[9px] font-black text-emerald-400 uppercase tracking-widest border border-slate-700/80 backdrop-blur-md">
