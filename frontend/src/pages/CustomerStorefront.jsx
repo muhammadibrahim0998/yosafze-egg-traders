@@ -106,8 +106,8 @@ function CustomerAuthView({ shopInfo }) {
             style={{ backgroundImage: `url("${imgUrl}")` }}
           />
         ))}
-        {/* Soft light gray vignette so egg images look crisp with excellent contrast */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/90 via-slate-100/70 to-slate-200/85 backdrop-blur-[1px]" />
+        {/* Crystal clear subtle overlay for maximum picture clarity */}
+        <div className="absolute inset-0 bg-black/20" />
       </div>
 
       {/* Centered Clean Compact Card (Z-10) */}

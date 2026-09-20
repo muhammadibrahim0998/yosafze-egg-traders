@@ -76,57 +76,57 @@ export function LoginView() {
           />
         ))}
 
-        {/* Soft light gray vignette for high readability while keeping egg photos visible */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-200/90 via-slate-100/70 to-slate-200/85 backdrop-blur-[1px]" />
+        {/* Crystal clear subtle overlay for maximum picture clarity and contrast */}
+        <div className="absolute inset-0 bg-black/20" />
       </div>
 
       {/* ─── CENTERED COMPACT CLEAN FLOATING LOGIN CARD (Z-10) ─── */}
-      <div className="relative z-10 w-full max-w-[390px] animate-in fade-in zoom-in-95 duration-500 my-auto py-2">
+      <div className="relative z-10 w-full max-w-[420px] animate-in fade-in zoom-in-95 duration-500 my-auto py-4">
         
         {/* Top Logo & Branding Floating Badge */}
-        <div className="text-center mb-2.5">
-          <div className="inline-flex p-2 bg-white rounded-2xl shadow-md mb-1.5 hover:scale-105 transition-transform duration-300 border border-slate-200/80">
+        <div className="text-center mb-3.5">
+          <div className="inline-flex p-2.5 bg-white rounded-2xl shadow-md mb-2 hover:scale-105 transition-transform duration-300 border border-slate-200/80">
             <img
               src={companyLogo}
               alt="Yousafzai Egg Traders"
-              className="h-9 sm:h-10 w-auto object-contain drop-shadow-sm"
+              className="h-10 sm:h-11 w-auto object-contain drop-shadow-sm"
             />
           </div>
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md border border-slate-200 rounded-full text-emerald-800 text-[9.5px] font-black uppercase tracking-widest shadow-sm">
-              <Sparkles className="w-3 h-3 text-emerald-600" />
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white/95 backdrop-blur-md border border-slate-200 rounded-full text-emerald-800 text-[10px] font-black uppercase tracking-widest shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               Yosafzai Egg Traders • Portal
             </div>
           </div>
         </div>
 
         {/* Card Body */}
-        <div className="w-full bg-white rounded-[1.75rem] shadow-[0_20px_50px_rgba(0,0,0,0.08)] p-5 sm:p-6 relative border border-slate-200/90 flex flex-col text-slate-900">
+        <div className="w-full bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.12)] p-6 sm:p-8 relative border border-slate-200/90 flex flex-col text-slate-900 min-h-[460px] justify-between">
           
           {/* Top Emerald Header Line */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-b-full shadow-sm" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-b-full shadow-sm" />
 
-          <div className="mb-3.5 text-center">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase italic leading-none">
+          <div className="mb-4 text-center">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase italic leading-none">
               Admin Login
             </h2>
-            <p className="text-slate-500 text-[11px] font-semibold mt-1">
+            <p className="text-slate-500 text-xs font-semibold mt-1.5">
               Sign in to your branch session
             </p>
           </div>
 
           {/* Error Message */}
           {(error || Object.keys(errors).length > 0) && (
-            <div className="p-2.5 mb-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-0.5 text-rose-700 text-[11px] font-bold animate-in fade-in">
+            <div className="p-3 mb-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-1 text-rose-700 text-xs font-bold animate-in fade-in">
               {error && (
-                <div className="flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
               {Object.values(errors).map((err, idx) => (
-                <div key={idx} className="flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <div key={idx} className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <span>{err.message}</span>
                 </div>
               ))}
@@ -134,47 +134,47 @@ export function LoginView() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 w-full">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full">
             
             {/* Email / Username Input */}
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest pl-1">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
                 Email / Username
               </label>
               <div className="relative group">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                 <input
                   {...register('username')}
                   type="text"
                   placeholder="Username or Email"
                   className={`w-full bg-slate-50 border ${
                     errors.username ? 'border-rose-400' : 'border-slate-300'
-                  } focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 rounded-xl py-2.5 pl-10 pr-3.5 text-xs font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 shadow-sm`}
+                  } focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 rounded-xl py-3 pl-11 pr-4 text-xs sm:text-sm font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 shadow-sm`}
                 />
               </div>
             </div>
 
             {/* Password Input */}
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest pl-1">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">
                 Password
               </label>
               <div className="relative group">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                 <input
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   className={`w-full bg-slate-50 border ${
                     errors.password ? 'border-rose-400' : 'border-slate-300'
-                  } focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 rounded-xl py-2.5 pl-10 pr-10 text-xs font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 shadow-sm`}
+                  } focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 rounded-xl py-3 pl-11 pr-11 text-xs sm:text-sm font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 shadow-sm`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -183,30 +183,30 @@ export function LoginView() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-black text-xs uppercase tracking-[0.15em] shadow-md shadow-emerald-600/30 hover:shadow-emerald-600/40 active:scale-[0.98] transition-all disabled:opacity-50 mt-1 cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-black text-xs uppercase tracking-[0.15em] shadow-md shadow-emerald-600/30 hover:shadow-emerald-600/40 active:scale-[0.98] transition-all disabled:opacity-50 mt-2 cursor-pointer flex items-center justify-center gap-2"
             >
               <span>{isSubmitting ? 'Starting Session...' : 'Start Session'}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
           {/* Customer Portal Button */}
-          <div className="mt-3.5 pt-3 border-t border-slate-200 text-center space-y-1.5">
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">
+          <div className="mt-4 pt-4 border-t border-slate-200 text-center space-y-2">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
               Are you a Customer?
             </p>
             <Link
               to="/shop"
-              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-[0.98]"
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300 text-slate-800 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
             >
-              <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+              <ShoppingBag className="w-4 h-4 text-emerald-600" />
               <span>Customer Register & Shop</span>
             </Link>
           </div>
 
           {/* Bottom Security Footer */}
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-center gap-1 text-slate-400 text-[8.5px] font-bold uppercase tracking-wider">
-            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+          <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-slate-400 text-[9px] font-bold uppercase tracking-wider">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>Nexus Engine v2.0 • Secure Portal</span>
           </div>
         </div>
