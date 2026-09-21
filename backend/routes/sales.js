@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import Sale from '../models/Sale.js';
 import Order from '../models/Order.js';
-import Item from '../models/Item.js';
+import Item, { getBranchItemModel } from '../models/Item.js';
 import CashSession from '../models/CashSession.js';
 import { generateInvoice } from '../utils/generateInvoice.js';
 import path from 'path';
@@ -186,6 +186,15 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
 
       product.lastUpdated = new Date().toISOString().split('T')[0];
       await product.save();
+
+      if (targetShopId) {
+        try {
+          const BranchModel = getBranchItemModel(targetShopId);
+          await BranchModel.findByIdAndUpdate(product._id, product.toObject(), { upsert: true });
+        } catch (branchErr) {
+          console.warn('[Sale BranchModel Sync Warning]:', branchErr.message);
+        }
+      }
     }
     
     const newSale = await sale.save();

@@ -25,6 +25,8 @@ import checkoutRoutes from './routes/checkout.js';
 import expensesRoutes from './routes/expenses.js';
 import damagedProductsRoutes from './routes/damagedProducts.js';
 
+import compression from 'compression';
+
 dotenv.config();
 
 // Fix for MongoDB Atlas DNS resolution issues
@@ -35,9 +37,10 @@ dns.setDefaultResultOrder('ipv4first');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-
-
 const app = express();
+
+// Enable Gzip/Brotli compression for fast JSON and asset transfer
+app.use(compression());
 
 // Trust proxy for Railway (crucial for secure cookies behind reverse proxies)
 app.set('trust proxy', 1);

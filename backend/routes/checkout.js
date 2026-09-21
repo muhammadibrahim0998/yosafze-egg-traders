@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import Order from '../models/Order.js';
 import Customer from '../models/Customer.js';
 import Sale from '../models/Sale.js';
-import Item from '../models/Item.js';
+import Item, { getBranchItemModel } from '../models/Item.js';
 import Settings from '../models/Settings.js';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
@@ -300,6 +300,15 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
           }
           dbItem.lastUpdated = new Date().toISOString().split('T')[0];
           await dbItem.save();
+
+          if (order.shopId) {
+            try {
+              const BranchModel = getBranchItemModel(order.shopId);
+              await BranchModel.findByIdAndUpdate(dbItem._id, dbItem.toObject(), { upsert: true });
+            } catch (branchErr) {
+              console.warn('[Checkout BranchModel Sync Warning]:', branchErr.message);
+            }
+          }
 
           const costPrice = dbItem.costPrice || 0;
           const profit = (item.price - costPrice) * (item.quantity || 1);

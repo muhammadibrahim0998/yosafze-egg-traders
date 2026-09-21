@@ -1,5 +1,5 @@
 import {
-  ShoppingBag, ShoppingCart, Eye, Edit2, Trash2, AlertTriangle, Package, XCircle
+  ShoppingBag, ShoppingCart, Eye, Edit2, Trash2, AlertTriangle, Package, XCircle, Lock
 } from 'lucide-react';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
@@ -133,8 +133,17 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
 
         {/* Action Controls */}
         <div className="flex flex-col gap-1.5 w-full pt-1">
-          {/* Hide Add to Cart / Add to Bill button when stock <= 0 */}
-          {!isOutOfStock && (
+          {/* Add to Cart / Add to Bill button (Locked in Red if Out of Stock) */}
+          {isOutOfStock ? (
+            <button
+              disabled
+              className="w-full py-2 px-2 rounded-xl bg-red-600/90 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border border-red-500 cursor-not-allowed opacity-90"
+              title="Out of Stock - Purchase more to restock"
+            >
+              <Lock className="w-3.5 h-3.5 text-red-100" />
+              <span>Out of Stock (Locked)</span>
+            </button>
+          ) : (
             <button
               onClick={(e) => {
                 e.stopPropagation();

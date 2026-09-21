@@ -4,17 +4,36 @@ import { login as apiLogin, logout as apiLogout, getMe } from '../services/api';
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nexflow_user') || sessionStorage.getItem('nexflow_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
+      const token = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
+      if (!token) {
+        setUser(null);
+        localStorage.removeItem('nexflow_user');
+        return;
+      }
       try {
         const data = await getMe();
-        setUser(data.user);
+        if (data?.user) {
+          setUser(data.user);
+          localStorage.setItem('nexflow_user', JSON.stringify(data.user));
+        }
       } catch (error) {
-        setUser(null);
-        localStorage.removeItem('nexflow_token');
+        if (error.response?.status === 401) {
+          setUser(null);
+          localStorage.removeItem('nexflow_token');
+          localStorage.removeItem('nexflow_user');
+        }
       } finally {
         setLoading(false);
       }
@@ -27,6 +46,9 @@ export const UserProvider = ({ children }) => {
       const data = await apiLogin({ username, password });
       if (data.token) {
         localStorage.setItem('nexflow_token', data.token);
+      }
+      if (data.user) {
+        localStorage.setItem('nexflow_user', JSON.stringify(data.user));
       }
       setUser(data.user);
       // Role-based redirect after login
@@ -54,6 +76,7 @@ export const UserProvider = ({ children }) => {
     } finally {
       setUser(null);
       localStorage.removeItem('nexflow_token');
+      localStorage.removeItem('nexflow_user');
       localStorage.removeItem('nexflow_shift');
     }
   };

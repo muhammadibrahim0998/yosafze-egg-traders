@@ -20,6 +20,22 @@ export default defineConfig({
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
+  build: {
+    target: 'esnext',
+    minify: 'esbuild',
+    cssMinify: true,
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['lucide-react', 'sonner', 'next-themes'],
+          export: ['jspdf', 'jspdf-autotable', 'exceljs', 'file-saver']
+        }
+      }
+    }
+  },
+
   server: {
     proxy: {
       // Forward all /api requests to the backend server

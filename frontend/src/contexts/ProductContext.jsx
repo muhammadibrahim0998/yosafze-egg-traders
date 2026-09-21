@@ -38,9 +38,16 @@ function getStockStatus(stock, minStock) {
 }
 
 export function ProductProvider({ children }) {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem('nexflow_cached_products');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,7 +78,7 @@ export function ProductProvider({ children }) {
   // Fetch logic
   useEffect(() => {
     if (user) {
-      fetchData(true); // first load → show spinner
+      fetchData(false); // fast silent refresh if already cached
       const timer = setInterval(() => {
         fetchData(false); // background refresh → no spinner
       }, 8000);
@@ -88,11 +95,18 @@ export function ProductProvider({ children }) {
       if (showSpinner) setLoading(true);
       const activeShopId = user?.shopId ? String(user.shopId) : null;
       const [productsData, salesData] = await Promise.all([
-        getItems(activeShopId).catch(() => []),
-        getSales(activeShopId).catch(() => [])
+        getItems(activeShopId).catch(() => null),
+        getSales(activeShopId).catch(() => null)
       ]);
-      setProducts(Array.isArray(productsData) ? productsData : []);
-      setSales(Array.isArray(salesData) ? salesData : []);
+      if (Array.isArray(productsData)) {
+        setProducts(productsData);
+        try {
+          localStorage.setItem('nexflow_cached_products', JSON.stringify(productsData));
+        } catch (e) {}
+      }
+      if (Array.isArray(salesData)) {
+        setSales(salesData);
+      }
       setInitialLoad(false);
     } catch (e) {
       console.error(e);

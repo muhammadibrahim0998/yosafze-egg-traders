@@ -121,4 +121,11 @@ const SaleSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+SaleSchema.index({ shopId: 1, saleDate: -1 });
+SaleSchema.index({ shopId: 1, createdAt: -1 });
+SaleSchema.index({ customerId: 1 });
+SaleSchema.index({ customerEmail: 1 });
+SaleSchema.index({ status: 1 });
+SaleSchema.index({ paymentMethod: 1 });
+
 export default mongoose.model('Sale', SaleSchema);

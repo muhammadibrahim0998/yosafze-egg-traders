@@ -488,10 +488,31 @@ function StoreContent({ shopId }) {
   );
 
   const canBuy = !isAdminUser;
-  const [shop, setShop] = useState(null);
-  const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [shop, setShop] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`nexflow_cached_shop_${shopId}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [items, setItems] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`nexflow_cached_catalog_${shopId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [categories, setCategories] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`nexflow_cached_categories_${shopId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -5200,17 +5221,25 @@ function StoreContent({ shopId }) {
   };
 
   const fetchCatalog = async () => {
-    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (activeCategory !== 'All') params.set('category', activeCategory);
       const res = await fetch(`${API_CATALOG}/${shopId}?${params}`);
       const data = await res.json();
-      if (res.ok) {
-        setShop(data.shop);
-        setItems(data.items);
-        setCategories(data.categories);
+      if (res.ok && data) {
+        if (data.shop) {
+          setShop(data.shop);
+          try { localStorage.setItem(`nexflow_cached_shop_${shopId}`, JSON.stringify(data.shop)); } catch (e) {}
+        }
+        if (Array.isArray(data.items)) {
+          setItems(data.items);
+          try { localStorage.setItem(`nexflow_cached_catalog_${shopId}`, JSON.stringify(data.items)); } catch (e) {}
+        }
+        if (Array.isArray(data.categories)) {
+          setCategories(data.categories);
+          try { localStorage.setItem(`nexflow_cached_categories_${shopId}`, JSON.stringify(data.categories)); } catch (e) {}
+        }
 
         // Compute stats from catalog items
         const now = new Date();
@@ -6437,15 +6466,16 @@ function StoreContent({ shopId }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                       {items.map(item => {
                         const itemStock = Number(item.stock) || 0;
+                        const itemPetiQty = Number(item.petiQuantity) || 0;
                         const itemMinStock = Number(item.minStock) || 5;
-                        const itemOutOfStock = itemStock <= 0;
-                        const itemLowStock = itemStock > 0 && itemStock <= itemMinStock;
+                        const itemOutOfStock = itemStock <= 0 || (item.unitType === 'peti' && itemPetiQty <= 0 && itemStock <= 0);
+                        const itemLowStock = !itemOutOfStock && itemStock <= itemMinStock;
 
                         return (
                           <div
                             key={item._id}
                             className={`group bg-white border rounded-[26px] overflow-hidden transition-all duration-300 hover:-translate-y-1 flex flex-col shadow-xs hover:shadow-xl ${itemOutOfStock
-                              ? 'border-red-200/80 opacity-80'
+                              ? 'border-red-300/80 bg-red-50/20'
                               : itemLowStock
                                 ? 'border-amber-300/80 hover:border-amber-500'
                                 : 'border-slate-200/90 hover:border-emerald-500'
@@ -6471,8 +6501,8 @@ function StoreContent({ shopId }) {
                               {/* Stock Badge - Top Right */}
                               <div className="absolute top-3 right-3">
                                 {itemOutOfStock ? (
-                                  <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-md backdrop-blur-md">
-                                    Out of Stock
+                                  <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-md backdrop-blur-md flex items-center gap-1 border border-red-400">
+                                    <Lock className="w-2.5 h-2.5" /> Sold Out (0 Petis)
                                   </span>
                                 ) : itemLowStock ? (
                                   <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-3 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md animate-pulse">
@@ -6506,13 +6536,22 @@ function StoreContent({ shopId }) {
 
                               {itemOutOfStock && (
                                 <div className="flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 font-bold text-[10px] uppercase justify-center">
-                                  <span>Out of Stock (0 remaining)</span>
+                                  <span>🚫 Sold Out (0 Remaining - Restock Required)</span>
                                 </div>
                               )}
 
                               {isAdminUser ? (
                                 <div className="flex flex-col gap-2 w-full pt-1">
-                                  {!itemOutOfStock && (
+                                  {itemOutOfStock ? (
+                                    <button
+                                      disabled
+                                      className="w-full py-2.5 px-3 rounded-2xl bg-red-600/90 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm border border-red-500 cursor-not-allowed opacity-90"
+                                      title="This product is sold out. Please add new purchase/restock."
+                                    >
+                                      <Lock className="w-3.5 h-3.5 text-red-100" />
+                                      <span>Sold Out (Locked)</span>
+                                    </button>
+                                  ) : (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
                                       className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md active:scale-95 transition-all cursor-pointer"
@@ -6560,7 +6599,16 @@ function StoreContent({ shopId }) {
                                     <Plus className="w-4 h-4 text-emerald-100" />
                                     <span>+ Add to Cart</span>
                                   </button>
-                                ) : null
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-red-600/90 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-sm cursor-not-allowed opacity-90 border border-red-500"
+                                    title="Out of Stock - Restock required"
+                                  >
+                                    <Lock className="w-4 h-4 text-red-100" />
+                                    <span>Out of Stock (Locked)</span>
+                                  </button>
+                                )
                               ) : null}
                             </div>
                           </div>
@@ -10974,7 +11022,16 @@ function StoreContent({ shopId }) {
                     <ShoppingCart className="w-4 h-4 text-emerald-100" />
                     <span>Add to Cart</span>
                   </button>
-                ) : null
+                ) : (
+                  <button
+                    disabled
+                    className="w-full py-3 bg-red-600/90 text-white font-black text-xs uppercase tracking-wider rounded-xl border border-red-500 flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-sm"
+                    title="Out of Stock - Purchase more to restock"
+                  >
+                    <Lock className="w-4 h-4 text-red-100" />
+                    <span>Out of Stock (Locked)</span>
+                  </button>
+                )
               ) : null}
             </div>
           </div>
@@ -11798,7 +11855,34 @@ export function CustomerStorefront() {
   const { shopId } = useParams();
   const { user } = useUser();
 
-  const activeShopId = shopId || (user?.shopId ? String(user.shopId) : null);
+  const savedUserShopId = (() => {
+    try {
+      const saved = localStorage.getItem('nexflow_user') || sessionStorage.getItem('nexflow_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed?.shopId ? String(parsed.shopId) : null;
+      }
+    } catch (e) {}
+    return null;
+  })();
+
+  const savedSelectedShopId = (() => {
+    try {
+      return localStorage.getItem('yosafze_selected_shop_id') || sessionStorage.getItem('yosafze_selected_shop_id') || null;
+    } catch (e) {}
+    return null;
+  })();
+
+  const activeShopId = shopId || (user?.shopId ? String(user.shopId) : null) || savedUserShopId || savedSelectedShopId;
+
+  useEffect(() => {
+    if (activeShopId) {
+      try {
+        localStorage.setItem('yosafze_selected_shop_id', activeShopId);
+      } catch (e) {}
+    }
+  }, [activeShopId]);
+
   if (!activeShopId) return <ShopsList />;
 
   return (
