@@ -14,11 +14,17 @@ const resetLogins = async () => {
     const shopId = mainShop ? mainShop._id : null;
     console.log('Main Shop ID:', shopId);
 
-    // 1. Setup / Update Shop Admin for Yosafze Egg Traders
+    // Remove any palto erp@gmail.com user
+    await User.deleteMany({
+      $or: [
+        { email: 'erp@gmail.com' },
+        { username: 'erp@gmail.com' }
+      ]
+    });
+
+    // 1. Setup / Update Shop Admin for Yosafze Egg Traders (admin@yosafze.com)
     let shopAdmin = await User.findOne({ 
       $or: [
-        { email: 'erp@gmail.com' }, 
-        { username: 'erp@gmail.com' },
         { email: 'admin@yosafze.com' },
         { username: 'admin@yosafze.com' },
         { username: 'admin' }
@@ -27,7 +33,7 @@ const resetLogins = async () => {
 
     if (!shopAdmin) {
       shopAdmin = new User({
-        username: 'admin',
+        username: 'admin@yosafze.com',
         email: 'admin@yosafze.com',
         fullName: 'Yosafze Egg Traders Admin',
         role: 'shop_admin',
@@ -45,29 +51,11 @@ const resetLogins = async () => {
     shopAdmin.password = 'admin123'; // Will be hashed by pre-save hook
     await shopAdmin.save();
 
-    // 2. Also ensure erp@gmail.com exists with password 'admin123' if they try typing it
-    let erpUser = await User.findOne({ username: 'erp@gmail.com' });
-    if (!erpUser) {
-      erpUser = new User({
-        username: 'erp@gmail.com',
-        email: 'erp@gmail.com',
-        fullName: 'Yosafze Egg Traders Admin',
-        role: 'shop_admin',
-        shopId: shopId,
-        status: 'active'
-      });
-    }
-    erpUser.password = 'admin123';
-    erpUser.shopId = shopId;
-    erpUser.status = 'active';
-    await erpUser.save();
-
-    // 3. Super Admin (Mainyet123@gmail.com)
+    // 2. Super Admin (Mainyet123@gmail.com)
     await User.deleteMany({
-      $or: [
-        { email: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } },
-        { username: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } }
-      ]
+      role: 'super_admin',
+      email: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] },
+      username: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] }
     });
 
     let mainyetAdmin = await User.findOne({ 
@@ -100,7 +88,7 @@ const resetLogins = async () => {
 
     console.log('\n--- AVAILABLE LOGINS ---');
     console.log('1. Shop Admin (Yosafze Egg Traders):');
-    console.log('   Username/Email: admin@yosafze.com (or erp@gmail.com)');
+    console.log('   Username/Email: admin@yosafze.com');
     console.log('   Password:       admin123');
     console.log('2. Super Admin:');
     console.log('   Username/Email: Mainyet123@gmail.com');

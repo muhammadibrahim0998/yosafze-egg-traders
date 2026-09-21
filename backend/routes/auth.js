@@ -77,7 +77,7 @@ router.post("/login", validateLogin, async (req, res) => {
     if (!user) {
       if (['superadmin', 'super_admin', 'super admin', 'mainyet', 'mainyet123@gmail.com', 'super'].includes(lowUser)) {
         user = await User.findOne({ role: 'super_admin' });
-      } else if (['admin', 'shopadmin', 'erp', 'erp@gmail.com', 'admin@yosafze.com'].includes(lowUser)) {
+      } else if (['admin', 'shopadmin', 'admin@yosafze.com'].includes(lowUser)) {
         user = await User.findOne({ role: 'shop_admin' });
       }
     }

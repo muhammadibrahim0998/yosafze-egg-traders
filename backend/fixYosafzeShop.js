@@ -37,12 +37,12 @@ const fixShop = async () => {
       console.log(`✅ Updated Settings [${s._id}] to: Yosafze Egg Traders Mardan`);
     }
 
-    // 3. Update any ERP user to Yosafze
-    const erpUsers = await User.find({ email: 'erp@gmail.com' });
-    for (const u of erpUsers) {
+    // 3. Update admin user for Yosafze
+    const adminUsers = await User.find({ role: 'shop_admin' });
+    for (const u of adminUsers) {
       u.fullName = 'Yosafze Egg Traders Mardan Admin';
       await u.save();
-      console.log(`✅ Updated user ${u.email}`);
+      console.log(`✅ Updated user ${u.email || u.username}`);
     }
 
     console.log('🎉 Database update complete!');

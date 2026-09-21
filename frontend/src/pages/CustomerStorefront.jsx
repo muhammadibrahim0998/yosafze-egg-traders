@@ -2350,6 +2350,19 @@ function StoreContent({ shopId }) {
     return groups;
   }, [filteredSalesForReport]);
 
+  const getCustomerIdentityGroupKey = (s) => {
+    if (!s) return null;
+    const foundGroup = (customerWiseSalesReport || []).find(c =>
+      (c.invoices || []).some(inv =>
+        (inv._id && s._id && String(inv._id) === String(s._id)) ||
+        (inv.invoiceNumber && s.invoiceNumber && String(inv.invoiceNumber) === String(s.invoiceNumber)) ||
+        (inv.serialNumber && s.serialNumber && String(inv.serialNumber) === String(s.serialNumber)) ||
+        (inv.orderId && s.orderId && String(inv.orderId) === String(s.orderId))
+      )
+    );
+    return foundGroup ? foundGroup.id : null;
+  };
+
   const handlePrintCustomerSalesReportStatement = (custGroup) => {
     const shopName = shop?.name || 'Yosafze Egg Traders';
     const name = custGroup.customerName || 'Customer';

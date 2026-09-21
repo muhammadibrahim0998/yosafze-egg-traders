@@ -8,20 +8,21 @@ const seedDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/egge');
 
-    // Remove any old super admin accounts
+    // Remove all other super admin accounts except Mainyet123@gmail.com
     await User.deleteMany({
-      $or: [
-        { email: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } },
-        { username: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } }
-      ]
+      role: 'super_admin',
+      email: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] },
+      username: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] }
     });
 
-    // Only create or update the initial door-opener (Super Admin)
+    // Only create or update the single Super Admin: Mainyet123@gmail.com
     let superAdmin = await User.findOne({ 
       $or: [
-        { role: 'super_admin' },
+        { email: 'Mainyet123@gmail.com' },
+        { username: 'Mainyet123@gmail.com' },
         { email: 'mainyet123@gmail.com' },
-        { username: 'mainyet123@gmail.com' }
+        { username: 'mainyet123@gmail.com' },
+        { role: 'super_admin' }
       ]
     });
 
