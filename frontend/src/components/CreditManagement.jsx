@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CreditCard, 
   Search, 
@@ -36,11 +36,18 @@ export function CreditManagement({
   shopId,
   shop,
   currency = 'Rs.',
+  initialTab = 'purchases',
   onRefresh,
   onOpenSettleCustomerCredit
 }) {
   // Active Tab: 'purchases' or 'customers'
-  const [activeTab, setActiveTab] = useState('purchases');
+  const [activeTab, setActiveTab] = useState(initialTab || 'purchases');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'UNPAID' | 'PARTIAL'
 

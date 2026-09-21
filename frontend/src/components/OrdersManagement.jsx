@@ -311,47 +311,52 @@ export function OrdersManagement({ shopId = null }) {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1 w-36 sm:w-40 shrink-0">
                   {ord.paymentStatus !== 'PAID' && (
                     <button
                       onClick={() => handleUpdateOrderStatus(ord._id, 'PAID')}
                       disabled={busyId === ord._id}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase shadow-lg active:scale-95 disabled:opacity-50"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer transition-all"
                     >
-                      Approve (PAID)
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span>Approve (PAID)</span>
                     </button>
                   )}
                   {ord.paymentStatus !== 'FAILED' && (
                     <button
                       onClick={() => handleUpdateOrderStatus(ord._id, 'FAILED')}
                       disabled={busyId === ord._id}
-                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase shadow-lg active:scale-95 disabled:opacity-50"
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer transition-all"
                     >
-                      Reject Payment
+                      <XCircle className="w-3 h-3 shrink-0" />
+                      <span>Reject Payment</span>
                     </button>
                   )}
                   {ord.paymentProof && (
                     <button
                       onClick={() => handleDeleteProof(ord._id)}
                       disabled={busyId === ord._id}
-                      className="px-3 py-2 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      className="px-2 py-1 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 rounded-lg text-[9px] font-bold uppercase transition-all shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete Screenshot
+                      <Trash2 className="w-3 h-3 shrink-0" />
+                      <span>Delete Screenshot</span>
                     </button>
                   )}
                   <button
                     onClick={() => handlePrintSingleOrder(ord)}
-                    className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500/40 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500/40 rounded-lg text-[9px] font-bold uppercase transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
                     title="Print Single Customer Order Record"
                   >
-                    <Printer className="w-3.5 h-3.5" /> Print Order Record
+                    <Printer className="w-3 h-3 shrink-0" />
+                    <span>Print Order</span>
                   </button>
                   <button
                     onClick={() => setDeleteTarget(ord)}
                     disabled={busyId === ord._id}
-                    className="px-3 py-2 bg-zinc-800/80 hover:bg-rose-900/60 text-slate-300 hover:text-rose-300 border border-slate-700/60 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="px-2 py-1 bg-zinc-800/80 hover:bg-rose-900/60 text-slate-300 hover:text-rose-300 border border-slate-700/60 rounded-lg text-[9px] font-bold uppercase transition-all shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Order
+                    <Trash2 className="w-3 h-3 shrink-0" />
+                    <span>Delete Order</span>
                   </button>
                 </div>
               </div>

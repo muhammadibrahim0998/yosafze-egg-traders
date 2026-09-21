@@ -25,6 +25,7 @@ import { CreditManagement } from '../components/CreditManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
+import { CustomerCharts } from '../components/CustomerCharts.jsx';
 import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -502,6 +503,7 @@ function StoreContent({ shopId }) {
   const [isDesktopOpen, setIsDesktopOpen] = useState(true);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
+  const [customerOrders, setCustomerOrders] = useState([]);
   const [customerSelectedUnits, setCustomerSelectedUnits] = useState({});
   const [activeView, setActiveView] = useState(() => {
     try {
@@ -535,13 +537,19 @@ function StoreContent({ shopId }) {
   }, [shopId, isAdminUser]);
 
   useEffect(() => {
-    if (!isAdminUser) return;
-    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard') {
+    if (!isAdminUser) {
+      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'analytics-charts', 'customer-credits', 'purchase-credits'];
+      if (adminOnlyViews.includes(activeView)) {
+        setActiveView('products');
+      }
+      return;
+    }
+    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits') {
       fetchShopSales();
       fetchRegisteredCustomers();
       fetchCatalog();
     }
-    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard') {
+    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard' || activeView === 'purchase-credits') {
       fetchExpenses();
       fetchDamagedProducts();
     }
@@ -5515,6 +5523,7 @@ function StoreContent({ shopId }) {
           );
           const spent = myOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
           setDashStats(prev => ({ ...prev, totalOrders: myOrders.length, totalSpent: spent }));
+          setCustomerOrders(myOrders);
         }
       }
     } catch (e) {
@@ -5553,7 +5562,7 @@ function StoreContent({ shopId }) {
 
 
   return (
-    <div className={`flex flex-col h-[100dvh] overflow-hidden ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'} w-full tracking-tight`}>
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-slate-100 text-zinc-900 w-full tracking-tight">
       {/* Cart Drawer */}
       <CartDrawer currency={currency} />
 
@@ -5566,7 +5575,7 @@ function StoreContent({ shopId }) {
       )}
 
       {/* Top Navbar — Luxury Dark Black-Green Gradient */}
-      <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-4 border-b-blue-500 shadow-[0_15px_50px_rgba(37,99,235,0.9),_0_10px_30px_rgba(59,130,246,0.85)] transition-all duration-300">
+      <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-2 border-b-emerald-800/40 shadow-lg transition-all duration-300">
         <div className="flex items-center justify-between h-20 gap-4 px-4 sm:px-6 max-w-[1600px] mx-auto">
 
           {/* Left branding */}
@@ -5854,6 +5863,28 @@ function StoreContent({ shopId }) {
                   </button>
 
                   <button
+                    onClick={() => { setActiveView('customer-credits'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'customer-credits'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                      }`}
+                  >
+                    <CreditCard className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
+                    <span className="truncate">Customer Credit</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('purchase-credits'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchase-credits'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                      }`}
+                  >
+                    <Truck className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
+                    <span className="truncate">Purchase Credits</span>
+                  </button>
+
+                  <button
                     onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-profit'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
@@ -5959,14 +5990,14 @@ function StoreContent({ shopId }) {
           </div>
         </aside>
 
-        {/* ─── Main Content Pane with White/Light Background for Admin ──────── */}
-        <div className={`flex-1 w-full min-w-0 flex flex-col overflow-hidden relative ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'}`}>
-          <main id="main-store-content" className={`flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 scroll-smooth ${isAdminUser ? 'bg-slate-100 text-zinc-900' : 'bg-[#0f172a] text-white'}`}>
+        {/* ─── Main Content Pane with Clean White & Gray Background ──────── */}
+        <div className="flex-1 w-full min-w-0 flex flex-col overflow-hidden relative bg-slate-100 text-zinc-900">
+          <main id="main-store-content" className="flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 scroll-smooth bg-slate-100 text-zinc-900">
             <div className="max-w-7xl mx-auto space-y-3">
 
               {/* ─── Header Banner (visible only on Dashboard & Products) ─── */}
               {(activeView === 'dashboard' || activeView === 'products') && (
-                <div className={`relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-md flex items-center justify-between gap-4 overflow-hidden w-full ${isAdminUser ? 'bg-white border-zinc-200 text-zinc-900 shadow-xl' : 'bg-gradient-to-r from-[#1E293B] via-[#1B3817] to-[#0f172a] border-slate-700/60 text-white'}`}>
+                <div className="relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-sm flex items-center justify-between gap-4 overflow-hidden w-full bg-white border-zinc-200 text-zinc-900">
                   <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
                     <ShoppingBag className="w-24 h-24 sm:w-32 sm:h-32 text-emerald-400" />
                   </div>
@@ -5976,7 +6007,7 @@ function StoreContent({ shopId }) {
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {user?.fullName || customer?.fullName || 'Shop Admin'}
                       </span>
                       <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-zinc-900 truncate">
-                        {activeView === 'dashboard' ? '📊 Executive Business Dashboard' : activeView === 'vendors' ? '🏢 Vendors & Suppliers Directory' : '📦 Products & Inventory Catalog'}
+                        {activeView === 'dashboard' ? (isAdminUser ? '📊 Executive Business Dashboard' : '📊 Customer Overview') : (activeView === 'vendors' && isAdminUser) ? '🏢 Vendors & Suppliers Directory' : '📦 Products & Inventory Catalog'}
                       </h1>
                     </div>
 
@@ -6002,15 +6033,17 @@ function StoreContent({ shopId }) {
                         >
                           <ShoppingBag className="w-3.5 h-3.5" /> Products
                         </button>
-                        <button
-                          onClick={() => setActiveView('vendors')}
-                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'vendors'
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : 'text-zinc-600 hover:text-zinc-950'
-                            }`}
-                        >
-                          <Building2 className="w-3.5 h-3.5" /> Vendors
-                        </button>
+                        {isAdminUser && (
+                          <button
+                            onClick={() => setActiveView('vendors')}
+                            className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'vendors'
+                              ? 'bg-zinc-900 text-white shadow-md'
+                              : 'text-zinc-600 hover:text-zinc-950'
+                              }`}
+                          >
+                            <Building2 className="w-3.5 h-3.5" /> Vendors
+                          </button>
+                        )}
                       </div>
 
                       {isAdminUser && (
@@ -6213,31 +6246,31 @@ function StoreContent({ shopId }) {
                       {/* Customer Stat Cards */}
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                         {[
-                          { label: 'Items in Cart', value: cartCount, icon: '🛒', color: 'from-blue-900/60 to-blue-800/40 border-blue-700/60', textColor: 'text-blue-300', sub: 'Ready to Order' },
-                          { label: 'My Orders', value: dashStats.totalOrders, icon: '📋', color: 'from-emerald-900/60 to-emerald-800/40 border-emerald-700/60', textColor: 'text-emerald-300', sub: 'Placed Orders' },
-                          { label: 'Total Spent', value: `RS ${dashStats.totalSpent.toLocaleString('en-PK')}`, icon: '💰', color: 'from-amber-900/60 to-amber-800/40 border-amber-700/60', textColor: 'text-amber-300', sub: 'All-Time Purchases' },
-                          { label: 'Products Available', value: dashStats.totalProducts, icon: '📦', color: 'from-violet-900/60 to-violet-800/40 border-violet-700/60', textColor: 'text-violet-300', sub: 'In Shop Catalog' },
-                          { label: 'In Stock', value: dashStats.totalStock > 0 ? dashStats.totalStock.toLocaleString('en-PK') : '—', icon: '✅', color: 'from-green-900/60 to-green-800/40 border-green-700/60', textColor: 'text-green-300', sub: 'Units Available' },
-                          { label: 'Shop', value: shop?.name || 'My Shop', icon: '🏪', color: 'from-slate-800/80 to-slate-700/60 border-slate-600/60', textColor: 'text-white', sub: shop?.address || 'Your Store' },
-                        ].map(({ label, value, icon, color, textColor, sub }) => (
-                          <div key={label} className={`bg-gradient-to-br ${color} border rounded-2xl p-5 flex flex-col gap-2`}>
+                          { label: 'Items in Cart', value: cartCount, icon: '🛒', color: 'bg-white border-blue-200 hover:border-blue-400', textColor: 'text-blue-700', subColor: 'text-blue-600', sub: 'Ready to Order' },
+                          { label: 'My Orders', value: dashStats.totalOrders, icon: '📋', color: 'bg-white border-emerald-200 hover:border-emerald-400', textColor: 'text-emerald-700', subColor: 'text-emerald-600', sub: 'Placed Orders' },
+                          { label: 'Total Spent', value: `RS ${dashStats.totalSpent.toLocaleString('en-PK')}`, icon: '💰', color: 'bg-white border-amber-200 hover:border-amber-400', textColor: 'text-amber-700', subColor: 'text-amber-600', sub: 'All-Time Purchases' },
+                          { label: 'Products Available', value: dashStats.totalProducts, icon: '📦', color: 'bg-white border-indigo-200 hover:border-indigo-400', textColor: 'text-indigo-700', subColor: 'text-indigo-600', sub: 'In Shop Catalog' },
+                          { label: 'In Stock', value: dashStats.totalStock > 0 ? dashStats.totalStock.toLocaleString('en-PK') : '—', icon: '✅', color: 'bg-white border-green-200 hover:border-green-400', textColor: 'text-green-700', subColor: 'text-green-600', sub: 'Units Available' },
+                          { label: 'Shop', value: shop?.name || 'My Shop', icon: '🏪', color: 'bg-white border-slate-200 hover:border-slate-400', textColor: 'text-slate-900', subColor: 'text-slate-500', sub: shop?.address || 'Your Store' },
+                        ].map(({ label, value, icon, color, textColor, subColor, sub }) => (
+                          <div key={label} className={`${color} border-2 rounded-2xl p-5 flex flex-col gap-2 shadow-sm transition-all hover:scale-[1.02]`}>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</span>
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{label}</span>
                               <span className="text-xl">{icon}</span>
                             </div>
                             <p className={`text-xl sm:text-2xl font-black ${textColor} tracking-tight`}>{value}</p>
-                            <span className="text-[9px] text-white/30 font-bold uppercase tracking-wider">{sub}</span>
+                            <span className={`text-[9.5px] ${subColor} font-bold uppercase tracking-wider`}>{sub}</span>
                           </div>
                         ))}
                       </div>
 
                       {/* Customer Quick Actions */}
-                      <div className="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-5">
-                        <h3 className="text-xs font-black text-white/60 uppercase tracking-widest mb-4">⚡ Quick Actions</h3>
+                      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">⚡ Quick Actions</h3>
                         <div className="flex flex-wrap gap-3">
                           <button
                             onClick={() => { setActiveView('products'); setActiveCategory('All'); }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-700/60 hover:bg-emerald-600/80 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-emerald-600/40 transition-all"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer"
                           >
                             <ShoppingBag className="w-4 h-4" /> Browse Products
                           </button>
@@ -6245,13 +6278,13 @@ function StoreContent({ shopId }) {
                             <>
                               <button
                                 onClick={() => setCartOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-blue-700/60 hover:bg-blue-600/80 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-blue-600/40 transition-all"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer"
                               >
                                 <ShoppingCart className="w-4 h-4" /> My Cart ({cartCount})
                               </button>
                               <button
                                 onClick={() => setOrderOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-violet-700/60 hover:bg-violet-600/80 text-white text-xs font-black uppercase tracking-wider rounded-xl border border-violet-600/40 transition-all"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm transition-all cursor-pointer"
                               >
                                 <Truck className="w-4 h-4" /> My Orders
                               </button>
@@ -6259,13 +6292,24 @@ function StoreContent({ shopId }) {
                           )}
                         </div>
                       </div>
+
+                      {/* ─── CUSTOMER GRAPHS & CHARTS ANALYTICS ─── */}
+                      <CustomerCharts
+                        orders={customerOrders}
+                        customer={customer}
+                        dashStats={dashStats}
+                        products={items}
+                        currency={currency}
+                        onBrowseProducts={() => { setActiveView('products'); setActiveCategory('All'); }}
+                        onViewOrders={() => setOrderOpen(true)}
+                      />
                     </>
                   )}
                 </div>
               )}
 
               {/* ─── VENDORS & SUPPLIERS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'vendors' && (
+              {activeView === 'vendors' && isAdminUser && (
                 <VendorsManagement
                   onAddProduct={() => setAddProductModal(true)}
                   onEditProduct={(p) => setEditModalProduct(p)}
@@ -6273,7 +6317,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'purchases' && (
+              {activeView === 'purchases' && isAdminUser && (
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
                   <PurchasesManagement
                     products={items}
@@ -6302,27 +6346,27 @@ function StoreContent({ shopId }) {
                       onChange={e => setSearch(e.target.value)}
                       onFocus={() => setShowSearchDropdown(true)}
                       onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-2xl py-3 pl-10 pr-4 text-xs font-bold text-white outline-none focus:border-emerald-500 transition-colors shadow-inner"
+                      className="w-full bg-white border border-slate-300 rounded-2xl py-3 pl-10 pr-4 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 transition-colors shadow-sm"
                     />
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
                     {/* Mobile Search Dropdown */}
                     {search.trim() && showSearchDropdown && (
-                      <div className="absolute top-full mt-2 w-full bg-[#1E293B] border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="absolute top-full mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                         {items.length > 0 ? (
                           <div className="max-h-60 overflow-y-auto py-2 scrollbar-hide">
                             {items.map(item => (
                               <button
                                 key={item._id}
                                 onClick={() => { setSelectedItem(item); setSearch(''); setShowSearchDropdown(false); }}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-800 transition-colors text-left border-b border-slate-700/50 last:border-0"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"
                               >
-                                <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-700">
-                                  {item.images?.[0] ? <img src={item.images[0]} className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-1.5 text-slate-600" />}
+                                <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                                  {item.images?.[0] ? <img src={item.images[0]} className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-1.5 text-slate-400" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-white text-[11px] truncate uppercase tracking-tight">{item.name}</p>
-                                  <p className="text-emerald-400 font-black text-[9px]">{currency} {item.price}</p>
+                                  <p className="font-bold text-slate-900 text-[11px] truncate uppercase tracking-tight">{item.name}</p>
+                                  <p className="text-emerald-600 font-black text-[9px]">{currency} {item.price}</p>
                                 </div>
                               </button>
                             ))}
@@ -6338,16 +6382,16 @@ function StoreContent({ shopId }) {
 
                   {/* Category Pills (Mobile/Quick Filter) */}
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                    <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase tracking-widest pr-2 border-r border-slate-700">
+                    <div className="flex items-center gap-1.5 text-emerald-700 text-[10px] font-black uppercase tracking-widest pr-2 border-r border-slate-300">
                       <Filter className="w-3.5 h-3.5" /> Filter
                     </div>
                     {categories.map(cat => (
                       <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        className={`whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${activeCategory === cat
-                          ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 border-t border-t-amber-200 border-b-2 border-b-amber-800 shadow-[0_4px_12px_rgba(245,158,11,0.35),0_2px_6px_rgba(15,23,42,0.4)] scale-105'
-                          : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700 shadow-[0_2px_8px_rgba(15,23,42,0.4)] hover:shadow-[0_4px_12px_rgba(15,23,42,0.5),0_0_10px_rgba(59,130,246,0.25),0_0_6px_rgba(245,158,11,0.15)] hover:border-blue-400/50'
+                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${activeCategory === cat
+                          ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 border-t border-t-amber-200 border-b-2 border-b-amber-800 shadow-md scale-105'
+                          : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 shadow-xs hover:border-amber-400'
                           }`}
                       >
                         {cat !== 'All' && <img src="/egg.png" alt="" className="w-3.5 h-3.5 object-contain" />}
@@ -6358,7 +6402,7 @@ function StoreContent({ shopId }) {
                     {isAdminUser && (
                       <button
                         onClick={() => setAddProductModal(true)}
-                        className="ml-auto whitespace-nowrap flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-lg transition-all shrink-0 cursor-pointer"
+                        className="ml-auto whitespace-nowrap flex items-center gap-1.5 px-4 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-sm transition-all shrink-0 cursor-pointer active:scale-95"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add Product
                       </button>
@@ -6372,9 +6416,9 @@ function StoreContent({ shopId }) {
                       <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Catalog...</p>
                     </div>
                   ) : items.length === 0 ? (
-                    <div className="text-center py-20 bg-slate-800/40 border border-slate-700/60 rounded-3xl flex flex-col items-center">
-                      <Package className="w-16 h-16 text-slate-600 mb-3" />
-                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No products found</p>
+                    <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl flex flex-col items-center shadow-sm">
+                      <Package className="w-16 h-16 text-slate-400 mb-3" />
+                      <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No products found</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -6387,15 +6431,15 @@ function StoreContent({ shopId }) {
                         return (
                           <div
                             key={item._id}
-                            className={`group bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 border-2 rounded-2xl sm:rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] flex flex-col ${itemOutOfStock
-                              ? 'border-red-500/40 opacity-85 shadow-[0_8px_20px_-4px_rgba(239,68,68,0.2)]'
+                            className={`group bg-white border rounded-[26px] overflow-hidden transition-all duration-300 hover:-translate-y-1 flex flex-col shadow-xs hover:shadow-xl ${itemOutOfStock
+                              ? 'border-red-200/80 opacity-80'
                               : itemLowStock
-                                ? 'border-amber-500/60 shadow-[0_8px_20px_-4px_rgba(245,158,11,0.25),0_0_10px_rgba(15,23,42,0.5)] hover:shadow-[0_16px_35px_-6px_rgba(15,23,42,0.7),0_0_20px_rgba(37,99,235,0.35),0_0_15px_rgba(245,158,11,0.25)] hover:border-amber-400'
-                                : 'border-slate-700/70 hover:border-blue-500/80 shadow-[0_8px_20px_-4px_rgba(15,23,42,0.6),0_0_10px_rgba(37,99,235,0.15)] hover:shadow-[0_16px_35px_-6px_rgba(15,23,42,0.7),0_0_20px_rgba(37,99,235,0.35),0_0_15px_rgba(245,158,11,0.2)]'
+                                ? 'border-amber-300/80 hover:border-amber-500'
+                                : 'border-slate-200/90 hover:border-emerald-500'
                               }`}
                           >
-                            {/* Image Container with Smooth Zoom & Blue Overlay */}
-                            <button onClick={() => setSelectedItem(item)} className="block aspect-square bg-slate-950 overflow-hidden relative cursor-pointer text-left w-full">
+                            {/* Image Container with Smooth Rounded Corners & Zoom */}
+                            <button onClick={() => setSelectedItem(item)} className="block aspect-[4/3] sm:aspect-square bg-slate-50 overflow-hidden relative cursor-pointer text-left w-full rounded-t-[25px]">
                               <img
                                 src={(item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || '/egg2.png')}
                                 alt={item.name}
@@ -6403,28 +6447,26 @@ function StoreContent({ shopId }) {
                                   e.target.onerror = null;
                                   e.target.src = '/egg2.png';
                                 }}
-                                className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
+                                className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
                               />
-                              {/* Dark to Blue Gradient Overlay on Card Bottom */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/10 opacity-70 group-hover:opacity-40 transition-opacity duration-500 pointer-events-none" />
 
-                              {/* Category Badge - Glows Blue on Hover */}
-                              <div className="absolute top-3 left-3 bg-slate-950/85 group-hover:bg-blue-600/90 text-blue-300 group-hover:text-white px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-400/30 group-hover:border-blue-300 shadow-md backdrop-blur-md transition-all duration-300">
+                              {/* Category Badge */}
+                              <div className="absolute top-3 left-3 bg-slate-900/85 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md backdrop-blur-md">
                                 {item.category}
                               </div>
 
                               {/* Stock Badge - Top Right */}
                               <div className="absolute top-3 right-3">
                                 {itemOutOfStock ? (
-                                  <span className="bg-red-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-red-400 shadow-md backdrop-blur-md">
+                                  <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-md backdrop-blur-md">
                                     Out of Stock
                                   </span>
                                 ) : itemLowStock ? (
-                                  <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md animate-pulse">
+                                  <span className="bg-amber-500 text-zinc-950 text-[9px] font-black uppercase px-3 py-1 rounded-full border border-amber-300 shadow-md backdrop-blur-md animate-pulse">
                                     ⚠️ Low ({itemStock})
                                   </span>
                                 ) : (
-                                  <span className="bg-emerald-600/90 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-emerald-400/60 shadow-md backdrop-blur-md group-hover:scale-105 transition-transform duration-300">
+                                  <span className="bg-emerald-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-md backdrop-blur-md">
                                     Stock: {itemStock}
                                   </span>
                                 )}
@@ -6432,66 +6474,66 @@ function StoreContent({ shopId }) {
                             </button>
 
                             {/* Item Info & Action Buttons */}
-                            <div className="p-4 flex flex-col flex-1 justify-between gap-3 bg-slate-900/60">
-                              <button onClick={() => setSelectedItem(item)} className="text-left space-y-1 cursor-pointer">
-                                <h3 className="font-black text-white text-sm leading-snug line-clamp-2 uppercase tracking-tight group-hover:text-cyan-300 transition-colors duration-300">
+                            <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-3 bg-white rounded-b-[25px]">
+                              <button onClick={() => setSelectedItem(item)} className="text-left space-y-1.5 cursor-pointer">
+                                <h3 className="font-black text-slate-900 text-sm sm:text-base leading-snug line-clamp-1 uppercase tracking-tight group-hover:text-emerald-700 transition-colors duration-300">
                                   {item.name}
                                 </h3>
-                                <p className="text-emerald-400 group-hover:text-cyan-400 font-black text-lg transition-colors duration-300 drop-shadow-sm">
+                                <p className="text-emerald-600 group-hover:text-emerald-700 font-black text-xl tracking-tight transition-colors duration-300">
                                   {currency} {Number(item.price || 0).toLocaleString()}
                                 </p>
                               </button>
 
                               {/* Low Stock / Out of Stock Banner */}
                               {itemLowStock && (
-                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[10px] uppercase justify-center">
+                                <div className="flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 font-bold text-[10px] uppercase justify-center">
                                   <span>⚠️ Low Stock: Only {itemStock} left!</span>
                                 </div>
                               )}
 
                               {itemOutOfStock && (
-                                <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 font-bold text-[10px] uppercase justify-center">
+                                <div className="flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 font-bold text-[10px] uppercase justify-center">
                                   <span>Out of Stock (0 remaining)</span>
                                 </div>
                               )}
 
                               {isAdminUser ? (
-                                <div className="flex flex-col gap-1.5 w-full pt-1">
+                                <div className="flex flex-col gap-2 w-full pt-1">
                                   {!itemOutOfStock && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
-                                      className="w-full py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:shadow-emerald-500/40 border-t border-emerald-400/30 border-b-2 border-emerald-950 active:translate-y-[1px] transition-all cursor-pointer"
+                                      className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md active:scale-95 transition-all cursor-pointer"
                                       title="Add product to Customer Walk-in Bill"
                                     >
                                       <Receipt className="w-3.5 h-3.5" />
                                       <span>+ Add to Bill</span>
                                     </button>
                                   )}
-                                  <div className="grid grid-cols-3 gap-1.5 w-full">
+                                  <div className="grid grid-cols-3 gap-2 w-full">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-cyan-300 font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-600 hover:border-blue-400 shadow-md active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
+                                      className="py-2 px-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
                                       title="View Product Details"
                                     >
-                                      <Eye className="w-3 h-3 text-cyan-400" />
+                                      <Eye className="w-3.5 h-3.5 text-cyan-600" />
                                       <span>View</span>
                                     </button>
 
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md hover:shadow-blue-500/40 border-t border-blue-400/30 border-b-2 border-indigo-900 active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
+                                      className="py-2 px-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-blue-200 shadow-xs active:scale-95 transition-all cursor-pointer"
                                       title="Edit Product"
                                     >
-                                      <Edit2 className="w-3 h-3" />
+                                      <Edit2 className="w-3.5 h-3.5" />
                                       <span>Edit</span>
                                     </button>
 
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
-                                      className="py-1.5 px-1 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md hover:shadow-rose-500/40 border-t border-rose-400/30 border-b-2 border-rose-950 active:translate-y-[1px] hover:-translate-y-0.5 transition-all cursor-pointer"
+                                      className="py-2 px-1.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-xs active:scale-95 transition-all cursor-pointer"
                                       title="Delete Product"
                                     >
-                                      <Trash2 className="w-3 h-3" />
+                                      <Trash2 className="w-3.5 h-3.5" />
                                       <span>Delete</span>
                                     </button>
                                   </div>
@@ -6500,7 +6542,7 @@ function StoreContent({ shopId }) {
                                 !itemOutOfStock ? (
                                   <button
                                     onClick={() => handleAddToCart(item)}
-                                    className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-green-700 hover:from-emerald-500 hover:via-teal-600 hover:to-green-600 text-white border-t border-t-emerald-300/60 border-b-4 border-b-emerald-950 rounded-xl text-[10.5px] font-black uppercase tracking-[0.15em] transition-all duration-300 shadow-[0_8px_25px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.8),0_0_20px_rgba(59,130,246,0.5)] hover:-translate-y-0.5 active:translate-y-1 active:border-b-0 cursor-pointer"
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
                                   >
                                     <Plus className="w-4 h-4 text-emerald-100" />
                                     <span>+ Add to Cart</span>
@@ -9181,6 +9223,49 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
+              {/* ─── CUSTOMER CREDITS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'customer-credits' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <CreditManagement
+                    items={items}
+                    shopSalesList={shopSalesList}
+                    registeredCustomersList={registeredCustomersList}
+                    shopId={shopId}
+                    shop={shop}
+                    currency={currency}
+                    initialTab="customers"
+                    onRefresh={async () => {
+                      if (fetchCatalog) await fetchCatalog();
+                      if (fetchShopSales) await fetchShopSales();
+                      if (fetchRegisteredCustomers) await fetchRegisteredCustomers();
+                      if (fetchDashboardStats) await fetchDashboardStats();
+                    }}
+                    onOpenSettleCustomerCredit={(sale) => handleOpenSettleCredit(sale)}
+                  />
+                </div>
+              )}
+
+              {/* ─── PURCHASE CREDITS VIEW FOR SHOP ADMIN ─── */}
+              {activeView === 'purchase-credits' && isAdminUser && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <CreditManagement
+                    items={items}
+                    shopSalesList={shopSalesList}
+                    registeredCustomersList={registeredCustomersList}
+                    shopId={shopId}
+                    shop={shop}
+                    currency={currency}
+                    initialTab="purchases"
+                    onRefresh={async () => {
+                      if (fetchCatalog) await fetchCatalog();
+                      if (fetchShopSales) await fetchShopSales();
+                      if (fetchRegisteredCustomers) await fetchRegisteredCustomers();
+                      if (fetchDashboardStats) await fetchDashboardStats();
+                    }}
+                  />
+                </div>
+              )}
+
               {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-profit' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -10745,30 +10830,28 @@ function StoreContent({ shopId }) {
       {selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedItem(null)}>
           <div
-            className="bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 border-2 border-blue-500/50 rounded-3xl w-full max-w-[370px] sm:max-w-[390px] overflow-hidden shadow-[0_20px_60px_-10px_rgba(37,99,235,0.55),0_0_35px_rgba(59,130,246,0.3)] animate-in zoom-in-95 duration-300 text-white"
+            className="bg-white border-2 border-slate-200 rounded-3xl w-full max-w-[370px] sm:max-w-[390px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 text-slate-900"
             onClick={e => e.stopPropagation()}
           >
-            {/* Image Header with Glow Gradient */}
-            <div className="aspect-[16/10] overflow-hidden relative bg-slate-950 group">
+            {/* Image Header */}
+            <div className="aspect-[16/10] overflow-hidden relative bg-slate-100 group">
               {selectedItem.images?.[0] ? (
                 <img src={selectedItem.images[0]} alt={selectedItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                  <Egg className="w-16 h-16 text-blue-400/40" />
+                <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                  <Egg className="w-16 h-16 text-slate-400" />
                 </div>
               )}
-              {/* Subtle Blue/Dark Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/40 pointer-events-none" />
 
               {/* Category Pill */}
-              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-900/90 border border-blue-400/40 text-blue-300 text-[9.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-md">
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-900/80 text-white text-[9.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-md">
                 {selectedItem.category || 'Egg Product'}
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => setSelectedItem(null)}
-                className="absolute top-3 right-3 p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-full text-white border border-white/20 backdrop-blur-md transition-all shadow-md active:scale-90 cursor-pointer"
+                className="absolute top-3 right-3 p-1.5 bg-slate-900/80 hover:bg-rose-600 rounded-full text-white backdrop-blur-md transition-all shadow-md active:scale-90 cursor-pointer"
                 title="Close"
               >
                 <X className="w-4 h-4" />
@@ -10778,35 +10861,35 @@ function StoreContent({ shopId }) {
             {/* Modal Body */}
             <div className="p-4 sm:p-5 space-y-3">
               <div>
-                <h2 className="text-base sm:text-lg font-black text-white tracking-tight uppercase truncate">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight uppercase truncate">
                   {selectedItem.name}
                 </h2>
                 {selectedItem.description ? (
-                  <p className="text-slate-300 text-[11px] leading-relaxed font-medium mt-0.5 line-clamp-2">
+                  <p className="text-slate-600 text-[11px] leading-relaxed font-medium mt-0.5 line-clamp-2">
                     {selectedItem.description}
                   </p>
                 ) : (
-                  <p className="text-slate-400 text-[11px] font-medium mt-0.5">
+                  <p className="text-slate-500 text-[11px] font-medium mt-0.5">
                     Fresh egg category: {selectedItem.category || 'Standard'}
                   </p>
                 )}
               </div>
 
-              {/* Gray-Blue Highlight Box: Price & Stock */}
-              <div className="flex items-center justify-between p-3 bg-slate-950/80 border border-blue-500/30 rounded-2xl shadow-inner">
+              {/* Highlight Box: Price & Stock */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
-                  <p className="text-[9px] text-blue-300 font-black uppercase tracking-wider">Price per unit</p>
-                  <p className="text-xl font-black text-emerald-400 tracking-tight mt-0.5">
+                  <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Price per unit</p>
+                  <p className="text-xl font-black text-emerald-600 tracking-tight mt-0.5">
                     {currency} {Number(selectedItem.price || 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Stock Status</p>
+                  <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Stock Status</p>
                   <p className={`text-xs font-black px-2 py-0.5 rounded-lg inline-block mt-0.5 ${(Number(selectedItem.stock) || 0) <= 0
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
                     : (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5)
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                     }`}>
                     {(Number(selectedItem.stock) || 0) <= 0 ? 'Out of Stock' : `${selectedItem.stock} units`}
                   </p>
@@ -10824,17 +10907,17 @@ function StoreContent({ shopId }) {
 
                 return (
                   <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-amber-300 block uppercase">📦 1 Peti</span>
-                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {pPrice.toLocaleString()}</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-amber-700 block uppercase">📦 1 Peti</span>
+                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {pPrice.toLocaleString()}</span>
                     </div>
-                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-sky-300 block uppercase">🍱 1 Tray</span>
-                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {tPrice.toLocaleString()}</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-sky-700 block uppercase">🍱 1 Tray</span>
+                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {tPrice.toLocaleString()}</span>
                     </div>
-                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-emerald-300 block uppercase">🥚 1 Egg</span>
-                      <span className="text-[11px] font-black text-white mt-0.5 block">{currency} {ePrice}</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
+                      <span className="text-[8.5px] font-bold text-emerald-700 block uppercase">🥚 1 Egg</span>
+                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {ePrice}</span>
                     </div>
                   </div>
                 );
@@ -10842,13 +10925,13 @@ function StoreContent({ shopId }) {
 
               {/* Low Stock or Out of Stock Alert */}
               {(Number(selectedItem.stock) || 0) > 0 && (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) && (
-                <div className="p-2 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 font-bold text-[10.5px] flex items-center gap-1.5">
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-bold text-[10.5px] flex items-center gap-1.5">
                   <span>⚠️ Low Stock: Only {selectedItem.stock} left in stock!</span>
                 </div>
               )}
 
               {(Number(selectedItem.stock) || 0) <= 0 && (
-                <div className="p-2 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 font-bold text-[10.5px] flex items-center gap-1.5">
+                <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-red-700 font-bold text-[10.5px] flex items-center gap-1.5">
                   <span>🚫 Out of Stock: Currently unavailable.</span>
                 </div>
               )}
