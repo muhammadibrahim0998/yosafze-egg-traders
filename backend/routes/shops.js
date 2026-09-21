@@ -4,7 +4,7 @@ import { validateShop } from '../validators/shopValidator.js';
 import Shop from '../models/Shop.js';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
-import Item from '../models/Item.js';
+import Item, { getBranchItemModel } from '../models/Item.js';
 
 const DEFAULT_EGG_PRODUCTS = [
   { name: 'loman brown',       category: 'loman brown',       price: 25, stock: 500, costPrice: 20 },
@@ -93,8 +93,9 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
     }
 
     // Auto-seed all 20 default egg categories for the newly registered shop
+    const BranchModel = getBranchItemModel(shop._id);
     for (const prod of DEFAULT_EGG_PRODUCTS) {
-      await Item.create({
+      const created = await Item.create({
         shopId: shop._id,
         name: prod.name,
         category: prod.category,
@@ -105,6 +106,7 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
         description: `Fresh egg category: ${prod.name}`,
         images: ['/egg2.png']
       });
+      await BranchModel.findByIdAndUpdate(created._id, created.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
     }
 
     res.status(201).json({ shop, adminUser, settings });
@@ -167,6 +169,11 @@ router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
     // Also remove associated users
     await User.deleteMany({ shopId: req.params.id });
+    await Item.deleteMany({ shopId: req.params.id });
+    try {
+      const BranchModel = getBranchItemModel(req.params.id);
+      await BranchModel.deleteMany({});
+    } catch (bErr) {}
     res.json({ message: 'Shop and associated users deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

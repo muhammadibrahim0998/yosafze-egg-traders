@@ -137,4 +137,47 @@ const itemSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-export default mongoose.model('Item', itemSchema);
+// Compound indexes for optimal performance and branch isolation
+itemSchema.index({ shopId: 1, category: 1 });
+itemSchema.index({ shopId: 1, name: 1 });
+itemSchema.index({ shopId: 1, createdAt: -1 });
+
+/**
+ * Dynamic Branch Collection Resolver
+ * Dynamically returns a Mongoose Model targeting the branch's dedicated collection: `branch_products_<cleanShopId>`
+ */
+export const getBranchItemModel = (shopId) => {
+  if (!shopId) {
+    return mongoose.models.Item || mongoose.model('Item', itemSchema);
+  }
+  const cleanId = String(shopId).replace(/[^a-zA-Z0-9]/g, '_');
+  const modelName = `BranchItem_${cleanId}`;
+  const collectionName = `branch_products_${cleanId}`;
+
+  if (mongoose.models[modelName]) {
+    return mongoose.models[modelName];
+  }
+  return mongoose.model(modelName, itemSchema, collectionName);
+};
+
+/**
+ * Helper to sync/replicate branch products between Item and dedicated branch collection
+ */
+export const syncBranchProducts = async (shopId) => {
+  try {
+    if (!shopId) return;
+    const BranchModel = getBranchItemModel(shopId);
+    const mainItems = await mongoose.model('Item').find({ shopId });
+    
+    for (const item of mainItems) {
+      const itemObj = item.toObject();
+      await BranchModel.findByIdAndUpdate(item._id, itemObj, { upsert: true, new: true, setDefaultsOnInsert: true });
+    }
+  } catch (err) {
+    console.error(`[syncBranchProducts error for shop ${shopId}]:`, err.message);
+  }
+};
+
+const Item = mongoose.models.Item || mongoose.model('Item', itemSchema);
+export default Item;
+

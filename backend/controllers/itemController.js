@@ -1,24 +1,39 @@
 import mongoose from 'mongoose';
-import Item from '../models/Item.js';
+import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js';
 import Expense from '../models/Expense.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
 
-// @desc    Get all items
+// @desc    Get all items (dynamically scoped per branch collection)
 const getItems = async (req, res) => {
   try {
     const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? req.user?.shopId : null);
-    let filter = {};
+    let targetShopId = null;
+
     if (rawShopId) {
       if (mongoose.Types.ObjectId.isValid(rawShopId)) {
-        filter.shopId = new mongoose.Types.ObjectId(rawShopId);
+        targetShopId = new mongoose.Types.ObjectId(rawShopId);
       } else {
-        filter.shopId = rawShopId;
+        targetShopId = rawShopId;
       }
     } else if (req.user?.shopId) {
-      filter.shopId = req.user.shopId;
+      targetShopId = req.user.shopId;
     }
 
-    const items = await Item.find(filter).sort({ createdAt: -1 });
+    let items = [];
+    if (targetShopId) {
+      const BranchModel = getBranchItemModel(targetShopId);
+      items = await BranchModel.find({ shopId: targetShopId }).sort({ createdAt: -1 });
+
+      // If branch collection has no records yet, sync from unified Item collection
+      if (items.length === 0) {
+        await syncBranchProducts(targetShopId);
+        items = await BranchModel.find({ shopId: targetShopId }).sort({ createdAt: -1 });
+      }
+    } else {
+      // Super Admin viewing global items across all shops
+      items = await Item.find({}).sort({ createdAt: -1 });
+    }
+
     const normalized = items.map(item => {
       const itemObj = typeof item.toObject === 'function' ? item.toObject() : item;
       const pMethod = String(itemObj.paymentMethod || '').trim().toLowerCase();
@@ -85,7 +100,15 @@ const getItem = async (req, res) => {
       ? { _id: id }
       : { _id: id, shopId: req.user.shopId };
 
-    const item = await Item.findOne(filter);
+    let item = null;
+    if (req.user?.shopId) {
+      const BranchModel = getBranchItemModel(req.user.shopId);
+      item = await BranchModel.findOne(filter);
+    }
+    if (!item) {
+      item = await Item.findOne(filter);
+    }
+
     if (!item) return res.status(404).json({ message: 'Item not found' });
     res.json(item);
   } catch (error) {
@@ -128,7 +151,17 @@ const createItem = async (req, res) => {
       bankPaidToSupplier: bankPaid,
       dueAmountToSupplier: dueAmt
     };
+    
+    // Save to unified Item model
     const newItem = await Item.create(newItemData);
+
+    // Also persist in dynamic dedicated Branch collection
+    try {
+      const BranchModel = getBranchItemModel(shopId);
+      await BranchModel.findByIdAndUpdate(newItem._id, newItem.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
+    } catch (branchErr) {
+      console.error('[createItem BranchModel sync warning]:', branchErr.message);
+    }
     
     // Auto-create expense record if payment was made to supplier
     if (newItem.amountPaidToSupplier && newItem.amountPaidToSupplier > 0) {
@@ -232,6 +265,18 @@ const updateItem = async (req, res) => {
       { new: true, runValidators: true }
     );
     if (!updatedItem) return res.status(404).json({ message: 'Item not found or unauthorized' });
+
+    // Sync to dedicated branch collection
+    try {
+      const targetShopId = updatedItem.shopId || req.user?.shopId;
+      if (targetShopId) {
+        const BranchModel = getBranchItemModel(targetShopId);
+        await BranchModel.findByIdAndUpdate(updatedItem._id, updatedItem.toObject(), { upsert: true, new: true });
+      }
+    } catch (branchErr) {
+      console.error('[updateItem BranchModel sync warning]:', branchErr.message);
+    }
+
     res.json(updatedItem);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -255,6 +300,18 @@ const deleteItem = async (req, res) => {
     if (!item) {
       return res.status(404).json({ message: 'Item not found or unauthorized' });
     }
+
+    // Remove from dedicated branch collection
+    try {
+      const targetShopId = item.shopId || req.user?.shopId;
+      if (targetShopId) {
+        const BranchModel = getBranchItemModel(targetShopId);
+        await BranchModel.findByIdAndDelete(id);
+      }
+    } catch (branchErr) {
+      console.error('[deleteItem BranchModel sync warning]:', branchErr.message);
+    }
+
     res.json({ message: 'Item deleted successfully', deletedId: id, existed: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -328,6 +385,14 @@ const settleSupplierCredit = async (req, res) => {
 
     item.lastUpdated = new Date().toISOString().split('T')[0];
     await item.save();
+
+    // Sync to dedicated branch collection
+    try {
+      const BranchModel = getBranchItemModel(item.shopId);
+      await BranchModel.findByIdAndUpdate(item._id, item.toObject(), { upsert: true, new: true });
+    } catch (branchErr) {
+      console.error('[settleSupplierCredit BranchModel sync warning]:', branchErr.message);
+    }
 
     // Auto-create expense record for supplier payment
     try {

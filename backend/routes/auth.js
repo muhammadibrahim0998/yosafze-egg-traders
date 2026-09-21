@@ -75,7 +75,7 @@ router.post("/login", validateLogin, async (req, res) => {
 
     // Alias fallback for super admin and shop admin
     if (!user) {
-      if (['superadmin', 'super_admin', 'super admin', 'ibrahim', 'ibrahim1530388@gmail.com', 'superadmin@gmail.com', 'super'].includes(lowUser)) {
+      if (['superadmin', 'super_admin', 'super admin', 'mainyet', 'mainyet123@gmail.com', 'super'].includes(lowUser)) {
         user = await User.findOne({ role: 'super_admin' });
       } else if (['admin', 'shopadmin', 'erp', 'erp@gmail.com', 'admin@yosafze.com'].includes(lowUser)) {
         user = await User.findOne({ role: 'shop_admin' });
@@ -83,13 +83,13 @@ router.post("/login", validateLogin, async (req, res) => {
     }
 
     // Auto-create default Super Admin if missing
-    if (!user && (lowUser.includes('super') || lowUser.includes('ibrahim'))) {
+    if (!user && (lowUser.includes('super') || lowUser.includes('mainyet'))) {
       user = new User({
-        username: 'ibrahim1530388@gmail.com',
-        email: 'ibrahim1530388@gmail.com',
+        username: 'Mainyet123@gmail.com',
+        email: 'Mainyet123@gmail.com',
         fullName: 'System Super Admin',
         role: 'super_admin',
-        password: 'admin123',
+        password: 'super12345',
         status: 'active'
       });
       await user.save();

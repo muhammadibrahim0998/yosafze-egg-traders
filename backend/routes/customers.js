@@ -270,6 +270,31 @@ router.delete('/cart', authenticateCustomer, async (req, res) => {
   }
 });
 
+// ─── UPDATE CUSTOMER (ADMIN / STORE) ──────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, email, phone, address } = req.body;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid customer ID' });
+    }
+    const updateData = {};
+    if (fullName) updateData.fullName = fullName.trim();
+    if (email) updateData.email = email.trim().toLowerCase();
+    if (phone !== undefined) updateData.phone = phone.trim();
+    if (address !== undefined) updateData.address = address.trim();
+
+    const customer = await Customer.findByIdAndUpdate(id, updateData, { new: true });
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.json({ success: true, customer });
+  } catch (err) {
+    console.error('Update customer error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ─── DELETE CUSTOMER (ADMIN ONLY) ─────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {

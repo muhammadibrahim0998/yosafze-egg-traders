@@ -1,5 +1,5 @@
 import express from 'express';
-import Item from '../models/Item.js';
+import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js';
 import Settings from '../models/Settings.js';
 import Shop from '../models/Shop.js';
 import { resolveShopId } from '../utils/shopResolver.js';
@@ -44,24 +44,7 @@ router.get('/:shopId', async (req, res) => {
 
     const realShopId = shop._id;
     const settings = await Settings.findOne({ shopId: realShopId }).select('shopName logoUrl currency address phone');
-
-    // Auto-seed default egg categories/products ONLY if the shop branch has zero items
-    const existingCount = await Item.countDocuments({ shopId: realShopId });
-    if (existingCount === 0) {
-      for (const prod of DEFAULT_EGG_PRODUCTS) {
-        await Item.create({
-          shopId: realShopId,
-          name: prod.name,
-          category: prod.category,
-          price: prod.price,
-          costPrice: prod.costPrice,
-          stock: prod.stock,
-          minStock: 10,
-          description: `Fresh egg category: ${prod.name}`,
-          images: ['/egg2.png']
-        });
-      }
-    }
+    const BranchModel = getBranchItemModel(realShopId);
 
     const filter = { shopId: realShopId };
     if (search) {
@@ -71,7 +54,29 @@ router.get('/:shopId', async (req, res) => {
       filter.category = category;
     }
 
-    const rawItems = await Item.find(filter).sort({ name: 1 });
+    let rawItems = await BranchModel.find(filter).sort({ name: 1 });
+    if (rawItems.length === 0) {
+      const existingCount = await Item.countDocuments({ shopId: realShopId });
+      if (existingCount === 0) {
+        for (const prod of DEFAULT_EGG_PRODUCTS) {
+          const created = await Item.create({
+            shopId: realShopId,
+            name: prod.name,
+            category: prod.category,
+            price: prod.price,
+            costPrice: prod.costPrice,
+            stock: prod.stock,
+            minStock: 10,
+            description: `Fresh egg category: ${prod.name}`,
+            images: ['/egg2.png']
+          });
+          await BranchModel.findByIdAndUpdate(created._id, created.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
+        }
+      } else {
+        await syncBranchProducts(realShopId);
+      }
+      rawItems = await BranchModel.find(filter).sort({ name: 1 });
+    }
     const items = rawItems.map(item => {
       const itemObj = typeof item.toObject === 'function' ? item.toObject() : item;
       const pMethod = String(itemObj.paymentMethod || '').trim().toLowerCase();

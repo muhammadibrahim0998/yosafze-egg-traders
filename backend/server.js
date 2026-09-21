@@ -122,6 +122,21 @@ const PORT = process.env.PORT || 5000;
 // Connect to Database
 await connectDB();
 
+// Auto-sync all branch product collections on startup
+import Shop from './models/Shop.js';
+import { syncBranchProducts } from './models/Item.js';
+
+(async () => {
+  try {
+    const allShops = await Shop.find({ status: 'active' }).select('_id name');
+    for (const s of allShops) {
+      await syncBranchProducts(s._id);
+    }
+    console.log(`📦 Dynamic branch product collections initialized for ${allShops.length} active branches.`);
+  } catch (syncErr) {
+    console.warn('[Branch Product Collections Sync Warning]:', syncErr.message);
+  }
+})();
 
 const server = createServer(app);
 

@@ -536,7 +536,7 @@ function StoreContent({ shopId }) {
 
   useEffect(() => {
     if (!isAdminUser) return;
-    if (activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard') {
+    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard') {
       fetchShopSales();
       fetchRegisteredCustomers();
       fetchCatalog();
@@ -552,6 +552,7 @@ function StoreContent({ shopId }) {
   const [walkInCustomerName, setWalkInCustomerName] = useState('');
   const [walkInCustomerPhone, setWalkInCustomerPhone] = useState('');
   const [walkInCustomerEmail, setWalkInCustomerEmail] = useState('');
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [walkInPaymentMethod, setWalkInPaymentMethod] = useState('CASH');
   const [walkInPaidAmount, setWalkInPaidAmount] = useState('');
   const [walkInPartialDestination, setWalkInPartialDestination] = useState('CASH'); // 'CASH' | 'BANK'
@@ -683,6 +684,230 @@ function StoreContent({ shopId }) {
       alert(err?.response?.data?.message || err.message || 'Failed to settle credit');
     } finally {
       setIsSettlingCredit(false);
+    }
+  };
+
+  // ─── Customer Edit & Delete Handlers (Unified for Sales Report & Registered Customers) ───
+  const [editingCustomerGroup, setEditingCustomerGroup] = useState(null);
+  const [editCustomerFormData, setEditCustomerFormData] = useState({ name: '', phone: '', email: '' });
+  const [isSavingCustomerEdit, setIsSavingCustomerEdit] = useState(false);
+
+  const handleOpenEditCustomerGroup = (custOrGroup) => {
+    if (!custOrGroup) return;
+    const name = custOrGroup.customerName || custOrGroup.fullName || custOrGroup.name || '';
+    const rawPhone = custOrGroup.customerPhone || custOrGroup.phone || '';
+    const phone = (rawPhone && rawPhone !== '—') ? rawPhone : '';
+    const rawEmail = custOrGroup.customerEmail || custOrGroup.email || '';
+    const email = (rawEmail && rawEmail !== '—' && rawEmail !== 'Physical Store POS' && rawEmail !== 'Online / Phone Order') ? rawEmail : '';
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    const normName = name.toLowerCase().trim();
+    const normEmail = email.toLowerCase().trim();
+
+    // Find all matching sales from shopSalesList
+    let invoices = custOrGroup.invoices;
+    if (!invoices || invoices.length === 0) {
+      invoices = (shopSalesList || []).filter(s => {
+        const sCustId = String(s.customerId || s.userId || '').toLowerCase();
+        const sName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
+        const sEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
+        const sPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+        if (custOrGroup._id && sCustId && String(custOrGroup._id).toLowerCase() === sCustId) return true;
+        if (normEmail && sEmail && sEmail === normEmail) return true;
+        if (cleanPhone && cleanPhone.length >= 7 && sPhone === cleanPhone) return true;
+        if (normName && normName !== 'walk-in' && normName !== 'walk-in customer' && sName === normName) return true;
+        return false;
+      });
+    }
+
+    setEditingCustomerGroup({
+      ...custOrGroup,
+      customerName: name,
+      customerPhone: phone,
+      customerEmail: email,
+      invoices: invoices || []
+    });
+    setEditCustomerFormData({
+      name: name,
+      phone: phone,
+      email: email
+    });
+    setActiveCustGroupMenuId(null);
+    setActiveCustMenuId(null);
+  };
+
+  const handleSaveEditCustomerGroup = async (e) => {
+    e.preventDefault();
+    if (!editingCustomerGroup) return;
+    const newName = editCustomerFormData.name.trim();
+    const newPhone = editCustomerFormData.phone.trim();
+    const newEmail = editCustomerFormData.email.trim().toLowerCase();
+
+    if (!newName) {
+      toast.error('Please enter a customer name');
+      return;
+    }
+
+    setIsSavingCustomerEdit(true);
+    try {
+      const oldName = (editingCustomerGroup.customerName || editingCustomerGroup.fullName || '').toLowerCase().trim();
+      const oldPhone = (editingCustomerGroup.customerPhone || editingCustomerGroup.phone || '').replace(/\D/g, '');
+      const oldEmail = (editingCustomerGroup.customerEmail || editingCustomerGroup.email || '').toLowerCase().trim();
+
+      const matchingSales = (shopSalesList || []).filter(s => {
+        const sId = s._id;
+        if ((editingCustomerGroup.invoices || []).some(inv => inv._id === sId)) return true;
+        const sCustId = String(s.customerId || s.userId || '').toLowerCase();
+        const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
+        const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
+        const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+        if (editingCustomerGroup._id && sCustId && String(editingCustomerGroup._id).toLowerCase() === sCustId) return true;
+        if (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) return true;
+        if (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) return true;
+        if (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName) return true;
+        return false;
+      });
+
+      const saleIds = matchingSales.map(s => s._id).filter(Boolean);
+
+      // 1. Update sales in DB
+      const authToken = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
+      await fetch('/api/sales/update-customer-info', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({
+          saleIds,
+          oldCustomerName: editingCustomerGroup.customerName || editingCustomerGroup.fullName || '',
+          oldCustomerPhone: editingCustomerGroup.customerPhone || editingCustomerGroup.phone || '',
+          oldCustomerEmail: editingCustomerGroup.customerEmail || editingCustomerGroup.email || '',
+          newCustomerName: newName,
+          newCustomerPhone: newPhone,
+          newCustomerEmail: newEmail
+        })
+      });
+
+      setShopSalesList(prev => (prev || []).map(s => {
+        const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
+        const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
+        const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+        const isMatch = saleIds.includes(s._id) || 
+          (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) ||
+          (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) ||
+          (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName);
+        if (isMatch) {
+          return {
+            ...s,
+            customerName: newName,
+            customerPhone: newPhone,
+            customerEmail: newEmail
+          };
+        }
+        return s;
+      }));
+
+      // 2. Update registered customer account if exists
+      const isRegistered = editingCustomerGroup._id && !String(editingCustomerGroup._id).startsWith('phys_') && !String(editingCustomerGroup._id).startsWith('ord_');
+      let registeredId = isRegistered ? editingCustomerGroup._id : null;
+      if (!registeredId) {
+        const found = (registeredCustomersList || []).find(c =>
+          (oldEmail && c.email && c.email.toLowerCase() === oldEmail) ||
+          (oldPhone && c.phone && c.phone.replace(/\D/g, '') === oldPhone) ||
+          (oldName && c.fullName && c.fullName.toLowerCase() === oldName)
+        );
+        if (found) registeredId = found._id;
+      }
+
+      if (registeredId) {
+        await fetch(`/api/customers/${registeredId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: newName,
+            phone: newPhone,
+            email: newEmail
+          })
+        });
+        setRegisteredCustomersList(prev => (prev || []).map(c => 
+          String(c._id) === String(registeredId)
+            ? { ...c, fullName: newName, phone: newPhone, email: newEmail }
+            : c
+        ));
+      }
+
+      toast.success('✅ Customer details updated successfully!');
+      setEditingCustomerGroup(null);
+      await fetchShopSales();
+      await fetchRegisteredCustomers();
+      await fetchDashboardStats();
+    } catch (err) {
+      console.error('Update customer error:', err);
+      toast.error('Failed to update customer details');
+    } finally {
+      setIsSavingCustomerEdit(false);
+    }
+  };
+
+  const handleDeleteCustomerGroup = async (custGroup) => {
+    setActiveCustGroupMenuId(null);
+    setActiveCustMenuId(null);
+    if (!custGroup) return;
+    const name = custGroup.customerName || custGroup.fullName || 'Customer';
+    const oldPhone = (custGroup.customerPhone || custGroup.phone || '').replace(/\D/g, '');
+    const oldEmail = (custGroup.customerEmail || custGroup.email || '').toLowerCase().trim();
+    const oldName = name.toLowerCase().trim();
+
+    const matchingSales = (shopSalesList || []).filter(s => {
+      const sId = s._id;
+      if ((custGroup.invoices || []).some(inv => inv._id === sId)) return true;
+      const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
+      const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
+      const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+      if (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) return true;
+      if (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) return true;
+      if (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName) return true;
+      return false;
+    });
+
+    const saleIds = matchingSales.map(s => s._id).filter(Boolean);
+
+    if (!window.confirm(`Are you sure you want to permanently delete all records for customer "${name}"?\n\nThis will permanently delete ${saleIds.length} ${saleIds.length === 1 ? 'bill' : 'bills'} and the customer account from the database.`)) {
+      return;
+    }
+
+    try {
+      // 1. Delete all sales
+      for (const sId of saleIds) {
+        try {
+          await deleteSale(sId);
+        } catch (e) {
+          console.error(`Error deleting sale ${sId}:`, e);
+        }
+      }
+
+      // 2. Delete online registered account
+      const onlineAccount = (registeredCustomersList || []).find(c => 
+        (custGroup._id && String(c._id) === String(custGroup._id)) ||
+        (oldEmail && c.email && c.email.toLowerCase() === oldEmail) ||
+        (oldPhone && c.phone && c.phone.replace(/\D/g, '') === oldPhone) ||
+        (oldName && c.fullName && c.fullName.toLowerCase() === oldName)
+      );
+      if (onlineAccount && onlineAccount._id) {
+        await fetch(`/api/customers/${onlineAccount._id}`, { method: 'DELETE' });
+        setRegisteredCustomersList(prev => (prev || []).filter(c => String(c._id) !== String(onlineAccount._id)));
+      }
+
+      setShopSalesList(prev => (prev || []).filter(s => !saleIds.includes(s._id)));
+      toast.success(`✅ All records for "${name}" deleted successfully!`);
+
+      await fetchShopSales();
+      await fetchRegisteredCustomers();
+      await fetchDashboardStats();
+    } catch (err) {
+      console.error('Delete customer group error:', err);
+      toast.error('Failed to delete customer records');
     }
   };
 
@@ -1532,29 +1757,8 @@ function StoreContent({ shopId }) {
 };
 
   const handleDeleteCustomer = async (customerId, customerName) => {
-    if (String(customerId).startsWith('phys_') || String(customerId).startsWith('ord_')) {
-      alert(`Customer "${customerName || 'Customer'}" is generated from physical POS bills/orders history. To remove this customer, manage or delete the corresponding POS sales record.`);
-      return;
-    }
-    if (!window.confirm(`Are you sure you want to permanently delete customer account "${customerName || 'Customer'}"? This action cannot be undone.`)) {
-      return;
-    }
-    try {
-      const res = await fetch(`/api/customers/${customerId}`, {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        setAddedMsg(`Customer account deleted successfully!`);
-        setTimeout(() => setAddedMsg(''), 3000);
-        setRegisteredCustomersList(prev => prev.filter(c => c._id !== customerId));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Failed to delete customer.');
-      }
-    } catch (err) {
-      console.error('Delete customer error:', err);
-      alert('Error deleting customer.');
-    }
+    const targetCust = (unifiedCustomersList || []).find(c => c._id === customerId) || { _id: customerId, fullName: customerName };
+    await handleDeleteCustomerGroup(targetCust);
   };
 
   const getProductUnitPrice = (product, unit = 'tray') => {
@@ -1835,6 +2039,7 @@ function StoreContent({ shopId }) {
       await fetchCatalog();
       await fetchDashboardStats();
       await fetchShopSales();
+      await fetchRegisteredCustomers();
     } catch (err) {
       alert(err.message || 'Failed to complete sale');
     } finally {
@@ -2033,55 +2238,55 @@ function StoreContent({ shopId }) {
     });
   }, [unifiedSalesList, reportTimeframe, salesReportSearchTerm]);
 
-  // ─── Customer-Wise Grouped Sales (Unique Email / Account Aggregation) ───
-  const getCustomerIdentityGroupKey = (s) => {
-    const email = (s?.customerEmail || s?.email || '').trim().toLowerCase();
-    const phone = (s?.customerPhone || s?.phone || '').trim().replace(/\D/g, '');
-    const rawName = (s?.customerName || s?.name || '').trim();
-    const normName = rawName.toLowerCase();
-
-    if (email && email.length >= 4) {
-      return `email_${email}`;
-    }
-    if (s?.customerId) {
-      return `cid_${String(s.customerId?._id || s.customerId)}`;
-    }
-    if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'walk-in customer' && phone && phone.length >= 7) {
-      return `cust_${normName}_${phone}`;
-    }
-    if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'walk-in customer') {
-      return `name_${normName}`;
-    }
-    if (phone && phone.length >= 7) {
-      return `phone_${phone}`;
-    }
-    return `sale_${s?._id || s?.id || 'unknown'}`;
-  };
-
+  // ─── Customer-Wise Grouped Sales (Multi-Identifier Match: Name, Phone, Email, Account) ───
   const customerWiseSalesReport = useMemo(() => {
-    const map = new Map();
+    const groups = [];
+    const emailToGroup = new Map();
+    const phoneToGroup = new Map();
+    const nameToGroup = new Map();
+    const cidToGroup = new Map();
 
-    (filteredSalesForReport || []).forEach((s, idx) => {
-      const email = (s.customerEmail || s.email || '').trim().toLowerCase();
-      const phone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+    const isGenericName = (name) => {
+      const n = (name || '').trim().toLowerCase();
+      return !n || n === 'walk-in' || n === 'walkin' || n === 'walk-in customer' || n === 'cash customer' || n === 'customer' || n === 'credit customer' || n === 'online customer';
+    };
+
+    (filteredSalesForReport || []).forEach((s) => {
+      if (!s) return;
+      const rawEmail = (s.customerEmail || s.email || '').trim().toLowerCase();
+      const cleanEmail = (rawEmail && rawEmail !== 'physical store pos' && rawEmail !== 'online / phone order') ? rawEmail : '';
       const rawPhone = (s.customerPhone || s.phone || '').trim();
+      const cleanPhone = rawPhone.replace(/\D/g, '');
       const rawName = (s.customerName || s.name || '').trim();
+      const normName = rawName.toLowerCase();
       const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
-
-      const groupKey = getCustomerIdentityGroupKey(s);
+      const cid = s.customerId ? String(s.customerId?._id || s.customerId) : null;
 
       const total = Number(s.totalAmount) || 0;
       const isCredit = s.isCredit || s.paymentMethod === 'CREDIT' || s.paymentMethod === 'DUE' || Number(s.dueAmount) > 0;
       const due = Number(s.dueAmount !== undefined && s.dueAmount !== null ? s.dueAmount : (isCredit ? total : 0));
       const cash = Number(s.cashPaid) || (s.paymentMethod === 'CASH' && !isCredit ? (total - due) : 0);
-      const bank = Number(s.bankPaid) || (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' ? (total - due) : 0);
+      const bank = Number(s.bankPaid) || (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' || s.paymentMethod === 'EASYPAISA' ? (total - due) : 0);
 
-      if (!map.has(groupKey)) {
-        map.set(groupKey, {
-          id: groupKey,
+      // Find existing group by email, phone, customerId, or non-generic name
+      let targetGroup = null;
+      if (cleanEmail && cleanEmail.length >= 4 && emailToGroup.has(cleanEmail)) {
+        targetGroup = emailToGroup.get(cleanEmail);
+      } else if (cleanPhone && cleanPhone.length >= 7 && phoneToGroup.has(cleanPhone)) {
+        targetGroup = phoneToGroup.get(cleanPhone);
+      } else if (cid && cidToGroup.has(cid)) {
+        targetGroup = cidToGroup.get(cid);
+      } else if (!isGenericName(normName) && nameToGroup.has(normName)) {
+        targetGroup = nameToGroup.get(normName);
+      }
+
+      if (!targetGroup) {
+        const newGroupId = `cust_grp_${cleanEmail || cleanPhone || normName || s._id || groups.length + 1}`;
+        targetGroup = {
+          id: newGroupId,
           customerName: rawName || 'Customer',
           aliasNames: rawName ? [rawName] : [],
-          customerEmail: email || '',
+          customerEmail: cleanEmail,
           customerPhone: rawPhone || '',
           isOnline: isOnline,
           invoices: [s],
@@ -2090,30 +2295,51 @@ function StoreContent({ shopId }) {
           totalCash: cash,
           totalBank: bank,
           lastPurchaseDate: s.saleDate || s.createdAt || Date.now()
-        });
+        };
+        groups.push(targetGroup);
       } else {
-        const item = map.get(groupKey);
-        item.invoices.push(s);
-        item.totalSpent += total;
-        if (due > 0) item.totalDue += due;
-        item.totalCash += cash;
-        item.totalBank += bank;
-        if (rawName && !item.aliasNames.includes(rawName)) {
-          item.aliasNames.push(rawName);
+        // Merge into existing group
+        targetGroup.invoices.push(s);
+        targetGroup.totalSpent += total;
+        if (due > 0) targetGroup.totalDue += due;
+        targetGroup.totalCash += cash;
+        targetGroup.totalBank += bank;
+
+        if (rawName && !targetGroup.aliasNames.includes(rawName)) {
+          targetGroup.aliasNames.push(rawName);
         }
-        if (!item.customerEmail && email) item.customerEmail = email;
-        if ((!item.customerPhone || item.customerPhone === '—') && rawPhone) item.customerPhone = rawPhone;
-        if ((!item.customerName || item.customerName === 'Customer') && rawName) item.customerName = rawName;
-        if (isOnline) item.isOnline = true;
-        const currentLast = new Date(item.lastPurchaseDate || 0).getTime();
+        if (isGenericName(targetGroup.customerName) && !isGenericName(rawName)) {
+          targetGroup.customerName = rawName;
+        }
+        if (!targetGroup.customerEmail && cleanEmail) {
+          targetGroup.customerEmail = cleanEmail;
+        }
+        if ((!targetGroup.customerPhone || targetGroup.customerPhone === '—') && rawPhone) {
+          targetGroup.customerPhone = rawPhone;
+        }
+        if (isOnline) targetGroup.isOnline = true;
+
+        const currentLast = new Date(targetGroup.lastPurchaseDate || 0).getTime();
         const thisDate = new Date(s.saleDate || s.createdAt || 0).getTime();
         if (thisDate > currentLast) {
-          item.lastPurchaseDate = s.saleDate || s.createdAt;
+          targetGroup.lastPurchaseDate = s.saleDate || s.createdAt;
         }
       }
+
+      // Link identifiers to this targetGroup so any future bill with any of these attributes merges
+      if (cleanEmail && cleanEmail.length >= 4) emailToGroup.set(cleanEmail, targetGroup);
+      if (cleanPhone && cleanPhone.length >= 7) phoneToGroup.set(cleanPhone, targetGroup);
+      if (cid) cidToGroup.set(cid, targetGroup);
+      if (!isGenericName(normName)) nameToGroup.set(normName, targetGroup);
+      if (rawName && !isGenericName(rawName)) nameToGroup.set(rawName.toLowerCase(), targetGroup);
     });
 
-    return Array.from(map.values());
+    // Sort invoices inside each group by date descending
+    groups.forEach(g => {
+      g.invoices.sort((a, b) => new Date(b.saleDate || b.createdAt || 0) - new Date(a.saleDate || a.createdAt || 0));
+    });
+
+    return groups;
   }, [filteredSalesForReport]);
 
   const handlePrintCustomerSalesReportStatement = (custGroup) => {
@@ -6434,41 +6660,170 @@ function StoreContent({ shopId }) {
 
                         <div className="p-4 space-y-4 flex-1">
                           {/* Customer Details */}
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Customer Details</p>
-                            <input
-                              type="text"
-                              placeholder="Customer Name (e.g. Ahmad Khan)"
-                              value={walkInCustomerName}
-                              onChange={e => setWalkInCustomerName(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors"
-                            />
+                          <div className="space-y-2 relative">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <Users className="w-3 h-3 text-emerald-600" />
+                                Customer Details
+                              </p>
+                              {(unifiedCustomersList && unifiedCustomersList.length > 0) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCustomerSuggestions(prev => !prev)}
+                                  className="text-[9.5px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                                >
+                                  <Users className="w-3 h-3" />
+                                  {showCustomerSuggestions ? 'Close List' : `Old Customers (${unifiedCustomersList.length})`}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder="Customer Name (e.g. Ahmad Khan)"
+                                value={walkInCustomerName}
+                                onFocus={() => setShowCustomerSuggestions(true)}
+                                onChange={e => {
+                                  setWalkInCustomerName(e.target.value);
+                                  setShowCustomerSuggestions(true);
+                                }}
+                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                              />
+                            </div>
+
                             <input
                               type="tel"
                               placeholder="WhatsApp / Phone (03XXXXXXXXX)"
                               value={walkInCustomerPhone}
-                              onChange={e => setWalkInCustomerPhone(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 font-mono transition-colors"
+                              onFocus={() => setShowCustomerSuggestions(true)}
+                              onChange={e => {
+                                setWalkInCustomerPhone(e.target.value);
+                                setShowCustomerSuggestions(true);
+                              }}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white font-mono transition-all"
                             />
+
                             <input
                               type="email"
                               placeholder="Customer Email (e.g. customer@gmail.com)"
                               value={walkInCustomerEmail}
-                              onChange={e => setWalkInCustomerEmail(e.target.value)}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 transition-colors"
+                              onFocus={() => setShowCustomerSuggestions(true)}
+                              onChange={e => {
+                                setWalkInCustomerEmail(e.target.value);
+                                setShowCustomerSuggestions(true);
+                              }}
+                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white transition-all"
                             />
+
+                            {/* Customer Suggestions Dropdown */}
+                            {showCustomerSuggestions && (() => {
+                              const qName = (walkInCustomerName || '').trim().toLowerCase();
+                              const qPhone = (walkInCustomerPhone || '').trim().replace(/\D/g, '');
+                              const qEmail = (walkInCustomerEmail || '').trim().toLowerCase();
+
+                              const allList = unifiedCustomersList || [];
+                              const filtered = allList.filter(cust => {
+                                const cName = (cust.fullName || cust.name || '').toLowerCase();
+                                const cPhone = (cust.phone || '').replace(/\D/g, '');
+                                const cEmail = (cust.email || '').toLowerCase();
+
+                                if (!qName && !qPhone && !qEmail) return true;
+                                if (qName && cName.includes(qName)) return true;
+                                if (qPhone && cPhone.includes(qPhone)) return true;
+                                if (qEmail && cEmail.includes(qEmail)) return true;
+                                return false;
+                              }).slice(0, 10);
+
+                              return (
+                                <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-white border-2 border-emerald-500/80 rounded-2xl shadow-2xl p-2 space-y-1.5 max-h-72 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                                  <div className="flex items-center justify-between px-2 py-1 border-b border-gray-100 pb-1.5">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                                      <Users className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Select Existing Customer ({filtered.length})</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowCustomerSuggestions(false)}
+                                      className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {filtered.length === 0 ? (
+                                    <div className="p-3 text-center text-xs text-gray-400 font-medium">
+                                      No matching customer found. Type a new name to create new customer.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {filtered.map((cust, idx) => {
+                                        const cName = cust.fullName || cust.name || 'Walk-in Customer';
+                                        const cPhone = cust.phone && cust.phone !== '—' ? cust.phone : '';
+                                        const cEmail = cust.email && !cust.email.includes('physical store pos') && !cust.email.includes('online / phone order') ? cust.email : '';
+                                        const isOnline = cust.isOnline === true;
+                                        const stats = typeof getCustomerStats === 'function' ? getCustomerStats(cust) : null;
+
+                                        return (
+                                          <div
+                                            key={cust._id || cust.id || `cust_sugg_${idx}`}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              setWalkInCustomerName(cName);
+                                              if (cPhone) setWalkInCustomerPhone(cPhone);
+                                              if (cEmail) setWalkInCustomerEmail(cEmail);
+                                              setShowCustomerSuggestions(false);
+                                            }}
+                                            className="p-2.5 bg-gray-50 hover:bg-emerald-50 border border-gray-200 hover:border-emerald-400 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2 group"
+                                          >
+                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-xs ${
+                                                isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
+                                              }`}>
+                                                {cName.charAt(0).toUpperCase()}
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  <span className="font-black text-xs text-gray-900 group-hover:text-emerald-800 truncate">
+                                                    {cName}
+                                                  </span>
+                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                                                    isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
+                                                  }`}>
+                                                    {isOnline ? 'Online Account' : 'Walk-in'}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] text-gray-500 truncate mt-0.5">
+                                                  {cPhone && <span className="font-mono text-gray-700 font-semibold">{cPhone}</span>}
+                                                  {cPhone && cEmail && <span>•</span>}
+                                                  {cEmail && <span className="text-gray-500 truncate">{cEmail}</span>}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             {/* Existing Customer History Quick Detection */}
                             {(() => {
                               const cleanEmail = walkInCustomerEmail.trim().toLowerCase();
                               const cleanPhone = walkInCustomerPhone.trim().replace(/\D/g, '');
-                              if (!cleanEmail && (!cleanPhone || cleanPhone.length < 7)) return null;
+                              const cleanName = walkInCustomerName.trim().toLowerCase();
+
+                              if (!cleanEmail && (!cleanPhone || cleanPhone.length < 7) && !cleanName) return null;
 
                               const matchingHistory = (unifiedSalesList || []).filter(s => {
                                 const sEmail = (s.customerEmail || s.email || '').trim().toLowerCase();
                                 const sPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
+                                const sName = (s.customerName || s.name || '').trim().toLowerCase();
                                 if (cleanEmail && sEmail && cleanEmail === sEmail) return true;
                                 if (cleanPhone && sPhone && cleanPhone === sPhone) return true;
+                                if (cleanName && sName && cleanName === sName && cleanName !== 'walk-in' && cleanName !== 'walkin' && cleanName !== 'cash customer') return true;
                                 return false;
                               });
 
@@ -6483,18 +6838,22 @@ function StoreContent({ shopId }) {
                               const prevPhone = matchingHistory[0]?.customerPhone;
 
                               return (
-                                <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-2.5 text-xs text-indigo-950 space-y-1 animate-in fade-in duration-200">
+                                <div className="bg-gradient-to-br from-indigo-50 to-emerald-50 border border-indigo-200/80 rounded-xl p-2.5 text-xs text-indigo-950 space-y-1.5 animate-in fade-in duration-200 shadow-xs">
                                   <div className="flex items-center justify-between font-black">
-                                    <span className="flex items-center gap-1 text-[10px] text-indigo-800 uppercase">
-                                      <Users className="w-3 h-3 text-indigo-600" /> Existing Customer ({matchingHistory.length} Purchases)
+                                    <span className="flex items-center gap-1 text-[10px] text-indigo-900 uppercase">
+                                      <Users className="w-3.5 h-3.5 text-indigo-600" /> Existing Customer Record
                                     </span>
-                                    <span className="px-1.5 py-0.5 bg-indigo-200 text-indigo-800 rounded text-[9px] font-black">
-                                      {matchingHistory.length} {matchingHistory.length === 1 ? 'Bill' : 'Bills'}
+                                    <span className="px-2 py-0.5 bg-indigo-200/80 text-indigo-900 rounded-full text-[9px] font-black">
+                                      {matchingHistory.length} {matchingHistory.length === 1 ? 'Past Bill' : 'Past Bills'}
                                     </span>
                                   </div>
-                                  <div className="flex items-center justify-between text-[10.5px]">
+                                  <div className="flex items-center justify-between text-[10.5px] bg-white/70 px-2 py-1 rounded-lg border border-indigo-100">
                                     <span>Total Shopping: <strong className="text-emerald-700">{currency} {totalSpent.toLocaleString('en-PK')}</strong></span>
-                                    {totalDue > 0 && <span className="text-rose-700 font-bold">⚠️ Due: {currency} {totalDue.toLocaleString('en-PK')}</span>}
+                                    {totalDue > 0 ? (
+                                      <span className="text-rose-700 font-bold bg-rose-50 px-1.5 py-0.5 rounded">⚠️ Due: {currency} {totalDue.toLocaleString('en-PK')}</span>
+                                    ) : (
+                                      <span className="text-emerald-700 font-bold text-[9.5px]">✓ All Cleared</span>
+                                    )}
                                   </div>
                                   {(!walkInCustomerName || !walkInCustomerPhone) && prevName && (
                                     <button
@@ -6503,7 +6862,7 @@ function StoreContent({ shopId }) {
                                         if (!walkInCustomerName && prevName) setWalkInCustomerName(prevName);
                                         if (!walkInCustomerPhone && prevPhone) setWalkInCustomerPhone(prevPhone);
                                       }}
-                                      className="mt-1 w-full py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9.5px] font-black uppercase transition-all cursor-pointer"
+                                      className="mt-1 w-full py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9.5px] font-black uppercase transition-all cursor-pointer shadow-xs"
                                     >
                                       ⚡ Auto-fill ({prevName})
                                     </button>
@@ -7309,19 +7668,17 @@ function StoreContent({ shopId }) {
                             />
                           )}
 
-                          <table className="w-full text-left text-xs text-gray-800">
+                          <table className="w-full text-left text-xs text-gray-800 table-auto">
                             <thead className="bg-gray-100 text-[10px] font-black text-gray-500 uppercase tracking-wider border-b border-gray-200">
                               <tr>
-                                <th className="p-3.5 text-center">Serial #</th>
-                                <th className="p-3.5">Customer Name</th>
-                                <th className="p-3.5">Account Type</th>
-                                <th className="p-3.5">Email / Source</th>
-                                <th className="p-3.5">Phone / Contact</th>
-                                <th className="p-3.5">Total Shopping Spent</th>
-                                <th className="p-3.5">Remaining Credit Due</th>
-                                <th className="p-3.5">Orders Count</th>
-                                <th className="p-3.5">Date Added</th>
-                                <th className="p-3.5 text-center">Actions</th>
+                                <th className="p-3 text-center w-12 whitespace-nowrap">Serial #</th>
+                                <th className="p-3 whitespace-nowrap">Customer Name & Type</th>
+                                <th className="p-3 whitespace-nowrap">Contact & Email</th>
+                                <th className="p-3 whitespace-nowrap">Total Purchases</th>
+                                <th className="p-3 whitespace-nowrap">Remaining Due</th>
+                                <th className="p-3 whitespace-nowrap">Orders</th>
+                                <th className="p-3 whitespace-nowrap">Date Added</th>
+                                <th className="p-3 text-center w-24 whitespace-nowrap">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -7332,90 +7689,86 @@ function StoreContent({ shopId }) {
                                 const isMenuOpen = activeCustMenuId === cust._id;
 
                                 return (
-                                  <tr key={cust._id} className="hover:bg-gray-50/80 transition-colors">
-                                    <td className="p-3.5 text-center">
-                                      <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black">
+                                  <tr key={cust._id} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="p-3 text-center whitespace-nowrap align-middle">
+                                      <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-black inline-block">
                                         #{serialNo}
                                       </span>
                                     </td>
-                                    <td className="p-3.5 font-black uppercase text-gray-900 flex items-center gap-2.5">
-                                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-black text-xs shrink-0 ${
-                                        cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      }`}>
-                                        {(cust.fullName || 'C')[0].toUpperCase()}
-                                      </div>
-                                      <div>
-                                        <span className="block font-black text-gray-900">{cust.fullName}</span>
-                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mt-0.5">
-                                          {uniqueId}
-                                        </span>
+                                    <td className="p-3 align-middle">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${
+                                          cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}>
+                                          {(cust.fullName || 'C')[0].toUpperCase()}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <span className="block font-black text-gray-900 uppercase text-xs truncate max-w-[170px]">{cust.fullName}</span>
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
+                                              cust.isOnline
+                                                ? 'bg-indigo-100 text-indigo-800'
+                                                : 'bg-emerald-100 text-emerald-800'
+                                            }`}>
+                                              {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
+                                            </span>
+                                            <span className="text-[8.5px] font-black text-indigo-600 uppercase tracking-widest font-mono">
+                                              {uniqueId}
+                                            </span>
+                                          </div>
+                                        </div>
                                       </div>
                                     </td>
-                                    <td className="p-3.5">
-                                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
-                                        cust.isOnline
-                                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      }`}>
-                                        {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
-                                      </span>
+                                    <td className="p-3 align-middle">
+                                      <div className="space-y-0.5">
+                                        <span className="block font-bold text-teal-700 font-mono text-xs">{cust.phone || '—'}</span>
+                                        {cust.email && !cust.email.includes('physical store pos') && (
+                                          <span className="block text-[10.5px] text-gray-500 font-medium truncate max-w-[180px]">{cust.email}</span>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td className="p-3.5 font-bold text-gray-600">{cust.email}</td>
-                                    <td className="p-3.5 font-bold text-teal-700">{cust.phone || '—'}</td>
-                                    <td className="p-3.5 font-black text-emerald-700 text-sm">
+                                    <td className="p-3 whitespace-nowrap font-black text-emerald-700 text-xs align-middle">
                                       {currency} {totalSpent.toLocaleString('en-PK')}
                                     </td>
-                                    <td className="p-3.5">
+                                    <td className="p-3 whitespace-nowrap align-middle">
                                       {totalCreditDue > 0 ? (
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-black whitespace-nowrap">
+                                        <div className="inline-flex flex-col items-start gap-1">
+                                          <span className="inline-flex items-center px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-md text-xs font-black whitespace-nowrap shadow-2xs">
                                             {currency} {totalCreditDue.toLocaleString('en-PK')} Due
                                           </span>
                                           <button
                                             type="button"
                                             onClick={() => handleOpenCustomerCredit(cust)}
-                                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                            className="px-2.5 py-0.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
                                             title="Pay Customer Credit"
                                           >
-                                            <CreditCard className="w-3.5 h-3.5" />
+                                            <CreditCard className="w-3 h-3" />
                                             <span>Pay Credit</span>
                                           </button>
                                         </div>
                                       ) : (
-                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10.5px] font-bold">
+                                        <span className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10.5px] font-bold whitespace-nowrap">
                                           Rs. 0 (Cleared)
                                         </span>
                                       )}
                                     </td>
-                                    <td className="p-3.5 font-black text-amber-800">
-                                      <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold">
+                                    <td className="p-3 whitespace-nowrap font-black text-amber-800 align-middle">
+                                      <span className="inline-flex items-center px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold whitespace-nowrap">
                                         {ordersCount} {ordersCount === 1 ? 'Order' : 'Orders'}
                                       </span>
                                     </td>
-                                    <td className="p-3.5 font-semibold text-gray-500">
+                                    <td className="p-3 whitespace-nowrap font-semibold text-gray-500 text-xs align-middle">
                                       {new Date(cust.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </td>
-                                    <td className="p-3.5 text-center relative">
-                                      <div className="flex items-center justify-center gap-1.5">
-                                        {totalCreditDue > 0 && (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleOpenCustomerCredit(cust)}
-                                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 shadow-xs text-[11px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer active:scale-95 shrink-0"
-                                            title="Pay Customer Credit"
-                                          >
-                                            <CreditCard className="w-3.5 h-3.5" />
-                                            <span>Pay Credit</span>
-                                          </button>
-                                        )}
-
+                                    <td className="p-3 text-center whitespace-nowrap relative align-middle">
+                                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setActiveCustMenuId(isMenuOpen ? null : cust._id);
                                           }}
-                                          className={`p-2 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${isMenuOpen
+                                          className={`p-1.5 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95 relative z-40 ${isMenuOpen
                                             ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-md'
                                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
                                             }`}
@@ -7426,8 +7779,11 @@ function StoreContent({ shopId }) {
 
                                         <button
                                           type="button"
-                                          onClick={() => handleDeleteCustomer(cust._id, cust.fullName)}
-                                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteCustomer(cust._id, cust.fullName);
+                                          }}
+                                          className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-sm flex items-center justify-center active:scale-95"
                                           title="Delete Customer Account"
                                         >
                                           <Trash2 className="w-4 h-4 text-rose-600" />
@@ -7495,19 +7851,6 @@ function StoreContent({ shopId }) {
                                           >
                                             <FileSpreadsheet className="w-4 h-4 text-green-600" />
                                             <span>Excel Sheet</span>
-                                          </button>
-
-                                          <div className="border-t border-gray-100 my-1"></div>
-
-                                          <button
-                                            onClick={() => {
-                                              setActiveCustMenuId(null);
-                                              handleDeleteCustomer(cust._id, cust.fullName);
-                                            }}
-                                            className="w-full px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                                          >
-                                            <Trash2 className="w-4 h-4 text-rose-600" />
-                                            <span>Delete Account</span>
                                           </button>
                                         </div>
                                       )}
@@ -7883,7 +8226,11 @@ function StoreContent({ shopId }) {
                                   <div className="flex items-center justify-between pt-1 gap-1.5">
                                     <button
                                       type="button"
-                                      onClick={() => setExpandedCustomerSalesId(isExpanded ? null : custGroup.id)}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setExpandedCustomerSalesId(isExpanded ? null : custGroup.id);
+                                      }}
                                       className={`flex-1 py-1.5 px-2 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                                         isExpanded
                                           ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
@@ -8174,28 +8521,13 @@ function StoreContent({ shopId }) {
                                         </td>
                                         <td className="p-2.5 text-center align-middle whitespace-nowrap">
                                           <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                                            {custGroup.totalDue > 0 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const firstCreditInv = (custGroup.invoices || []).find(inv => inv.isCredit || String(inv.paymentMethod).toUpperCase() === 'CREDIT' || Number(inv.dueAmount) > 0);
-                                                  if (firstCreditInv) {
-                                                    handleOpenSettleCredit(firstCreditInv);
-                                                  } else {
-                                                    handleOpenCustomerCredit(custGroup);
-                                                  }
-                                                }}
-                                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
-                                                title="Pay Customer Credit"
-                                              >
-                                                <CreditCard className="w-3 h-3" />
-                                                <span>Pay Credit</span>
-                                              </button>
-                                            )}
-
                                             <button
                                               type="button"
-                                              onClick={() => setExpandedCustomerSalesId(isExpanded ? null : custGroup.id)}
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setExpandedCustomerSalesId(isExpanded ? null : custGroup.id);
+                                              }}
                                               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
                                                 isExpanded
                                                   ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
@@ -8309,7 +8641,7 @@ function StoreContent({ shopId }) {
                                                       <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
                                                       <span>Generate Excel</span>
                                                     </button>
-                                                  </div>
+                                                    </div>
                                                 </>
                                               )}
                                             </div>

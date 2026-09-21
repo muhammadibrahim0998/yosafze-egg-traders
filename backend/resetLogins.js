@@ -62,62 +62,49 @@ const resetLogins = async () => {
     erpUser.status = 'active';
     await erpUser.save();
 
-    // 3. Super Admin (superadmin@gmail.com)
-    let superAdmin = await User.findOne({ username: 'superadmin@gmail.com' });
-    if (!superAdmin) {
-      superAdmin = new User({
-        username: 'superadmin@gmail.com',
-        email: 'superadmin@gmail.com',
-        fullName: 'Super Admin',
-        role: 'super_admin',
-        status: 'active'
-      });
-    }
-    superAdmin.username = 'superadmin@gmail.com';
-    superAdmin.email = 'superadmin@gmail.com';
-    superAdmin.password = 'admin123';
-    superAdmin.status = 'active';
-    await superAdmin.save();
-
-    // 4. Super Admin (ibrahim1530388@gmail.com)
-    let ibrahimAdmin = await User.findOne({ 
-      $or: [{ username: 'ibrahim1530388@gmail.com' }, { email: 'ibrahim1530388@gmail.com' }] 
+    // 3. Super Admin (Mainyet123@gmail.com)
+    await User.deleteMany({
+      $or: [
+        { email: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } },
+        { username: { $in: ['ibrahim1530388@gmail.com', 'superadmin@gmail.com'] } }
+      ]
     });
-    if (!ibrahimAdmin) {
-      ibrahimAdmin = new User({
-        username: 'ibrahim1530388@gmail.com',
-        email: 'ibrahim1530388@gmail.com',
+
+    let mainyetAdmin = await User.findOne({ 
+      $or: [{ username: 'Mainyet123@gmail.com' }, { email: 'Mainyet123@gmail.com' }, { role: 'super_admin' }] 
+    });
+    if (!mainyetAdmin) {
+      mainyetAdmin = new User({
+        username: 'Mainyet123@gmail.com',
+        email: 'Mainyet123@gmail.com',
         fullName: 'System Super Admin',
         role: 'super_admin',
         status: 'active'
       });
     }
-    ibrahimAdmin.username = 'ibrahim1530388@gmail.com';
-    ibrahimAdmin.email = 'ibrahim1530388@gmail.com';
-    ibrahimAdmin.password = 'admin123';
-    ibrahimAdmin.status = 'active';
-    await ibrahimAdmin.save();
+    mainyetAdmin.username = 'Mainyet123@gmail.com';
+    mainyetAdmin.email = 'Mainyet123@gmail.com';
+    mainyetAdmin.password = 'super12345';
+    mainyetAdmin.role = 'super_admin';
+    mainyetAdmin.status = 'active';
+    await mainyetAdmin.save();
 
     // Test verify logins
     const testAdmin = await User.findOne({ username: 'admin@yosafze.com' });
     const isMatch1 = await testAdmin.comparePassword('admin123');
     console.log('Password check for admin@yosafze.com (admin123):', isMatch1 ? '✅ MATCH' : '❌ FAILED');
 
-    const testSuper = await User.findOne({ username: 'superadmin@gmail.com' });
-    const isMatch2 = await testSuper.comparePassword('admin123');
-    console.log('Password check for superadmin@gmail.com (admin123):', isMatch2 ? '✅ MATCH' : '❌ FAILED');
-
-    const testIbrahim = await User.findOne({ username: 'ibrahim1530388@gmail.com' });
-    const isMatch3 = await testIbrahim.comparePassword('admin123');
-    console.log('Password check for ibrahim1530388@gmail.com (admin123):', isMatch3 ? '✅ MATCH' : '❌ FAILED');
+    const testSuper = await User.findOne({ email: 'Mainyet123@gmail.com' });
+    const isMatch2 = await testSuper.comparePassword('super12345');
+    console.log('Password check for Mainyet123@gmail.com (super12345):', isMatch2 ? '✅ MATCH' : '❌ FAILED');
 
     console.log('\n--- AVAILABLE LOGINS ---');
     console.log('1. Shop Admin (Yosafze Egg Traders):');
     console.log('   Username/Email: admin@yosafze.com (or erp@gmail.com)');
     console.log('   Password:       admin123');
     console.log('2. Super Admin:');
-    console.log('   Username/Email: ibrahim1530388@gmail.com (or superadmin@gmail.com)');
-    console.log('   Password:       admin123');
+    console.log('   Username/Email: Mainyet123@gmail.com');
+    console.log('   Password:       super12345');
 
     process.exit(0);
   } catch (err) {

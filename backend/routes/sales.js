@@ -605,9 +605,42 @@ router.patch('/:id/settle-bank', authenticate, requireShopAdmin, async (req, res
   await processCreditSettlement(req.params.id, { ...req.body, paymentMethod: 'BANK_TRANSFER' }, res);
 });
 
-// ── UNIFIED ROUTE: SETTLE CREDIT (Dynamic Cash or Bank) ──
-router.patch('/:id/settle-credit', authenticate, requireShopAdmin, async (req, res) => {
-  await processCreditSettlement(req.params.id, req.body, res);
+// ── UPDATE CUSTOMER DETAILS ACROSS SALES ──
+router.put('/update-customer-info', async (req, res) => {
+  try {
+    const { saleIds, oldCustomerName, oldCustomerPhone, oldCustomerEmail, newCustomerName, newCustomerPhone, newCustomerEmail } = req.body;
+    
+    const updateFields = {};
+    if (newCustomerName) updateFields.customerName = newCustomerName.trim();
+    if (newCustomerPhone !== undefined) updateFields.customerPhone = newCustomerPhone.trim();
+    if (newCustomerEmail !== undefined) updateFields.customerEmail = newCustomerEmail.trim().toLowerCase();
+
+    const queryOr = [];
+    if (Array.isArray(saleIds) && saleIds.length > 0) {
+      queryOr.push({ _id: { $in: saleIds } });
+    }
+    if (oldCustomerName && oldCustomerName.trim()) {
+      queryOr.push({ customerName: new RegExp(`^${oldCustomerName.trim()}$`, 'i') });
+    }
+    if (oldCustomerPhone && oldCustomerPhone.trim()) {
+      queryOr.push({ customerPhone: oldCustomerPhone.trim() });
+    }
+    if (oldCustomerEmail && oldCustomerEmail.trim() && oldCustomerEmail !== 'physical store pos') {
+      queryOr.push({ customerEmail: oldCustomerEmail.trim().toLowerCase() });
+    }
+
+    if (queryOr.length > 0) {
+      await Sale.updateMany(
+        { $or: queryOr },
+        { $set: updateFields }
+      );
+    }
+
+    res.json({ success: true, message: 'Customer details updated successfully across sales' });
+  } catch (err) {
+    console.error('Update sales customer info error:', err);
+    res.status(500).json({ message: err.message });
+  }
 });
 
 export default router;
