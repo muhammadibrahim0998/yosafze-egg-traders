@@ -56,25 +56,8 @@ router.get('/:shopId', async (req, res) => {
 
     let rawItems = await BranchModel.find(filter).sort({ name: 1 });
     if (rawItems.length === 0) {
-      const existingCount = await Item.countDocuments({ shopId: realShopId });
-      if (existingCount === 0) {
-        for (const prod of DEFAULT_EGG_PRODUCTS) {
-          const created = await Item.create({
-            shopId: realShopId,
-            name: prod.name,
-            category: prod.category,
-            price: prod.price,
-            costPrice: prod.costPrice,
-            stock: prod.stock,
-            minStock: 10,
-            description: `Fresh egg category: ${prod.name}`,
-            images: ['/egg2.png']
-          });
-          await BranchModel.findByIdAndUpdate(created._id, created.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
-        }
-      } else {
-        await syncBranchProducts(realShopId);
-      }
+      // Sync from main Item collection if branch collection is temporarily empty
+      await syncBranchProducts(realShopId);
       rawItems = await BranchModel.find(filter).sort({ name: 1 });
     }
     const items = rawItems.map(item => {
@@ -112,16 +95,10 @@ router.get('/:shopId', async (req, res) => {
       return itemObj;
     });
 
-    // Get unique categories (including all standard egg categories)
+    // Get unique categories from real products only
     const allItems = await Item.find({ shopId: realShopId }).select('category');
     const existingCats = allItems.map(i => i.category).filter(Boolean);
-    const defaultCats = [
-      'Super Jumbo', 'Jumbo', 'Stander', 'Step Stander', 'Step Jumbo',
-      'Starter', 'Weak Shell', 'Dusty', 'Floor', 'Sandy',
-      'Double White', 'Double Brown', 'Golden', 'Breeder', 'Special',
-      'loman brown', 'loman black', 'china eggs', 'pak egg', 'A Grade', 'Eggs'
-    ];
-    const categories = ['All', ...new Set([...defaultCats, ...existingCats])];
+    const categories = ['All', ...new Set(existingCats)];
 
     res.json({
       shop: {

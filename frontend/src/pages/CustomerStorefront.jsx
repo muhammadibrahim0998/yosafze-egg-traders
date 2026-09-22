@@ -6012,7 +6012,7 @@ function StoreContent({ shopId }) {
                           : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
                           }`}
                       >
-                        <img src="/egg.png" alt="egg" className={`w-4 h-4 object-contain shrink-0 transition-all ${active ? 'brightness-125 scale-110' : 'brightness-90 group-hover:brightness-0'}`} />
+                        <Package className={`w-4 h-4 shrink-0 transition-all ${active ? 'text-zinc-950 scale-110' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                         <span className="capitalize truncate text-white">{cat}</span>
                       </button>
                     );
@@ -6442,7 +6442,6 @@ function StoreContent({ shopId }) {
                           : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 shadow-xs hover:border-amber-400'
                           }`}
                       >
-                        {cat !== 'All' && <img src="/egg.png" alt="" className="w-3.5 h-3.5 object-contain" />}
                         {cat}
                       </button>
                     ))}
@@ -6490,13 +6489,13 @@ function StoreContent({ shopId }) {
                             {/* Image Container with Smooth Rounded Corners & Zoom */}
                             <button onClick={() => setSelectedItem(item)} className="block aspect-[4/3] sm:aspect-square bg-slate-50 overflow-hidden relative cursor-pointer text-left w-full rounded-t-[25px]">
                               <img
-                                src={(item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || '/egg2.png')}
+                                src={(item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || companyLogo)}
                                 alt={item.name}
                                 onError={(e) => {
                                   e.target.onerror = null;
-                                  e.target.src = '/egg2.png';
+                                  e.target.src = companyLogo;
                                 }}
-                                className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
+                                className={`w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
                               />
 
                               {/* Category Badge */}

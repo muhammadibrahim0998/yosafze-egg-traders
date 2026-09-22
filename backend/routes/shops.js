@@ -92,23 +92,6 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       await adminUser.save();
     }
 
-    // Auto-seed all 20 default egg categories for the newly registered shop
-    const BranchModel = getBranchItemModel(shop._id);
-    for (const prod of DEFAULT_EGG_PRODUCTS) {
-      const created = await Item.create({
-        shopId: shop._id,
-        name: prod.name,
-        category: prod.category,
-        price: prod.price,
-        costPrice: prod.costPrice,
-        stock: prod.stock,
-        minStock: 10,
-        description: `Fresh egg category: ${prod.name}`,
-        images: ['/egg2.png']
-      });
-      await BranchModel.findByIdAndUpdate(created._id, created.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
-    }
-
     res.status(201).json({ shop, adminUser, settings });
   } catch (error) {
     res.status(400).json({ message: error.message });

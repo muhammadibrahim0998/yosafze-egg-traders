@@ -89,7 +89,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
   const { register, handleSubmit, reset, setValue, getValues, watch, control, formState: { errors } } = useForm({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      name: "", category: "Eggs", stock: 0, minStock: 0, price: 0, costPrice: 0,
+      name: "", category: "", stock: 0, minStock: 0, price: 0, costPrice: 0,
       unitType: "peti", traysPerPeti: 12, eggsPerTray: 30,
       petiQuantity: 0, trayQuantity: 0, eggQuantity: 0,
       supplierName: "", totalPurchaseCost: 0, amountPaidToSupplier: 0, dueAmountToSupplier: 0, paymentMethod: "Cash",
@@ -473,13 +473,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
                   name="category"
                   control={control}
                   render={({ field }) => {
-                    const defaultCats = [
-                      'Super Jumbo', 'Jumbo', 'Stander', 'Step Stander', 'Step Jumbo',
-                      'Starter', 'Weak Shell', 'Dusty', 'Floor', 'Sandy',
-                      'Double White', 'Double Brown', 'Golden', 'Breeder', 'Special',
-                      'loman brown', 'loman black', 'china eggs', 'pak egg', 'A Grade', 'Eggs'
-                    ];
-                    const mergedCats = Array.from(new Set([...defaultCats, ...(categories || []).filter(c => c !== "All")]));
+                    const mergedCats = Array.from(new Set((categories || []).filter(c => c !== "All")));
                     return (
                       <CreatableSelect
                         {...field}
