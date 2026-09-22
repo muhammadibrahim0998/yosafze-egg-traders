@@ -13,6 +13,11 @@ import {
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 import companyLogo from '../image/logo.png';
+import slide1 from '../image/slide1.jpg';
+import slide2 from '../image/slide2.jpg';
+import slide3 from '../image/slide3.jpg';
+import slide4 from '../image/slide4.jpg';
+import slide5 from '../image/slide5.jpg';
 import { CheckoutModal } from '../components/CheckoutModal.jsx';
 import UserOrderModal from '../components/UserOrderModal.jsx';
 import { ProductModal } from '../components/ProductModal.jsx';
@@ -46,12 +51,13 @@ const getCategoryIcon = (category) => {
   return Layers;
 };
 
+// Yousafzai Agri Foods Product Background Images for Slider
 const EGG_BACKGROUND_IMAGES = [
-  'https://images.unsplash.com/photo-1516467508483-a7212febe31a?q=85&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?q=85&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?q=85&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1506976785307-8732e854ad03?q=85&w=1920&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=85&w=1920&auto=format&fit=crop'
+  slide1,
+  slide2,
+  slide3,
+  slide4,
+  slide5
 ];
 
 // ─── Customer Register / Login Full Page Component ───────────────────────────
