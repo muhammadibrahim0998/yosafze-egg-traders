@@ -1,25 +1,23 @@
-import mongoose from 'mongoose';
+import { BaseModel } from './dbHelper.js';
 
-const damagedProductSchema = new mongoose.Schema({
-  shopId: { type: String, required: true },
-  productName: { type: String, required: true },
-  productId: { type: String, default: '' },
-  quantity: { type: Number, default: 0 },
-  petiQuantity: { type: Number, default: 0 },
-  trayQuantity: { type: Number, default: 0 },
-  eggQuantity: { type: Number, default: 0 },
-  unitType: { type: String, default: 'egg' },
-  deductedEggs: { type: Number, default: 0 },
-  unitPrice: { type: Number, required: true, default: 0 },
-  totalLoss: { type: Number, required: true, default: 0 },
-  reason: { 
-    type: String, 
-    enum: ['Egg Breakage / Crack', 'Spoiled / Expired', 'Transport Damage', 'Storage Loss', 'Other'],
-    default: 'Egg Breakage / Crack' 
-  },
-  damageDate: { type: Date, default: Date.now },
-  notes: { type: String, default: '' },
-  reportedBy: { type: String, default: 'Shop Admin' }
-}, { timestamps: true });
+class DamagedProductModel extends BaseModel {
+  constructor() {
+    super('damaged_products', 'id');
+  }
 
-export default mongoose.model('DamagedProduct', damagedProductSchema);
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
+    obj.quantity = Number(obj.quantity) || 0;
+    obj.petiQuantity = Number(obj.petiQuantity) || 0;
+    obj.trayQuantity = Number(obj.trayQuantity) || 0;
+    obj.eggQuantity = Number(obj.eggQuantity) || 0;
+    obj.deductedEggs = Number(obj.deductedEggs) || 0;
+    obj.unitPrice = Number(obj.unitPrice) || 0;
+    obj.totalLoss = Number(obj.totalLoss) || 0;
+    return obj;
+  }
+}
+
+const DamagedProduct = new DamagedProductModel();
+export default DamagedProduct;

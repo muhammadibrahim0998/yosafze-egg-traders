@@ -1,19 +1,17 @@
-import mongoose from 'mongoose';
+import { BaseModel } from './dbHelper.js';
 
-const expenseSchema = new mongoose.Schema({
-  shopId: { type: String, required: true },
-  title: { type: String, required: true },
-  category: { 
-    type: String, 
-    enum: ['Rent', 'Utilities / Bills', 'Packaging & Bags', 'Transport & Freight', 'Salaries', 'Egg Damage / Loss', 'Other'],
-    default: 'Other' 
-  },
-  amount: { type: Number, required: true },
-  paymentMethod: { type: String, enum: ['CASH', 'BANK', 'ONLINE', 'Paid'], default: 'CASH' },
-  paymentSource: { type: String, enum: ['CASH', 'BANK', 'ONLINE'], default: 'CASH' },
-  expenseDate: { type: Date, default: Date.now },
-  notes: { type: String, default: '' },
-  createdBy: { type: String, default: 'Shop Admin' }
-}, { timestamps: true });
+class ExpenseModel extends BaseModel {
+  constructor() {
+    super('expenses', 'id');
+  }
 
-export default mongoose.model('Expense', expenseSchema);
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
+    obj.amount = Number(obj.amount) || 0;
+    return obj;
+  }
+}
+
+const Expense = new ExpenseModel();
+export default Expense;

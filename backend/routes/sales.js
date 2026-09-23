@@ -56,8 +56,6 @@ router.get('/all', authenticate, async (req, res) => {
   }
 });
 
-import mongoose from 'mongoose';
-
 // Get all sales (shop admin - their shop only)
 router.get('/', authenticate, requireShopAdmin, async (req, res) => {
   try {
@@ -65,7 +63,7 @@ router.get('/', authenticate, requireShopAdmin, async (req, res) => {
     let filter = {};
     if (rawShopId) {
       const targetShopId = await resolveShopId(rawShopId);
-      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+      if (targetShopId) {
         filter = { shopId: targetShopId };
       }
     }
@@ -267,7 +265,7 @@ router.get('/breakdown/:shopId?', authenticate, async (req, res) => {
     let filter = {};
     if (rawShopId) {
       const targetShopId = await resolveShopId(rawShopId);
-      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+      if (targetShopId) {
         filter = { shopId: targetShopId };
       }
     }
@@ -315,7 +313,7 @@ router.get('/by-type/:type', authenticate, requireShopAdmin, async (req, res) =>
     let filter = {};
     if (rawShopId) {
       const targetShopId = await resolveShopId(rawShopId);
-      if (targetShopId && mongoose.Types.ObjectId.isValid(targetShopId)) {
+      if (targetShopId) {
         filter.shopId = targetShopId;
       }
     }
@@ -435,16 +433,10 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
       return res.status(400).json({ message: 'Target ID is required' });
     }
 
-    const isValidObjId = mongoose.Types.ObjectId.isValid(targetId);
-    let saleQuery = [];
-    if (isValidObjId) {
-      saleQuery.push({ _id: targetId });
-      saleQuery.push({ orderId: targetId });
+    const sale = await Sale.findById(targetId);
+    if (sale) {
+      await Sale.findByIdAndDelete(sale.id);
     }
-    saleQuery.push({ invoiceNumber: targetId });
-
-    // 1. Find all matching sales
-    const matchingSales = await Sale.find({ $or: saleQuery });
 
     for (const sale of matchingSales) {
       const amountToDeduct = Number(sale.totalAmount) || 0;

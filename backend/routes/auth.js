@@ -66,12 +66,10 @@ router.post("/login", validateLogin, async (req, res) => {
     
     // allow case-insensitive login with either username or email or common aliases
     const escaped = rawUsername.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    let user = await User.findOne({ 
-      $or: [
-        { username: { $regex: new RegExp('^' + escaped + '$', 'i') } },
-        { email: { $regex: new RegExp('^' + escaped + '$', 'i') } }
-      ] 
-    });
+    let user = await User.findOne({ username: rawUsername });
+    if (!user) {
+      user = await User.findOne({ email: rawUsername });
+    }
 
     // Alias fallback for super admin and shop admin
     if (!user) {

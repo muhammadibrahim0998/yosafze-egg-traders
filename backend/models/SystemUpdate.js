@@ -1,29 +1,10 @@
-import mongoose from 'mongoose';
+import { BaseModel } from './dbHelper.js';
 
-const SystemUpdateSchema = new mongoose.Schema({
-  category: {
-    type: String,
-    required: true,
-    enum: ['New Features', 'UI Improvements', 'Security & Logic', 'Performance', 'Bug Fixes']
-  },
-  iconType: {
-    type: String,
-    required: true,
-    enum: ['zap', 'sparkles', 'shield', 'box', 'activity']
-  },
-  items: [{
-    type: String,
-    required: true
-  }],
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+class SystemUpdateModel extends BaseModel {
+  constructor() {
+    super('system_updates', 'id', ['items']);
   }
-});
+}
 
-const SystemUpdate = mongoose.model('SystemUpdate', SystemUpdateSchema);
+const SystemUpdate = new SystemUpdateModel();
 export default SystemUpdate;

@@ -22,7 +22,6 @@ const authenticateCustomer = async (req, res, next) => {
   }
 };
 
-import mongoose from 'mongoose';
 import { resolveShopId } from '../utils/shopResolver.js';
 
 // ─── GET ALL CUSTOMERS (FOR ADMIN DASHBOARD) ──────────────────────────────────
@@ -32,7 +31,7 @@ router.get('/all', async (req, res) => {
     let filter = {};
     if (shopId) {
       const resolved = await resolveShopId(shopId);
-      if (resolved && mongoose.Types.ObjectId.isValid(resolved)) {
+      if (resolved) {
         filter = { shopId: resolved };
       }
     }
@@ -275,7 +274,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { fullName, email, phone, address } = req.body;
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id) {
       return res.status(400).json({ message: 'Invalid customer ID' });
     }
     const updateData = {};
@@ -299,7 +298,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id) {
       return res.status(400).json({ message: 'Invalid customer ID' });
     }
     const customer = await Customer.findByIdAndDelete(id);

@@ -1,66 +1,22 @@
-import mongoose from 'mongoose';
+import { BaseModel } from './dbHelper.js';
 
-const CashSessionSchema = new mongoose.Schema({
-  shopId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Shop',
-    required: true
-  },
-  startTime: {
-    type: Date,
-    default: Date.now
-  },
-  endTime: {
-    type: Date
-  },
-  openingCash: {
-    type: Number,
-    required: true,
-    default: 0
-  },
-  closingCash: {
-    type: Number,
-    default: 0
-  },
-  totalSales: {
-    type: Number,
-    default: 0
-  },
-  totalReturns: {
-    type: Number,
-    default: 0
-  },
-  expectedCash: {
-    type: Number,
-    default: 0
-  },
-  actualCash: {
-    type: Number,
-    default: 0
-  },
-  status: {
-    type: String,
-    enum: ['open', 'closed'],
-    default: 'open'
-  },
-  cashierId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  closedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  notes: {
-    type: String,
-    default: ''
-  },
-  shiftType: {
-    type: String,
-    enum: ['day', 'night'],
-    default: 'day'
+class CashSessionModel extends BaseModel {
+  constructor() {
+    super('cash_sessions', 'id');
   }
-}, { timestamps: true });
 
-export default mongoose.model('CashSession', CashSessionSchema);
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
+    obj.openingCash = Number(obj.openingCash) || 0;
+    obj.closingCash = Number(obj.closingCash) || 0;
+    obj.totalSales = Number(obj.totalSales) || 0;
+    obj.totalReturns = Number(obj.totalReturns) || 0;
+    obj.expectedCash = Number(obj.expectedCash) || 0;
+    obj.actualCash = Number(obj.actualCash) || 0;
+    return obj;
+  }
+}
+
+const CashSession = new CashSessionModel();
+export default CashSession;

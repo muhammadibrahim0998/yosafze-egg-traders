@@ -32,6 +32,16 @@ const DEFAULT_EGG_PRODUCTS = [
 
 const router = express.Router();
 
+// Get all active shops (Public / Storefront)
+router.get('/public', async (req, res) => {
+  try {
+    const shops = await Shop.find({ status: 'active' }).sort({ createdAt: 1 });
+    res.json(shops);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get all shops (Super Admin only)
 router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {

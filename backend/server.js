@@ -1,13 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import dns from 'node:dns';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import connectDB from './config/db.js';
 import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
-import { exec } from 'child_process';
+import compression from 'compression';
+import { testMySQLConnection } from './config/mysql.js';
 
 // Import Routes
 import itemsRoutes from './routes/items.js';
@@ -25,13 +24,7 @@ import checkoutRoutes from './routes/checkout.js';
 import expensesRoutes from './routes/expenses.js';
 import damagedProductsRoutes from './routes/damagedProducts.js';
 
-import compression from 'compression';
-
 dotenv.config();
-
-// Fix for MongoDB Atlas DNS resolution issues
-dns.setServers(['8.8.8.8', '8.8.4.4']);
-dns.setDefaultResultOrder('ipv4first');
 
 // Fix __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -42,7 +35,7 @@ const app = express();
 // Enable Gzip/Brotli compression for fast JSON and asset transfer
 app.use(compression());
 
-// Trust proxy for Railway (crucial for secure cookies behind reverse proxies)
+// Trust proxy for secure cookies behind reverse proxies
 app.set('trust proxy', 1);
 
 // Middleware
@@ -51,7 +44,7 @@ const corsOptions = {
     'https://nexflow-inventory.vercel.app', 
     'http://localhost:5173', 
     'http://localhost:5174',
-    process.env.FRONTEND_URL // <-- Add this for dynamic hosting (e.g. Hostinger)
+    process.env.FRONTEND_URL
   ].filter(Boolean),
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
@@ -60,16 +53,9 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
-
-// Request logger for debugging Railway traffic
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.get('origin')}`);
-  next();
-});
 
 // Static Folders
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -94,15 +80,14 @@ app.use('/api/damaged-products', damagedProductsRoutes);
 
 // Root route
 app.get('/', (req, res) => {
-  res.send('Nexflow Inventory API is running...');
+  res.send('Yosafze Egg Traders API is running on MySQL Database (yosafze_egg_traders)...');
 });
 
-// Custom 404 Handler (This catches any route not defined above)
+// Custom 404 Handler
 app.use((req, res) => {
-  console.log(`[404] Route Not Found: ${req.method} ${req.url}`);
   res.status(404).json({
     success: false,
-    message: `Route not found on Nexflow API: ${req.method} ${req.url}`
+    message: `Route not found: ${req.method} ${req.url}`
   });
 });
 
@@ -122,24 +107,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Connect to Database
-await connectDB();
-
-// Auto-sync all branch product collections on startup
-import Shop from './models/Shop.js';
-import { syncBranchProducts } from './models/Item.js';
-
-(async () => {
-  try {
-    const allShops = await Shop.find({ status: 'active' }).select('_id name');
-    for (const s of allShops) {
-      await syncBranchProducts(s._id);
-    }
-    console.log(`📦 Dynamic branch product collections initialized for ${allShops.length} active branches.`);
-  } catch (syncErr) {
-    console.warn('[Branch Product Collections Sync Warning]:', syncErr.message);
-  }
-})();
+// Connect to MySQL Database
+await testMySQLConnection();
 
 const server = createServer(app);
 
@@ -159,5 +128,5 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`🚀 Server running on MySQL in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });

@@ -5,7 +5,6 @@ import Customer from '../models/Customer.js';
 import Sale from '../models/Sale.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import Settings from '../models/Settings.js';
-import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { authenticate, requireShopAdmin } from '../middleware/auth.js';
 
@@ -218,7 +217,7 @@ router.get('/orders', authenticate, requireShopAdmin, async (req, res) => {
     const targetRaw = (req.user?.role === 'shop_admin') ? req.user.shopId : shopId;
     if (targetRaw) {
       const resolved = await resolveShopId(targetRaw);
-      if (resolved && mongoose.Types.ObjectId.isValid(resolved)) {
+      if (resolved) {
         query.shopId = resolved;
       }
     }
@@ -325,7 +324,7 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
           });
         } else {
           saleItems.push({
-            productId: prodId || new mongoose.Types.ObjectId(),
+            productId: prodId || null,
             name: item.name || 'Product',
             quantity: item.quantity || 1,
             price: item.price || 0,

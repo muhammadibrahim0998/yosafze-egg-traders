@@ -1,40 +1,40 @@
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
+import { BaseModel } from './dbHelper.js';
+import bcrypt from 'bcryptjs';
 
-const UserSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  password: { type: String },
-  fullName: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'cashier', 'salesman', 'shop_admin', 'super_admin'], default: 'cashier' },
-  shopId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Shop',
-    required: function() {
-      return this.role !== 'super_admin';
-    }
-  },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-  preferredShift: { type: String, enum: ['day', 'night', 'both'], default: 'both' },
-  phoneNumber: { type: String },
-  email: { type: String, sparse: true },
-  lastLogged: { type: Date }
-}, { timestamps: true });
-
-// Hash password before saving
-UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password') || !this.password) return next();
-  try {
-    this.password = await bcrypt.hash(this.password, 10);
-    next();
-  } catch (error) {
-    next(error);
+class UserModel extends BaseModel {
+  constructor() {
+    super('users', 'id');
   }
-});
 
-// Method to compare password
-UserSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
 
-const User = mongoose.model('User', UserSchema);
+    obj.comparePassword = async function(candidatePassword) {
+      if (!this.password || !candidatePassword) return false;
+      return await bcrypt.compare(candidatePassword, this.password);
+    };
+
+    return obj;
+  }
+
+  async create(userData) {
+    const data = { ...userData };
+    if (data.password && !data.password.startsWith('$2')) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+    return super.create(data);
+  }
+
+  async findByIdAndUpdate(id, updateData, options = {}) {
+    const raw = updateData.$set || updateData;
+    const data = { ...raw };
+    if (data.password && !data.password.startsWith('$2')) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+    return super.findByIdAndUpdate(id, data, options);
+  }
+}
+
+const User = new UserModel();
 export default User;

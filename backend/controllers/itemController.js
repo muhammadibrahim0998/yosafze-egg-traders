@@ -1,41 +1,29 @@
-import mongoose from 'mongoose';
 import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js';
 import Expense from '../models/Expense.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
 
-// @desc    Get all items (dynamically scoped per branch collection)
+// @desc    Get all items (dynamically scoped per branch)
 const getItems = async (req, res) => {
   try {
     const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? req.user?.shopId : null);
     let targetShopId = null;
 
     if (rawShopId) {
-      if (mongoose.Types.ObjectId.isValid(rawShopId)) {
-        targetShopId = new mongoose.Types.ObjectId(rawShopId);
-      } else {
-        targetShopId = rawShopId;
-      }
+      targetShopId = rawShopId;
     } else if (req.user?.shopId) {
       targetShopId = req.user.shopId;
     }
 
     let items = [];
     if (targetShopId) {
-      const BranchModel = getBranchItemModel(targetShopId);
-      items = await BranchModel.find({ shopId: targetShopId }).sort({ createdAt: -1 });
-
-      // If branch collection has no records yet, sync from unified Item collection
-      if (items.length === 0) {
-        await syncBranchProducts(targetShopId);
-        items = await BranchModel.find({ shopId: targetShopId }).sort({ createdAt: -1 });
-      }
+      items = await Item.find({ shopId: targetShopId }).sort({ createdAt: -1 });
     } else {
       // Super Admin viewing global items across all shops
       items = await Item.find({}).sort({ createdAt: -1 });
     }
 
     const normalized = items.map(item => {
-      const itemObj = typeof item.toObject === 'function' ? item.toObject() : item;
+      const itemObj = typeof item.toObject === 'function' ? item.toObject() : { ...item };
       const pMethod = String(itemObj.paymentMethod || '').trim().toLowerCase();
       const isBankMethod = (
         pMethod.includes('bank') || pMethod.includes('easy') || pMethod.includes('jazz') || pMethod.includes('online') || pMethod.includes('cheque') || pMethod.includes('transfer') || pMethod.includes('card')
@@ -92,23 +80,15 @@ const getItems = async (req, res) => {
 const getItem = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id || id === 'undefined' || id === 'null') {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
 
     const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { _id: id }
-      : { _id: id, shopId: req.user.shopId };
+      ? { id }
+      : { id, shopId: req.user.shopId };
 
-    let item = null;
-    if (req.user?.shopId) {
-      const BranchModel = getBranchItemModel(req.user.shopId);
-      item = await BranchModel.findOne(filter);
-    }
-    if (!item) {
-      item = await Item.findOne(filter);
-    }
-
+    const item = await Item.findOne(filter);
     if (!item) return res.status(404).json({ message: 'Item not found' });
     res.json(item);
   } catch (error) {
@@ -119,7 +99,6 @@ const getItem = async (req, res) => {
 // @desc    Create new item
 const createItem = async (req, res) => {
   try {
-    // Use shopId from body (if specified, e.g. SuperAdmin), fallback to user's shopId
     const shopId = req.body.shopId || req.user?.shopId;
     if (!shopId) {
       return res.status(400).json({ message: 'shopId is required to add a product' });
@@ -152,22 +131,14 @@ const createItem = async (req, res) => {
       dueAmountToSupplier: dueAmt
     };
     
-    // Save to unified Item model
+    // Save to Item model
     const newItem = await Item.create(newItemData);
-
-    // Also persist in dynamic dedicated Branch collection
-    try {
-      const BranchModel = getBranchItemModel(shopId);
-      await BranchModel.findByIdAndUpdate(newItem._id, newItem.toObject(), { upsert: true, new: true, setDefaultsOnInsert: true });
-    } catch (branchErr) {
-      console.error('[createItem BranchModel sync warning]:', branchErr.message);
-    }
     
     // Auto-create expense record if payment was made to supplier
     if (newItem.amountPaidToSupplier && newItem.amountPaidToSupplier > 0) {
       try {
         await Expense.create({
-          shopId: newItem.shopId.toString(),
+          shopId: newItem.shopId,
           title: `Supplier Payment - ${newItem.supplierName || 'Egg Farm/Supplier'} (${newItem.name})`,
           category: 'Other',
           amount: Number(newItem.amountPaidToSupplier),
@@ -186,20 +157,6 @@ const createItem = async (req, res) => {
       `New Product deployed: ${newItem.name} (${newItem.category})`
     );
 
-    // Check if this is a new category for the shop (optional but requested)
-    const categoryCount = await Item.countDocuments({ 
-      shopId, 
-      category: newItem.category 
-    });
-    
-    if (categoryCount === 1) {
-      await logSystemUpdate(
-        "UI Improvements", 
-        "sparkles", 
-        `New Category established: ${newItem.category}`
-      );
-    }
-
     res.status(201).json(newItem);
   } catch (error) {
     console.error('[createItem error]', error.message);
@@ -211,7 +168,7 @@ const createItem = async (req, res) => {
 const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id || id === 'undefined' || id === 'null') {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
 
@@ -254,28 +211,16 @@ const updateItem = async (req, res) => {
       }
     }
 
-    // Branch scoping: Shop admin can only update their own shop's item (super admin can update any)
     const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { _id: id }
-      : { _id: id, shopId: req.user.shopId };
+      ? { id }
+      : { id, shopId: req.user.shopId };
 
     const updatedItem = await Item.findOneAndUpdate(
       filter,
       updateData,
-      { new: true, runValidators: true }
+      { new: true }
     );
     if (!updatedItem) return res.status(404).json({ message: 'Item not found or unauthorized' });
-
-    // Sync to dedicated branch collection
-    try {
-      const targetShopId = updatedItem.shopId || req.user?.shopId;
-      if (targetShopId) {
-        const BranchModel = getBranchItemModel(targetShopId);
-        await BranchModel.findByIdAndUpdate(updatedItem._id, updatedItem.toObject(), { upsert: true, new: true });
-      }
-    } catch (branchErr) {
-      console.error('[updateItem BranchModel sync warning]:', branchErr.message);
-    }
 
     res.json(updatedItem);
   } catch (error) {
@@ -287,29 +232,13 @@ const updateItem = async (req, res) => {
 const deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id || id === 'undefined' || id === 'null') {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
 
-    // Branch scoping: Shop admin can only delete their own shop's item (super admin can delete any)
-    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { _id: id }
-      : { _id: id, shopId: req.user.shopId };
-
-    const item = await Item.findOneAndDelete(filter);
+    const item = await Item.findByIdAndDelete(id);
     if (!item) {
       return res.status(404).json({ message: 'Item not found or unauthorized' });
-    }
-
-    // Remove from dedicated branch collection
-    try {
-      const targetShopId = item.shopId || req.user?.shopId;
-      if (targetShopId) {
-        const BranchModel = getBranchItemModel(targetShopId);
-        await BranchModel.findByIdAndDelete(id);
-      }
-    } catch (branchErr) {
-      console.error('[deleteItem BranchModel sync warning]:', branchErr.message);
     }
 
     res.json({ message: 'Item deleted successfully', deletedId: id, existed: true });
@@ -322,14 +251,14 @@ const deleteItem = async (req, res) => {
 const settleSupplierCredit = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!id) {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
 
     const { paymentMethod = 'Cash', amountPaid, paymentReceipt } = req.body;
     const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { _id: id }
-      : { _id: id, shopId: req.user.shopId };
+      ? { id }
+      : { id, shopId: req.user.shopId };
 
     const item = await Item.findOne(filter);
     if (!item) {
@@ -366,40 +295,34 @@ const settleSupplierCredit = async (req, res) => {
     const newDue = Math.max(0, effectiveDue - payAmt);
     const newPaid = (Number(item.amountPaidToSupplier) || 0) + payAmt;
 
-    item.dueAmountToSupplier = newDue;
-    item.amountPaidToSupplier = newPaid;
-    item.totalPurchaseCost = Math.max(totalCost, newPaid + newDue);
+    const updatePayload = {
+      dueAmountToSupplier: newDue,
+      amountPaidToSupplier: newPaid,
+      totalPurchaseCost: Math.max(totalCost, newPaid + newDue),
+      lastUpdated: new Date().toISOString().split('T')[0]
+    };
 
     if (isBank) {
-      item.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + payAmt;
-      item.isOnlinePayment = true;
-      if (paymentReceipt) item.paymentReceipt = paymentReceipt;
-      item.paymentMethod = 'Bank Transfer';
+      updatePayload.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + payAmt;
+      updatePayload.isOnlinePayment = true;
+      if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
+      updatePayload.paymentMethod = 'Bank Transfer';
     } else {
-      item.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + payAmt;
+      updatePayload.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + payAmt;
       if ((Number(item.bankPaidToSupplier) || 0) === 0) {
-        item.isOnlinePayment = false;
-        item.paymentMethod = 'Cash';
+        updatePayload.isOnlinePayment = false;
+        updatePayload.paymentMethod = 'Cash';
       }
     }
 
-    item.lastUpdated = new Date().toISOString().split('T')[0];
-    await item.save();
-
-    // Sync to dedicated branch collection
-    try {
-      const BranchModel = getBranchItemModel(item.shopId);
-      await BranchModel.findByIdAndUpdate(item._id, item.toObject(), { upsert: true, new: true });
-    } catch (branchErr) {
-      console.error('[settleSupplierCredit BranchModel sync warning]:', branchErr.message);
-    }
+    const updatedItem = await Item.findByIdAndUpdate(item.id, updatePayload);
 
     // Auto-create expense record for supplier payment
     try {
       await Expense.create({
-        shopId: item.shopId.toString(),
+        shopId: item.shopId,
         title: `Supplier Credit Paid - ${item.supplierName || 'Egg Farm'} (${item.name})`,
-        category: 'Purchases / Restock',
+        category: 'Other',
         amount: payAmt,
         paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
         paymentSource: isBank ? 'BANK' : 'CASH',
@@ -413,7 +336,7 @@ const settleSupplierCredit = async (req, res) => {
     res.json({
       success: true,
       message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
-      item
+      item: updatedItem
     });
   } catch (error) {
     console.error('[settleSupplierCredit error]', error);

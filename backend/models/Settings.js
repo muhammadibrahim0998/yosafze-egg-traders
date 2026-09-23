@@ -1,21 +1,17 @@
-import mongoose from "mongoose";
+import { BaseModel } from './dbHelper.js';
 
-const SettingsSchema = new mongoose.Schema({
-  shopName: { type: String, default: 'Egg Station POS' },
-  address: { type: String, default: '' },
-  phone: { type: String, default: '' },
-  email: { type: String, default: '' },
-  currency: { type: String, default: '$' },
-  logoUrl: { type: String, default: '' },
-  ownerPassword: { type: String, default: 'admin123' },
-  taxRate: { type: Number, default: 0 },
-  ownerFullName: { type: String, default: '' },
-  ownerEmail: { type: String, default: '' },
-  ownerPhone: { type: String, default: '' },
-  easypaisaNumber: { type: String, default: '' },
-  easypaisaEnabled: { type: Boolean, default: false },
-  shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true, unique: true }
-}, { timestamps: true });
+class SettingsModel extends BaseModel {
+  constructor() {
+    super('settings', 'id');
+  }
 
-const Settings = mongoose.model('Settings', SettingsSchema);
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
+    obj.taxRate = Number(obj.taxRate) || 0;
+    return obj;
+  }
+}
+
+const Settings = new SettingsModel();
 export default Settings;
