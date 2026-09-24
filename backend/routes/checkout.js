@@ -44,9 +44,9 @@ router.post('/', authenticateCustomer, async (req, res) => {
     const shopId = customer.shopId;
 
     // Create Order
-    const order = new Order({
+    const order = await Order.create({
       shopId,
-      customerId: customer._id,
+      customerId: customer._id || customer.id,
       items: customer.cart,
       totalAmount,
       shippingDetails,
@@ -54,12 +54,10 @@ router.post('/', authenticateCustomer, async (req, res) => {
       paymentStatus: 'PENDING'
     });
 
-    await order.save();
-
     // Automatically record this online customer transaction into Sale collection
     try {
       const saleItems = (customer.cart || []).map(item => ({
-        productId: item.productId || item._id,
+        productId: item.productId || item._id || item.id,
         name: item.name,
         quantity: Number(item.quantity) || 1,
         price: Number(item.price) || 0,
@@ -67,9 +65,9 @@ router.post('/', authenticateCustomer, async (req, res) => {
         profit: (Number(item.price) - Number(item.costPrice || 0)) * (Number(item.quantity) || 1)
       }));
 
-      const newSale = new Sale({
+      await Sale.create({
         shopId,
-        orderId: order._id,
+        orderId: order._id || order.id,
         items: saleItems,
         totalAmount,
         totalProfit: saleItems.reduce((s, i) => s + (i.profit || 0), 0),
@@ -79,7 +77,7 @@ router.post('/', authenticateCustomer, async (req, res) => {
         customerName: customer.fullName || shippingDetails?.fullName || 'Online Customer',
         customerPhone: customer.phone || shippingDetails?.phone || '',
         customerEmail: customer.email || shippingDetails?.email || '',
-        customerId: customer._id,
+        customerId: customer._id || customer.id,
         paymentMethod: paymentMethod === 'COD' ? 'CASH' : (paymentMethod === 'STRIPE' ? 'ONLINE' : 'BANK_TRANSFER'),
         cashPaid: paymentMethod === 'COD' ? totalAmount : 0,
         bankPaid: (paymentMethod === 'STRIPE' || paymentMethod === 'EASYPAISA' || paymentMethod === 'BANK') ? totalAmount : 0,
@@ -87,7 +85,6 @@ router.post('/', authenticateCustomer, async (req, res) => {
         isOnlineOrder: true,
         orderSource: 'ONLINE_STOREFRONT'
       });
-      await newSale.save();
     } catch (saleErr) {
       console.error('Failed to create sale for order:', saleErr);
     }
@@ -341,10 +338,10 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
         if (totalProfit) existingSale.totalProfit = totalProfit;
         await existingSale.save();
       } else {
-        const sale = new Sale({
+        await Sale.create({
           shopId: order.shopId,
-          orderId: order._id,
-          customerId: order.customerId?._id || order.customerId,
+          orderId: order._id || order.id,
+          customerId: order.customerId?._id || order.customerId?.id || order.customerId,
           items: saleItems,
           totalAmount: order.totalAmount,
           totalProfit,
@@ -362,7 +359,6 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
           orderSource: 'ONLINE_STOREFRONT',
           approvalStatus: 'APPROVED'
         });
-        await sale.save();
       }
     }
 

@@ -52,13 +52,12 @@ router.post('/register', async (req, res) => {
     const existing = await Customer.findOne({ email, shopId });
     if (existing) return res.status(409).json({ message: 'Email already registered for this shop' });
 
-    const customer = new Customer({ fullName, email, password, shopId });
-    await customer.save();
+    const customer = await Customer.create({ fullName, email, password, shopId });
 
     res.status(201).json({
       success: true,
       message: 'Registered successfully',
-      customerId: customer._id,
+      customerId: customer._id || customer.id,
       fullName: customer.fullName,
       email: customer.email
     });

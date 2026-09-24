@@ -22,12 +22,13 @@ import {
   UploadCloud,
   Loader2,
   ExternalLink,
-  Phone
+  Phone,
+  Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CountUpNumber } from './CountUpNumber.jsx';
-import { settleSupplierCredit, settleCreditSale, uploadImages } from '../services/api';
+import { settleSupplierCredit, settleCreditSale, uploadImages, deletePurchaseCredit, deleteItem } from '../services/api';
 
 export function CreditManagement({
   items = [],
@@ -254,6 +255,32 @@ export function CreditManagement({
         isSubmitting: false,
         error: err?.response?.data?.message || err.message || 'Payment settlement failed',
       }));
+    }
+  };
+
+  // Delete Purchase Credit Record from Database
+  const handleDeletePurchaseCredit = async (item) => {
+    if (!item) return;
+    const itemId = item._id || item.id;
+    const itemName = item.name || item.productName || 'Purchase Credit Record';
+    if (!window.confirm(`Are you sure you want to delete purchase credit record for "${itemName}" from database?`)) {
+      return;
+    }
+
+    try {
+      if (itemId) {
+        try {
+          await deletePurchaseCredit(itemId);
+        } catch (_) {
+          await deleteItem(itemId, '', 'shop_admin');
+        }
+      }
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (err) {
+      console.error('Delete purchase credit error:', err);
+      alert('Failed to delete purchase credit: ' + (err?.response?.data?.message || err.message));
     }
   };
 
@@ -678,19 +705,30 @@ export function CreditManagement({
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            {isDue ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isDue ? (
+                                <button
+                                  onClick={() => handleOpenSettleSupplier(item)}
+                                  className="px-3.5 py-1.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>Pay Credit</span>
+                                </button>
+                              ) : (
+                                <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Cleared
+                                </span>
+                              )}
+
                               <button
-                                onClick={() => handleOpenSettleSupplier(item)}
-                                className="px-3.5 py-1.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                type="button"
+                                onClick={() => handleDeletePurchaseCredit(item)}
+                                className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer"
+                                title="Delete Record from Database"
                               >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                <span>Pay Credit</span>
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            ) : (
-                              <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Cleared
-                              </span>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -715,11 +753,21 @@ export function CreditManagement({
                             Supplier: <strong className="text-zinc-800">{item.supplierName || 'Farm Supplier'}</strong>
                           </span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                          item.status === 'SETTLED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {item.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                            item.status === 'SETTLED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePurchaseCredit(item)}
+                            className="p-1 rounded-md text-rose-600 hover:bg-rose-100 transition-all cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-xl border border-zinc-200 text-center">

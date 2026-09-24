@@ -77,10 +77,10 @@ router.post('/shop/:shopId', async (req, res) => {
 
     const loss = totalLoss !== undefined ? Number(totalLoss) : (deductedEggs * (price / (unit === 'peti' ? ePerP : (unit === 'tray' ? ePerT : 1))));
 
-    const newRecord = new DamagedProduct({
+    const newRecord = await DamagedProduct.create({
       shopId: realShopId,
       productName,
-      productId: item ? String(item._id) : (productId || ''),
+      productId: item ? String(item._id || item.id) : (productId || ''),
       quantity: rawQty > 0 ? rawQty : (pQty > 0 ? pQty : (tQty > 0 ? tQty : eQty)),
       petiQuantity: pQty,
       trayQuantity: tQty,
@@ -95,7 +95,6 @@ router.post('/shop/:shopId', async (req, res) => {
       reportedBy: reportedBy || 'Shop Admin'
     });
 
-    await newRecord.save();
     res.status(201).json({ success: true, data: newRecord, updatedItem: item });
   } catch (error) {
     console.error('[DamagedProduct save error]', error);

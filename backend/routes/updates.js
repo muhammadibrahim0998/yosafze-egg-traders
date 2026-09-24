@@ -58,12 +58,11 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { category, iconType, items } = req.body;
   try {
-    const newUpdate = new SystemUpdate({
+    const update = await SystemUpdate.create({
       category,
       iconType,
       items
     });
-    const update = await newUpdate.save();
     res.json(update);
   } catch (err) {
     console.error(err.message);

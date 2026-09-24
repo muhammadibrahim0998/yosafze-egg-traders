@@ -65,7 +65,7 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       }
     }
 
-    const shop = new Shop({ 
+    const shop = await Shop.create({ 
       name, 
       address, 
       contactNumber, 
@@ -76,30 +76,27 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
         phone: adminPhone || ''
       }
     });
-    await shop.save();
 
     // Create initial settings for the shop
-    const settings = new Settings({
-      shopId: shop._id,
+    const settings = await Settings.create({
+      shopId: shop._id || shop.id,
       shopName: name,
       address: address || '',
       phone: contactNumber || '',
       easypaisaNumber: easypaisaNumber || '',
       easypaisaEnabled: easypaisaNumber ? true : false,
     });
-    await settings.save();
 
     let adminUser = null;
     if (adminUsername && adminPassword) {
-      adminUser = new User({
+      adminUser = await User.create({
         username: adminUsername,
         password: adminPassword,
         email: adminEmail || adminUsername || undefined,
         fullName: adminFullName || 'Shop Admin',
         role: 'shop_admin',
-        shopId: shop._id
+        shopId: shop._id || shop.id
       });
-      await adminUser.save();
     }
 
     res.status(201).json({ shop, adminUser, settings });

@@ -4,7 +4,23 @@ import { resolveShopId } from '../utils/shopResolver.js';
 
 const router = express.Router();
 
-// GET all expenses for a shop
+// GET all expenses (optionally filtered by shopId)
+router.get('/', async (req, res) => {
+  try {
+    const rawShopId = req.query.shopId || req.headers['x-shop-id'];
+    let filter = {};
+    if (rawShopId) {
+      const realShopId = await resolveShopId(rawShopId);
+      if (realShopId) filter.shopId = realShopId;
+    }
+    const expenses = await Expense.find(filter).sort({ expenseDate: -1 });
+    res.json({ success: true, count: expenses.length, data: expenses });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET all expenses for a specific shop
 router.get('/shop/:shopId', async (req, res) => {
   try {
     const { shopId } = req.params;
@@ -16,11 +32,11 @@ router.get('/shop/:shopId', async (req, res) => {
   }
 });
 
-// POST add a new expense for a shop
-router.post('/shop/:shopId', async (req, res) => {
+// POST add a new expense
+const handleCreateExpense = async (req, res) => {
   try {
-    const { shopId } = req.params;
-    const realShopId = await resolveShopId(shopId);
+    const rawShopId = req.params.shopId || req.body.shopId || req.query.shopId || 1;
+    const realShopId = await resolveShopId(rawShopId);
     const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy } = req.body;
 
     if (!title || amount === undefined || amount === null) {
@@ -29,7 +45,7 @@ router.post('/shop/:shopId', async (req, res) => {
 
     const source = (paymentSource || paymentMethod || 'CASH').toUpperCase().includes('BANK') ? 'BANK' : 'CASH';
 
-    const newExpense = new Expense({
+    const expensePayload = {
       shopId: realShopId,
       title,
       category: category || 'Other',
@@ -39,21 +55,29 @@ router.post('/shop/:shopId', async (req, res) => {
       expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
       notes: notes || '',
       createdBy: createdBy || 'Shop Admin'
-    });
+    };
 
-    await newExpense.save();
+    const newExpense = await Expense.create(expensePayload);
     res.status(201).json({ success: true, data: newExpense });
   } catch (error) {
+    console.error('[Expense Create Error]:', error);
     res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+
+router.post('/', handleCreateExpense);
+router.post('/shop/:shopId', handleCreateExpense);
 
 // PUT update an expense by ID
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy } = req.body;
+    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy, shopId } = req.body;
     const updateData = {};
+    if (shopId !== undefined) {
+      const realShopId = await resolveShopId(shopId);
+      if (realShopId) updateData.shopId = realShopId;
+    }
     if (title !== undefined) updateData.title = title;
     if (category !== undefined) updateData.category = category;
     if (amount !== undefined) updateData.amount = Number(amount);

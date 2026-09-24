@@ -16,11 +16,10 @@ router.get("/", authenticate, async (req, res) => {
     let settings = await Settings.findOne({ shopId });
     if (!settings) {
       // Create default settings if none exist for this shop
-      settings = new Settings({ shopId });
-      await settings.save();
+      settings = await Settings.create({ shopId });
     }
     // Don't send ownerPassword to the frontend unless specifically requested/authorized
-    const { ownerPassword, ...publicSettings } = settings.toObject();
+    const { ownerPassword, ...publicSettings } = typeof settings.toObject === 'function' ? settings.toObject() : { ...settings };
     if (!publicSettings.currency || publicSettings.currency === '$') {
       publicSettings.currency = 'Rs.';
     }
@@ -38,8 +37,7 @@ router.get("/secure", authenticate, preventSuperAdmin, async (req, res) => {
     
     let settings = await Settings.findOne({ shopId });
     if (!settings) {
-      settings = new Settings({ shopId });
-      await settings.save();
+      settings = await Settings.create({ shopId });
     }
 
     // Role-based check: Shop Admin is the owner of this tenant
@@ -63,7 +61,7 @@ router.put("/", authenticate, preventSuperAdmin, validateSettings, async (req, r
     
     let settings = await Settings.findOne({ shopId });
     if (!settings) {
-      settings = new Settings({ shopId });
+      settings = await Settings.create({ shopId });
     }
 
     // Verify current password to allow updates (Bypass for Shop Admin)

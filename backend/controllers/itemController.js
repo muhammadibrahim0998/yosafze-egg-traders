@@ -1,5 +1,6 @@
 import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js';
 import Expense from '../models/Expense.js';
+import pool from '../config/mysql.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
 
 // @desc    Get all items (dynamically scoped per branch)
@@ -228,7 +229,7 @@ const updateItem = async (req, res) => {
   }
 };
 
-// @desc    Delete item
+// @desc    Delete item & sync deletion with purchase_credits and purchases tables
 const deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -237,12 +238,54 @@ const deleteItem = async (req, res) => {
     }
 
     const item = await Item.findByIdAndDelete(id);
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found or unauthorized' });
+
+    // Also delete from purchase_credits and purchases tables in MySQL
+    try {
+      await pool.query('DELETE FROM purchase_credits WHERE itemId = ? OR id = ?', [id, id]);
+    } catch (pcErr) {
+      console.error('[deleteItem] purchase_credits delete error:', pcErr.message);
     }
 
-    res.json({ message: 'Item deleted successfully', deletedId: id, existed: true });
+    try {
+      await pool.query('DELETE FROM purchases WHERE itemId = ? OR id = ?', [id, id]);
+    } catch (pErr) {
+      console.error('[deleteItem] purchases delete error:', pErr.message);
+    }
+
+    res.json({ message: 'Item and purchase credit records deleted successfully from database', deletedId: id, existed: !!item });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete Purchase Credit record directly
+const deletePurchaseCredit = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const creditId = id || req.body?.id || req.body?.creditId || req.body?.itemId;
+    if (!creditId || creditId === 'undefined' || creditId === 'null') {
+      return res.status(400).json({ message: 'Valid ID is required' });
+    }
+
+    // Delete from purchase_credits table
+    try {
+      await pool.query('DELETE FROM purchase_credits WHERE id = ? OR itemId = ?', [creditId, creditId]);
+    } catch (pcErr) {
+      console.error('[deletePurchaseCredit] purchase_credits table delete error:', pcErr.message);
+    }
+
+    // Also delete from purchases and items if matching
+    try {
+      await pool.query('DELETE FROM purchases WHERE id = ? OR itemId = ?', [creditId, creditId]);
+    } catch (_) {}
+
+    try {
+      await Item.findByIdAndDelete(creditId);
+    } catch (_) {}
+
+    res.json({ success: true, message: 'Purchase credit record deleted successfully from database', deletedId: creditId });
+  } catch (error) {
+    console.error('[deletePurchaseCredit error]', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -317,6 +360,19 @@ const settleSupplierCredit = async (req, res) => {
 
     const updatedItem = await Item.findByIdAndUpdate(item.id, updatePayload);
 
+    // Sync with purchase_credits and purchases tables
+    try {
+      const pcStatus = newDue <= 0 ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
+      await pool.query(
+        'UPDATE purchase_credits SET paidToDate = ?, pendingDue = ?, status = ?, lastSettlementDate = NOW() WHERE itemId = ?',
+        [newPaid, newDue, pcStatus, item.id]
+      );
+      await pool.query(
+        'UPDATE purchases SET amountPaid = ?, dueAmount = ?, updatedAt = NOW() WHERE itemId = ?',
+        [newPaid, newDue, item.id]
+      );
+    } catch (pcErr) { }
+
     // Auto-create expense record for supplier payment
     try {
       await Expense.create({
@@ -344,11 +400,199 @@ const settleSupplierCredit = async (req, res) => {
   }
 };
 
+// @desc    Update Vendor / Supplier details across database
+const updateVendor = async (req, res) => {
+  try {
+    const { oldName, name, phone, location, email, notes, shopId } = req.body;
+    const targetShopId = shopId || req.user?.shopId || null;
+
+    if (!oldName && !name) {
+      return res.status(400).json({ message: 'Vendor name is required' });
+    }
+
+    const currentName = (oldName || name || '').trim();
+    const newName = (name || oldName || '').trim();
+    const newPhone = (phone || '').trim();
+    const newLocation = (location || '').trim();
+
+    // 1. Update/Upsert vendors table
+    try {
+      const [existingVendors] = await pool.query(
+        'SELECT * FROM vendors WHERE (name = ? OR name = ?) AND (shopId = ? OR ? IS NULL)',
+        [currentName, newName, targetShopId, targetShopId]
+      );
+
+      if (existingVendors.length > 0) {
+        await pool.query(
+          `UPDATE vendors 
+           SET name = ?, phone = ?, location = ?, farmLocation = ?, email = COALESCE(?, email), notes = COALESCE(?, notes), updatedAt = NOW() 
+           WHERE (name = ? OR name = ?) AND (shopId = ? OR ? IS NULL)`,
+          [newName, newPhone, newLocation, newLocation, email || null, notes || null, currentName, newName, targetShopId, targetShopId]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO vendors (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
+          [targetShopId || 1, newName, newPhone, newLocation, newLocation, email || '', notes || '']
+        );
+      }
+    } catch (vErr) {
+      console.error('[updateVendor] vendors table error:', vErr.message);
+    }
+
+    // 2. Update items table
+    try {
+      if (targetShopId) {
+        await pool.query(
+          `UPDATE items 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, farmLocation = ?, updatedAt = NOW() 
+           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
+          [newName, newPhone, newLocation, newLocation, currentName, newName, targetShopId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE items 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, farmLocation = ?, updatedAt = NOW() 
+           WHERE supplierName = ? OR supplierName = ?`,
+          [newName, newPhone, newLocation, newLocation, currentName, newName]
+        );
+      }
+    } catch (iErr) {
+      console.error('[updateVendor] items table error:', iErr.message);
+    }
+
+    // 3. Update purchases table
+    try {
+      if (targetShopId) {
+        await pool.query(
+          `UPDATE purchases 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
+           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
+          [newName, newPhone, newLocation, currentName, newName, targetShopId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE purchases 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
+           WHERE supplierName = ? OR supplierName = ?`,
+          [newName, newPhone, newLocation, currentName, newName]
+        );
+      }
+    } catch (pErr) {
+      console.error('[updateVendor] purchases table error:', pErr.message);
+    }
+
+    // 4. Update purchase_credits table
+    try {
+      if (targetShopId) {
+        await pool.query(
+          `UPDATE purchase_credits 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
+           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
+          [newName, newPhone, newLocation, currentName, newName, targetShopId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE purchase_credits 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
+           WHERE supplierName = ? OR supplierName = ?`,
+          [newName, newPhone, newLocation, currentName, newName]
+        );
+      }
+    } catch (pcErr) {
+      console.error('[updateVendor] purchase_credits table error:', pcErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Vendor "${newName}" updated successfully!`,
+      vendor: {
+        name: newName,
+        phone: newPhone,
+        location: newLocation
+      }
+    });
+  } catch (error) {
+    console.error('[updateVendor error]', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete Vendor and associated records across database
+const deleteVendor = async (req, res) => {
+  try {
+    const { name, shopId } = req.body;
+    const targetShopId = shopId || req.user?.shopId || null;
+
+    if (!name) {
+      return res.status(400).json({ message: 'Vendor name is required' });
+    }
+
+    const vendorName = String(name).trim();
+
+    // 1. Delete from vendors table
+    try {
+      if (targetShopId) {
+        await pool.query('DELETE FROM vendors WHERE name = ? AND shopId = ?', [vendorName, targetShopId]);
+      } else {
+        await pool.query('DELETE FROM vendors WHERE name = ?', [vendorName]);
+      }
+    } catch (vErr) {
+      console.error('[deleteVendor] vendors table error:', vErr.message);
+    }
+
+    // 2. Delete / Unassign from items table
+    try {
+      if (targetShopId) {
+        await pool.query('DELETE FROM items WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
+      } else {
+        await pool.query('DELETE FROM items WHERE supplierName = ?', [vendorName]);
+      }
+    } catch (iErr) {
+      console.error('[deleteVendor] items table error:', iErr.message);
+    }
+
+    // 3. Delete from purchases table
+    try {
+      if (targetShopId) {
+        await pool.query('DELETE FROM purchases WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
+      } else {
+        await pool.query('DELETE FROM purchases WHERE supplierName = ?', [vendorName]);
+      }
+    } catch (pErr) {
+      console.error('[deleteVendor] purchases table error:', pErr.message);
+    }
+
+    // 4. Delete from purchase_credits table
+    try {
+      if (targetShopId) {
+        await pool.query('DELETE FROM purchase_credits WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
+      } else {
+        await pool.query('DELETE FROM purchase_credits WHERE supplierName = ?', [vendorName]);
+      }
+    } catch (pcErr) {
+      console.error('[deleteVendor] purchase_credits table error:', pcErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Vendor "${vendorName}" and associated purchase records deleted successfully!`,
+      deletedVendor: vendorName
+    });
+  } catch (error) {
+    console.error('[deleteVendor error]', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export {
   getItems,
   getItem,
   createItem,
   updateItem,
   deleteItem,
-  settleSupplierCredit
+  settleSupplierCredit,
+  updateVendor,
+  deleteVendor,
+  deletePurchaseCredit
 };

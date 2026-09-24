@@ -45,16 +45,15 @@ router.post('/start', authenticate, preventSuperAdmin, async (req, res) => {
        return res.status(400).json({ message: 'Shop context missing for this session' });
     }
 
-    const session = new CashSession({
+    const newSession = await CashSession.create({
       openingCash,
-      cashierId: cashierId || req.user._id,
+      cashierId: cashierId || req.user._id || req.user.id,
       shopId,
       shiftType,
       status: 'open',
       expectedCash: openingCash
     });
 
-    const newSession = await session.save();
     res.status(201).json(newSession);
   } catch (err) {
     res.status(400).json({ message: err.message });

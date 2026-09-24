@@ -38,8 +38,7 @@ router.post("/", authenticate, requireShopAdmin, validate(memberSchema), async (
     if (!shopId && role !== 'super_admin') 
       return res.status(400).json({ message: "shopId is required" });
 
-    const user = new User({ username, password, fullName, role, status, shopId, preferredShift });
-    await user.save();
+    const user = await User.create({ username, password, fullName, role, status, shopId, preferredShift });
 
     // Log system update for new team member
     await logSystemUpdate(
@@ -50,7 +49,7 @@ router.post("/", authenticate, requireShopAdmin, validate(memberSchema), async (
 
     res.status(201).json({ 
       message: "User created successfully", 
-      user: { id: user._id, username: user.username, role: user.role } 
+      user: { id: user._id || user.id, username: user.username, role: user.role } 
     });
   } catch (error) {
     res.status(400).json({ message: error.message });

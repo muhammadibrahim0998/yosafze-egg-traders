@@ -102,7 +102,24 @@ export const deleteItem = async (id, password, role) => {
     }
   });
   return response.data;
-};export const settleSupplierCredit = async (id, paymentData) => {
+};
+
+export const updateVendor = async (vendorData) => {
+  const response = await api.put('/items/vendor/update', vendorData);
+  return response.data;
+};
+
+export const deleteVendor = async (vendorData) => {
+  const response = await api.post('/items/vendor/delete', vendorData);
+  return response.data;
+};
+
+export const deletePurchaseCredit = async (id) => {
+  const response = await api.delete(`/items/purchase-credit/${id}`);
+  return response.data;
+};
+
+export const settleSupplierCredit = async (id, paymentData) => {
   const method = String(paymentData.paymentMethod || 'Cash').toUpperCase();
   const endpoint = (method === 'BANK' || method === 'BANK_TRANSFER' || method === 'ONLINE')
     ? `/items/${id}/settle-bank`

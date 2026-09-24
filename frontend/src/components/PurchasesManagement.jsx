@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
-import { getItems, deleteItem, settleSupplierCredit, uploadImages } from '../services/api';
+import { getItems, deleteItem, settleSupplierCredit, uploadImages, updateVendor, deleteVendor } from '../services/api';
 import { CountUpNumber } from './CountUpNumber.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -44,6 +44,98 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     error: null,
     successMsg: null,
   });
+
+  // Edit Vendor / Supplier State
+  const [editVendorModal, setEditVendorModal] = useState({
+    isOpen: false,
+    oldName: '',
+    name: '',
+    phone: '',
+    location: '',
+    isSubmitting: false,
+    error: null,
+  });
+
+  const handleOpenEditVendor = (v) => {
+    setEditVendorModal({
+      isOpen: true,
+      oldName: v?.name || '',
+      name: v?.name || '',
+      phone: v?.phone || '',
+      location: v?.location || '',
+      isSubmitting: false,
+      error: null,
+    });
+  };
+
+  const handleSaveEditVendor = async (e) => {
+    if (e) e.preventDefault();
+    if (!editVendorModal.name.trim()) {
+      setEditVendorModal(prev => ({ ...prev, error: 'Vendor name is required' }));
+      return;
+    }
+    setEditVendorModal(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      await updateVendor({
+        oldName: editVendorModal.oldName,
+        name: editVendorModal.name.trim(),
+        phone: editVendorModal.phone.trim(),
+        location: editVendorModal.location.trim(),
+        shopId: activeShopId
+      });
+
+      // Update local products state immediately
+      setApiProducts(prev => prev.map(p => {
+        const pSupplier = (p.supplierName && p.supplierName.trim()) ? p.supplierName.trim() : 'Direct Farm / Unassigned';
+        if (pSupplier.toLowerCase() === editVendorModal.oldName.toLowerCase() || pSupplier.toLowerCase() === editVendorModal.name.toLowerCase()) {
+          return {
+            ...p,
+            supplierName: editVendorModal.name.trim(),
+            supplierPhone: editVendorModal.phone.trim(),
+            supplierLocation: editVendorModal.location.trim(),
+            farmLocation: editVendorModal.location.trim()
+          };
+        }
+        return p;
+      }));
+
+      await reloadItems();
+      setEditVendorModal({ isOpen: false, oldName: '', name: '', phone: '', location: '', isSubmitting: false, error: null });
+    } catch (err) {
+      console.error('Update vendor error:', err);
+      setEditVendorModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.response?.data?.message || err.message
+      }));
+    }
+  };
+
+  const handleDeleteVendor = async (v) => {
+    if (!v || !v.name) return;
+    const vendorName = v.name;
+    if (!window.confirm(`Are you sure you want to delete vendor "${vendorName}" and all associated purchase records from MySQL database?`)) {
+      return;
+    }
+
+    try {
+      await deleteVendor({
+        name: vendorName,
+        shopId: activeShopId
+      });
+
+      const vKey = vendorName.toLowerCase();
+      setApiProducts(prev => prev.filter(p => {
+        const pSupplier = (p.supplierName && p.supplierName.trim()) ? p.supplierName.trim().toLowerCase() : 'direct farm / unassigned';
+        return pSupplier !== vKey;
+      }));
+
+      await reloadItems();
+    } catch (err) {
+      console.error('Delete vendor error:', err);
+      alert('Failed to delete vendor: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
   const reloadItems = async () => {
     try {
@@ -1687,6 +1779,32 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                                   <FileSpreadsheet className="w-3.5 h-3.5 text-green-400 shrink-0" />
                                   <span>📊 Export Excel (.csv)</span>
                                 </button>
+
+                                <div className="my-1 border-t border-slate-700/60" />
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleOpenEditVendor(v);
+                                    setOpenVendorMenu(null);
+                                  }}
+                                  className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-amber-500/20 text-amber-300 transition-all cursor-pointer"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span>✏️ Edit Vendor</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleDeleteVendor(v);
+                                    setOpenVendorMenu(null);
+                                  }}
+                                  className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-rose-500/20 text-rose-400 transition-all cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                  <span>🗑️ Delete Vendor</span>
+                                </button>
                               </div>
                             )}
                           </div>
@@ -1972,6 +2090,128 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                       <>
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Confirm Pay (Rs. {fmt(settleModal.amountPaid || 0)})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Vendor / Supplier Modal */}
+      <AnimatePresence>
+        {editVendorModal.isOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full text-white shadow-2xl space-y-5"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black uppercase tracking-tight text-white">
+                      Edit Vendor / Farm
+                    </h3>
+                    <p className="text-xs text-slate-400 font-bold">
+                      Update details across records &amp; database
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setEditVendorModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Feedback messages */}
+              {editVendorModal.error && (
+                <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-xl text-rose-200 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{editVendorModal.error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveEditVendor} className="space-y-4">
+                {/* Vendor Name */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                    Vendor / Farm Name <span className="text-amber-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editVendorModal.name}
+                    onChange={(e) => setEditVendorModal(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. Lahore Egg Farm"
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 font-bold transition-all"
+                  />
+                </div>
+
+                {/* Phone */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                    Phone / Contact Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editVendorModal.phone}
+                    onChange={(e) => setEditVendorModal(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="e.g. 03069578493"
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 font-bold transition-all"
+                  />
+                </div>
+
+                {/* Location */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                    Location / City / Farm Address
+                  </label>
+                  <input
+                    type="text"
+                    value={editVendorModal.location}
+                    onChange={(e) => setEditVendorModal(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g. Peshawar, Lahore"
+                    className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 font-bold transition-all"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditVendorModal(prev => ({ ...prev, isOpen: false }))}
+                    disabled={editVendorModal.isSubmitting}
+                    className="py-3 px-4 rounded-xl border border-slate-700 text-xs font-black uppercase text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={editVendorModal.isSubmitting}
+                    className="py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-slate-900 bg-amber-400 hover:bg-amber-300 flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-amber-950/40 active:scale-95 cursor-pointer font-bold"
+                  >
+                    {editVendorModal.isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-900" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Save Changes</span>
                       </>
                     )}
                   </button>
