@@ -200,7 +200,7 @@ export default function App() {
       isOpen: true,
       type: 'sale',
       id: sale._id,
-      name: `Sale #${sale._id.slice(-6).toUpperCase()}`,
+      name: `Sale #${String(sale._id || sale.id || '').slice(-6).toUpperCase()}`,
       data: sale
     });
   };

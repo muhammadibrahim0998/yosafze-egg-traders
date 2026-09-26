@@ -5,6 +5,7 @@ import Customer from '../models/Customer.js';
 import Sale from '../models/Sale.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import Settings from '../models/Settings.js';
+import EasyPaisa from '../models/EasyPaisa.js';
 import crypto from 'crypto';
 import { authenticate, requireShopAdmin } from '../middleware/auth.js';
 
@@ -142,6 +143,23 @@ router.post('/', authenticateCustomer, async (req, res) => {
         return res.status(400).json({ message: 'EasyPaisa payment is not enabled for this shop' });
       }
 
+      try {
+        await EasyPaisa.create({
+          shopId: order.shopId,
+          orderId: order._id || order.id,
+          customerId: customer._id || customer.id,
+          customerName: shippingDetails?.fullName || customer.fullName || 'Customer',
+          customerPhone: shippingDetails?.phone || customer.phone || '',
+          transactionId: '',
+          senderNumber: shippingDetails?.phone || '',
+          amount: totalAmount,
+          status: 'PENDING',
+          items: customer.cart
+        });
+      } catch (epErr) {
+        console.error('Failed to create EasyPaisa entry:', epErr);
+      }
+
       const easyPaisaData = {
         superAdminNumber: easypaisaNumber,
         accountTitle,
@@ -177,6 +195,31 @@ router.post('/confirm/:orderId', async (req, res) => {
     }
     // paymentStatus stays 'PENDING' (default) until admin confirms
     await order.save();
+
+    if (order.paymentMethod === 'EASYPAISA') {
+      try {
+        const ep = await EasyPaisa.findOne({ orderId: order._id || order.id });
+        if (ep) {
+          if (req.body.transactionId) ep.transactionId = req.body.transactionId;
+          await ep.save();
+        } else {
+          await EasyPaisa.create({
+            shopId: order.shopId,
+            orderId: order._id || order.id,
+            customerId: order.customerId,
+            customerName: order.shippingDetails?.fullName || 'Customer',
+            customerPhone: order.shippingDetails?.phone || '',
+            transactionId: req.body.transactionId || '',
+            senderNumber: order.shippingDetails?.phone || '',
+            amount: order.totalAmount,
+            status: order.paymentStatus || 'PENDING',
+            items: order.items || []
+          });
+        }
+      } catch (epSyncErr) {
+        console.error('EasyPaisa confirm sync error:', epSyncErr);
+      }
+    }
 
     // Clear customer cart since the order has been placed
     const customer = await Customer.findById(order.customerId);
@@ -362,6 +405,19 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
       }
     }
 
+    // Synchronize EasyPaisa table
+    if (order.paymentMethod === 'EASYPAISA' && paymentStatus) {
+      try {
+        const ep = await EasyPaisa.findOne({ orderId: order._id || order.id });
+        if (ep) {
+          ep.status = paymentStatus;
+          await ep.save();
+        }
+      } catch (epStatusErr) {
+        console.error('Failed to sync EasyPaisa status:', epStatusErr);
+      }
+    }
+
     await order.save();
     res.json({ success: true, order });
   } catch (err) {
@@ -379,7 +435,7 @@ router.delete('/order/:orderId/proof', authenticate, requireShopAdmin, async (re
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
-    order.paymentProof = undefined;
+    order.paymentProof = null;
     await order.save();
     res.json({ success: true, message: 'Payment screenshot proof deleted successfully', order });
   } catch (err) {
@@ -397,7 +453,11 @@ router.delete('/order/:orderId', authenticate, requireShopAdmin, async (req, res
       return res.status(403).json({ message: 'Access denied for this order' });
     }
 
-    await order.deleteOne();
+    await Order.findByIdAndDelete(req.params.orderId);
+    try {
+      await EasyPaisa.deleteMany({ orderId: req.params.orderId });
+    } catch (_) {}
+
     res.json({ success: true, message: 'Order deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });

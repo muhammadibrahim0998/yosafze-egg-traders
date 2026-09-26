@@ -142,7 +142,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                         </div>
                         <div className="min-w-0">
                           <div className="text-xs font-bold text-zinc-900 truncate">{product.name}</div>
-                          <div className="text-[9px] text-zinc-400 font-medium uppercase tracking-tighter">REF: {product._id?.slice(-6).toUpperCase()}</div>
+                          <div className="text-[9px] text-zinc-400 font-medium uppercase tracking-tighter">REF: {String(product._id || product.id || '').slice(-6).toUpperCase()}</div>
                         </div>
                       </div>
                     </td>

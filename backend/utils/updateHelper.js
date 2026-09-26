@@ -18,18 +18,19 @@ export const logSystemUpdate = async (category, iconType, item) => {
 
     if (update) {
       // Avoid duplicate items in the same update entry
-      if (!update.items.includes(item)) {
-        update.items.push(item);
-        await update.save();
+      const itemsList = Array.isArray(update.items) ? update.items : [];
+      if (!itemsList.includes(item)) {
+        itemsList.push(item);
+        await SystemUpdate.findByIdAndUpdate(update.id || update._id, { items: itemsList });
       }
     } else {
-      // Create new update entry
-      update = new SystemUpdate({
+      // Create new update entry using MySQL BaseModel
+      update = await SystemUpdate.create({
         category,
         iconType,
-        items: [item]
+        items: [item],
+        isActive: true
       });
-      await update.save();
     }
     return update;
   } catch (err) {

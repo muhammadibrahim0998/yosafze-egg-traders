@@ -46,13 +46,14 @@ router.get('/all', async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const { fullName, email, password, shopId } = req.body;
-    if (!fullName || !email || !password || !shopId) {
+    if (!fullName || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
-    const existing = await Customer.findOne({ email, shopId });
+    const targetShopId = (await resolveShopId(shopId)) || shopId || 1;
+    const existing = await Customer.findOne({ email, shopId: targetShopId });
     if (existing) return res.status(409).json({ message: 'Email already registered for this shop' });
 
-    const customer = await Customer.create({ fullName, email, password, shopId });
+    const customer = await Customer.create({ fullName, email, password, shopId: targetShopId });
 
     res.status(201).json({
       success: true,
@@ -70,19 +71,20 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password, shopId } = req.body;
-    if (!email || !password || !shopId) {
-      return res.status(400).json({ message: 'Email, password, and shopId are required' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
+    const targetShopId = (await resolveShopId(shopId)) || shopId || 1;
     
     // 1. Try Customer Login
-    const customer = await Customer.findOne({ email, shopId });
+    const customer = await Customer.findOne({ email, shopId: targetShopId });
     if (customer && (await customer.comparePassword(password))) {
       return res.json({
         success: true,
-        customerId: customer._id,
+        customerId: customer._id || customer.id,
         fullName: customer.fullName,
         email: customer.email,
-        cart: customer.cart,
+        cart: customer.cart || [],
         role: 'customer'
       });
     }

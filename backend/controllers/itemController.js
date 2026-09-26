@@ -1,5 +1,8 @@
 import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js';
 import Expense from '../models/Expense.js';
+import Purchase from '../models/Purchase.js';
+import PurchaseCredit from '../models/PurchaseCredit.js';
+import Vendor from '../models/Vendor.js';
 import pool from '../config/mysql.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
 import { resolveShopId } from '../utils/shopResolver.js';
@@ -139,33 +142,51 @@ const createItem = async (req, res) => {
     // Save to Item model
     const newItem = await Item.create(newItemData);
     
+    // Auto-resolve or register Vendor ID
+    let vendorId = req.body.vendorId || null;
+    const sName = (newItem.supplierName || req.body.supplierName || '').trim();
+    if (sName) {
+      try {
+        let v = await Vendor.findOne({ name: sName, shopId });
+        if (!v) {
+          v = await Vendor.findOne({ name: { $regex: sName } });
+        }
+        if (!v) {
+          v = await Vendor.create({
+            name: sName,
+            phone: newItem.supplierPhone || req.body.supplierPhone || '03069578493',
+            location: newItem.supplierLocation || req.body.supplierLocation || '',
+            shopId
+          });
+        }
+        if (v && v.id) {
+          vendorId = v.id;
+        }
+      } catch (_) {}
+    }
+
     // Auto-create purchase record in purchases table for this branch
     try {
-      await pool.query(`
-        INSERT INTO \`purchases\` (
-          \`shopId\`, \`itemId\`, \`productName\`, \`supplierName\`, \`supplierPhone\`, \`supplierLocation\`,
-          \`petiQuantity\`, \`trayQuantity\`, \`eggQuantity\`, \`unitType\`, \`buyCost\`, \`totalCost\`,
-          \`paymentType\`, \`amountPaid\`, \`dueAmount\`, \`paymentReceipt\`, \`notes\`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        newItem.shopId,
-        newItem.id,
-        newItem.name,
-        newItem.supplierName || '',
-        newItem.supplierPhone || '',
-        newItem.supplierLocation || '',
-        Number(newItem.petiQuantity) || 0,
-        Number(newItem.trayQuantity) || 0,
-        Number(newItem.eggQuantity) || (Number(newItem.stock) || 0),
-        newItem.unitType || 'peti',
-        Number(newItem.costPrice) || Number(newItem.price) || 0,
-        Number(newItem.totalPurchaseCost) || 0,
-        newItem.paymentMethod || 'Cash',
-        Number(newItem.amountPaidToSupplier) || 0,
-        Number(newItem.dueAmountToSupplier) || 0,
-        newItem.paymentReceipt || '',
-        `Purchase Restock: ${newItem.name}`
-      ]);
+      await Purchase.create({
+        shopId: newItem.shopId,
+        itemId: newItem.id,
+        vendorId: vendorId || null,
+        productName: newItem.name,
+        supplierName: newItem.supplierName || sName || '',
+        supplierPhone: newItem.supplierPhone || '',
+        supplierLocation: newItem.supplierLocation || '',
+        petiQuantity: Number(newItem.petiQuantity) || 0,
+        trayQuantity: Number(newItem.trayQuantity) || 0,
+        eggQuantity: Number(newItem.eggQuantity) || (Number(newItem.stock) || 0),
+        unitType: newItem.unitType || 'peti',
+        buyCost: Number(newItem.costPrice) || Number(newItem.price) || 0,
+        totalCost: Number(newItem.totalPurchaseCost) || 0,
+        paymentType: newItem.paymentMethod || 'Cash',
+        amountPaid: Number(newItem.amountPaidToSupplier) || 0,
+        dueAmount: Number(newItem.dueAmountToSupplier) || 0,
+        paymentReceipt: newItem.paymentReceipt || '',
+        notes: `Purchase Restock: ${newItem.name}`
+      });
     } catch (purchErr) {
       console.error('[createItem] Purchase record creation failed:', purchErr.message);
     }
@@ -173,24 +194,26 @@ const createItem = async (req, res) => {
     // Auto-create purchase_credits record if there is due balance for supplier
     if (Number(newItem.dueAmountToSupplier) > 0) {
       try {
-        await pool.query(`
-          INSERT INTO \`purchase_credits\` (
-            \`shopId\`, \`itemId\`, \`productName\`, \`supplierName\`, \`supplierPhone\`, \`supplierLocation\`,
-            \`totalCost\`, \`amountPaid\`, \`dueAmount\`, \`paymentMethod\`, \`paymentReceipt\`
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          newItem.shopId,
-          newItem.id,
-          newItem.name,
-          newItem.supplierName || 'Egg Supplier',
-          newItem.supplierPhone || '',
-          newItem.supplierLocation || '',
-          Number(newItem.totalPurchaseCost) || 0,
-          Number(newItem.amountPaidToSupplier) || 0,
-          Number(newItem.dueAmountToSupplier) || 0,
-          newItem.paymentMethod || 'Credit',
-          newItem.paymentReceipt || ''
-        ]);
+        await PurchaseCredit.create({
+          shopId: newItem.shopId,
+          itemId: newItem.id,
+          vendorId: vendorId || null,
+          productName: newItem.name,
+          supplierName: newItem.supplierName || sName || 'Egg Supplier',
+          supplierPhone: newItem.supplierPhone || '',
+          supplierLocation: newItem.supplierLocation || '',
+          quantityText: [
+            newItem.petiQuantity > 0 ? `${newItem.petiQuantity} Petis` : '',
+            newItem.trayQuantity > 0 ? `${newItem.trayQuantity} Trays` : '',
+            newItem.eggQuantity > 0 ? `${newItem.eggQuantity} Eggs` : ''
+          ].filter(Boolean).join(', ') || '0',
+          totalCost: Number(newItem.totalPurchaseCost) || 0,
+          paidToDate: Number(newItem.amountPaidToSupplier) || 0,
+          pendingDue: Number(newItem.dueAmountToSupplier) || 0,
+          status: Number(newItem.amountPaidToSupplier) > 0 ? 'PARTIAL' : 'UNPAID',
+          paymentMethod: newItem.paymentMethod || 'Credit',
+          paymentReceipt: newItem.paymentReceipt || ''
+        });
       } catch (pcErr) {
         console.error('[createItem] Purchase Credit record creation failed:', pcErr.message);
       }
@@ -663,6 +686,20 @@ const deleteVendor = async (req, res) => {
   }
 };
 
+// @desc    Get all purchase credits
+const getPurchaseCredits = async (req, res) => {
+  try {
+    const shopId = req.query.shopId || req.user?.shopId;
+    let query = {};
+    if (shopId) query.shopId = shopId;
+    const credits = await PurchaseCredit.find(query);
+    res.json(credits);
+  } catch (error) {
+    console.error('[getPurchaseCredits error]', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export {
   getItems,
   getItem,
@@ -672,5 +709,6 @@ export {
   settleSupplierCredit,
   updateVendor,
   deleteVendor,
-  deletePurchaseCredit
+  deletePurchaseCredit,
+  getPurchaseCredits
 };

@@ -28,7 +28,7 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CountUpNumber } from './CountUpNumber.jsx';
-import { settleSupplierCredit, settleCreditSale, uploadImages, deletePurchaseCredit, deleteItem } from '../services/api';
+import { settleSupplierCredit, settleCreditSale, uploadImages, deletePurchaseCredit, deleteItem, getPurchaseCredits } from '../services/api';
 
 export function CreditManagement({
   items = [],
@@ -79,30 +79,37 @@ export function CreditManagement({
     successMsg: null,
   });
 
-  // Calculate dynamic Purchase / Supplier Credit List
+  const [dbPurchaseCredits, setDbPurchaseCredits] = useState([]);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+
+  const fetchPurchaseCreditsData = async () => {
+    try {
+      setLoadingCredits(true);
+      const data = await getPurchaseCredits(shopId);
+      setDbPurchaseCredits(data || []);
+    } catch (err) {
+      console.error('Failed to fetch purchase credits:', err);
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPurchaseCreditsData();
+  }, [shopId]);
+
+  // Use database data instead of dynamic calculation
   const purchaseCreditList = useMemo(() => {
-    return (items || []).filter(item => {
-      const due = Number(item.dueAmountToSupplier !== undefined && item.dueAmountToSupplier !== null
-        ? item.dueAmountToSupplier 
-        : (item.paymentType === 'Credit' || item.isCredit ? (Number(item.buyCost || item.purchasePrice || 0) * Number(item.petiQuantity || item.totalPetis || 1)) : 0));
-      return due > 0 || item.paymentType === 'Credit' || item.isCredit;
-    }).map(item => {
-      const petis = Number(item.petiQuantity || item.totalPetis || item.totalPetisPurchased || 0);
-      const buyCost = Number(item.buyCost || item.purchasePrice || item.costPrice || 0);
-      const totalCost = petis > 0 ? (buyCost * petis) : Number(item.totalCost || item.totalPurchaseCost || buyCost || 0);
-      const cashPaid = Number(item.amountPaidToSupplier || item.cashPaid || 0);
-      const explicitDue = item.dueAmountToSupplier !== undefined && item.dueAmountToSupplier !== null ? Number(item.dueAmountToSupplier) : null;
-      const dueAmount = explicitDue !== null ? explicitDue : Math.max(0, totalCost - cashPaid);
-      
+    return dbPurchaseCredits.map(item => {
       return {
         ...item,
-        calculatedTotalCost: totalCost,
-        calculatedPaid: cashPaid,
-        calculatedDue: dueAmount,
-        status: dueAmount === 0 ? 'SETTLED' : (cashPaid > 0 ? 'PARTIAL' : 'UNPAID')
+        calculatedTotalCost: Number(item.totalCost) || 0,
+        calculatedPaid: Number(item.paidToDate) || 0,
+        calculatedDue: Number(item.pendingDue) || 0,
+        status: item.status || (Number(item.pendingDue) === 0 ? 'SETTLED' : (Number(item.paidToDate) > 0 ? 'PARTIAL' : 'UNPAID'))
       };
     });
-  }, [items]);
+  }, [dbPurchaseCredits]);
 
   // Calculate dynamic Customer Credit List
   const customerCreditList = useMemo(() => {
@@ -682,7 +689,7 @@ export function CreditManagement({
                             </span>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-zinc-700">
-                            {item.petiQuantity || item.totalPetis || 0} Petis
+                            {item.quantityText || `${item.petiQuantity || item.totalPetis || 0} Petis`}
                           </td>
                           <td className="py-3.5 px-4 font-black text-zinc-900">
                             {currency} {(item.calculatedTotalCost || 0).toLocaleString('en-PK')}

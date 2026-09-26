@@ -17,16 +17,55 @@ async function getTableColumns(tableName) {
   }
 }
 
+const BRANCH_ENTITIES = new Set([
+  'items',
+  'sales',
+  'purchases',
+  'purchase_credits',
+  'customers',
+  'customer_credits',
+  'expenses',
+  'damaged_products',
+  'cash_sessions',
+  'orders',
+  'easypaisa'
+]);
+
+const BRANCH_TABLE_PREFIXES = {
+  1: 'peshawar_branch',
+  2: 'mardan_branch',
+  3: 'attock_branch'
+};
+
+const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_branch'];
+
 /**
  * Base Model Helper for MySQL
  * Provides full Mongoose-like syntax (find, findOne, findById, create, update, delete)
- * to maintain 100% compatibility with existing controllers and frontend APIs.
+ * with native branch folder table routing (peshawar_branch__*, mardan_branch__*, attock_branch__*).
  */
 export class BaseModel {
   constructor(tableName, primaryKey = 'id', jsonFields = []) {
     this.tableName = tableName;
     this.primaryKey = primaryKey;
     this.jsonFields = jsonFields;
+    this.isBranchEntity = BRANCH_ENTITIES.has(tableName);
+  }
+
+  // Get table SQL source based on query shopId
+  _getSourceSql(query = {}) {
+    if (!this.isBranchEntity) {
+      return `\`${this.tableName}\``;
+    }
+
+    const shopId = query.shopId ? Number(query.shopId) : null;
+    if (shopId && BRANCH_TABLE_PREFIXES[shopId]) {
+      return `\`${BRANCH_TABLE_PREFIXES[shopId]}__${this.tableName}\``;
+    }
+
+    // Combine all 3 branches when shopId is not specified
+    const unionParts = ALL_BRANCH_PREFIXES.map(p => `SELECT * FROM \`${p}__${this.tableName}\``);
+    return `(${unionParts.join(' UNION ALL ')}) AS \`${this.tableName}\``;
   }
 
   // Parse row from MySQL into JS object
@@ -65,6 +104,12 @@ export class BaseModel {
     obj.save = async () => {
       await this.findByIdAndUpdate(obj[this.primaryKey], obj);
       return obj;
+    };
+    obj.deleteOne = async () => {
+      return await this.findByIdAndDelete(obj[this.primaryKey]);
+    };
+    obj.remove = async () => {
+      return await this.findByIdAndDelete(obj[this.primaryKey]);
     };
     return obj;
   }
@@ -139,8 +184,9 @@ export class BaseModel {
     return { whereClause, values };
   }
 
-  // Find multiple records with sorting, pagination, and projection
+  // Find multiple records
   find(query = {}) {
+    const sourceSql = this._getSourceSql(query);
     const { whereClause, values } = this._buildWhere(query);
     
     const queryObj = {
@@ -181,13 +227,13 @@ export class BaseModel {
         return this;
       },
       then: (resolve, reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
+        const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
         pool.query(sql, values)
           .then(([rows]) => resolve(rows.map(r => this._parseRow(r))))
           .catch(reject);
       },
       catch: (reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
+        const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
         return pool.query(sql, values).catch(reject);
       }
     };
@@ -197,6 +243,7 @@ export class BaseModel {
 
   // Find one record
   findOne(query = {}) {
+    const sourceSql = this._getSourceSql(query);
     const { whereClause, values } = this._buildWhere(query);
     const queryObj = {
       _sort: '',
@@ -215,13 +262,13 @@ export class BaseModel {
       lean() { return this; },
       populate() { return this; },
       then: (resolve, reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} LIMIT 1`;
+        const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} LIMIT 1`;
         pool.query(sql, values)
           .then(([rows]) => resolve(rows.length > 0 ? this._parseRow(rows[0]) : null))
           .catch(reject);
       },
       catch: (reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} LIMIT 1`;
+        const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} LIMIT 1`;
         return pool.query(sql, values).catch(reject);
       }
     };
@@ -239,18 +286,19 @@ export class BaseModel {
         catch: () => {}
       };
     }
+    const sourceSql = this._getSourceSql({});
     const queryObj = {
       select(sel) { return this; },
       lean() { return this; },
       populate() { return this; },
       then: (resolve, reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
+        const sql = `SELECT * FROM ${sourceSql} WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
         pool.query(sql, [id])
           .then(([rows]) => resolve(rows.length > 0 ? this._parseRow(rows[0]) : null))
           .catch(reject);
       },
       catch: (reject) => {
-        const sql = `SELECT * FROM \`${this.tableName}\` WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
+        const sql = `SELECT * FROM ${sourceSql} WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
         return pool.query(sql, [id]).catch(reject);
       }
     };
@@ -260,7 +308,12 @@ export class BaseModel {
   // Create new record
   async create(data) {
     const record = Array.isArray(data) ? data[0] : data;
-    const validCols = await getTableColumns(this.tableName);
+    const shopId = record.shopId ? Number(record.shopId) : 1;
+    const targetTable = (this.isBranchEntity && BRANCH_TABLE_PREFIXES[shopId])
+      ? `${BRANCH_TABLE_PREFIXES[shopId]}__${this.tableName}`
+      : this.tableName;
+
+    const validCols = await getTableColumns(targetTable);
     const cleanData = {};
 
     for (const [key, val] of Object.entries(record)) {
@@ -281,7 +334,7 @@ export class BaseModel {
     const placeholders = Object.keys(cleanData).map(() => '?').join(', ');
     const vals = Object.values(cleanData);
 
-    const sql = `INSERT INTO \`${this.tableName}\` (${cols}) VALUES (${placeholders})`;
+    const sql = `INSERT INTO \`${targetTable}\` (${cols}) VALUES (${placeholders})`;
     const [result] = await pool.query(sql, vals);
     const newId = result.insertId || cleanData[this.primaryKey];
     return await this.findById(newId);
@@ -289,41 +342,50 @@ export class BaseModel {
 
   // Find by ID and update
   async findByIdAndUpdate(id, updateData, options = {}) {
-    const validCols = await getTableColumns(this.tableName);
+    const targetTables = this.isBranchEntity
+      ? ALL_BRANCH_PREFIXES.map(p => `${p}__${this.tableName}`)
+      : [this.tableName];
+
     const rawUpdate = updateData.$set || updateData;
-    const cleanData = {};
-    const setClauses = [];
-    const vals = [];
 
-    // Handle $inc (e.g. $inc: { stock: -5 })
-    if (updateData.$inc && typeof updateData.$inc === 'object') {
-      for (const [k, incVal] of Object.entries(updateData.$inc)) {
-        if (validCols && !validCols.has(k)) continue;
-        setClauses.push(`\`${k}\` = \`${k}\` + ?`);
-        vals.push(Number(incVal) || 0);
+    for (const targetTable of targetTables) {
+      const validCols = await getTableColumns(targetTable);
+      if (!validCols) continue;
+
+      const cleanData = {};
+      const setClauses = [];
+      const vals = [];
+
+      // Handle $inc
+      if (updateData.$inc && typeof updateData.$inc === 'object') {
+        for (const [k, incVal] of Object.entries(updateData.$inc)) {
+          if (validCols && !validCols.has(k)) continue;
+          setClauses.push(`\`${k}\` = \`${k}\` + ?`);
+          vals.push(Number(incVal) || 0);
+        }
       }
-    }
 
-    for (const [key, val] of Object.entries(rawUpdate)) {
-      if (key === '_id' || key === 'id' || key === '__v') continue;
-      if (key === '$inc' || typeof val === 'function') continue;
-      if (validCols && !validCols.has(key)) continue;
+      for (const [key, val] of Object.entries(rawUpdate)) {
+        if (key === '_id' || key === 'id' || key === '__v') continue;
+        if (key === '$inc' || typeof val === 'function') continue;
+        if (validCols && !validCols.has(key)) continue;
 
-      if (this.jsonFields.includes(key)) {
-        cleanData[key] = Array.isArray(val) || typeof val === 'object' ? JSON.stringify(val) : '[]';
-      } else if (typeof val === 'boolean') {
-        cleanData[key] = val ? 1 : 0;
-      } else {
-        cleanData[key] = val;
+        if (this.jsonFields.includes(key)) {
+          cleanData[key] = Array.isArray(val) || typeof val === 'object' ? JSON.stringify(val) : '[]';
+        } else if (typeof val === 'boolean') {
+          cleanData[key] = val ? 1 : 0;
+        } else {
+          cleanData[key] = val;
+        }
+        setClauses.push(`\`${key}\` = ?`);
+        vals.push(cleanData[key]);
       }
-      setClauses.push(`\`${key}\` = ?`);
-      vals.push(cleanData[key]);
-    }
 
-    if (setClauses.length > 0) {
-      vals.push(id);
-      const sql = `UPDATE \`${this.tableName}\` SET ${setClauses.join(', ')} WHERE \`${this.primaryKey}\` = ?`;
-      await pool.query(sql, vals);
+      if (setClauses.length > 0) {
+        vals.push(id);
+        const sql = `UPDATE \`${targetTable}\` SET ${setClauses.join(', ')} WHERE \`${this.primaryKey}\` = ?`;
+        await pool.query(sql, vals);
+      }
     }
 
     return await this.findById(id);
@@ -345,7 +407,15 @@ export class BaseModel {
   async findByIdAndDelete(id) {
     const existing = await this.findById(id);
     if (existing) {
-      await pool.query(`DELETE FROM \`${this.tableName}\` WHERE \`${this.primaryKey}\` = ?`, [id]);
+      const targetTables = this.isBranchEntity
+        ? ALL_BRANCH_PREFIXES.map(p => `${p}__${this.tableName}`)
+        : [this.tableName];
+
+      for (const targetTable of targetTables) {
+        try {
+          await pool.query(`DELETE FROM \`${targetTable}\` WHERE \`${this.primaryKey}\` = ?`, [id]);
+        } catch (_) {}
+      }
     }
     return existing;
   }
@@ -353,24 +423,35 @@ export class BaseModel {
   async findOneAndDelete(query) {
     const existing = await this.findOne(query);
     if (existing) {
-      await pool.query(`DELETE FROM \`${this.tableName}\` WHERE \`${this.primaryKey}\` = ?`, [existing[this.primaryKey]]);
+      await this.findByIdAndDelete(existing[this.primaryKey]);
     }
     return existing;
   }
 
   // Count documents
   async countDocuments(query = {}) {
+    const sourceSql = this._getSourceSql(query);
     const { whereClause, values } = this._buildWhere(query);
-    const sql = `SELECT COUNT(*) as total FROM \`${this.tableName}\` ${whereClause}`;
+    const sql = `SELECT COUNT(*) as total FROM ${sourceSql} ${whereClause}`;
     const [rows] = await pool.query(sql, values);
     return Number(rows[0]?.total) || 0;
   }
 
   // Delete many
   async deleteMany(query = {}) {
-    const { whereClause, values } = this._buildWhere(query);
-    const sql = `DELETE FROM \`${this.tableName}\` ${whereClause}`;
-    const [result] = await pool.query(sql, values);
-    return { deletedCount: result.affectedRows };
+    const targetTables = this.isBranchEntity
+      ? (query.shopId && BRANCH_TABLE_PREFIXES[query.shopId]
+          ? [`${BRANCH_TABLE_PREFIXES[query.shopId]}__${this.tableName}`]
+          : ALL_BRANCH_PREFIXES.map(p => `${p}__${this.tableName}`))
+      : [this.tableName];
+
+    let deletedCount = 0;
+    for (const targetTable of targetTables) {
+      const { whereClause, values } = this._buildWhere(query);
+      const sql = `DELETE FROM \`${targetTable}\` ${whereClause}`;
+      const [result] = await pool.query(sql, values);
+      deletedCount += result.affectedRows;
+    }
+    return { deletedCount };
   }
 }

@@ -60,7 +60,7 @@ export function EditSaleModal({ isOpen, onClose, sale, onSave }) {
         <div className="flex items-center justify-between p-6 sm:p-8 bg-[#202327]/40 backdrop-blur-md border-b border-[var(--color-border-subtle)] shrink-0">
           <div className="space-y-1">
             <h2 className="text-2xl font-black text-[var(--color-text-primary)] tracking-tighter uppercase leading-none italic">Modify Record</h2>
-            <p className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest">Tx ID: #{sale._id.slice(-6).toUpperCase()}</p>
+            <p className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest">Tx ID: #{String(sale._id || sale.id || '').slice(-6).toUpperCase()}</p>
           </div>
           <button onClick={onClose} className="p-2.5 bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-base)] rounded-xl transition-all text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             <X className="w-4 h-4" />

@@ -61,7 +61,7 @@ export function SalesHistory({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Entry ID</span>
-                    <span className="text-xs font-black text-[var(--color-text-primary)] mono tracking-widest bg-[var(--color-background)] px-2 py-1 rounded-lg">#{sale._id.slice(-6).toUpperCase()}</span>
+                    <span className="text-xs font-black text-[var(--color-text-primary)] mono tracking-widest bg-[var(--color-background)] px-2 py-1 rounded-lg">#{String(sale._id || sale.id || '').slice(-6).toUpperCase()}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[var(--color-text-muted)] bg-[var(--color-surface-base)] w-fit px-3 py-1.5 rounded-xl border border-[var(--color-border-subtle)]">
                     <Calendar className="w-3.5 h-3.5 text-[var(--color-primary)]" />

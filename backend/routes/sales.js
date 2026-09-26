@@ -4,6 +4,7 @@ import Sale from '../models/Sale.js';
 import Order from '../models/Order.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import CashSession from '../models/CashSession.js';
+import Customer from '../models/Customer.js';
 import { generateInvoice } from '../utils/generateInvoice.js';
 import path from 'path';
 import fs from 'fs';
@@ -161,6 +162,30 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
       approvalStatus: req.body.approvalStatus || (isBank ? 'PENDING_APPROVAL' : 'APPROVED'),
       saleDate: new Date()
     };
+    
+    // Automatically register walk-in customer in database if name is provided
+    let finalCustomerName = salePayload.customerName;
+    const isGeneric = !finalCustomerName || finalCustomerName.toLowerCase() === 'walk-in customer' || finalCustomerName.toLowerCase() === 'walk-in' || finalCustomerName.toLowerCase() === 'cash customer';
+    
+    if (!isGeneric && !salePayload.customerId) {
+      try {
+        const existingCust = await Customer.findOne({ fullName: finalCustomerName, shopId: targetShopId });
+        if (!existingCust) {
+          const newCust = await Customer.create({
+            fullName: finalCustomerName,
+            phone: salePayload.customerPhone || '',
+            email: salePayload.customerEmail || '',
+            password: 'phys_' + Math.random().toString(36).substring(7), // dummy password for physical
+            shopId: targetShopId
+          });
+          salePayload.customerId = newCust._id || newCust.id;
+        } else {
+          salePayload.customerId = existingCust._id || existingCust.id;
+        }
+      } catch (custErr) {
+        console.error('Failed to auto-register walk-in customer:', custErr);
+      }
+    }
     
     // 3. Update stock for each item if items provided
     if (Array.isArray(items)) {
@@ -619,11 +644,19 @@ const processCreditSettlement = async (saleId, { paymentMethod = 'CASH', amountP
 
     // Also sync with customer_credits table in MySQL
     try {
+      const mysqlModule = await import('../config/mysql.js');
+      const pool = mysqlModule.default;
       const status = newDue <= 0 ? 'PAID' : ((Number(sale.cashPaid) || 0) + (Number(sale.bankPaid) || 0) > 0 ? 'PARTIAL' : 'UNPAID');
-      await pool.query(
-        'UPDATE customer_credits SET paidAmount = ?, dueAmount = ?, status = ?, lastPaymentDate = NOW() WHERE saleId = ?',
-        [(Number(sale.cashPaid) || 0) + (Number(sale.bankPaid) || 0), newDue, status, sale.id]
-      );
+      
+      const { ALL_BRANCH_PREFIXES } = await import('../models/dbHelper.js');
+      for (const prefix of ALL_BRANCH_PREFIXES) {
+        try {
+          await pool.query(
+            `UPDATE \`${prefix}__customer_credits\` SET paidAmount = ?, dueAmount = ?, status = ?, lastPaymentDate = NOW() WHERE saleId = ?`,
+            [(Number(sale.cashPaid) || 0) + (Number(sale.bankPaid) || 0), newDue, status, sale.id]
+          );
+        } catch (e) { }
+      }
     } catch (ccErr) { }
 
     // Also update Order if it corresponds to an order

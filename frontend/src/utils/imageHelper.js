@@ -10,8 +10,19 @@ export function getImageUrl(imagePath) {
 
   if (!rawUrl || typeof rawUrl !== 'string') return '/egg2.png';
 
-  // Absolute URLs (Cloudinary, external, data URIs)
-  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+  // Absolute URLs (Cloudinary, external, data URIs, blob)
+  if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    return rawUrl;
+  }
+
+  // If URL points to localhost:5000/uploads, convert to relative /uploads/ so the Vite proxy handles it
+  if (rawUrl.includes('localhost:5000/uploads/') || rawUrl.includes('localhost:5173/uploads/')) {
+    const idx = rawUrl.indexOf('/uploads/');
+    return rawUrl.substring(idx);
+  }
+
+  // If it's another http/https URL (production hosting), use as-is
+  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
     return rawUrl;
   }
 
@@ -21,13 +32,8 @@ export function getImageUrl(imagePath) {
   }
 
   // Uploaded backend images (e.g. /uploads/image.jpg)
-  const apiBase = import.meta.env.VITE_API_URL || '';
-  if (rawUrl.startsWith('/uploads/')) {
-    return apiBase ? `${apiBase}${rawUrl}` : rawUrl;
-  }
-
-  if (rawUrl.startsWith('uploads/')) {
-    return apiBase ? `${apiBase}/${rawUrl}` : `/${rawUrl}`;
+  if (rawUrl.startsWith('/uploads/') || rawUrl.startsWith('uploads/')) {
+    return rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
   }
 
   return rawUrl;

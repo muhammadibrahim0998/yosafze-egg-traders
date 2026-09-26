@@ -130,7 +130,7 @@ export default function UserOrderModal({ setOrderOpen }) {
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="text-xs font-black px-3 py-1 bg-slate-900 text-emerald-400 rounded-lg">
-                        #{order._id.slice(-6).toUpperCase()}
+                        #{String(order._id || order.id || '').slice(-6).toUpperCase()}
                       </span>
                       <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                         {order.paymentMethod || 'COD'}
@@ -185,7 +185,7 @@ export default function UserOrderModal({ setOrderOpen }) {
           <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl space-y-4 text-slate-900 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h3 className="font-black text-base text-emerald-700 uppercase tracking-tight">
-                Order #{selectedOrder._id.slice(-6).toUpperCase()} Details
+                Order #{String(selectedOrder._id || selectedOrder.id || '').slice(-6).toUpperCase()} Details
               </h3>
               <button onClick={() => setSelectedOrder(null)} className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />

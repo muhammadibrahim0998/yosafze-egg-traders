@@ -63,6 +63,12 @@ export const getMe = async () => {
 };
 
 // --- ITEMS API ---
+export const getPurchaseCredits = async (shopId) => {
+  const url = shopId ? `/items/purchase-credits?shopId=${shopId}` : '/items/purchase-credits';
+  const response = await api.get(url);
+  return response.data;
+};
+
 export const getItems = async (shopId) => {
   const response = await api.get('/items', { params: shopId ? { shopId } : {} });
   return response.data;

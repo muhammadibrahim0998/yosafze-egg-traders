@@ -101,7 +101,7 @@ export function ExportModal({ isOpen, onClose, products = [], sales = [], catego
       txSheet.addRow([
         d.toLocaleDateString('en-PK'),
         d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        s._id.slice(-8).toUpperCase(),
+        String(s._id || s.id || '').slice(-8).toUpperCase(),
         s.items.map(i => `${i.name} x${i.quantity}`).join(', '),
         s.totalAmount,
         s.status?.toUpperCase() || 'PAID'

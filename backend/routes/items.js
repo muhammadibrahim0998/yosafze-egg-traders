@@ -11,7 +11,8 @@ import {
   settleSupplierCredit,
   updateVendor,
   deleteVendor,
-  deletePurchaseCredit
+  deletePurchaseCredit,
+  getPurchaseCredits
 } from '../controllers/itemController.js';
 
 router.route('/')
@@ -20,6 +21,9 @@ router.route('/')
 
 router.route('/all')
   .get(authenticate, getItems);
+
+router.route('/purchase-credits')
+  .get(authenticate, getPurchaseCredits);
 
 // Vendor & Purchase Credit update & delete endpoints (placed before /:id to prevent slug collisions)
 router.put('/vendor/update', authenticate, requireShopAdmin, updateVendor);

@@ -121,7 +121,7 @@ export function ReceiptModal({ isOpen, onClose, sale }) {
               </div>
               <div className="flex justify-between items-center h-6">
                 <span className="text-[var(--color-text-muted)] text-[10px] uppercase font-black tracking-[0.2em]">ID:</span>
-                <span className="font-black text-[11px] text-[var(--color-primary)]">#{sale._id?.slice(-8).toUpperCase() || 'N/A'}</span>
+                <span className="font-black text-[11px] text-[var(--color-primary)]">#{String(sale._id || sale.id || '').slice(-8).toUpperCase() || 'N/A'}</span>
               </div>
             </div>
 
@@ -167,7 +167,7 @@ export function ReceiptModal({ isOpen, onClose, sale }) {
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
                     `--- ${settings.shopName} ---\n` +
-                    `Invoice: #${sale._id?.slice(-8).toUpperCase()}\n` +
+                    `Invoice: #${String(sale._id || sale.id || '').slice(-8).toUpperCase()}\n` +
                     `Customer: ${sale.customerName || 'Walk-in Customer'}\n` +
                     `Date: ${new Date(sale.saleDate).toLocaleString('en-PK')}\n\n` +
                     `ITEMS:\n` +

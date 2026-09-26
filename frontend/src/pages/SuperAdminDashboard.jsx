@@ -772,7 +772,7 @@ export function SuperAdminDashboard() {
                 onConfirm={confirmDeleteOrderAction}
                 title={deleteOrderModal.title}
                 message={deleteOrderModal.message}
-                itemName={deleteOrderModal.orderId ? `#${deleteOrderModal.orderId.slice(-6).toUpperCase()}` : ''}
+                itemName={deleteOrderModal.orderId ? `#${String(deleteOrderModal.orderId).slice(-6).toUpperCase()}` : ''}
                 isDeleting={isDeletingOrder}
             />
         </div>

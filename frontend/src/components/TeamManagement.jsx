@@ -239,7 +239,7 @@ export function TeamManagement() {
                   <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${u.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-slate-700 shadow-slate-700/50'}`}></div>
                   {u.status}
                 </div>
-                <span className="uppercase tracking-[0.1em] opacity-40">Personnel ID: {u._id.slice(-6).toUpperCase()}</span>
+                <span className="uppercase tracking-[0.1em] opacity-40">Personnel ID: {String(u._id || u.id || '').slice(-6).toUpperCase()}</span>
               </div>
             </motion.div>
           ))}

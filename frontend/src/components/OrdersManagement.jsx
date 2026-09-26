@@ -90,11 +90,12 @@ export function OrdersManagement({ shopId = null }) {
   };
 
   const handleDeleteOrder = async (orderId) => {
+    if (!orderId) return;
     setBusyId(orderId);
     try {
       await deleteOrder(orderId);
-      setOrders(prev => prev.filter(o => o._id !== orderId));
-      if (deleteTarget?._id === orderId) setDeleteTarget(null);
+      setOrders(prev => prev.filter(o => String(o._id || o.id) !== String(orderId)));
+      setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete order');
     } finally {
@@ -158,7 +159,7 @@ export function OrdersManagement({ shopId = null }) {
             </div>
             <div style="text-align:right;">
               <span>Order Date: ${orderDate}</span><br/>
-              <span>Order ID: #${(ord._id || '').slice(-8).toUpperCase()}</span>
+              <span>Order ID: #${String(ord._id || ord.id || '').slice(-8).toUpperCase()}</span>
             </div>
           </div>
           <table>
@@ -256,10 +257,10 @@ export function OrdersManagement({ shopId = null }) {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {orders.map((ord) => (
-            <div key={ord._id} className="bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+            <div key={ord._id || ord.id} className="bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-xs font-black px-3 py-1 bg-slate-800 text-white rounded-lg">#{ord._id.slice(-6).toUpperCase()}</span>
+                  <span className="text-xs font-black px-3 py-1 bg-slate-800 text-white rounded-lg">#{String(ord._id || ord.id || '').slice(-6).toUpperCase()}</span>
                   <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${ord.paymentMethod === 'EASYPAISA' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-indigo-500/20 text-indigo-400'}`}>
                     {ord.paymentMethod}
                   </span>
@@ -284,38 +285,34 @@ export function OrdersManagement({ shopId = null }) {
                 </div>
               </div>
 
-              {/* Proof Screenshot Section & Action Buttons */}
+              {/* Proof Screenshot Section (Only if uploaded) & Action Buttons */}
               <div className="flex items-center gap-4">
-                {ord.paymentProof ? (
-                  <div className="relative group">
+                {ord.paymentProof && (
+                  <div className="relative group shrink-0">
                     <div
-                      onClick={() => setSelectedProofImage({ url: ord.paymentProof, orderId: ord._id })}
+                      onClick={() => setSelectedProofImage({ url: ord.paymentProof, orderId: ord._id || ord.id })}
                       className="cursor-pointer group relative border-2 border-emerald-500/60 rounded-2xl overflow-hidden shadow-lg bg-black/40 hover:scale-105 transition-all"
                     >
-                      <img src={ord.paymentProof} alt="Payment Proof" className="w-24 h-24 object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-wider transition-all">
+                      <img src={ord.paymentProof} alt="Payment Proof" className="w-20 h-20 object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[9px] font-black uppercase tracking-wider transition-all">
                         View Proof
                       </div>
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteProof(ord._id); }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteProof(ord._id || ord.id); }}
                       title="Delete Screenshot"
                       className="absolute -top-2 -right-2 p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full shadow-lg transition-all z-10 hover:scale-110"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                ) : (
-                  <div className="w-24 h-24 rounded-2xl border border-dashed border-slate-700 flex flex-col items-center justify-center p-2 text-center text-slate-500 text-[10px] font-bold">
-                    No Screenshot Uploaded
-                  </div>
                 )}
 
                 <div className="flex flex-col gap-1 w-36 sm:w-40 shrink-0">
                   {ord.paymentStatus !== 'PAID' && (
                     <button
-                      onClick={() => handleUpdateOrderStatus(ord._id, 'PAID')}
-                      disabled={busyId === ord._id}
+                      onClick={() => handleUpdateOrderStatus(ord._id || ord.id, 'PAID')}
+                      disabled={busyId === (ord._id || ord.id)}
                       className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer transition-all"
                     >
                       <CheckCircle2 className="w-3 h-3 shrink-0" />
@@ -324,8 +321,8 @@ export function OrdersManagement({ shopId = null }) {
                   )}
                   {ord.paymentStatus !== 'FAILED' && (
                     <button
-                      onClick={() => handleUpdateOrderStatus(ord._id, 'FAILED')}
-                      disabled={busyId === ord._id}
+                      onClick={() => handleUpdateOrderStatus(ord._id || ord.id, 'FAILED')}
+                      disabled={busyId === (ord._id || ord.id)}
                       className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer transition-all"
                     >
                       <XCircle className="w-3 h-3 shrink-0" />
@@ -334,8 +331,8 @@ export function OrdersManagement({ shopId = null }) {
                   )}
                   {ord.paymentProof && (
                     <button
-                      onClick={() => handleDeleteProof(ord._id)}
-                      disabled={busyId === ord._id}
+                      onClick={() => handleDeleteProof(ord._id || ord.id)}
+                      disabled={busyId === (ord._id || ord.id)}
                       className="px-2 py-1 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 rounded-lg text-[9px] font-bold uppercase transition-all shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Trash2 className="w-3 h-3 shrink-0" />
@@ -352,7 +349,7 @@ export function OrdersManagement({ shopId = null }) {
                   </button>
                   <button
                     onClick={() => setDeleteTarget(ord)}
-                    disabled={busyId === ord._id}
+                    disabled={busyId === (ord._id || ord.id)}
                     className="px-2 py-1 bg-zinc-800/80 hover:bg-rose-900/60 text-slate-300 hover:text-rose-300 border border-slate-700/60 rounded-lg text-[9px] font-bold uppercase transition-all shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <Trash2 className="w-3 h-3 shrink-0" />
@@ -401,7 +398,7 @@ export function OrdersManagement({ shopId = null }) {
               <XCircle className="w-7 h-7 text-rose-500" />
             </div>
             <p className="font-black text-[var(--color-text-primary)] uppercase tracking-tight">Delete this order?</p>
-            <p className="text-xs text-zinc-500">Order #{deleteTarget._id.slice(-6).toUpperCase()} will be permanently removed. This cannot be undone.</p>
+            <p className="text-xs text-zinc-500">Order #{String(deleteTarget?._id || deleteTarget?.id || '').slice(-6).toUpperCase()} will be permanently removed. This cannot be undone.</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteTarget(null)}
@@ -410,11 +407,11 @@ export function OrdersManagement({ shopId = null }) {
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteOrder(deleteTarget._id)}
-                disabled={busyId === deleteTarget._id}
+                onClick={() => handleDeleteOrder(deleteTarget._id || deleteTarget.id)}
+                disabled={busyId === (deleteTarget._id || deleteTarget.id)}
                 className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50"
               >
-                {busyId === deleteTarget._id ? 'Deleting...' : 'Delete'}
+                {busyId === (deleteTarget._id || deleteTarget.id) ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

@@ -1,76 +1,26 @@
 import { BaseModel } from './dbHelper.js';
-import pool from '../config/mysql.js';
 
 class OrderModel extends BaseModel {
   constructor() {
-    super('orders', 'id');
+    super('orders', 'id', ['items']);
   }
 
-  async _attachOrderItems(order) {
-    if (!order) return null;
-    const [items] = await pool.query(
-      'SELECT id, itemId, name, price, quantity, image FROM order_items WHERE orderId = ?',
-      [order.id]
-    );
-    order.items = items.map(it => ({
-      ...it,
-      _id: it.id,
-      price: Number(it.price) || 0,
-      quantity: Number(it.quantity) || 1
-    }));
-    order.shippingDetails = {
-      fullName: order.shippingFullName || '',
-      phone: order.shippingPhone || '',
-      address: order.shippingAddress || '',
-      city: order.shippingCity || ''
-    };
-    order.totalAmount = Number(order.totalAmount) || 0;
-    return order;
-  }
+  _parseRow(row) {
+    const obj = super._parseRow(row);
+    if (!obj) return null;
 
-  find(query = {}) {
-    const queryObj = super.find(query);
-    const originalThen = queryObj.then;
-    queryObj.then = async (resolve, reject) => {
-      try {
-        const orders = await new Promise((res, rej) => originalThen(res, rej));
-        const withItems = await Promise.all(orders.map(o => this._attachOrderItems(o)));
-        resolve(withItems);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    return queryObj;
-  }
+    if (!Array.isArray(obj.items)) {
+      obj.items = [];
+    }
 
-  findOne(query = {}) {
-    const queryObj = super.findOne(query);
-    const originalThen = queryObj.then;
-    queryObj.then = async (resolve, reject) => {
-      try {
-        const order = await new Promise((res, rej) => originalThen(res, rej));
-        if (order) await this._attachOrderItems(order);
-        resolve(order);
-      } catch (err) {
-        reject(err);
-      }
+    obj.shippingDetails = {
+      fullName: obj.shippingFullName || '',
+      phone: obj.shippingPhone || '',
+      address: obj.shippingAddress || '',
+      city: obj.shippingCity || ''
     };
-    return queryObj;
-  }
-
-  findById(id) {
-    const queryObj = super.findById(id);
-    const originalThen = queryObj.then;
-    queryObj.then = async (resolve, reject) => {
-      try {
-        const order = await new Promise((res, rej) => originalThen(res, rej));
-        if (order) await this._attachOrderItems(order);
-        resolve(order);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    return queryObj;
+    obj.totalAmount = Number(obj.totalAmount) || 0;
+    return obj;
   }
 
   async create(orderData) {
@@ -80,22 +30,11 @@ class OrderModel extends BaseModel {
       data.shippingPhone = data.shippingDetails.phone || data.shippingPhone || '';
       data.shippingAddress = data.shippingDetails.address || data.shippingAddress || '';
       data.shippingCity = data.shippingDetails.city || data.shippingCity || '';
-      delete data.shippingDetails;
     }
-    const items = data.items;
-    delete data.items;
-
-    const newOrder = await super.create(data);
-
-    if (Array.isArray(items) && items.length > 0 && newOrder?.id) {
-      for (const item of items) {
-        await pool.query(
-          'INSERT INTO order_items (orderId, itemId, name, price, quantity, image) VALUES (?, ?, ?, ?, ?, ?)',
-          [newOrder.id, item.itemId || item._id || null, item.name || '', item.price || 0, item.quantity || 1, item.image || '']
-        );
-      }
+    if (!Array.isArray(data.items)) {
+      data.items = [];
     }
-    return await this.findById(newOrder.id);
+    return await super.create(data);
   }
 
   async findByIdAndUpdate(id, updateData, options = {}) {
@@ -106,26 +45,11 @@ class OrderModel extends BaseModel {
       data.shippingPhone = data.shippingDetails.phone || data.shippingPhone || '';
       data.shippingAddress = data.shippingDetails.address || data.shippingAddress || '';
       data.shippingCity = data.shippingDetails.city || data.shippingCity || '';
-      delete data.shippingDetails;
     }
-    const items = data.items;
-    delete data.items;
-
-    await super.findByIdAndUpdate(id, data, options);
-
-    if (Array.isArray(items)) {
-      await pool.query('DELETE FROM order_items WHERE orderId = ?', [id]);
-      for (const item of items) {
-        await pool.query(
-          'INSERT INTO order_items (orderId, itemId, name, price, quantity, image) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, item.itemId || item._id || null, item.name || '', item.price || 0, item.quantity || 1, item.image || '']
-        );
-      }
-    }
-
-    return await this.findById(id);
+    return await super.findByIdAndUpdate(id, data, options);
   }
 }
 
 const Order = new OrderModel();
 export default Order;
+

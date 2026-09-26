@@ -31,7 +31,7 @@ import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSumma
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { CustomerCharts } from '../components/CustomerCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -1089,6 +1089,7 @@ function StoreContent({ shopId }) {
       if (normName && normName !== 'walk-in' && normName !== 'walkin' && normName !== 'cash customer' && registeredNames.has(normName)) return;
 
       const isGeneric = !normName || normName === 'walk-in' || normName === 'walkin' || normName === 'cash customer' || normName === 'walk-in customer' || normName === 'walk-in / physical customer';
+      if (isGeneric) return; // Hide generic walk-in groups from the registered customers page
       let key = '';
       if (rawEmail && rawEmail.length >= 4) {
         key = `email_${rawEmail}`;
@@ -1134,6 +1135,7 @@ function StoreContent({ shopId }) {
       if (normName && registeredNames.has(normName)) return;
 
       const isGeneric = !normName || normName === 'order customer' || normName === 'guest' || normName === 'online customer';
+      if (isGeneric) return; // Hide generic guests from the registered customers page
       let key = '';
       if (rawEmail && rawEmail.length >= 4) {
         key = `order_email_${rawEmail}`;
