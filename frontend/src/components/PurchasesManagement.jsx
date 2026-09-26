@@ -18,7 +18,7 @@ const getReceiptImg = (p) => {
 
 export function PurchasesManagement({ products: propProducts, shopId: propShopId, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onRefresh }) {
   const { user } = useUser?.() || {};
-  const activeShopId = propShopId || (user?.shopId ? String(user.shopId) : null);
+  const activeShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null);
   const productCtx = useProducts() || {};
   const contextProducts = productCtx.products || [];
   const [apiProducts, setApiProducts] = useState([]);

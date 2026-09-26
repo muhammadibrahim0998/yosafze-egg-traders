@@ -93,7 +93,7 @@ export function ProductProvider({ children }) {
     }
     try {
       if (showSpinner) setLoading(true);
-      const activeShopId = user?.shopId ? String(user.shopId) : null;
+      const activeShopId = user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null;
       const [productsData, salesData] = await Promise.all([
         getItems(activeShopId).catch(() => null),
         getSales(activeShopId).catch(() => null)

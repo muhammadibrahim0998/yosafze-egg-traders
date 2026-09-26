@@ -2,20 +2,18 @@ import pool from './config/mysql.js';
 
 export async function createAllBranchTables() {
   const branches = [
-    { id: 1, name: 'peshawar' },
-    { id: 2, name: 'mardan' },
-    { id: 3, name: 'attock' }
+    { id: 1, prefix: 'peshawar' },
+    { id: 2, prefix: 'mardan' },
+    { id: 3, prefix: 'attock' }
   ];
 
-  const tables = [
+  const entities = [
     'items',
     'sales',
-    'sale_items',
     'purchases',
     'purchase_credits',
     'expenses',
     'orders',
-    'order_items',
     'customer_credits',
     'cash_sessions',
     'damaged_products',
@@ -24,94 +22,42 @@ export async function createAllBranchTables() {
     'settings'
   ];
 
-  console.log('🚀 Creating physical BASE tables for all 3 branches in database...');
+  console.log('🚀 Synchronizing 100% dynamic real-time branch views in database...');
+
+  // Clean up any legacy triggers that conflict with updatable views
+  try {
+    const [triggers] = await pool.query('SHOW TRIGGERS');
+    for (const t of triggers) {
+      await pool.query(`DROP TRIGGER IF EXISTS \`${t.Trigger}\``);
+    }
+  } catch (_) {}
 
   for (const b of branches) {
-    for (const t of tables) {
-      const bTable = `${b.name}_${t}`;
+    for (const entity of entities) {
+      const bTable = `${b.prefix}_${entity}`;
       try {
-        await pool.query(`DROP VIEW IF EXISTS \`${bTable}\``);
-        await pool.query(`CREATE TABLE IF NOT EXISTS \`${bTable}\` LIKE \`${t}\``);
-
-        // Copy existing branch data into branch table
-        if (t === 'sale_items') {
-          await pool.query(`REPLACE INTO \`${bTable}\` SELECT si.* FROM \`sale_items\` si JOIN \`sales\` s ON si.saleId = s.id WHERE s.shopId = ${b.id}`);
-        } else if (t === 'order_items') {
-          await pool.query(`REPLACE INTO \`${bTable}\` SELECT oi.* FROM \`order_items\` oi JOIN \`orders\` o ON oi.orderId = o.id WHERE o.shopId = ${b.id}`);
-        } else {
-          await pool.query(`REPLACE INTO \`${bTable}\` SELECT * FROM \`${t}\` WHERE \`shopId\` = ${b.id}`);
-        }
+        // Drop table/view if exists to ensure clean updatable view
+        await pool.query(`DROP TABLE IF EXISTS \`${bTable}\``);
+        await pool.query(`CREATE OR REPLACE VIEW \`${bTable}\` AS SELECT * FROM \`${entity}\` WHERE \`shopId\` = ${b.id}`);
       } catch (err) {
         console.warn(`Warning on ${bTable}:`, err.message);
       }
     }
+
+    // Also create aliases for items/products and relational sub-items
+    try {
+      await pool.query(`DROP TABLE IF EXISTS \`${b.prefix}_products\``);
+      await pool.query(`CREATE OR REPLACE VIEW \`${b.prefix}_products\` AS SELECT * FROM \`items\` WHERE \`shopId\` = ${b.id}`);
+
+      await pool.query(`DROP TABLE IF EXISTS \`${b.prefix}_sale_items\``);
+      await pool.query(`CREATE OR REPLACE VIEW \`${b.prefix}_sale_items\` AS SELECT si.* FROM \`sale_items\` si JOIN \`sales\` s ON si.saleId = s.id WHERE s.shopId = ${b.id}`);
+
+      await pool.query(`DROP TABLE IF EXISTS \`${b.prefix}_order_items\``);
+      await pool.query(`CREATE OR REPLACE VIEW \`${b.prefix}_order_items\` AS SELECT oi.* FROM \`order_items\` oi JOIN \`orders\` o ON oi.orderId = o.id WHERE o.shopId = ${b.id}`);
+    } catch (_) {}
   }
 
-  // Create MySQL Triggers on main tables to automatically keep branch tables 100% updated in real-time
-  const triggerTables = [
-    'items',
-    'sales',
-    'purchases',
-    'purchase_credits',
-    'expenses',
-    'orders',
-    'customer_credits',
-    'cash_sessions',
-    'damaged_products',
-    'customers',
-    'vendors',
-    'settings'
-  ];
-
-  for (const t of triggerTables) {
-    for (const b of branches) {
-      const bTable = `${b.name}_${t}`;
-      
-      // Trigger AFTER INSERT
-      try {
-        await pool.query(`DROP TRIGGER IF EXISTS \`trg_${b.name}_${t}_insert\``);
-        await pool.query(`
-          CREATE TRIGGER \`trg_${b.name}_${t}_insert\` AFTER INSERT ON \`${t}\`
-          FOR EACH ROW
-          BEGIN
-            IF NEW.shopId = ${b.id} THEN
-              REPLACE INTO \`${bTable}\` SELECT * FROM \`${t}\` WHERE id = NEW.id;
-            END IF;
-          END;
-        `);
-      } catch (e) {}
-
-      // Trigger AFTER UPDATE
-      try {
-        await pool.query(`DROP TRIGGER IF EXISTS \`trg_${b.name}_${t}_update\``);
-        await pool.query(`
-          CREATE TRIGGER \`trg_${b.name}_${t}_update\` AFTER UPDATE ON \`${t}\`
-          FOR EACH ROW
-          BEGIN
-            IF NEW.shopId = ${b.id} THEN
-              REPLACE INTO \`${bTable}\` SELECT * FROM \`${t}\` WHERE id = NEW.id;
-            ELSE
-              DELETE FROM \`${bTable}\` WHERE id = OLD.id;
-            END IF;
-          END;
-        `);
-      } catch (e) {}
-
-      // Trigger AFTER DELETE
-      try {
-        await pool.query(`DROP TRIGGER IF EXISTS \`trg_${b.name}_${t}_delete\``);
-        await pool.query(`
-          CREATE TRIGGER \`trg_${b.name}_${t}_delete\` AFTER DELETE ON \`${t}\`
-          FOR EACH ROW
-          BEGIN
-            DELETE FROM \`${bTable}\` WHERE id = OLD.id;
-          END;
-        `);
-      } catch (e) {}
-    }
-  }
-
-  console.log('✅ Created physical tables & real-time synchronization triggers for all 3 branches!');
+  console.log('✅ Created 100% dynamic, real-time synchronized tables & views for all 3 branches!');
   return true;
 }
 

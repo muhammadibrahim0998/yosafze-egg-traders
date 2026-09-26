@@ -2101,6 +2101,11 @@ function StoreContent({ shopId }) {
 
   const handleEditProductSubmit = async (productData) => {
     try {
+      const prodId = editModalProduct?._id || editModalProduct?.id;
+      if (!prodId || prodId === 'undefined') {
+        alert('Product ID is missing');
+        return;
+      }
       const finalImages = (productData.images && productData.images.length > 0)
         ? productData.images
         : ((Array.isArray(editModalProduct?.images) && editModalProduct.images.length > 0)
@@ -2108,13 +2113,13 @@ function StoreContent({ shopId }) {
             : (editModalProduct?.image ? [editModalProduct.image] : ['/egg2.png']));
       const payload = { ...productData, images: finalImages };
       const role = user?.role || 'shop_admin';
-      const res = await updateItem(editModalProduct._id, payload, '', role);
+      const res = await updateItem(prodId, payload, '', role);
       const updatedItem = res?.item || res?.data || res || { ...editModalProduct, ...payload };
 
       // Instantly update items in state
       setItems(prev => (prev || []).map(p => 
-        String(p._id) === String(editModalProduct._id) 
-          ? { ...p, ...payload, ...(updatedItem._id ? updatedItem : {}) } 
+        String(p._id || p.id) === String(prodId) 
+          ? { ...p, ...payload, ...(updatedItem._id || updatedItem.id ? updatedItem : {}) } 
           : p
       ));
 

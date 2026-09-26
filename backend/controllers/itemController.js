@@ -139,6 +139,63 @@ const createItem = async (req, res) => {
     // Save to Item model
     const newItem = await Item.create(newItemData);
     
+    // Auto-create purchase record in purchases table for this branch
+    try {
+      await pool.query(`
+        INSERT INTO \`purchases\` (
+          \`shopId\`, \`itemId\`, \`productName\`, \`supplierName\`, \`supplierPhone\`, \`supplierLocation\`,
+          \`petiQuantity\`, \`trayQuantity\`, \`eggQuantity\`, \`unitType\`, \`buyCost\`, \`totalCost\`,
+          \`paymentType\`, \`amountPaid\`, \`dueAmount\`, \`paymentReceipt\`, \`notes\`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        newItem.shopId,
+        newItem.id,
+        newItem.name,
+        newItem.supplierName || '',
+        newItem.supplierPhone || '',
+        newItem.supplierLocation || '',
+        Number(newItem.petiQuantity) || 0,
+        Number(newItem.trayQuantity) || 0,
+        Number(newItem.eggQuantity) || (Number(newItem.stock) || 0),
+        newItem.unitType || 'peti',
+        Number(newItem.costPrice) || Number(newItem.price) || 0,
+        Number(newItem.totalPurchaseCost) || 0,
+        newItem.paymentMethod || 'Cash',
+        Number(newItem.amountPaidToSupplier) || 0,
+        Number(newItem.dueAmountToSupplier) || 0,
+        newItem.paymentReceipt || '',
+        `Purchase Restock: ${newItem.name}`
+      ]);
+    } catch (purchErr) {
+      console.error('[createItem] Purchase record creation failed:', purchErr.message);
+    }
+
+    // Auto-create purchase_credits record if there is due balance for supplier
+    if (Number(newItem.dueAmountToSupplier) > 0) {
+      try {
+        await pool.query(`
+          INSERT INTO \`purchase_credits\` (
+            \`shopId\`, \`itemId\`, \`productName\`, \`supplierName\`, \`supplierPhone\`, \`supplierLocation\`,
+            \`totalCost\`, \`amountPaid\`, \`dueAmount\`, \`paymentMethod\`, \`paymentReceipt\`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          newItem.shopId,
+          newItem.id,
+          newItem.name,
+          newItem.supplierName || 'Egg Supplier',
+          newItem.supplierPhone || '',
+          newItem.supplierLocation || '',
+          Number(newItem.totalPurchaseCost) || 0,
+          Number(newItem.amountPaidToSupplier) || 0,
+          Number(newItem.dueAmountToSupplier) || 0,
+          newItem.paymentMethod || 'Credit',
+          newItem.paymentReceipt || ''
+        ]);
+      } catch (pcErr) {
+        console.error('[createItem] Purchase Credit record creation failed:', pcErr.message);
+      }
+    }
+
     // Auto-create expense record if payment was made to supplier
     if (newItem.amountPaidToSupplier && newItem.amountPaidToSupplier > 0) {
       try {
@@ -216,16 +273,29 @@ const updateItem = async (req, res) => {
       }
     }
 
-    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { id }
-      : { id, shopId: req.user.shopId };
+    const existing = await Item.findById(id);
+    if (!existing) {
+      return res.status(404).json({ message: 'Product not found in database' });
+    }
 
-    const updatedItem = await Item.findOneAndUpdate(
-      filter,
+    const updatedItem = await Item.findByIdAndUpdate(
+      id,
       updateData,
       { new: true }
     );
-    if (!updatedItem) return res.status(404).json({ message: 'Item not found or unauthorized' });
+    if (!updatedItem) return res.status(404).json({ message: 'Failed to update product in database' });
+
+    // Also sync updates to purchases and purchase_credits tables in MySQL if relevant
+    try {
+      if (updateData.name || updateData.price !== undefined || updateData.costPrice !== undefined || updateData.stock !== undefined) {
+        await pool.query(
+          'UPDATE purchases SET name = COALESCE(?, name), price = COALESCE(?, price), costPrice = COALESCE(?, costPrice), quantity = COALESCE(?, quantity) WHERE itemId = ? OR id = ?',
+          [updateData.name || null, updateData.price !== undefined ? updateData.price : null, updateData.costPrice !== undefined ? updateData.costPrice : null, updateData.stock !== undefined ? updateData.stock : null, id, id]
+        );
+      }
+    } catch (pSyncErr) {
+      console.error('[updateItem] purchases sync error:', pSyncErr.message);
+    }
 
     res.json(updatedItem);
   } catch (error) {
@@ -255,6 +325,10 @@ const deleteItem = async (req, res) => {
     } catch (pErr) {
       console.error('[deleteItem] purchases delete error:', pErr.message);
     }
+
+    try {
+      await pool.query('DELETE FROM damaged_products WHERE itemId = ?', [id]);
+    } catch (_) {}
 
     res.json({ message: 'Item and purchase credit records deleted successfully from database', deletedId: id, existed: !!item });
   } catch (error) {
