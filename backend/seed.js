@@ -1,57 +1,99 @@
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
+import Shop from './models/Shop.js';
 import User from './models/User.js';
+import Settings from './models/Settings.js';
+import pool from './config/mysql.js';
 
-dotenv.config();
-
-const seedDB = async () => {
+export const seedDatabase = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/egge');
+    // 1. Ensure at least one default Shop exists to satisfy Foreign Key constraints
+    const shopCount = await Shop.countDocuments();
+    if (shopCount === 0) {
+      console.log('🌱 Shops table is empty. Seeding default shop (id: 1)...');
+      
+      await pool.query(`
+        INSERT INTO \`shops\` (\`id\`, \`name\`, \`address\`, \`status\`, \`contactNumber\`, \`ownerFullName\`, \`ownerEmail\`)
+        VALUES (1, 'Peshawar Branch', 'Karkhano Market, Peshawar', 'active', '+923295649784', 'Peshawar Shop Admin', 'peshawershopadmin@gmail.com')
+        ON DUPLICATE KEY UPDATE \`name\` = VALUES(\`name\`)
+      `);
 
-    // Remove all other super admin accounts except Mainyet123@gmail.com
-    await User.deleteMany({
-      role: 'super_admin',
-      email: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] },
-      username: { $nin: ['Mainyet123@gmail.com', 'mainyet123@gmail.com'] }
-    });
+      // Ensure default settings for shop 1
+      const settingExists = await Settings.findOne({ shopId: 1 });
+      if (!settingExists) {
+        await Settings.create({
+          shopId: 1,
+          shopName: 'Peshawar Branch',
+          address: 'Karkhano Market, Peshawar',
+          phone: '+923295649784',
+          currency: 'Rs.',
+          ownerPassword: 'admin123',
+          ownerFullName: 'Peshawar Shop Admin',
+          ownerEmail: 'peshawershopadmin@gmail.com'
+        });
+      }
 
-    // Only create or update the single Super Admin: Mainyet123@gmail.com
-    let superAdmin = await User.findOne({ 
+      console.log('✅ Default Shop (id: 1) created successfully.');
+    }
+
+    // 2. Ensure Super Admin account exists
+    const superAdmin = await User.findOne({
       $or: [
+        { role: 'super_admin' },
         { email: 'Mainyet123@gmail.com' },
-        { username: 'Mainyet123@gmail.com' },
-        { email: 'mainyet123@gmail.com' },
-        { username: 'mainyet123@gmail.com' },
-        { role: 'super_admin' }
+        { username: 'Mainyet123@gmail.com' }
       ]
     });
 
     if (!superAdmin) {
-      superAdmin = new User({
+      console.log('🌱 Super Admin missing. Creating default Super Admin...');
+      await User.create({
         username: 'Mainyet123@gmail.com',
         email: 'Mainyet123@gmail.com',
-        password: 'super12345',
         fullName: 'System Super Admin',
         role: 'super_admin',
+        password: 'super12345',
         status: 'active'
       });
-      await superAdmin.save();
-      console.log('✅ Super Admin created. Email: Mainyet123@gmail.com');
-    } else {
-      superAdmin.username = 'Mainyet123@gmail.com';
-      superAdmin.email = 'Mainyet123@gmail.com';
-      superAdmin.password = 'super12345';
-      superAdmin.role = 'super_admin';
-      superAdmin.status = 'active';
-      await superAdmin.save();
-      console.log('✅ Super Admin updated. Email: Mainyet123@gmail.com');
+      console.log('✅ Default Super Admin created: Mainyet123@gmail.com / super12345');
     }
 
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Error:', error);
-    process.exit(1);
+    // 3. Ensure Default Branch Admin exists
+    const shopAdmin = await User.findOne({
+      $or: [
+        { email: 'admin@yosafze.com' },
+        { username: 'admin@yosafze.com' },
+        { role: 'shop_admin' }
+      ]
+    });
+
+    if (!shopAdmin) {
+      await User.create({
+        username: 'admin@yosafze.com',
+        email: 'admin@yosafze.com',
+        fullName: 'Peshawar Admin',
+        role: 'shop_admin',
+        shopId: 1,
+        password: 'admin123',
+        status: 'active'
+      });
+      console.log('✅ Default Shop Admin created: admin@yosafze.com / admin123');
+    }
+
+    // 4. Ensure Physical Base Tables & Triggers for all 3 branches
+    import('./createBranchTables.js').then(m => m.createAllBranchTables()).catch(() => {});
+
+    return true;
+  } catch (err) {
+    console.error('❌ Database Seeder Error:', err.message);
+    return false;
   }
 };
 
-seedDB();
+// If run directly via CLI (e.g. `node seed.js`)
+if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
+  seedDatabase().then(() => {
+    console.log('Seeder process complete.');
+    process.exit(0);
+  });
+}
+
+export default seedDatabase;

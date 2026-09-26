@@ -40,7 +40,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter });
 
 // Helper to save image with Cloudinary or fallback to local /uploads
-const saveImageFile = async (file) => {
+const saveImageFile = async (file, req) => {
   let url = null;
   if (process.env.CLOUDINARY_CLOUD_NAME) {
     try {
@@ -63,7 +63,11 @@ const saveImageFile = async (file) => {
     const destPath = path.join(uploadsDir, newFilename);
     fs.copyFileSync(file.path, destPath);
     if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-    url = `/uploads/${newFilename}`;
+
+    const protocol = req?.headers?.['x-forwarded-proto'] || req?.protocol || 'http';
+    const host = req?.headers?.['x-forwarded-host'] || req?.get?.('host') || '';
+    const backendUrl = process.env.BACKEND_URL || (host ? `${protocol}://${host}` : '');
+    url = backendUrl ? `${backendUrl}/uploads/${newFilename}` : `/uploads/${newFilename}`;
   }
   return url;
 };
@@ -81,7 +85,7 @@ router.post(
 
     const uploadedUrls = [];
     for (const file of req.files) {
-      const url = await saveImageFile(file);
+      const url = await saveImageFile(file, req);
       uploadedUrls.push(url);
     }
 
@@ -104,7 +108,7 @@ router.post(
 
     const uploadedUrls = [];
     for (const file of req.files) {
-      const url = await saveImageFile(file);
+      const url = await saveImageFile(file, req);
       uploadedUrls.push(url);
     }
 

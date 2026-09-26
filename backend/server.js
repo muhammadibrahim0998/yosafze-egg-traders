@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import compression from 'compression';
 import { testMySQLConnection } from './config/mysql.js';
+import { seedDatabase } from './seed.js';
 
 // Import Routes
 import itemsRoutes from './routes/items.js';
@@ -107,8 +108,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Connect to MySQL Database
+// Connect to MySQL Database & Seed Defaults
 await testMySQLConnection();
+await seedDatabase();
 
 const server = createServer(app);
 

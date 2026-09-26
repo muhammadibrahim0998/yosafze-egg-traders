@@ -7,6 +7,7 @@ import {
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getImageUrl } from '../utils/imageHelper';
 
 const fadeUpVariant = {
   hidden: { opacity: 0, y: 10 },
@@ -128,7 +129,16 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                     <td className="pl-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center border border-zinc-200 overflow-hidden shrink-0">
-                          {product.images?.[0] ? <img src={product.images[0]} className="w-full h-full object-cover" /> : <ShoppingBag className="w-4 h-4 text-zinc-300" />}
+                          {product.images?.[0] ? (
+                            <img 
+                              src={getImageUrl(product.images[0])} 
+                              onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }} 
+                              className="w-full h-full object-cover" 
+                              alt=""
+                            />
+                          ) : (
+                            <ShoppingBag className="w-4 h-4 text-zinc-300" />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <div className="text-xs font-bold text-zinc-900 truncate">{product.name}</div>
@@ -197,7 +207,16 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
             <div className="flex justify-between items-start">
               <div className="flex gap-3">
                 <div className="w-12 h-12 bg-zinc-100 rounded-xl border border-zinc-200 overflow-hidden flex items-center justify-center">
-                  {product.images?.[0] ? <img src={product.images[0]} className="w-full h-full object-cover" /> : <ShoppingBag className="w-5 h-5 text-zinc-300" />}
+                  {product.images?.[0] ? (
+                    <img 
+                      src={getImageUrl(product.images[0])} 
+                      onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }} 
+                      className="w-full h-full object-cover" 
+                      alt=""
+                    />
+                  ) : (
+                    <ShoppingBag className="w-5 h-5 text-zinc-300" />
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-zinc-900 line-clamp-1">{product.name}</h4>

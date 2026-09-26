@@ -598,7 +598,7 @@ export function SuperAdminDashboard() {
                                             <h4 className="text-[9px] font-black text-emerald-600 uppercase tracking-widest pl-1">Store Identity</h4>
                                             <div className="bg-zinc-50 p-2.5 rounded-xl border border-zinc-100 space-y-0.5">
                                                 <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">Reference ID</p>
-                                                <p className="text-[11px] font-bold text-zinc-700 truncate">#{viewingShop._id.toUpperCase()}</p>
+                                                <p className="text-[11px] font-bold text-zinc-700 truncate">#{String(viewingShop._id || viewingShop.id || '').toUpperCase()}</p>
                                             </div>
                                             <div className="bg-zinc-50 p-2.5 rounded-xl border border-zinc-100 space-y-0.5">
                                                 <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">Contact</p>
@@ -670,7 +670,7 @@ export function SuperAdminDashboard() {
                                 <div key={ord._id} className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
                                     <div className="space-y-2 flex-1">
                                         <div className="flex items-center gap-3 flex-wrap">
-                                            <span className="text-xs font-black px-3 py-1 bg-zinc-900 text-white rounded-lg">#{ord._id.slice(-6).toUpperCase()}</span>
+                                            <span className="text-xs font-black px-3 py-1 bg-zinc-900 text-white rounded-lg">#{String(ord._id || ord.id || '').slice(-6).toUpperCase()}</span>
                                             <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full border ${ord.paymentMethod === 'EASYPAISA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
                                                 {ord.paymentMethod}
                                             </span>

@@ -1,12 +1,8 @@
 -- ==========================================================
 -- Database Schema for: yosafze_egg_traders
 -- Auto-Increment Integer IDs (1, 2, 3, 4...) for all tables
--- Compatible with MySQL / MariaDB / phpMyAdmin
+-- Compatible with MySQL / MariaDB / Coolify / phpMyAdmin
 -- ==========================================================
-
-DROP DATABASE IF EXISTS `yosafze_egg_traders`;
-CREATE DATABASE `yosafze_egg_traders` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `yosafze_egg_traders`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -369,5 +365,57 @@ CREATE TABLE `system_updates` (
   `createdAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1;
+
+-- ----------------------------------------------------------
+-- 15. Dedicated Branch Physical Tables (Peshawar, Mardan, Attock)
+-- ----------------------------------------------------------
+
+-- Peshawar Branch (Shop ID: 1)
+CREATE TABLE IF NOT EXISTS `peshawar_items` LIKE `items`;
+CREATE TABLE IF NOT EXISTS `peshawar_sales` LIKE `sales`;
+CREATE TABLE IF NOT EXISTS `peshawar_sale_items` LIKE `sale_items`;
+CREATE TABLE IF NOT EXISTS `peshawar_purchases` LIKE `purchases`;
+CREATE TABLE IF NOT EXISTS `peshawar_purchase_credits` LIKE `purchase_credits`;
+CREATE TABLE IF NOT EXISTS `peshawar_expenses` LIKE `expenses`;
+CREATE TABLE IF NOT EXISTS `peshawar_orders` LIKE `orders`;
+CREATE TABLE IF NOT EXISTS `peshawar_order_items` LIKE `order_items`;
+CREATE TABLE IF NOT EXISTS `peshawar_customer_credits` LIKE `customer_credits`;
+CREATE TABLE IF NOT EXISTS `peshawar_cash_sessions` LIKE `cash_sessions`;
+CREATE TABLE IF NOT EXISTS `peshawar_damaged_products` LIKE `damaged_products`;
+CREATE TABLE IF NOT EXISTS `peshawar_customers` LIKE `customers`;
+CREATE TABLE IF NOT EXISTS `peshawar_vendors` LIKE `vendors`;
+CREATE TABLE IF NOT EXISTS `peshawar_settings` LIKE `settings`;
+
+-- Mardan Branch (Shop ID: 2)
+CREATE TABLE IF NOT EXISTS `mardan_items` LIKE `items`;
+CREATE TABLE IF NOT EXISTS `mardan_sales` LIKE `sales`;
+CREATE TABLE IF NOT EXISTS `mardan_sale_items` LIKE `sale_items`;
+CREATE TABLE IF NOT EXISTS `mardan_purchases` LIKE `purchases`;
+CREATE TABLE IF NOT EXISTS `mardan_purchase_credits` LIKE `purchase_credits`;
+CREATE TABLE IF NOT EXISTS `mardan_expenses` LIKE `expenses`;
+CREATE TABLE IF NOT EXISTS `mardan_orders` LIKE `orders`;
+CREATE TABLE IF NOT EXISTS `mardan_order_items` LIKE `order_items`;
+CREATE TABLE IF NOT EXISTS `mardan_customer_credits` LIKE `customer_credits`;
+CREATE TABLE IF NOT EXISTS `mardan_cash_sessions` LIKE `cash_sessions`;
+CREATE TABLE IF NOT EXISTS `mardan_damaged_products` LIKE `damaged_products`;
+CREATE TABLE IF NOT EXISTS `mardan_customers` LIKE `customers`;
+CREATE TABLE IF NOT EXISTS `mardan_vendors` LIKE `vendors`;
+CREATE TABLE IF NOT EXISTS `mardan_settings` LIKE `settings`;
+
+-- Attock Branch (Shop ID: 3)
+CREATE TABLE IF NOT EXISTS `attock_items` LIKE `items`;
+CREATE TABLE IF NOT EXISTS `attock_sales` LIKE `sales`;
+CREATE TABLE IF NOT EXISTS `attock_sale_items` LIKE `sale_items`;
+CREATE TABLE IF NOT EXISTS `attock_purchases` LIKE `purchases`;
+CREATE TABLE IF NOT EXISTS `attock_purchase_credits` LIKE `purchase_credits`;
+CREATE TABLE IF NOT EXISTS `attock_expenses` LIKE `expenses`;
+CREATE TABLE IF NOT EXISTS `attock_orders` LIKE `orders`;
+CREATE TABLE IF NOT EXISTS `attock_order_items` LIKE `order_items`;
+CREATE TABLE IF NOT EXISTS `attock_customer_credits` LIKE `customer_credits`;
+CREATE TABLE IF NOT EXISTS `attock_cash_sessions` LIKE `cash_sessions`;
+CREATE TABLE IF NOT EXISTS `attock_damaged_products` LIKE `damaged_products`;
+CREATE TABLE IF NOT EXISTS `attock_customers` LIKE `customers`;
+CREATE TABLE IF NOT EXISTS `attock_vendors` LIKE `vendors`;
+CREATE TABLE IF NOT EXISTS `attock_settings` LIKE `settings`;
 
 SET FOREIGN_KEY_CHECKS = 1;

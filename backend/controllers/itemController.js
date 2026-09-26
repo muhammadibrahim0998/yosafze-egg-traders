@@ -2,17 +2,19 @@ import Item, { getBranchItemModel, syncBranchProducts } from '../models/Item.js'
 import Expense from '../models/Expense.js';
 import pool from '../config/mysql.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
+import { resolveShopId } from '../utils/shopResolver.js';
 
 // @desc    Get all items (dynamically scoped per branch)
 const getItems = async (req, res) => {
   try {
-    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? req.user?.shopId : null);
+    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? (req.user?.shopId?._id || req.user?.shopId) : null);
     let targetShopId = null;
 
     if (rawShopId) {
-      targetShopId = rawShopId;
+      targetShopId = await resolveShopId(rawShopId) || rawShopId;
     } else if (req.user?.shopId) {
-      targetShopId = req.user.shopId;
+      const userShop = req.user.shopId?._id || req.user.shopId;
+      targetShopId = await resolveShopId(userShop) || userShop;
     }
 
     let items = [];
@@ -100,7 +102,9 @@ const getItem = async (req, res) => {
 // @desc    Create new item
 const createItem = async (req, res) => {
   try {
-    const shopId = req.body.shopId || req.user?.shopId;
+    let rawShopId = req.body.shopId || (req.user?.shopId?._id || req.user?.shopId) || req.query?.shopId || req.headers['x-shop-id'];
+    const resolvedShopId = await resolveShopId(rawShopId);
+    const shopId = resolvedShopId ? Number(resolvedShopId) : (rawShopId ? Number(rawShopId) : null);
     if (!shopId) {
       return res.status(400).json({ message: 'shopId is required to add a product' });
     }

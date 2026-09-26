@@ -5,6 +5,7 @@ import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { getImageUrl } from '../utils/imageHelper';
 
 export function ProductCard({ product, onEdit, onDelete, onView }) {
   const { addToCart } = useProducts();
@@ -50,7 +51,7 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
       {/* Aspect Square Image Container */}
       <div className="relative aspect-square w-full bg-slate-900 overflow-hidden">
         <img
-          src={(product.images && product.images.length > 0 && product.images[0]) ? product.images[0] : (product.image || '/logo.jpeg')}
+          src={getImageUrl((product.images && product.images.length > 0 && product.images[0]) ? product.images[0] : (product.image || '/logo.jpeg'))}
           alt={product.name}
           onError={(e) => {
             e.target.onerror = null;

@@ -93,12 +93,13 @@ export default function App() {
   // Handlers for Modals
   const handleAddProduct = async (productData) => {
     try {
-      await createItem(productData);
+      const activeShopId = user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : null;
+      await createItem({ ...productData, shopId: productData?.shopId || activeShopId });
       toast.success("Product added successfully!");
       fetchData();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add product");
+      toast.error(err?.response?.data?.message || err.message || "Failed to add product");
     }
   };
 

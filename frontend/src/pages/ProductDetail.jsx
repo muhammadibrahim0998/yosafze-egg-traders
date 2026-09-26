@@ -4,6 +4,7 @@ import { useUser } from '../contexts/UserContext';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingCart, Package, Calendar, Tag, Info, Image as ImageIcon, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getImageUrl } from '../utils/imageHelper';
 
 export function ProductDetail() {
     const { id } = useParams();
@@ -63,8 +64,9 @@ export function ProductDetail() {
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.3 }}
-                                src={images[selectedImage]}
+                                src={getImageUrl(images[selectedImage])}
                                 alt={product.name}
+                                onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }}
                                 className="w-full h-full object-contain drop-shadow-xl"
                             />
                         ) : (
@@ -97,7 +99,12 @@ export function ProductDetail() {
                                     onClick={() => setSelectedImage(idx)}
                                     className={`relative w-24 h-24 shrink-0 rounded-2xl bg-[var(--color-surface-card)] border-2 transition-all overflow-hidden ${selectedImage === idx ? 'border-[var(--color-primary)] shadow-[0_0_20px_rgba(37,99,235,0.2)] scale-105' : 'border-[var(--color-border-subtle)] opacity-50 hover:opacity-100 hover:scale-105'}`}
                                 >
-                                    <img src={img} className="w-full h-full object-cover" alt="thumbnail" />
+                                    <img 
+                                        src={getImageUrl(img)} 
+                                        onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }}
+                                        className="w-full h-full object-cover" 
+                                        alt="thumbnail" 
+                                    />
                                 </button>
                             ))}
                         </div>
