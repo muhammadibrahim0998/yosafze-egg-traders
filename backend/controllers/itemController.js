@@ -338,12 +338,16 @@ const deleteItem = async (req, res) => {
 
     // Also delete from purchase_credits and purchases tables in MySQL
     try {
+      await PurchaseCredit.findByIdAndDelete(id);
+      await PurchaseCredit.deleteMany({ itemId: id });
       await pool.query('DELETE FROM purchase_credits WHERE itemId = ? OR id = ?', [id, id]);
     } catch (pcErr) {
       console.error('[deleteItem] purchase_credits delete error:', pcErr.message);
     }
 
     try {
+      await Purchase.findByIdAndDelete(id);
+      await Purchase.deleteMany({ itemId: id });
       await pool.query('DELETE FROM purchases WHERE itemId = ? OR id = ?', [id, id]);
     } catch (pErr) {
       console.error('[deleteItem] purchases delete error:', pErr.message);
@@ -368,8 +372,11 @@ const deletePurchaseCredit = async (req, res) => {
       return res.status(400).json({ message: 'Valid ID is required' });
     }
 
-    // Delete from purchase_credits table
+    // Delete from purchase_credits branch tables and flat table
     try {
+      await PurchaseCredit.findByIdAndDelete(creditId);
+      await PurchaseCredit.deleteMany({ itemId: creditId });
+      await PurchaseCredit.deleteMany({ purchaseId: creditId });
       await pool.query('DELETE FROM purchase_credits WHERE id = ? OR itemId = ?', [creditId, creditId]);
     } catch (pcErr) {
       console.error('[deletePurchaseCredit] purchase_credits table delete error:', pcErr.message);
@@ -377,11 +384,14 @@ const deletePurchaseCredit = async (req, res) => {
 
     // Also delete from purchases and items if matching
     try {
+      await Purchase.findByIdAndDelete(creditId);
+      await Purchase.deleteMany({ itemId: creditId });
       await pool.query('DELETE FROM purchases WHERE id = ? OR itemId = ?', [creditId, creditId]);
     } catch (_) {}
 
     try {
       await Item.findByIdAndDelete(creditId);
+      await pool.query('DELETE FROM items WHERE id = ?', [creditId]);
     } catch (_) {}
 
     res.json({ success: true, message: 'Purchase credit record deleted successfully from database', deletedId: creditId });
@@ -395,106 +405,186 @@ const deletePurchaseCredit = async (req, res) => {
 const settleSupplierCredit = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ message: 'Invalid product ID' });
+    if (!id || id === 'undefined' || id === 'null') {
+      return res.status(400).json({ message: 'Invalid product or credit ID' });
     }
 
     const { paymentMethod = 'Cash', amountPaid, paymentReceipt } = req.body;
-    const filter = (req.user?.role === 'super_admin' || !req.user?.shopId)
-      ? { id }
-      : { id, shopId: req.user.shopId };
 
-    const item = await Item.findOne(filter);
+    // 1. Search in Item by id
+    let item = await Item.findById(id);
+
+    // 2. If not found by direct id, check if id is a PurchaseCredit record ID or itemId
+    let pcRecord = null;
     if (!item) {
-      return res.status(404).json({ message: 'Product not found or unauthorized' });
+      pcRecord = await PurchaseCredit.findById(id);
+      if (!pcRecord) {
+        pcRecord = await PurchaseCredit.findOne({ itemId: id });
+      }
+      if (pcRecord && pcRecord.itemId) {
+        item = await Item.findById(pcRecord.itemId);
+      }
+    } else {
+      pcRecord = await PurchaseCredit.findOne({ itemId: item.id });
     }
 
-    const unitCost = Number(item.costPrice) > 0 ? Number(item.costPrice) : Number(item.price || 0);
-    const unitDivisor = item.unitType === 'egg' ? 1 : item.unitType === 'tray' ? 30 : 360;
-    const petiQty = Number(item.petiQuantity) || 0;
-    const stockEggs = Number(item.stock) || 0;
-
-    const totalCost = Number(item.totalPurchaseCost) > 0
-      ? Number(item.totalPurchaseCost)
-      : (petiQty > 0 ? petiQty * unitCost : (stockEggs > 0 ? stockEggs * (unitCost / unitDivisor) : 0));
-
-    const explicitDue = (item.dueAmountToSupplier !== undefined && item.dueAmountToSupplier !== null)
-      ? Number(item.dueAmountToSupplier)
-      : null;
-
-    const currentDue = (explicitDue !== null)
-      ? explicitDue
-      : Math.max(0, totalCost - (Number(item.amountPaidToSupplier) || 0));
-
-    let payAmt = Number(amountPaid);
-    if (isNaN(payAmt) || payAmt <= 0) {
-      payAmt = currentDue > 0 ? currentDue : 0;
-    }
-    if (payAmt <= 0) {
-      return res.status(400).json({ message: 'Invalid payment amount' });
+    if (!item && !pcRecord) {
+      return res.status(404).json({ message: 'Product or Credit Record not found' });
     }
 
     const isBank = String(paymentMethod).toLowerCase().includes('bank') || String(paymentMethod).toLowerCase().includes('online') || String(paymentMethod).toLowerCase().includes('transfer');
-    const effectiveDue = currentDue > 0 ? currentDue : payAmt;
-    const newDue = Math.max(0, effectiveDue - payAmt);
-    const newPaid = (Number(item.amountPaidToSupplier) || 0) + payAmt;
 
-    const updatePayload = {
-      dueAmountToSupplier: newDue,
-      amountPaidToSupplier: newPaid,
-      totalPurchaseCost: Math.max(totalCost, newPaid + newDue),
-      lastUpdated: new Date().toISOString().split('T')[0]
-    };
+    // Case A: If matching Item exists
+    if (item) {
+      const unitCost = Number(item.costPrice) > 0 ? Number(item.costPrice) : Number(item.price || 0);
+      const unitDivisor = item.unitType === 'egg' ? 1 : item.unitType === 'tray' ? 30 : 360;
+      const petiQty = Number(item.petiQuantity) || 0;
+      const stockEggs = Number(item.stock) || 0;
 
-    if (isBank) {
-      updatePayload.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + payAmt;
-      updatePayload.isOnlinePayment = true;
-      if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
-      updatePayload.paymentMethod = 'Bank Transfer';
-    } else {
-      updatePayload.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + payAmt;
-      if ((Number(item.bankPaidToSupplier) || 0) === 0) {
-        updatePayload.isOnlinePayment = false;
-        updatePayload.paymentMethod = 'Cash';
+      const totalCost = Number(item.totalPurchaseCost) > 0
+        ? Number(item.totalPurchaseCost)
+        : (petiQty > 0 ? petiQty * unitCost : (stockEggs > 0 ? stockEggs * (unitCost / unitDivisor) : 0));
+
+      const explicitDue = (item.dueAmountToSupplier !== undefined && item.dueAmountToSupplier !== null)
+        ? Number(item.dueAmountToSupplier)
+        : null;
+
+      const currentDue = (explicitDue !== null)
+        ? explicitDue
+        : (pcRecord ? Number(pcRecord.pendingDue || 0) : Math.max(0, totalCost - (Number(item.amountPaidToSupplier) || 0)));
+
+      let payAmt = Number(amountPaid);
+      if (isNaN(payAmt) || payAmt <= 0) {
+        payAmt = currentDue > 0 ? currentDue : 0;
       }
-    }
+      if (payAmt <= 0) {
+        return res.status(400).json({ message: 'Invalid payment amount' });
+      }
 
-    const updatedItem = await Item.findByIdAndUpdate(item.id, updatePayload);
+      const effectiveDue = currentDue > 0 ? currentDue : payAmt;
+      const newDue = Math.max(0, effectiveDue - payAmt);
+      const newPaid = (Number(item.amountPaidToSupplier) || 0) + payAmt;
 
-    // Sync with purchase_credits and purchases tables
-    try {
+      const updatePayload = {
+        dueAmountToSupplier: newDue,
+        amountPaidToSupplier: newPaid,
+        totalPurchaseCost: Math.max(totalCost, newPaid + newDue),
+        lastUpdated: new Date().toISOString().split('T')[0]
+      };
+
+      if (isBank) {
+        updatePayload.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + payAmt;
+        updatePayload.isOnlinePayment = true;
+        if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
+        updatePayload.paymentMethod = 'Bank Transfer';
+      } else {
+        updatePayload.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + payAmt;
+        if ((Number(item.bankPaidToSupplier) || 0) === 0) {
+          updatePayload.isOnlinePayment = false;
+          updatePayload.paymentMethod = 'Cash';
+        }
+      }
+
+      const updatedItem = await Item.findByIdAndUpdate(item.id, updatePayload);
       const pcStatus = newDue <= 0 ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
-      await pool.query(
-        'UPDATE purchase_credits SET paidToDate = ?, pendingDue = ?, status = ?, lastSettlementDate = NOW() WHERE itemId = ?',
-        [newPaid, newDue, pcStatus, item.id]
-      );
-      await pool.query(
-        'UPDATE purchases SET amountPaid = ?, dueAmount = ?, updatedAt = NOW() WHERE itemId = ?',
-        [newPaid, newDue, item.id]
-      );
-    } catch (pcErr) { }
 
-    // Auto-create expense record for supplier payment
-    try {
-      await Expense.create({
-        shopId: item.shopId,
-        title: `Supplier Credit Paid - ${item.supplierName || 'Egg Farm'} (${item.name})`,
-        category: 'Other',
-        amount: payAmt,
-        paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
-        paymentSource: isBank ? 'BANK' : 'CASH',
-        notes: `Paid Rs ${payAmt} via ${isBank ? 'Bank Transfer' : 'Cash'} for ${item.name} supplier credit. Remaining Due: Rs ${newDue}`,
-        createdBy: req.user?.fullName || 'Shop Admin'
+      // Sync across branch tables
+      try {
+        await PurchaseCredit.findOneAndUpdate(
+          { itemId: item.id },
+          { paidToDate: newPaid, pendingDue: newDue, status: pcStatus, lastSettlementDate: new Date() }
+        );
+        await PurchaseCredit.findOneAndUpdate(
+          { id: id },
+          { paidToDate: newPaid, pendingDue: newDue, status: pcStatus, lastSettlementDate: new Date() }
+        );
+
+        const { ALL_BRANCH_PREFIXES } = await import('../models/dbHelper.js');
+        for (const prefix of ALL_BRANCH_PREFIXES) {
+          try {
+            await pool.query(
+              `UPDATE \`${prefix}__purchase_credits\` SET paidToDate = ?, pendingDue = ?, status = ?, lastSettlementDate = NOW() WHERE itemId = ? OR id = ?`,
+              [newPaid, newDue, pcStatus, item.id, id]
+            );
+            await pool.query(
+              `UPDATE \`${prefix}__purchases\` SET amountPaid = ?, dueAmount = ?, updatedAt = NOW() WHERE itemId = ? OR id = ?`,
+              [newPaid, newDue, item.id, id]
+            );
+          } catch (_) {}
+        }
+      } catch (pcErr) {}
+
+      // Auto-create expense record for supplier payment
+      try {
+        await Expense.create({
+          shopId: item.shopId,
+          title: `Supplier Credit Paid - ${item.supplierName || 'Egg Farm'} (${item.name})`,
+          category: 'Other',
+          amount: payAmt,
+          paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
+          paymentSource: isBank ? 'BANK' : 'CASH',
+          notes: `Paid Rs ${payAmt} via ${isBank ? 'Bank Transfer' : 'Cash'} for ${item.name} supplier credit. Remaining Due: Rs ${newDue}`,
+          createdBy: req.user?.fullName || 'Shop Admin'
+        });
+      } catch (expErr) {}
+
+      return res.json({
+        success: true,
+        message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
+        item: updatedItem
       });
-    } catch (expErr) {
-      console.error('[settleSupplierCredit Expense Error]', expErr);
     }
 
-    res.json({
-      success: true,
-      message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
-      item: updatedItem
-    });
+    // Case B: If only pcRecord exists
+    if (pcRecord) {
+      const currentPaid = Number(pcRecord.paidToDate || 0);
+      const currentDue = Number(pcRecord.pendingDue || 0);
+      let payAmt = Number(amountPaid);
+      if (isNaN(payAmt) || payAmt <= 0) payAmt = currentDue > 0 ? currentDue : 0;
+      if (payAmt <= 0) {
+        return res.status(400).json({ message: 'Invalid payment amount' });
+      }
+
+      const newDue = Math.max(0, currentDue - payAmt);
+      const newPaid = currentPaid + payAmt;
+      const pcStatus = newDue <= 0 ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
+
+      await PurchaseCredit.findByIdAndUpdate(pcRecord.id, {
+        paidToDate: newPaid,
+        pendingDue: newDue,
+        status: pcStatus,
+        lastSettlementDate: new Date()
+      });
+
+      const { ALL_BRANCH_PREFIXES } = await import('../models/dbHelper.js');
+      for (const prefix of ALL_BRANCH_PREFIXES) {
+        try {
+          await pool.query(
+            `UPDATE \`${prefix}__purchase_credits\` SET paidToDate = ?, pendingDue = ?, status = ?, lastSettlementDate = NOW() WHERE id = ? OR itemId = ?`,
+            [newPaid, newDue, pcStatus, pcRecord.id, pcRecord.itemId || id]
+          );
+        } catch (_) {}
+      }
+
+      try {
+        await Expense.create({
+          shopId: pcRecord.shopId || 1,
+          title: `Supplier Credit Paid - ${pcRecord.supplierName || 'Egg Farm'} (${pcRecord.productName})`,
+          category: 'Other',
+          amount: payAmt,
+          paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
+          paymentSource: isBank ? 'BANK' : 'CASH',
+          notes: `Paid Rs ${payAmt} via ${isBank ? 'Bank Transfer' : 'Cash'} for ${pcRecord.productName} supplier credit. Remaining Due: Rs ${newDue}`,
+          createdBy: req.user?.fullName || 'Shop Admin'
+        });
+      } catch (expErr) {}
+
+      return res.json({
+        success: true,
+        message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
+        pcRecord
+      });
+    }
   } catch (error) {
     console.error('[settleSupplierCredit error]', error);
     res.status(500).json({ message: error.message });

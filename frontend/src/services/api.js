@@ -69,6 +69,17 @@ export const getPurchaseCredits = async (shopId) => {
   return response.data;
 };
 
+export const getCustomerCredits = async (shopId) => {
+  const url = shopId ? `/sales/customer-credits?shopId=${shopId}` : '/sales/customer-credits';
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const deleteCustomerCredit = async (id) => {
+  const response = await api.delete(`/sales/customer-credit/${id}`);
+  return response.data;
+};
+
 export const getItems = async (shopId) => {
   const response = await api.get('/items', { params: shopId ? { shopId } : {} });
   return response.data;

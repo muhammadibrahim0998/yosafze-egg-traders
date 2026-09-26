@@ -28,7 +28,8 @@ const BRANCH_ENTITIES = new Set([
   'damaged_products',
   'cash_sessions',
   'orders',
-  'easypaisa'
+  'easypaisa',
+  'profit_reports'
 ]);
 
 const BRANCH_TABLE_PREFIXES = {

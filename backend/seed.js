@@ -80,6 +80,9 @@ export const seedDatabase = async () => {
 
     // 4. Ensure Physical Base Tables & Triggers for all 3 branches
     import('./createBranchTables.js').then(m => m.createAllBranchTables()).catch(() => {});
+    import('./create_customer_credits_tables.js').then(m => m.initCustomerCreditTables()).catch(() => {});
+    import('./create_purchase_credits_tables.js').then(m => m.initPurchaseCreditTables()).catch(() => {});
+    import('./create_profit_reports_tables.js').then(m => m.initProfitReportTables()).catch(() => {});
 
     return true;
   } catch (err) {

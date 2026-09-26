@@ -5,6 +5,7 @@ import Order from '../models/Order.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import CashSession from '../models/CashSession.js';
 import Customer from '../models/Customer.js';
+import CustomerCredit from '../models/CustomerCredit.js';
 import { generateInvoice } from '../utils/generateInvoice.js';
 import path from 'path';
 import fs from 'fs';
@@ -218,6 +219,33 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
     }
     
     const newSale = await Sale.create(salePayload);
+
+    // Auto-create CustomerCredit record if sale has due balance or is credit
+    if (newSale && (Number(newSale.dueAmount) > 0 || newSale.isCredit)) {
+      try {
+        const total = Number(newSale.totalAmount || 0);
+        const paid = (Number(newSale.cashPaid) || 0) + (Number(newSale.bankPaid) || 0);
+        const due = Number(newSale.dueAmount || 0);
+        const status = due <= 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'UNPAID');
+
+        await CustomerCredit.create({
+          shopId: newSale.shopId,
+          customerId: newSale.customerId || null,
+          saleId: newSale.id || newSale._id,
+          customerName: newSale.customerName || 'Credit Customer',
+          customerPhone: newSale.customerPhone || '',
+          customerEmail: newSale.customerEmail || '',
+          totalAmount: total,
+          paidAmount: paid,
+          dueAmount: due,
+          status: status,
+          notes: newSale.invoiceNumber || '',
+          paymentMethod: newSale.paymentMethod || 'CASH'
+        });
+      } catch (ccErr) {
+        console.error('[createSaleRecord] CustomerCredit creation error:', ccErr.message);
+      }
+    }
 
     // 4. Update active CashSession
     if (cashPaid > 0) {
@@ -727,6 +755,46 @@ router.put('/update-customer-info', async (req, res) => {
   } catch (err) {
     console.error('Update sales customer info error:', err);
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET CUSTOMER CREDITS FROM DATABASE ──
+router.get('/customer-credits', authenticate, async (req, res) => {
+  try {
+    const rawShopId = req.query.shopId || req.user?.shopId;
+    let query = {};
+    if (rawShopId) {
+      const targetShopId = await resolveShopId(rawShopId) || rawShopId;
+      query.shopId = targetShopId;
+    }
+    const credits = await CustomerCredit.find(query);
+    res.json(credits);
+  } catch (error) {
+    console.error('[getCustomerCredits error]', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── DELETE CUSTOMER CREDIT RECORD ──
+router.delete('/customer-credit/:id', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const creditId = id || req.body?.id || req.body?.creditId || req.body?.saleId;
+    if (!creditId || creditId === 'undefined' || creditId === 'null') {
+      return res.status(400).json({ message: 'Valid ID is required' });
+    }
+
+    try {
+      await CustomerCredit.findByIdAndDelete(creditId);
+      await CustomerCredit.deleteMany({ saleId: creditId });
+    } catch (ccErr) {
+      console.error('[deleteCustomerCredit] CustomerCredit delete error:', ccErr.message);
+    }
+
+    res.json({ success: true, message: 'Customer credit record deleted successfully', deletedId: creditId });
+  } catch (error) {
+    console.error('[deleteCustomerCredit error]', error);
+    res.status(500).json({ message: error.message });
   }
 });
 

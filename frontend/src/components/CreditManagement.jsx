@@ -28,7 +28,7 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CountUpNumber } from './CountUpNumber.jsx';
-import { settleSupplierCredit, settleCreditSale, uploadImages, deletePurchaseCredit, deleteItem, getPurchaseCredits } from '../services/api';
+import { settleSupplierCredit, settleCreditSale, uploadImages, deletePurchaseCredit, deleteItem, getPurchaseCredits, getCustomerCredits, deleteCustomerCredit } from '../services/api';
 
 export function CreditManagement({
   items = [],
@@ -80,6 +80,7 @@ export function CreditManagement({
   });
 
   const [dbPurchaseCredits, setDbPurchaseCredits] = useState([]);
+  const [dbCustomerCredits, setDbCustomerCredits] = useState([]);
   const [loadingCredits, setLoadingCredits] = useState(false);
 
   const fetchPurchaseCreditsData = async () => {
@@ -94,8 +95,18 @@ export function CreditManagement({
     }
   };
 
+  const fetchCustomerCreditsData = async () => {
+    try {
+      const data = await getCustomerCredits(shopId);
+      setDbCustomerCredits(data || []);
+    } catch (err) {
+      console.error('Failed to fetch customer credits:', err);
+    }
+  };
+
   useEffect(() => {
     fetchPurchaseCreditsData();
+    fetchCustomerCreditsData();
   }, [shopId]);
 
   // Use database data instead of dynamic calculation
@@ -111,8 +122,26 @@ export function CreditManagement({
     });
   }, [dbPurchaseCredits]);
 
-  // Calculate dynamic Customer Credit List
+  // Calculate dynamic Customer Credit List (DB table primary with fallback)
   const customerCreditList = useMemo(() => {
+    if (dbCustomerCredits && dbCustomerCredits.length > 0) {
+      return dbCustomerCredits.map(item => {
+        const total = Number(item.totalAmount || 0);
+        const paid = Number(item.paidAmount || 0);
+        const due = Number(item.dueAmount || 0);
+        return {
+          ...item,
+          customerName: item.customerName || 'Credit Customer',
+          customerPhone: item.customerPhone || '',
+          invoiceNumber: item.notes || item.invoiceNumber || (item.saleId ? `INV-${String(item.saleId).padStart(5, '0')}` : ''),
+          calculatedTotal: total,
+          calculatedPaid: paid,
+          calculatedDue: due,
+          status: item.status || (due === 0 ? 'SETTLED' : (paid > 0 ? 'PARTIAL' : 'UNPAID'))
+        };
+      });
+    }
+
     return (shopSalesList || []).filter(sale => {
       const isCredit = sale.isCredit || sale.paymentMethod === 'CREDIT' || sale.paymentMethod === 'DUE' || Number(sale.dueAmount) > 0;
       const due = Number(sale.dueAmount !== undefined ? sale.dueAmount : (isCredit ? sale.totalAmount : 0));
@@ -132,7 +161,7 @@ export function CreditManagement({
         status: due === 0 ? 'SETTLED' : (totalPaid > 0 ? 'PARTIAL' : 'UNPAID')
       };
     });
-  }, [shopSalesList]);
+  }, [dbCustomerCredits, shopSalesList]);
 
   // Summary KPI calculations
   const totalPurchaseDue = useMemo(() => {
@@ -209,7 +238,7 @@ export function CreditManagement({
     if (e) e.preventDefault();
     if (!settleSupplierModal.item) return;
 
-    const itemId = settleSupplierModal.item._id || settleSupplierModal.item.id;
+    const itemId = settleSupplierModal.item.itemId || settleSupplierModal.item._id || settleSupplierModal.item.id;
     const payAmt = Number(settleSupplierModal.amountPaid);
     if (isNaN(payAmt) || payAmt <= 0) {
       setSettleSupplierModal(prev => ({ ...prev, error: 'Please enter a valid amount greater than 0' }));
@@ -239,6 +268,7 @@ export function CreditManagement({
         successMsg: `Rs. ${payAmt.toLocaleString('en-PK')} successfully paid to supplier!`,
       }));
 
+      await fetchPurchaseCreditsData();
       if (onRefresh) {
         await onRefresh();
       }
@@ -278,10 +308,12 @@ export function CreditManagement({
       if (itemId) {
         try {
           await deletePurchaseCredit(itemId);
-        } catch (_) {
+        } catch (err) {
           await deleteItem(itemId, '', 'shop_admin');
         }
       }
+      setDbPurchaseCredits(prev => prev.filter(pc => String(pc._id || pc.id) !== String(itemId)));
+      await fetchPurchaseCreditsData();
       if (onRefresh) {
         await onRefresh();
       }
