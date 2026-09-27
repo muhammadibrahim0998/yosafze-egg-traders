@@ -31,7 +31,7 @@ export function VendorDirectory() {
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/vendors', { ...formData, shopId });
+      await api.post(`/vendors/${shopId}`, formData);
       toast.success('Vendor added!');
       setFormData({ name: '', phone: '', location: '' });
       setShowForm(false);
@@ -44,7 +44,7 @@ export function VendorDirectory() {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to remove this vendor?')) return;
     try {
-      await api.delete(`/vendors/${id}`);
+      await api.delete(`/vendors/${shopId}/${id}`);
       toast.success('Vendor removed!');
       fetchVendors();
     } catch (error) {

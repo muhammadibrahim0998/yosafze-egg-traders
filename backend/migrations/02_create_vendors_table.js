@@ -9,18 +9,30 @@ export async function up() {
       name VARCHAR(100) NOT NULL,
       phone VARCHAR(20) DEFAULT '',
       location VARCHAR(255) DEFAULT '',
+      isActive BOOLEAN DEFAULT TRUE,
+      archivedAt TIMESTAMP NULL,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_shop_name (shopId, name)
+      UNIQUE KEY uq_vendor_shop_name (shopId, name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `;
   try {
     await pool.query(query);
+    // Add columns if table already existed without them
+    const [columns] = await pool.query("SHOW COLUMNS FROM vendors LIKE 'isActive'");
+    if (columns.length === 0) {
+      await pool.query('ALTER TABLE vendors ADD COLUMN isActive BOOLEAN DEFAULT TRUE, ADD COLUMN archivedAt TIMESTAMP NULL');
+    }
+    // Add unique key if table already existed without it
+    const [indexes] = await pool.query("SHOW INDEX FROM vendors WHERE Key_name = 'uq_vendor_shop_name'");
+    if (indexes.length === 0) {
+      await pool.query('ALTER TABLE vendors ADD UNIQUE KEY uq_vendor_shop_name (shopId, name)');
+    }
     console.log('Migration successful: vendors table created/verified.');
     return true;
   } catch (error) {
     console.error('Migration failed:', error);
-    return false;
+    process.exit(1);
   }
 }
 
