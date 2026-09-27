@@ -4,18 +4,25 @@ import CreatableSelect from 'react-select/creatable';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { productSchema } from "../schemas/productSchema";
 import { X, Upload, Loader2, Star, Box, Egg, UserCheck, ImageIcon, Link as LinkIcon, ShieldCheck, Camera, Plus, Banknote, CreditCard, AlertCircle, Building2 } from "lucide-react";
-import { uploadImages } from "../services/api";
+import api, { uploadImages } from "../services/api";
 import { useProducts } from "../contexts/ProductContext";
+import { useUser } from "../contexts/UserContext";
 import { toast } from "sonner";
 
 export function ProductModal({ isOpen, onClose, onSave, product, mode, categories = [], suppliers = [] }) {
   const { products: allContextProducts = [] } = useProducts?.() || {};
   const [dynamicSuppliers, setDynamicSuppliers] = useState([]);
 
+  const { user } = useUser?.() || {};
+  const shopId = user?.shopId || 1;
+
   // Fetch all known suppliers from items API whenever modal opens
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
+    setDynamicSuppliers([]);
+    
+    // Fetch from legacy items
     fetch('/api/items')
       .then(res => res.json())
       .then(data => {
@@ -31,13 +38,26 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
             });
           }
         });
-        if (sList.length > 0) {
-          setDynamicSuppliers(sList);
-        }
+        setDynamicSuppliers(prev => [...prev, ...sList]);
       })
       .catch(() => {});
+
+    // Fetch from new vendors API
+    api.get(`/vendors/${shopId}`)
+      .then(res => res.data)
+      .then(data => {
+        if (!isMounted) return;
+        const sList = data.map(v => ({
+          name: v.name.trim(),
+          phone: v.phone || '',
+          location: v.location || ''
+        }));
+        setDynamicSuppliers(prev => [...prev, ...sList]);
+      })
+      .catch(() => {});
+
     return () => { isMounted = false; };
-  }, [isOpen]);
+  }, [isOpen, shopId]);
 
   const knownSuppliers = useMemo(() => {
     const map = new Map();
