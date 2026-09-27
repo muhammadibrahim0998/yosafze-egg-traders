@@ -66,7 +66,7 @@ export function ProductDetail() {
                                 transition={{ duration: 0.3 }}
                                 src={getImageUrl(images[selectedImage])}
                                 alt={product.name}
-                                onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }}
+                                onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
                                 className="w-full h-full object-contain drop-shadow-xl"
                             />
                         ) : (
@@ -101,7 +101,7 @@ export function ProductDetail() {
                                 >
                                     <img 
                                         src={getImageUrl(img)} 
-                                        onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }}
+                                        onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
                                         className="w-full h-full object-cover" 
                                         alt="thumbnail" 
                                     />

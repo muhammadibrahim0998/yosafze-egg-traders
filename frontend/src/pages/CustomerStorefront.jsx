@@ -5746,7 +5746,7 @@ function StoreContent({ shopId }) {
                             <img 
                               src={getImageUrl(item.images[0])} 
                               alt={item.name} 
-                              onError={(e) => { e.target.onerror = null; e.target.src = companyLogo; }}
+                              onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
                               className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700" 
                             />
                           ) : (
@@ -6456,7 +6456,7 @@ function StoreContent({ shopId }) {
                                   {item.images?.[0] ? (
                                     <img 
                                       src={getImageUrl(item.images[0])} 
-                                      onError={(e) => { e.target.onerror = null; e.target.src = companyLogo; }} 
+                                      onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }} 
                                       className="w-full h-full object-cover" 
                                       alt=""
                                     />
@@ -6541,11 +6541,11 @@ function StoreContent({ shopId }) {
                             {/* Image Container with Smooth Rounded Corners & Zoom */}
                             <button onClick={() => setSelectedItem(item)} className="block aspect-[4/3] sm:aspect-square bg-slate-50 overflow-hidden relative cursor-pointer text-left w-full rounded-t-[25px]">
                               <img
-                                src={getImageUrl((item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || companyLogo))}
+                                src={getImageUrl((item.images && item.images.length > 0 && item.images[0]) ? item.images[0] : (item.image || '/egg2.png'))}
                                 alt={item.name}
                                 onError={(e) => {
                                   e.target.onerror = null;
-                                  e.target.src = companyLogo;
+                                  e.target.src = '/egg2.png';
                                 }}
                                 className={`w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500 ease-out ${itemOutOfStock ? 'grayscale opacity-60' : ''}`}
                               />
@@ -10970,11 +10970,18 @@ function StoreContent({ shopId }) {
             {/* Image Header */}
             <div className="aspect-[16/10] overflow-hidden relative bg-slate-100 group">
               {selectedItem.images?.[0] ? (
-                <img src={selectedItem.images[0]} alt={selectedItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img 
+                  src={getImageUrl(selectedItem.images[0])} 
+                  alt={selectedItem.name} 
+                  onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-100">
-                  <Egg className="w-16 h-16 text-slate-400" />
-                </div>
+                <img 
+                  src="/egg2.png" 
+                  alt={selectedItem.name} 
+                  className="w-full h-full object-contain p-4" 
+                />
               )}
 
               {/* Category Pill */}
