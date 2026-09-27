@@ -41,12 +41,12 @@ export default defineConfig({
       // Forward all /api requests to the backend server
       // This makes cookies work correctly (same-origin) and avoids CORS issues
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
       }
