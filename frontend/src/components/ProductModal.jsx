@@ -4,7 +4,7 @@ import CreatableSelect from 'react-select/creatable';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { productSchema } from "../schemas/productSchema";
 import { X, Upload, Loader2, Star, Box, Egg, UserCheck, ImageIcon, Link as LinkIcon, ShieldCheck, Camera, Plus, Banknote, CreditCard, AlertCircle, Building2 } from "lucide-react";
-import { uploadImages } from "../services/api";
+import api, { uploadImages } from "../services/api";
 import { useProducts } from "../contexts/ProductContext";
 import { useUser } from "../contexts/UserContext";
 import { toast } from "sonner";
@@ -43,8 +43,8 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
       .catch(() => {});
 
     // Fetch from new vendors API
-    fetch(`/api/vendors/${shopId}`)
-      .then(res => res.json())
+    api.get(`/vendors/${shopId}`)
+      .then(res => res.data)
       .then(data => {
         if (!isMounted) return;
         const sList = data.map(v => ({

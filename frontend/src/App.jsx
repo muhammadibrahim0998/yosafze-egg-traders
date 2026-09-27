@@ -28,6 +28,7 @@ import { SettingsView } from "./pages/SettingsView";
 import { HelpView } from "./pages/HelpView";
 import { VendorDirectory } from "./pages/VendorDirectory";
 
+
 import { useProducts } from "./contexts/ProductContext";
 
 import {
@@ -306,7 +307,7 @@ export default function App() {
                   ) : isShopAdmin() ? (
                     <Navigate to={`/shop/${user?.shopId || 1}`} replace />
                   ) : (
-                    <Navigate to="/store" replace />
+                    <Navigate to="/shop" replace />
                   )
                 } />
 
@@ -316,7 +317,7 @@ export default function App() {
                   ) : isShopAdmin() ? (
                     <Navigate to={`/shop/${user?.shopId || 1}`} replace />
                   ) : (
-                    <Navigate to="/store" replace />
+                    <Navigate to="/shop" replace />
                   )
                 } />
 
@@ -349,30 +350,11 @@ export default function App() {
                 <Route path="/help" element={<HelpView />} />
                 <Route path="/team" element={(isShopAdmin() || isSuperAdmin()) ? <TeamView /> : <Navigate to="/" />} />
                 <Route path="/purchases" element={isShopAdmin() ? <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
-                <Route path="/vendors" element={(isShopAdmin() || isSuperAdmin()) ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
+                <Route path="/vendors" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/vendor-directory" element={(isShopAdmin() || isSuperAdmin()) ? <VendorDirectory /> : <Navigate to="/" />} />
                 <Route path="/suppliers" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
-                <Route path="/shop/:id" element={
-                  <ShopAdminDashboard 
-                    onAddProduct={() => openModal("addProduct")}
-                    onEditProduct={(p) => openModal("editProduct", p)}
-                    onDeleteProduct={handleDeleteProduct}
-                    onViewProduct={(p) => openModal("viewProduct", p)}
-                    onExport={() => openModal("export")}
-                    onEditSale={(s) => openModal("editSale", s)}
-                    onDeleteSale={handleDeleteSale}
-                    onReturnSale={handleReturnSale}
-                    onViewSale={(s) => openModal("receipt", s)}
-                    dailySales={dailySalesTotal}
-                    monthlySales={monthlySalesTotal}
-                    yearlySales={yearlySalesTotal}
-                    totalRevenue={totalRevenue}
-                    dailyProfit={sumProfit(dailySalesList)}
-                    monthlyProfit={sumProfit(monthlySalesList)}
-                    yearlyProfit={sumProfit(yearlySalesList)}
-                  />
-                } />
+                <Route path="/shop/:id" element={<ShopAdminDashboard />} />
               </Routes>
             </div>
             <Footer />

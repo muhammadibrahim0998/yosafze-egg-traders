@@ -15,7 +15,7 @@ export function VendorDirectory() {
 
   const fetchVendors = async () => {
     try {
-      const res = await api.get(`/vendors/${shopId}`);
+      const res = await api.get(`/vendors/${shopId}/full`);
       setVendors(res.data);
     } catch (error) {
       toast.error('Failed to load vendors');
