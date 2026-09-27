@@ -146,7 +146,10 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
 
               {/* Vendors / Suppliers Management (Shop Admin only) */}
               {isShopAdmin() && (
-                <NavItem to="/vendors" icon={Building2} label="Vendors (Suppliers)" />
+                <>
+                  <NavItem to="/vendors" icon={Building2} label="Vendors (Ledger)" />
+                  <NavItem to="/vendor-directory" icon={Building2} label="Vendor Profiles (Add/Remove)" />
+                </>
               )}
 
               {/* Only Shop Admin & Super Admin can manage teams */}

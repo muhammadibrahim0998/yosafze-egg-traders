@@ -26,6 +26,8 @@ import { DeleteConfirmationModal } from "./components/DeleteConfirmationModal";
 import { LoginView } from "./components/auth/LoginView";
 import { SettingsView } from "./pages/SettingsView";
 import { HelpView } from "./pages/HelpView";
+import { VendorDirectory } from "./pages/VendorDirectory";
+
 
 import { useProducts } from "./contexts/ProductContext";
 
@@ -349,6 +351,7 @@ export default function App() {
                 <Route path="/team" element={(isShopAdmin() || isSuperAdmin()) ? <TeamView /> : <Navigate to="/" />} />
                 <Route path="/purchases" element={isShopAdmin() ? <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/vendors" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
+                <Route path="/vendor-directory" element={(isShopAdmin() || isSuperAdmin()) ? <VendorDirectory /> : <Navigate to="/" />} />
                 <Route path="/suppliers" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
                 <Route path="/shop/:id" element={<ShopAdminDashboard />} />
