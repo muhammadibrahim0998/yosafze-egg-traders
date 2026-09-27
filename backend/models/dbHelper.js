@@ -42,7 +42,7 @@ const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_branch'
 
 /**
  * Base Model Helper for MySQL
- * Provides full Mongoose-like syntax (find, findOne, findById, create, update, delete)
+ * Provides query syntax (find, findOne, findById, create, update, delete)
  * with native branch folder table routing (peshawar_branch__*, mardan_branch__*, attock_branch__*).
  */
 export class BaseModel {
