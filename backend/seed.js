@@ -79,10 +79,18 @@ export const seedDatabase = async () => {
     }
 
     // 4. Ensure Physical Base Tables & Triggers for all 3 branches
-    import('./createBranchTables.js').then(m => m.createAllBranchTables()).catch(() => {});
-    import('./create_customer_credits_tables.js').then(m => m.initCustomerCreditTables()).catch(() => {});
-    import('./create_purchase_credits_tables.js').then(m => m.initPurchaseCreditTables()).catch(() => {});
-    import('./create_profit_reports_tables.js').then(m => m.initProfitReportTables()).catch(() => {});
+    try {
+      const bModule = await import('./createBranchTables.js');
+      await bModule.createAllBranchTables();
+      const ccModule = await import('./create_customer_credits_tables.js');
+      await ccModule.initCustomerCreditTables();
+      const pcModule = await import('./create_purchase_credits_tables.js');
+      await pcModule.initPurchaseCreditTables();
+      const prModule = await import('./create_profit_reports_tables.js');
+      await prModule.initProfitReportTables();
+    } catch (tblErr) {
+      console.error('Branch table initialization warning:', tblErr.message);
+    }
 
     return true;
   } catch (err) {

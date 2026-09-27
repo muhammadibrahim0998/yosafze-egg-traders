@@ -40,13 +40,21 @@ app.use(compression());
 app.set('trust proxy', 1);
 
 // Middleware
+const allowedOrigins = [
+  'https://nexflow-inventory.vercel.app', 
+  'http://localhost:5173', 
+  'http://localhost:5174',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 const corsOptions = {
-  origin: [
-    'https://nexflow-inventory.vercel.app', 
-    'http://localhost:5173', 
-    'http://localhost:5174',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('localhost')) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-password', 'x-user-role'],

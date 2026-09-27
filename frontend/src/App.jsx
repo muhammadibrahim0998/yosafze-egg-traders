@@ -303,7 +303,7 @@ export default function App() {
                   isSuperAdmin() ? (
                     <SuperAdminDashboard />
                   ) : isShopAdmin() ? (
-                    <Navigate to={`/shop/${user?.shopId || '6a741138253a8863f58ae4a4'}`} replace />
+                    <Navigate to={`/shop/${user?.shopId || 1}`} replace />
                   ) : (
                     <Navigate to="/shop" replace />
                   )
@@ -313,7 +313,7 @@ export default function App() {
                   isSuperAdmin() ? (
                     <SuperAdminDashboard />
                   ) : isShopAdmin() ? (
-                    <Navigate to={`/shop/${user?.shopId || '6a741138253a8863f58ae4a4'}`} replace />
+                    <Navigate to={`/shop/${user?.shopId || 1}`} replace />
                   ) : (
                     <Navigate to="/shop" replace />
                   )
@@ -351,6 +351,7 @@ export default function App() {
                 <Route path="/vendors" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/suppliers" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
+                <Route path="/shop/:id" element={<ShopAdminDashboard />} />
               </Routes>
             </div>
             <Footer />
