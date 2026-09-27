@@ -132,7 +132,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                           {product.images?.[0] ? (
                             <img 
                               src={getImageUrl(product.images[0])} 
-                              onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }} 
+                              onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }} 
                               className="w-full h-full object-cover" 
                               alt=""
                             />
@@ -210,7 +210,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                   {product.images?.[0] ? (
                     <img 
                       src={getImageUrl(product.images[0])} 
-                      onError={(e) => { e.target.onerror = null; e.target.src = '/logo.jpeg'; }} 
+                      onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }} 
                       className="w-full h-full object-cover" 
                       alt=""
                     />

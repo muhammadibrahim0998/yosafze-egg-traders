@@ -51,11 +51,11 @@ export function ProductCard({ product, onEdit, onDelete, onView }) {
       {/* Aspect Square Image Container */}
       <div className="relative aspect-square w-full bg-slate-900 overflow-hidden">
         <img
-          src={getImageUrl((product.images && product.images.length > 0 && product.images[0]) ? product.images[0] : (product.image || '/logo.jpeg'))}
+          src={getImageUrl((product.images && product.images.length > 0 && product.images[0]) ? product.images[0] : (product.image || '/egg2.png'))}
           alt={product.name}
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src = '/logo.jpeg';
+            e.target.src = '/egg2.png';
           }}
           className={`w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}
         />
