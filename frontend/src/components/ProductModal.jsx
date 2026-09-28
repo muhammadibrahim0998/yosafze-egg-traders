@@ -6,19 +6,23 @@ import { productSchema } from "../schemas/productSchema";
 import { X, Upload, Loader2, Star, Box, Egg, UserCheck, ImageIcon, Link as LinkIcon, ShieldCheck, Camera, Plus, Banknote, CreditCard, AlertCircle, Building2 } from "lucide-react";
 import { uploadImages, getVendors } from "../services/api";
 import { useProducts } from "../contexts/ProductContext";
+import { useUser } from "../contexts/UserContext";
 import { toast } from "sonner";
 
 export function ProductModal({ isOpen, onClose, onSave, product, mode, categories = [], suppliers = [] }) {
   const { products: allContextProducts = [] } = useProducts?.() || {};
+  const { user } = useUser?.() || {};
+  const shopId = user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : 1;
   const [dynamicSuppliers, setDynamicSuppliers] = useState([]);
 
   // Fetch all known suppliers & registered vendors whenever modal opens
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
+    setDynamicSuppliers([]);
 
-    // 1. Fetch from registered vendors table
-    getVendors()
+    // 1. Fetch from registered vendors table for this branch
+    getVendors(shopId)
       .then(data => {
         if (!isMounted) return;
         const list = Array.isArray(data) ? data : (data?.vendors || []);
@@ -40,7 +44,7 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
       .catch(() => {});
 
     // 2. Also fetch from items to ensure existing item supplier names are preserved
-    fetch('/api/items')
+    fetch(`/api/items?shopId=${shopId}`)
       .then(res => res.json())
       .then(data => {
         if (!isMounted) return;
@@ -67,8 +71,9 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
         }
       })
       .catch(() => {});
+
     return () => { isMounted = false; };
-  }, [isOpen]);
+  }, [isOpen, shopId]);
 
   const knownSuppliers = useMemo(() => {
     const map = new Map();
