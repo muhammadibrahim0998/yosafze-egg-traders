@@ -12,7 +12,9 @@ import {
   updateVendor,
   deleteVendor,
   deletePurchaseCredit,
-  getPurchaseCredits
+  getPurchaseCredits,
+  getVendors,
+  createVendor
 } from '../controllers/itemController.js';
 
 router.route('/')
@@ -26,6 +28,9 @@ router.route('/purchase-credits')
   .get(authenticate, getPurchaseCredits);
 
 // Vendor & Purchase Credit update & delete endpoints (placed before /:id to prevent slug collisions)
+router.get('/vendors', authenticate, getVendors);
+router.post('/vendors', authenticate, requireShopAdmin, createVendor);
+router.post('/vendor/create', authenticate, requireShopAdmin, createVendor);
 router.put('/vendor/update', authenticate, requireShopAdmin, updateVendor);
 router.post('/vendor/update', authenticate, requireShopAdmin, updateVendor);
 router.post('/vendor/delete', authenticate, requireShopAdmin, deleteVendor);

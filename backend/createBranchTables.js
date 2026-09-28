@@ -23,7 +23,9 @@ export async function createAllBranchTables() {
     'expenses',
     'orders',
     'damaged_products',
-    'cash_sessions'
+    'cash_sessions',
+    'profit_reports',
+    'vendors'
   ];
 
   const branches = [

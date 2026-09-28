@@ -4,6 +4,7 @@ import Purchase from '../models/Purchase.js';
 import PurchaseCredit from '../models/PurchaseCredit.js';
 import Vendor from '../models/Vendor.js';
 import pool from '../config/mysql.js';
+import { BRANCH_TABLE_PREFIXES, ALL_BRANCH_PREFIXES } from '../models/dbHelper.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
 import { resolveShopId } from '../utils/shopResolver.js';
 
@@ -340,7 +341,6 @@ const deleteItem = async (req, res) => {
     try {
       await PurchaseCredit.findByIdAndDelete(id);
       await PurchaseCredit.deleteMany({ itemId: id });
-      await pool.query('DELETE FROM purchase_credits WHERE itemId = ? OR id = ?', [id, id]);
     } catch (pcErr) {
       console.error('[deleteItem] purchase_credits delete error:', pcErr.message);
     }
@@ -372,12 +372,11 @@ const deletePurchaseCredit = async (req, res) => {
       return res.status(400).json({ message: 'Valid ID is required' });
     }
 
-    // Delete from purchase_credits branch tables and flat table
+    // Delete from purchase_credits branch tables
     try {
       await PurchaseCredit.findByIdAndDelete(creditId);
       await PurchaseCredit.deleteMany({ itemId: creditId });
       await PurchaseCredit.deleteMany({ purchaseId: creditId });
-      await pool.query('DELETE FROM purchase_credits WHERE id = ? OR itemId = ?', [creditId, creditId]);
     } catch (pcErr) {
       console.error('[deletePurchaseCredit] purchase_credits table delete error:', pcErr.message);
     }
@@ -591,11 +590,129 @@ const settleSupplierCredit = async (req, res) => {
   }
 };
 
-// @desc    Update Vendor / Supplier details across database
+// @desc    Get all registered Vendors / Suppliers (dynamically scoped per branch)
+const getVendors = async (req, res) => {
+  try {
+    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? (req.user?.shopId?._id || req.user?.shopId) : null);
+    let targetShopId = null;
+    if (rawShopId) {
+      targetShopId = await resolveShopId(rawShopId) || rawShopId;
+    }
+    const numShopId = targetShopId ? Number(targetShopId) : null;
+
+    let vendors = [];
+    if (numShopId && BRANCH_TABLE_PREFIXES[numShopId]) {
+      const branchPrefix = BRANCH_TABLE_PREFIXES[numShopId];
+      const branchTable = `${branchPrefix}__vendors`;
+      const [rows] = await pool.query(
+        `SELECT * FROM \`${branchTable}\` ORDER BY name ASC`
+      );
+      vendors = rows;
+
+      // Also include any distinct suppliers from this branch's items table that may not be in branch vendors table
+      try {
+        const itemTable = `${branchPrefix}__items`;
+        const [itemSuppliers] = await pool.query(
+          `SELECT DISTINCT supplierName as name, supplierPhone as phone, supplierLocation as location FROM \`${itemTable}\` WHERE supplierName IS NOT NULL AND TRIM(supplierName) != ""`
+        );
+        const existingNames = new Set(vendors.map(v => (v.name || '').toLowerCase().trim()));
+        for (const s of itemSuppliers) {
+          if (s.name && !existingNames.has(s.name.toLowerCase().trim())) {
+            vendors.push({
+              id: 'legacy_' + s.name.trim(),
+              shopId: numShopId,
+              name: s.name.trim(),
+              phone: s.phone || '',
+              location: s.location || '',
+              farmLocation: s.location || '',
+              status: 'active'
+            });
+            existingNames.add(s.name.toLowerCase().trim());
+          }
+        }
+      } catch (_) {}
+    } else {
+      // Super Admin: query all 3 branch tables and merge
+      const unionParts = ALL_BRANCH_PREFIXES.map(p => `SELECT * FROM \`${p}__vendors\``);
+      const [rows] = await pool.query(`(${unionParts.join(' UNION ALL ')}) ORDER BY name ASC`);
+      vendors = rows;
+    }
+
+    res.json(vendors);
+  } catch (error) {
+    console.error('[getVendors error]', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Create a new Vendor for a specific branch
+const createVendor = async (req, res) => {
+  try {
+    const { name, phone, location, farmLocation, email, notes, shopId } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Vendor / Farm name is required' });
+    }
+    const rawShopId = shopId || req.user?.shopId || 1;
+    const resolved = await resolveShopId(rawShopId) || rawShopId;
+    const targetShopId = Number(resolved) || 1;
+    const branchPrefix = BRANCH_TABLE_PREFIXES[targetShopId] || 'peshawar_branch';
+    const targetTable = `${branchPrefix}__vendors`;
+
+    const vName = name.trim();
+    const vPhone = (phone || '').trim();
+    const vLoc = (location || farmLocation || '').trim();
+    const vEmail = (email || '').trim();
+    const vNotes = (notes || '').trim();
+
+    // Check if vendor already exists in this branch's vendor table
+    const [existing] = await pool.query(
+      `SELECT * FROM \`${targetTable}\` WHERE LOWER(name) = LOWER(?)`,
+      [vName]
+    );
+
+    if (existing.length > 0) {
+      await pool.query(
+        `UPDATE \`${targetTable}\` 
+         SET phone = COALESCE(NULLIF(?, ''), phone),
+             location = COALESCE(NULLIF(?, ''), location),
+             farmLocation = COALESCE(NULLIF(?, ''), farmLocation),
+             email = COALESCE(NULLIF(?, ''), email),
+             notes = COALESCE(NULLIF(?, ''), notes),
+             updatedAt = NOW()
+         WHERE id = ?`,
+        [vPhone, vLoc, vLoc, vEmail, vNotes, existing[0].id]
+      );
+      const [updated] = await pool.query(`SELECT * FROM \`${targetTable}\` WHERE id = ?`, [existing[0].id]);
+      return res.status(200).json({
+        message: 'Vendor already exists in this branch and details updated',
+        vendor: updated[0]
+      });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO \`${targetTable}\` (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
+      [targetShopId, vName, vPhone, vLoc, vLoc, vEmail, vNotes]
+    );
+
+    const [newVendor] = await pool.query(`SELECT * FROM \`${targetTable}\` WHERE id = ?`, [result.insertId]);
+    return res.status(201).json({
+      message: 'Vendor created successfully in branch',
+      vendor: newVendor[0]
+    });
+  } catch (error) {
+    console.error('[createVendor error]', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update Vendor / Supplier details across branch tables
 const updateVendor = async (req, res) => {
   try {
     const { oldName, name, phone, location, email, notes, shopId } = req.body;
-    const targetShopId = shopId || req.user?.shopId || null;
+    const rawShopId = shopId || req.user?.shopId || null;
+    const resolved = rawShopId ? (await resolveShopId(rawShopId) || rawShopId) : null;
+    const targetShopId = resolved ? Number(resolved) : null;
 
     if (!oldName && !name) {
       return res.status(400).json({ message: 'Vendor name is required' });
@@ -606,92 +723,70 @@ const updateVendor = async (req, res) => {
     const newPhone = (phone || '').trim();
     const newLocation = (location || '').trim();
 
-    // 1. Update/Upsert vendors table
-    try {
-      const [existingVendors] = await pool.query(
-        'SELECT * FROM vendors WHERE (name = ? OR name = ?) AND (shopId = ? OR ? IS NULL)',
-        [currentName, newName, targetShopId, targetShopId]
-      );
+    const targetPrefixes = (targetShopId && BRANCH_TABLE_PREFIXES[targetShopId])
+      ? [BRANCH_TABLE_PREFIXES[targetShopId]]
+      : ALL_BRANCH_PREFIXES;
 
-      if (existingVendors.length > 0) {
-        await pool.query(
-          `UPDATE vendors 
-           SET name = ?, phone = ?, location = ?, farmLocation = ?, email = COALESCE(?, email), notes = COALESCE(?, notes), updatedAt = NOW() 
-           WHERE (name = ? OR name = ?) AND (shopId = ? OR ? IS NULL)`,
-          [newName, newPhone, newLocation, newLocation, email || null, notes || null, currentName, newName, targetShopId, targetShopId]
+    for (const prefix of targetPrefixes) {
+      const vTable = `${prefix}__vendors`;
+      const iTable = `${prefix}__items`;
+      const pTable = `${prefix}__purchases`;
+      const pcTable = `${prefix}__purchase_credits`;
+
+      // 1. Update/Upsert in branch vendors table
+      try {
+        const [existingVendors] = await pool.query(
+          `SELECT * FROM \`${vTable}\` WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)`,
+          [currentName, newName]
         );
-      } else {
-        await pool.query(
-          `INSERT INTO vendors (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
-          [targetShopId || 1, newName, newPhone, newLocation, newLocation, email || '', notes || '']
-        );
+
+        if (existingVendors.length > 0) {
+          await pool.query(
+            `UPDATE \`${vTable}\` 
+             SET name = ?, phone = ?, location = ?, farmLocation = ?, email = COALESCE(?, email), notes = COALESCE(?, notes), updatedAt = NOW() 
+             WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)`,
+            [newName, newPhone, newLocation, newLocation, email || null, notes || null, currentName, newName]
+          );
+        } else if (targetShopId) {
+          await pool.query(
+            `INSERT INTO \`${vTable}\` (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
+            [targetShopId, newName, newPhone, newLocation, newLocation, email || '', notes || '']
+          );
+        }
+      } catch (vErr) {
+        console.error(`[updateVendor] ${vTable} error:`, vErr.message);
       }
-    } catch (vErr) {
-      console.error('[updateVendor] vendors table error:', vErr.message);
-    }
 
-    // 2. Update items table
-    try {
-      if (targetShopId) {
+      // 2. Update branch items table
+      try {
         await pool.query(
-          `UPDATE items 
-           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, farmLocation = ?, updatedAt = NOW() 
-           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
-          [newName, newPhone, newLocation, newLocation, currentName, newName, targetShopId]
-        );
-      } else {
-        await pool.query(
-          `UPDATE items 
+          `UPDATE \`${iTable}\` 
            SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, farmLocation = ?, updatedAt = NOW() 
            WHERE supplierName = ? OR supplierName = ?`,
           [newName, newPhone, newLocation, newLocation, currentName, newName]
         );
-      }
-    } catch (iErr) {
-      console.error('[updateVendor] items table error:', iErr.message);
-    }
+      } catch (_) {}
 
-    // 3. Update purchases table
-    try {
-      if (targetShopId) {
+      // 3. Update branch purchases table
+      try {
         await pool.query(
-          `UPDATE purchases 
-           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
-           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
-          [newName, newPhone, newLocation, currentName, newName, targetShopId]
-        );
-      } else {
-        await pool.query(
-          `UPDATE purchases 
+          `UPDATE \`${pTable}\` 
            SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
            WHERE supplierName = ? OR supplierName = ?`,
           [newName, newPhone, newLocation, currentName, newName]
         );
-      }
-    } catch (pErr) {
-      console.error('[updateVendor] purchases table error:', pErr.message);
-    }
+      } catch (_) {}
 
-    // 4. Update purchase_credits table
-    try {
-      if (targetShopId) {
+      // 4. Update branch purchase_credits table
+      try {
         await pool.query(
-          `UPDATE purchase_credits 
-           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
-           WHERE (supplierName = ? OR supplierName = ?) AND shopId = ?`,
-          [newName, newPhone, newLocation, currentName, newName, targetShopId]
-        );
-      } else {
-        await pool.query(
-          `UPDATE purchase_credits 
+          `UPDATE \`${pcTable}\` 
            SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
            WHERE supplierName = ? OR supplierName = ?`,
           [newName, newPhone, newLocation, currentName, newName]
         );
-      }
-    } catch (pcErr) {
-      console.error('[updateVendor] purchase_credits table error:', pcErr.message);
+      } catch (_) {}
     }
 
     res.json({
@@ -709,60 +804,50 @@ const updateVendor = async (req, res) => {
   }
 };
 
-// @desc    Delete Vendor and associated records across database
+// @desc    Delete Vendor and associated records across branch tables
 const deleteVendor = async (req, res) => {
   try {
     const { name, shopId } = req.body;
-    const targetShopId = shopId || req.user?.shopId || null;
+    const rawShopId = shopId || req.user?.shopId || null;
+    const resolved = rawShopId ? (await resolveShopId(rawShopId) || rawShopId) : null;
+    const targetShopId = resolved ? Number(resolved) : null;
 
     if (!name) {
       return res.status(400).json({ message: 'Vendor name is required' });
     }
 
     const vendorName = String(name).trim();
+    const targetPrefixes = (targetShopId && BRANCH_TABLE_PREFIXES[targetShopId])
+      ? [BRANCH_TABLE_PREFIXES[targetShopId]]
+      : ALL_BRANCH_PREFIXES;
 
-    // 1. Delete from vendors table
-    try {
-      if (targetShopId) {
-        await pool.query('DELETE FROM vendors WHERE name = ? AND shopId = ?', [vendorName, targetShopId]);
-      } else {
-        await pool.query('DELETE FROM vendors WHERE name = ?', [vendorName]);
-      }
-    } catch (vErr) {
-      console.error('[deleteVendor] vendors table error:', vErr.message);
-    }
+    for (const prefix of targetPrefixes) {
+      const vTable = `${prefix}__vendors`;
+      const iTable = `${prefix}__items`;
+      const pTable = `${prefix}__purchases`;
+      const pcTable = `${prefix}__purchase_credits`;
 
-    // 2. Delete / Unassign from items table
-    try {
-      if (targetShopId) {
-        await pool.query('DELETE FROM items WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
-      } else {
-        await pool.query('DELETE FROM items WHERE supplierName = ?', [vendorName]);
+      // 1. Delete from branch vendors table
+      try {
+        await pool.query(`DELETE FROM \`${vTable}\` WHERE LOWER(name) = LOWER(?)`, [vendorName]);
+      } catch (vErr) {
+        console.error(`[deleteVendor] ${vTable} error:`, vErr.message);
       }
-    } catch (iErr) {
-      console.error('[deleteVendor] items table error:', iErr.message);
-    }
 
-    // 3. Delete from purchases table
-    try {
-      if (targetShopId) {
-        await pool.query('DELETE FROM purchases WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
-      } else {
-        await pool.query('DELETE FROM purchases WHERE supplierName = ?', [vendorName]);
-      }
-    } catch (pErr) {
-      console.error('[deleteVendor] purchases table error:', pErr.message);
-    }
+      // 2. Delete / Unassign from branch items table
+      try {
+        await pool.query(`DELETE FROM \`${iTable}\` WHERE LOWER(supplierName) = LOWER(?)`, [vendorName]);
+      } catch (_) {}
 
-    // 4. Delete from purchase_credits table
-    try {
-      if (targetShopId) {
-        await pool.query('DELETE FROM purchase_credits WHERE supplierName = ? AND shopId = ?', [vendorName, targetShopId]);
-      } else {
-        await pool.query('DELETE FROM purchase_credits WHERE supplierName = ?', [vendorName]);
-      }
-    } catch (pcErr) {
-      console.error('[deleteVendor] purchase_credits table error:', pcErr.message);
+      // 3. Delete from branch purchases table
+      try {
+        await pool.query(`DELETE FROM \`${pTable}\` WHERE LOWER(supplierName) = LOWER(?)`, [vendorName]);
+      } catch (_) {}
+
+      // 4. Delete from branch purchase_credits table
+      try {
+        await pool.query(`DELETE FROM \`${pcTable}\` WHERE LOWER(supplierName) = LOWER(?)`, [vendorName]);
+      } catch (_) {}
     }
 
     res.json({
@@ -779,9 +864,13 @@ const deleteVendor = async (req, res) => {
 // @desc    Get all purchase credits
 const getPurchaseCredits = async (req, res) => {
   try {
-    const shopId = req.query.shopId || req.user?.shopId;
+    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? (req.user?.shopId?._id || req.user?.shopId) : null);
+    let targetShopId = null;
+    if (rawShopId) {
+      targetShopId = await resolveShopId(rawShopId) || rawShopId;
+    }
     let query = {};
-    if (shopId) query.shopId = shopId;
+    if (targetShopId) query.shopId = targetShopId;
     const credits = await PurchaseCredit.find(query);
     res.json(credits);
   } catch (error) {
@@ -800,5 +889,7 @@ export {
   updateVendor,
   deleteVendor,
   deletePurchaseCredit,
-  getPurchaseCredits
+  getPurchaseCredits,
+  getVendors,
+  createVendor
 };

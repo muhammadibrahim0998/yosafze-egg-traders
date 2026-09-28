@@ -33,13 +33,10 @@ export async function initProfitReportTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `;
 
-  // 1. Create flat table
+  // 1. Drop flat table outside branches if exists
   try {
-    await pool.query(createTableSql('profit_reports'));
-    console.log('✅ Created/verified table: profit_reports');
-  } catch (err) {
-    console.error('Error creating profit_reports:', err.message);
-  }
+    await pool.query('DROP TABLE IF EXISTS `profit_reports`');
+  } catch (_) {}
 
   // 2. Create branch tables
   for (const b of ALL_BRANCH_PREFIXES) {
@@ -147,39 +144,6 @@ export async function initProfitReportTables() {
             `Daily Profit Summary for ${dStr}`
           ]
         );
-
-        // Also copy into base profit_reports table
-        try {
-          await pool.query(
-            `INSERT INTO \`profit_reports\` (shopId, reportDate, periodType, totalSales, totalProfit, totalPurchasesCost, totalExpenses, totalDamagedLoss, netProfit, salesCount, expensesCount, damagedCount, notes)
-             VALUES (?, ?, 'DAILY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-               totalSales = VALUES(totalSales),
-               totalProfit = VALUES(totalProfit),
-               totalPurchasesCost = VALUES(totalPurchasesCost),
-               totalExpenses = VALUES(totalExpenses),
-               totalDamagedLoss = VALUES(totalDamagedLoss),
-               netProfit = VALUES(netProfit),
-               salesCount = VALUES(salesCount),
-               expensesCount = VALUES(expensesCount),
-               damagedCount = VALUES(damagedCount),
-               updatedAt = NOW()`,
-            [
-              b.shopId,
-              dStr,
-              totalSales,
-              totalProfit,
-              totalPurchasesCost,
-              totalExpenses,
-              totalDamagedLoss,
-              netProfit,
-              salesCount,
-              expensesCount,
-              damagedCount,
-              `Daily Profit Summary for ${dStr}`
-            ]
-          );
-        } catch (_) {}
       }
       console.log(`  ➕ Synced profit report records for ${b.prefix}`);
     } catch (err) {

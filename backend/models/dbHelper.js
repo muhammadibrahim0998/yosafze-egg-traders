@@ -29,16 +29,17 @@ const BRANCH_ENTITIES = new Set([
   'cash_sessions',
   'orders',
   'easypaisa',
-  'profit_reports'
+  'profit_reports',
+  'vendors'
 ]);
 
-const BRANCH_TABLE_PREFIXES = {
+export const BRANCH_TABLE_PREFIXES = {
   1: 'peshawar_branch',
   2: 'mardan_branch',
   3: 'attock_branch'
 };
 
-const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_branch'];
+export const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_branch'];
 
 /**
  * Base Model Helper for MySQL

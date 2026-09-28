@@ -121,6 +121,17 @@ export const deleteItem = async (id, password, role) => {
   return response.data;
 };
 
+export const getVendors = async (shopId) => {
+  const params = shopId ? { shopId } : {};
+  const response = await api.get('/items/vendors', { params });
+  return response.data;
+};
+
+export const createVendor = async (vendorData) => {
+  const response = await api.post('/items/vendor/create', vendorData);
+  return response.data;
+};
+
 export const updateVendor = async (vendorData) => {
   const response = await api.put('/items/vendor/update', vendorData);
   return response.data;

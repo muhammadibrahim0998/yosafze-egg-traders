@@ -37,13 +37,10 @@ export async function initPurchaseCreditTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `;
 
-  // 1. Create flat table
+  // 1. Drop flat table outside branches if exists
   try {
-    await pool.query(createTableSql('purchase_credits'));
-    console.log('✅ Created/verified table: purchase_credits');
-  } catch (err) {
-    console.error('Error creating purchase_credits:', err.message);
-  }
+    await pool.query('DROP TABLE IF EXISTS `purchase_credits`');
+  } catch (_) {}
 
   // 2. Create branch tables
   for (const b of ALL_BRANCH_PREFIXES) {
