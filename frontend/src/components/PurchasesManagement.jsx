@@ -2499,29 +2499,29 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       {/* ─── VENDOR DEDICATED PURCHASES & INVOICES MODAL ("zanla list") ─── */}
       <AnimatePresence>
         {selectedVendor && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 15 }}
-              className="bg-white border border-slate-200 rounded-3xl w-full max-w-5xl text-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto"
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl sm:max-w-4xl text-slate-800 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto"
             >
               {/* Modal Header */}
-              <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center font-black text-lg shadow-2xs shrink-0">
+              <div className="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-50">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center font-black text-sm shadow-2xs shrink-0">
                     {selectedVendor.name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                      <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 truncate">
                         {selectedVendor.name}
                       </h3>
-                      <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                        {selectedVendor.products.length} Purchases / Invoices
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                        {selectedVendor.products.length} Purchases
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1 font-bold">
+                    <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-slate-500 font-bold mt-0.5">
                       {selectedVendor.phone && <span>📞 {selectedVendor.phone}</span>}
                       {selectedVendor.location && <span>📍 {selectedVendor.location}</span>}
                       <span>⏱️ Filter: {timeframe}</span>
@@ -2530,21 +2530,21 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                 </div>
 
                 {/* Header Action Buttons */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap shrink-0">
                   <button
                     type="button"
                     onClick={() => handleDirectPrintVendor(selectedVendor)}
-                    className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer"
                     title="Print Total Vendor Statement & Ledger"
                   >
-                    <Printer className="w-4 h-4 text-white" />
-                    <span>🖨️ Direct Print Total</span>
+                    <Printer className="w-3.5 h-3.5 text-white" />
+                    <span>🖨️ Print Total</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handlePrintVendor(selectedVendor)}
-                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 border border-slate-200 transition-all cursor-pointer"
                     title="Download PDF"
                   >
                     <FileText className="w-3.5 h-3.5" />
@@ -2554,7 +2554,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                   <button
                     type="button"
                     onClick={() => handleWhatsAppVendor(selectedVendor)}
-                    className="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
                     title="Share via WhatsApp"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -2564,7 +2564,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                   <button
                     type="button"
                     onClick={() => handleExportVendorCsv(selectedVendor)}
-                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 border border-slate-200 transition-all cursor-pointer"
                     title="Export CSV"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -2574,66 +2574,66 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                   <button
                     type="button"
                     onClick={() => setSelectedVendorName(null)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer ml-1"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer ml-0.5"
                     title="Close Modal"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Vendor Summary Cards */}
-              <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 border-b border-slate-200">
-                <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-2xs">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Total Purchased</span>
-                  <div className="text-lg font-black text-slate-900 mt-1">Rs. {fmt(selectedVendor.totalCost)}</div>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Across {selectedVendor.products.length} purchase(s)</span>
+              <div className="px-4 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50/70 border-b border-slate-200">
+                <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Total Purchased</span>
+                  <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">Rs. {fmt(selectedVendor.totalCost)}</div>
+                  <span className="text-[8.5px] text-slate-400 block mt-0.5">{selectedVendor.products.length} purchase record(s)</span>
                 </div>
 
-                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 shadow-2xs">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">Total Paid</span>
-                  <div className="text-lg font-black text-emerald-800 mt-1">Rs. {fmt(selectedVendor.totalPaid)}</div>
-                  <span className="text-[9px] text-emerald-600 block mt-0.5">Cleared Payments</span>
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 block">Total Paid</span>
+                  <div className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">Rs. {fmt(selectedVendor.totalPaid)}</div>
+                  <span className="text-[8.5px] text-emerald-600 block mt-0.5">Cleared Payments</span>
                 </div>
 
-                <div className={`rounded-2xl p-3.5 border shadow-2xs ${selectedVendor.totalDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-white border-slate-200'}`}>
-                  <span className={`text-[10px] font-black uppercase tracking-wider block ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-500'}`}>Due Balance</span>
-                  <div className={`text-lg font-black mt-1 ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-700'}`}>Rs. {fmt(selectedVendor.totalDue)}</div>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">{selectedVendor.totalDue > 0 ? 'Pending credit' : 'All cleared'}</span>
+                <div className={`rounded-xl p-2.5 border shadow-2xs ${selectedVendor.totalDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-white border-slate-200'}`}>
+                  <span className={`text-[9px] font-black uppercase tracking-wider block ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-500'}`}>Due Balance</span>
+                  <div className={`text-sm sm:text-base font-black mt-0.5 ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-700'}`}>Rs. {fmt(selectedVendor.totalDue)}</div>
+                  <span className="text-[8.5px] text-slate-400 block mt-0.5">{selectedVendor.totalDue > 0 ? 'Pending credit' : 'All cleared'}</span>
                 </div>
 
-                <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 shadow-2xs">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 block">Total Volume</span>
-                  <div className="text-lg font-black text-amber-900 mt-1">{selectedVendor.totalPetis} <span className="text-xs">Petis</span></div>
-                  <span className="text-[9px] text-amber-700/80 block mt-0.5">{selectedVendor.totalTrays} Trays • {fmt(selectedVendor.totalEggs)} Eggs</span>
+                <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 block">Total Volume</span>
+                  <div className="text-sm sm:text-base font-black text-amber-900 mt-0.5">{selectedVendor.totalPetis} <span className="text-[10px]">Petis</span></div>
+                  <span className="text-[8.5px] text-amber-700/80 block mt-0.5">{selectedVendor.totalTrays} Trays • {fmt(selectedVendor.totalEggs)} Eggs</span>
                 </div>
               </div>
 
               {/* Invoices List Table */}
-              <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-3">
+              <div className="p-3 sm:px-4 sm:py-3 flex-1 overflow-y-auto space-y-2">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
                     Purchases &amp; Invoices List ({selectedVendor.products.length})
                   </h4>
-                  <span className="text-[10.5px] text-teal-700 font-bold">
+                  <span className="text-[10px] text-teal-700 font-bold">
                     💡 Click "Print" to print single purchase receipt, or "Edit" to update
                   </span>
                 </div>
 
-                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
-                          <th className="p-3 text-center">#</th>
-                          <th className="p-3">Farm &amp; Product</th>
-                          <th className="p-3 text-center">Volume (P/T/E)</th>
-                          <th className="p-3 text-right">Unit Rate</th>
-                          <th className="p-3 text-right">Total Cost</th>
-                          <th className="p-3 text-right">Paid</th>
-                          <th className="p-3 text-right">Due</th>
-                          <th className="p-3 text-center">Payment</th>
-                          <th className="p-3 text-center">Actions</th>
+                        <tr className="bg-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                          <th className="py-2 px-2 text-center w-9">#</th>
+                          <th className="py-2 px-2.5 text-left">Farm &amp; Product</th>
+                          <th className="py-2 px-2 text-center">Volume (P/T/E)</th>
+                          <th className="py-2 px-2 text-right">Unit Rate</th>
+                          <th className="py-2 px-2 text-right">Total Cost</th>
+                          <th className="py-2 px-2 text-right">Paid</th>
+                          <th className="py-2 px-2 text-right">Due</th>
+                          <th className="py-2 px-2 text-center">Payment</th>
+                          <th className="py-2 px-2 text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
@@ -2649,68 +2649,68 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
                           return (
                             <tr key={p._id || p.id || idx} className="hover:bg-slate-50/90 transition-colors">
-                              <td className="p-3 text-center">
-                                <span className="w-6 h-6 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-mono font-black text-xs inline-flex items-center justify-center shadow-2xs">
+                              <td className="py-2 px-2 text-center">
+                                <span className="w-5 h-5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono font-black text-[10px] inline-flex items-center justify-center shadow-2xs">
                                   {idx + 1}
                                 </span>
                               </td>
-                              <td className="p-3">
-                                <div className="flex items-center gap-1.5 text-xs font-black text-teal-800">
-                                  <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                              <td className="py-2 px-2.5 text-left">
+                                <div className="flex items-center gap-1 text-[11px] font-black text-teal-800">
+                                  <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
                                   <span className="truncate">{p.supplierName || selectedVendor.name || 'Direct Farm'}</span>
                                 </div>
-                                <div className="font-bold text-slate-900 text-xs mt-0.5">{p.name || 'Stock Inward'}</div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                <div className="font-bold text-slate-900 text-[11px] mt-0.5">{p.name || 'Stock Inward'}</div>
+                                <div className="text-[9px] text-slate-500 flex items-center gap-1.5 mt-0.5">
                                   <span>📅 {pDate}</span>
                                   <span>•</span>
                                   <span className="text-teal-700 font-black">{p.category || 'Eggs'}</span>
                                 </div>
                               </td>
-                              <td className="p-3 text-center text-[11px]">
+                              <td className="py-2 px-2 text-center text-[10.5px]">
                                 <span className="text-amber-700 font-black">{petis}P</span> •{' '}
                                 <span className="text-teal-700 font-black">{trays}T</span> •{' '}
                                 <span className="text-slate-500">{fmt(eggs)}E</span>
                               </td>
-                              <td className="p-3 text-right font-black text-slate-700">
+                              <td className="py-2 px-2 text-right font-black text-slate-700 text-xs">
                                 Rs. {fmt(rate)}
                               </td>
-                              <td className="p-3 text-right font-black text-slate-900">
+                              <td className="py-2 px-2 text-right font-black text-slate-900 text-xs">
                                 Rs. {fmt(cost)}
                               </td>
-                              <td className="p-3 text-right font-black text-emerald-700">
+                              <td className="py-2 px-2 text-right font-black text-emerald-700 text-xs">
                                 Rs. {fmt(paid)}
                               </td>
-                              <td className="p-3 text-right font-black">
+                              <td className="py-2 px-2 text-right font-black text-xs">
                                 <span className={due > 0 ? 'text-rose-600' : 'text-slate-400'}>
                                   Rs. {fmt(due)}
                                 </span>
                               </td>
-                              <td className="p-3 text-center">
-                                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-full text-[9px] font-black uppercase">
+                              <td className="py-2 px-2 text-center">
+                                <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-full text-[8.5px] font-black uppercase">
                                   {p.paymentMethod || 'Cash'}
                                 </span>
                               </td>
-                              <td className="p-3">
-                                <div className="flex items-center justify-center gap-1.5">
+                              <td className="py-2 px-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
                                   {/* Single Print Receipt ("single single am print kegi") */}
                                   <button
                                     type="button"
                                     onClick={() => handlePrintSinglePurchase(p)}
-                                    className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                    className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-[9.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                                     title="Print Single Purchase Receipt"
                                   >
-                                    <Printer className="w-3.5 h-3.5" />
-                                    <span>Print Receipt</span>
+                                    <Printer className="w-3 h-3" />
+                                    <span>Print</span>
                                   </button>
 
                                   {/* Quick Edit ("che update kegi edit kegi am") */}
                                   <button
                                     type="button"
                                     onClick={() => handleStartQuickEditPurchase(p)}
-                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                    className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[9.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                                     title="Edit Purchase Entry"
                                   >
-                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <Edit2 className="w-3 h-3" />
                                     <span>Edit</span>
                                   </button>
 
@@ -2719,7 +2719,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                                     <button
                                       type="button"
                                       onClick={() => handleOpenSettleModal(p, due)}
-                                      className="px-2 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
                                       title="Pay Due Balance"
                                     >
                                       Pay Due
@@ -2730,10 +2730,10 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteClick(p)}
-                                    className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-700 rounded-xl border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                                    className="p-1 hover:bg-rose-50 text-rose-600 hover:text-rose-700 rounded-lg border border-transparent hover:border-rose-200 transition-all cursor-pointer"
                                     title="Delete Purchase"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-3 h-3" />
                                   </button>
                                 </div>
                               </td>
@@ -2747,14 +2747,14 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-                <div className="text-xs text-slate-600 font-bold">
+              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="text-[11px] text-slate-600 font-bold">
                   Showing all <strong className="text-slate-900">{selectedVendor.products.length}</strong> purchase records for <strong className="text-teal-800">{selectedVendor.name}</strong>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedVendorName(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer"
                 >
                   Close
                 </button>
