@@ -40,6 +40,16 @@ export function TeamView() {
   const [editingUser, setEditingUser] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
+  const [editSessionModal, setEditSessionModal] = useState({
+    isOpen: false,
+    session: null,
+    openingCash: '',
+    status: 'open',
+    notes: '',
+    isSaving: false
+  });
+  const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   const { user: currentUser, isSuperAdmin: checkIsSuperAdmin } = useUser();
   const isSuper = typeof checkIsSuperAdmin === 'function' ? checkIsSuperAdmin() : currentUser?.role === 'super_admin';
@@ -206,6 +216,13 @@ export function TeamView() {
   const handleToggleSessionStatus = async (session) => {
     try {
       const nextStatus = session.status === 'open' ? 'closed' : 'open';
+      setCashSessions(prev => prev.map(s => {
+        if (s.shopId === session.shopId && s.id === session.id) {
+          return { ...s, status: nextStatus };
+        }
+        return s;
+      }));
+
       await updateBranchCashSession(session.shopId, session.id, {
         status: nextStatus,
         closingCash: session.expectedCash || session.openingCash || 0,
@@ -216,19 +233,77 @@ export function TeamView() {
       await fetchCashSessions();
     } catch (err) {
       toast.error("Failed to update session status");
+      await fetchCashSessions();
     }
   };
 
-  const handleDeleteSession = async (session) => {
-    if (!window.confirm(`Delete cash session #${session.id} from ${session.branchName || 'branch table'}?`)) {
-      return;
-    }
+  const handleConfirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    setIsDeletingSession(true);
     try {
-      await deleteBranchCashSession(session.shopId, session.id);
-      toast.success(`Session #${session.id} removed from branch table`);
+      const targetShopId = sessionToDelete.shopId;
+      const targetId = sessionToDelete.id;
+
+      // Optimistically remove from state so table updates immediately
+      setCashSessions(prev => prev.filter(s => !(s.shopId === targetShopId && s.id === targetId)));
+
+      await deleteBranchCashSession(targetShopId, targetId);
+      toast.success(`Session #${targetId} deleted successfully`);
+      setSessionToDelete(null);
       await fetchCashSessions();
     } catch (err) {
-      toast.error("Failed to delete session record");
+      const msg = err.response?.data?.message || err.message || "Failed to delete session record";
+      toast.error(msg);
+      await fetchCashSessions();
+    } finally {
+      setIsDeletingSession(false);
+    }
+  };
+
+  const handleEditSession = (sess) => {
+    setEditSessionModal({
+      isOpen: true,
+      session: sess,
+      openingCash: sess.openingCash !== undefined ? sess.openingCash : 0,
+      status: sess.status || 'open',
+      notes: sess.notes || '',
+      isSaving: false
+    });
+  };
+
+  const handleSaveEditSession = async (e) => {
+    if (e) e.preventDefault();
+    if (!editSessionModal.session) return;
+    const { session, openingCash, status, notes } = editSessionModal;
+    setEditSessionModal(prev => ({ ...prev, isSaving: true }));
+    try {
+      const newOpening = Number(openingCash) || 0;
+      // Optimistic update
+      setCashSessions(prev => prev.map(s => {
+        if (s.shopId === session.shopId && s.id === session.id) {
+          return {
+            ...s,
+            openingCash: newOpening,
+            expectedCash: newOpening + (s.totalSales || 0) - (s.totalReturns || 0),
+            status,
+            notes: (notes || '').trim()
+          };
+        }
+        return s;
+      }));
+
+      await updateBranchCashSession(session.shopId, session.id, {
+        openingCash: newOpening,
+        status,
+        notes: (notes || '').trim()
+      });
+      toast.success(`Session #${session.id} updated successfully!`);
+      setEditSessionModal({ isOpen: false, session: null, openingCash: '', status: 'open', notes: '', isSaving: false });
+      await fetchCashSessions();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || "Failed to update session");
+      setEditSessionModal(prev => ({ ...prev, isSaving: false }));
+      await fetchCashSessions();
     }
   };
 
@@ -464,7 +539,7 @@ export function TeamView() {
                     <th className="py-3 px-4">Expected Cash</th>
                     <th className="py-3 px-4">Opened At</th>
                     <th className="py-3 px-4">Notes</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-3 text-right sticky right-0 bg-[var(--color-surface-base)] shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] z-10">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border-subtle)] text-xs font-bold text-[var(--color-text-primary)]">
@@ -509,25 +584,42 @@ export function TeamView() {
                         <td className="py-3.5 px-4 text-[11px] text-zinc-500 max-w-xs truncate" title={sess.notes}>
                           {sess.notes || '—'}
                         </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap sticky right-0 bg-white/95 backdrop-blur-xs shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] z-10">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {/* Edit Button with small icon */}
                             <button
+                              type="button"
+                              onClick={() => handleEditSession(sess)}
+                              title="Edit Session Details"
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg inline-flex items-center gap-1 text-[10px] font-black cursor-pointer transition-all shadow-2xs"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+
+                            {/* Status Toggle Button */}
+                            <button
+                              type="button"
                               onClick={() => handleToggleSessionStatus(sess)}
                               title={isOpen ? 'Mark as Closed' : 'Re-open Session'}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-colors cursor-pointer ${
+                              className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase transition-colors cursor-pointer ${
                                 isOpen
-                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
                                   : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
                               }`}
                             >
-                              {isOpen ? 'Close Session' : 'Re-open'}
+                              {isOpen ? 'Close' : 'Re-open'}
                             </button>
+
+                            {/* Delete Button with small icon */}
                             <button
-                              onClick={() => handleDeleteSession(sess)}
+                              type="button"
+                              onClick={() => setSessionToDelete(sess)}
                               title="Delete from branch table"
-                              className="p-1 text-zinc-400 hover:text-rose-500 rounded transition-colors cursor-pointer"
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg inline-flex items-center gap-1 text-[10px] font-black cursor-pointer transition-all shadow-2xs"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
                             </button>
                           </div>
                         </td>
@@ -885,13 +977,167 @@ export function TeamView() {
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
+      {/* Edit Cash Session Modal */}
+      <AnimatePresence>
+        {editSessionModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm"
+              onClick={() => !editSessionModal.isSaving && setEditSessionModal(prev => ({ ...prev, isOpen: false }))}
+            />
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 15 }}
+              className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-[440px] relative z-10 border border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight text-[var(--color-text-primary)] flex items-center gap-2">
+                    <Edit2 className="w-4 h-4 text-emerald-600" />
+                    Edit Cash Session #{editSessionModal.session?.id}
+                  </h3>
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] font-bold text-zinc-500">
+                    <Building2 className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>{editSessionModal.session?.branchName || `Branch #${editSessionModal.session?.shopId}`}</span>
+                    <span>•</span>
+                    <span className="text-zinc-600 font-mono">{editSessionModal.session?.openedBy}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditSessionModal(prev => ({ ...prev, isOpen: false }))}
+                  disabled={editSessionModal.isSaving}
+                  className="p-1.5 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSaveEditSession} className="p-5 space-y-4">
+                {/* Status Selection */}
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-1 block mb-1.5">
+                    Session Status
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditSessionModal(prev => ({ ...prev, status: 'open' }))}
+                      className={`py-2 px-3 rounded-xl border text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        editSessionModal.status === 'open'
+                          ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
+                          : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
+                      Open
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditSessionModal(prev => ({ ...prev, status: 'closed' }))}
+                      className={`py-2 px-3 rounded-xl border text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        editSessionModal.status === 'closed'
+                          ? 'bg-zinc-700 text-white border-zinc-800 shadow-sm'
+                          : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-zinc-400"></span>
+                      Closed
+                    </button>
+                  </div>
+                </div>
+
+                {/* Opening Cash Input */}
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-1 block mb-1">
+                    Opening Cash Amount (Rs.)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black text-zinc-400">Rs.</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={editSessionModal.openingCash}
+                      onChange={(e) => setEditSessionModal(prev => ({ ...prev, openingCash: e.target.value }))}
+                      placeholder="0"
+                      className="w-full pl-11 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:border-emerald-500 font-mono font-bold text-sm text-[var(--color-text-primary)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Notes Input */}
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-1 block mb-1">
+                    Notes & Remarks
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={editSessionModal.notes}
+                    onChange={(e) => setEditSessionModal(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Active terminal session notes..."
+                    className="w-full px-3.5 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:border-emerald-500 font-normal text-xs text-[var(--color-text-primary)] resize-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditSessionModal(prev => ({ ...prev, isOpen: false }))}
+                    disabled={editSessionModal.isSaving}
+                    className="flex-1 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSessionModal.isSaving}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                  >
+                    {editSessionModal.isSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Team Member Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
         onConfirm={handleConfirmDelete}
         itemName={deleteModal.name}
         isDeleting={isDeleting}
+      />
+
+      {/* Cash Session Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!sessionToDelete}
+        onClose={() => setSessionToDelete(null)}
+        onConfirm={handleConfirmDeleteSession}
+        title="Delete Cash Session"
+        message={`Are you sure you want to permanently delete session #${sessionToDelete?.id} from ${sessionToDelete?.branchName || 'branch table'}?`}
+        itemName={sessionToDelete?.openedBy || `Session #${sessionToDelete?.id}`}
+        isDeleting={isDeletingSession}
       />
     </div>
   );

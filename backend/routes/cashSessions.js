@@ -13,7 +13,11 @@ const BRANCH_CONFIG = [
 ];
 
 const getBranchTable = (shopId) => {
-  const found = BRANCH_CONFIG.find(b => Number(b.shopId) === Number(shopId));
+  const found = BRANCH_CONFIG.find(b => 
+    Number(b.shopId) === Number(shopId) || 
+    b.branchName.toLowerCase().includes(String(shopId).toLowerCase()) ||
+    b.table.toLowerCase().includes(String(shopId).toLowerCase())
+  );
   return found ? found.table : 'attock_branch__cash_sessions';
 };
 
@@ -112,7 +116,7 @@ router.post('/all', authenticate, async (req, res) => {
 router.put('/all/:shopId/:id', authenticate, async (req, res) => {
   try {
     const { shopId, id } = req.params;
-    const { status, closingCash, actualCash, notes, closedBy } = req.body;
+    const { status, openingCash, closingCash, actualCash, expectedCash, notes, closedBy, openedBy } = req.body;
     const tableName = getBranchTable(shopId);
 
     const sets = [];
@@ -123,15 +127,30 @@ router.put('/all/:shopId/:id', authenticate, async (req, res) => {
       vals.push(status);
       if (status === 'closed') {
         sets.push('`closedAt` = NOW()');
+      } else if (status === 'open') {
+        sets.push('`closedAt` = NULL');
       }
+    }
+    if (openingCash !== undefined) {
+      const openVal = Number(openingCash) || 0;
+      sets.push('`openingCash` = ?');
+      vals.push(openVal);
+      if (expectedCash === undefined) {
+        sets.push('`expectedCash` = ? + `totalSales` - `totalReturns`');
+        vals.push(openVal);
+      }
+    }
+    if (expectedCash !== undefined) {
+      sets.push('`expectedCash` = ?');
+      vals.push(Number(expectedCash) || 0);
     }
     if (closingCash !== undefined) {
       sets.push('`closingCash` = ?');
-      vals.push(Number(closingCash));
+      vals.push(Number(closingCash) || 0);
     }
     if (actualCash !== undefined) {
       sets.push('`actualCash` = ?');
-      vals.push(Number(actualCash));
+      vals.push(Number(actualCash) || 0);
     }
     if (notes !== undefined) {
       sets.push('`notes` = ?');
@@ -140,6 +159,10 @@ router.put('/all/:shopId/:id', authenticate, async (req, res) => {
     if (closedBy !== undefined) {
       sets.push('`closedBy` = ?');
       vals.push(closedBy);
+    }
+    if (openedBy !== undefined) {
+      sets.push('`openedBy` = ?');
+      vals.push(openedBy);
     }
 
     if (sets.length === 0) {
