@@ -330,6 +330,32 @@ export const deleteUser = async (id, role) => {
   return response.data;
 };
 
+export const getShops = async () => {
+  const response = await api.get('/shops');
+  return response.data;
+};
+
+export const getBranchCashSessions = async (shopId) => {
+  const params = shopId && shopId !== 'ALL' ? { shopId } : {};
+  const response = await api.get('/cash-sessions/all', { params });
+  return response.data;
+};
+
+export const createBranchCashSession = async (sessionData) => {
+  const response = await api.post('/cash-sessions/all', sessionData);
+  return response.data;
+};
+
+export const updateBranchCashSession = async (shopId, id, data) => {
+  const response = await api.put(`/cash-sessions/all/${shopId}/${id}`, data);
+  return response.data;
+};
+
+export const deleteBranchCashSession = async (shopId, id) => {
+  const response = await api.delete(`/cash-sessions/all/${shopId}/${id}`);
+  return response.data;
+};
+
 export const getSystemUpdates = async () => {
   const response = await api.get('/updates');
   return response.data;

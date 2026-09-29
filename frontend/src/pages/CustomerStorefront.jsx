@@ -2174,7 +2174,7 @@ function StoreContent({ shopId }) {
     try {
       const role = user?.role || 'shop_admin';
       await apiDeleteItem(targetId, '', role);
-      setItems(prev => prev.filter(p => String(p._id) !== String(targetId)));
+      setItems(prev => prev.filter(p => String(p._id) !== String(targetId) && String(p.id) !== String(targetId)));
       setAddedMsg('✅ Product deleted successfully!');
       fetchCatalog();
       fetchDashboardStats();

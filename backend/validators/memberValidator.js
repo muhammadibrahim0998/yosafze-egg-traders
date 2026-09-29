@@ -2,29 +2,30 @@ import { z } from 'zod';
 
 export const memberSchema = z.object({
   fullName: z.string()
-    .min(3, { message: "Legal Identity requires at least 3 characters" })
-    .max(50, { message: "Name exceeds protocol limit" })
-    .regex(/^[a-zA-Z\s]*$/, { message: "Name can only contain alphabetic characters" }),
+    .min(2, { message: "Legal Identity requires at least 2 characters" })
+    .max(100, { message: "Name exceeds protocol limit" }),
   
   username: z.string()
-    .min(3, { message: "System index requires at least 3 characters" })
-    .max(20, { message: "Index exceeds protocol limit" })
-    .regex(/^[a-z0-9_]*$/, { message: "Index must be lowercase alphanumeric with underscores" }),
+    .min(3, { message: "System handle requires at least 3 characters" })
+    .max(100, { message: "System handle exceeds protocol limit" }),
   
   password: z.string()
     .optional()
     .or(z.literal('')),
   
-  role: z.enum(['cashier', 'salesman'], {
+  role: z.enum(['super_admin', 'shop_admin', 'admin', 'cashier', 'salesman', 'owner'], {
     errorMap: () => ({ message: "Select a valid authorization tier" })
   }),
   
+  status: z.enum(['active', 'inactive']).optional(),
+
   preferredShift: z.enum(['day', 'night', 'both'], {
     errorMap: () => ({ message: "Select a valid operational rotation" })
   }).optional(),
 
+  shopId: z.union([z.number(), z.string(), z.null()]).optional(),
+
   phoneNumber: z.string()
-    .regex(/^\+?[0-9\s\-()]{1,20}$/, { message: "Invalid international signal format (E.164)" })
     .optional()
     .or(z.literal(''))
 });
