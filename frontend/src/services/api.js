@@ -1,9 +1,42 @@
 import axios from 'axios';
 
 // Use environment variable for API URL in production (e.g. https://api.yourdomain.com)
-// Fallback to empty string for Vite proxy (development) or Vercel rewrites.
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// Auto-detect production domain when running on deployed hosting,
+// Fallback to empty string for local dev (Vite proxy forwards /api to localhost:5000).
+export const API_BASE = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname && !['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'https://api.yousafzaiagrifoods.com'
+    : '')
+);
 
+export const getApiUrl = (endpoint = '') => {
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (clean.startsWith('/api')) {
+    return `${API_BASE}${clean}`;
+  }
+  return `${API_BASE}/api${clean}`;
+};
+
+// Global transparent fetch router:
+// Redirects any relative fetch('/api/...') or fetch('/uploads/...') to production backend directly,
+// preventing any SPA hosting provider from accidentally returning index.html (HTML/DOCTYPE).
+if (typeof window !== 'undefined' && API_BASE) {
+  const originalFetch = window.fetch;
+  window.fetch = function (resource, config = {}) {
+    if (typeof resource === 'string') {
+      if (resource.startsWith('/api/') || resource === '/api') {
+        resource = `${API_BASE}${resource}`;
+        if (!config.credentials) {
+          config = { ...config, credentials: 'include' };
+        }
+      } else if (resource.startsWith('/uploads/') || resource === '/uploads') {
+        resource = `${API_BASE}${resource}`;
+      }
+    }
+    return originalFetch.call(this, resource, config);
+  };
+}
 
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
