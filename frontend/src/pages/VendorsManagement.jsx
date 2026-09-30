@@ -1,472 +1,248 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Building2,
-  Truck,
   Plus,
   Search,
-  Filter,
   Phone,
   MapPin,
-  Calendar,
-  Banknote,
-  CreditCard,
+  Mail,
+  FileText,
   AlertCircle,
   CheckCircle2,
-  ChevronRight,
-  Eye,
-  FileSpreadsheet,
-  Printer,
   X,
-  Box,
-  Egg,
-  Layers,
-  ArrowUpDown,
-  DollarSign,
-  UserCheck,
   RefreshCw,
-  ExternalLink,
-  ShieldCheck,
-  UploadCloud,
   Loader2,
-  MoreVertical,
   Send,
-  FileText
+  Edit2,
+  Trash2,
+  Users,
+  List,
+  LayoutGrid
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
-import { getItems, settleSupplierCredit } from '../services/api';
+import { getVendors, createVendor, updateVendor, deleteVendor } from '../services/api';
 import { CountUpNumber } from '../components/CountUpNumber';
 import { toast } from 'sonner';
 
-export function VendorsManagement({ onAddProduct, onEditProduct }) {
+export function VendorsManagement({ shopId: propShopId }) {
   const { user } = useUser?.() || {};
-  const { products: contextProducts = [], fetchData } = useProducts() || {};
-  const [items, setItems] = useState([]);
+  const currentShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : null);
+  const { fetchData } = useProducts() || {};
+  const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, DUE, SETTLED
-  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [filterType, setFilterType] = useState('ALL'); // ALL, WITH_PHONE, WITH_LOCATION
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [loading, setLoading] = useState(false);
-  const [activeMenuVendorId, setActiveMenuVendorId] = useState(null);
 
-  // Settlement Modal State
-  const [settleModal, setSettleModal] = useState({
+  // Add Vendor Modal State
+  const [addVendorModal, setAddVendorModal] = useState({
     isOpen: false,
-    item: null,
-    paymentMethod: 'Cash',
-    amountPaid: '',
+    name: '',
+    phone: '',
+    location: '',
+    email: '',
+    notes: '',
     isSubmitting: false,
     error: null,
   });
 
-  const loadItems = async () => {
+  // Edit Vendor Modal State
+  const [editVendorModal, setEditVendorModal] = useState({
+    isOpen: false,
+    oldName: '',
+    name: '',
+    phone: '',
+    location: '',
+    email: '',
+    notes: '',
+    isSubmitting: false,
+    error: null,
+  });
+
+  // Delete Vendor Modal State
+  const [deleteVendorModal, setDeleteVendorModal] = useState({
+    isOpen: false,
+    name: '',
+    isSubmitting: false,
+    error: null,
+  });
+
+  const loadVendors = async () => {
     try {
       setLoading(true);
-      const res = await getItems(user?.shopId);
-      const list = Array.isArray(res) ? res : res?.items || res?.data || [];
-      setItems(list.length > 0 ? list : contextProducts);
+      const res = await getVendors(currentShopId);
+      const list = Array.isArray(res) ? res : (res?.vendors || []);
+      setVendors(list);
     } catch (err) {
       console.error(err);
-      setItems(contextProducts);
+      toast.error('Failed to load vendors');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (contextProducts && contextProducts.length > 0) {
-      setItems(contextProducts);
-    } else {
-      loadItems();
-    }
-  }, [contextProducts]);
+    loadVendors();
+  }, [currentShopId]);
 
-  // Aggregate products by Vendor / Supplier
-  const vendorData = useMemo(() => {
-    const map = new Map();
-
-    (items || []).forEach(p => {
-      const vName = (p.supplierName && p.supplierName.trim()) ? p.supplierName.trim() : 'Direct / Unassigned Farm';
-      const vKey = vName.toLowerCase();
-
-      if (!map.has(vKey)) {
-        map.set(vKey, {
-          name: vName,
-          phone: p.supplierPhone || p.supplierContact || '',
-          location: p.supplierLocation || p.farmLocation || '',
-          products: [],
-          totalPurchasesCost: 0,
-          totalPaid: 0,
-          totalDue: 0,
-          totalPetis: 0,
-          totalTrays: 0,
-          totalEggs: 0,
-          lastPurchaseDate: null,
-        });
-      }
-
-      const vObj = map.get(vKey);
-      if (!vObj.phone && p.supplierPhone) vObj.phone = p.supplierPhone;
-      if (!vObj.location && p.supplierLocation) vObj.location = p.supplierLocation;
-
-      const pStock = Number(p.stock || 0);
-      const pPeti = Number(p.petiQuantity || 0);
-      const pTray = Number(p.trayQuantity || 0);
-      const pEgg = Number(p.eggQuantity || 0);
-
-      const effectiveCost = Number(p.totalPurchaseCost) > 0
-        ? Number(p.totalPurchaseCost)
-        : (pPeti > 0 ? pPeti * (Number(p.costPrice) || Number(p.price) || 0) : pStock * ((Number(p.costPrice) || Number(p.price) || 0) / 360));
-
-      const rawDue = p.dueAmountToSupplier !== undefined ? Number(p.dueAmountToSupplier) : (effectiveCost - (Number(p.amountPaidToSupplier) || 0));
-      const due = Math.max(0, Math.min(effectiveCost, rawDue));
-      const paid = Math.max(0, effectiveCost - due);
-
-      vObj.products.push({
-        ...p,
-        computedCost: Math.round(effectiveCost),
-        computedPaid: Math.round(paid),
-        computedDue: Math.round(due),
-      });
-
-      vObj.totalPurchasesCost += effectiveCost;
-      vObj.totalPaid += paid;
-      vObj.totalDue += due;
-
-      if (pPeti > 0 || pTray > 0 || pEgg > 0) {
-        vObj.totalPetis += pPeti + (pTray / 12) + (pEgg / 360);
-        vObj.totalTrays += (pPeti * 12) + pTray + (pEgg / 30);
-      } else {
-        vObj.totalPetis += pStock / 360;
-        vObj.totalTrays += pStock / 30;
-      }
-      vObj.totalEggs += pStock || (pPeti * 360);
-
-      const pDate = p.createdAt || p.mfgDate || p.lastUpdated;
-      if (pDate) {
-        const dObj = new Date(pDate);
-        if (!vObj.lastPurchaseDate || dObj > vObj.lastPurchaseDate) {
-          vObj.lastPurchaseDate = dObj;
-        }
-      }
-    });
-
-    return Array.from(map.values()).map(v => ({
-      ...v,
-      totalPurchasesCost: Math.round(v.totalPurchasesCost),
-      totalPaid: Math.round(v.totalPaid),
-      totalDue: Math.round(v.totalDue),
-      totalPetis: Number(v.totalPetis.toFixed(1)),
-      totalTrays: Math.round(v.totalTrays),
-    }));
-  }, [items]);
-
-  // Overall Global Stats
-  const globalStats = useMemo(() => {
-    let totalSpend = 0;
-    let totalPaid = 0;
-    let totalDue = 0;
-    let totalEggCount = 0;
-
-    vendorData.forEach(v => {
-      totalSpend += v.totalPurchasesCost;
-      totalPaid += v.totalPaid;
-      totalDue += v.totalDue;
-      totalEggCount += v.totalEggs;
-    });
-
-    return {
-      vendorCount: vendorData.length,
-      totalSpend,
-      totalPaid,
-      totalDue,
-      totalEggCount,
-    };
-  }, [vendorData]);
-
-  // Filtered Vendors
-  const filteredVendors = useMemo(() => {
-    return vendorData.filter(v => {
-      const matchSearch =
-        v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.products.some(p => (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
-
-      if (!matchSearch) return false;
-
-      if (statusFilter === 'DUE') return v.totalDue > 0;
-      if (statusFilter === 'SETTLED') return v.totalDue === 0;
-      return true;
-    });
-  }, [vendorData, searchTerm, statusFilter]);
-
-  // Handle Settle Supplier Payment
-  const handleOpenSettle = (item, e) => {
-    if (e) e.stopPropagation();
-    setSettleModal({
-      isOpen: true,
-      item,
-      paymentMethod: 'Cash',
-      amountPaid: String(item.computedDue || item.dueAmountToSupplier || ''),
-      isSubmitting: false,
-      error: null,
-    });
-  };
-
-  const handleConfirmSettle = async (e) => {
+  // Handler: Add New Vendor
+  const handleCreateVendor = async (e) => {
     if (e) e.preventDefault();
-    if (!settleModal.item) return;
-
-    const payAmt = Number(settleModal.amountPaid);
-    if (isNaN(payAmt) || payAmt <= 0) {
-      setSettleModal(prev => ({ ...prev, error: 'Please enter a valid amount greater than 0' }));
+    if (!addVendorModal.name.trim()) {
+      setAddVendorModal(prev => ({ ...prev, error: 'Vendor / Farm Name is required' }));
       return;
     }
 
+    setAddVendorModal(prev => ({ ...prev, isSubmitting: true, error: null }));
     try {
-      setSettleModal(prev => ({ ...prev, isSubmitting: true, error: null }));
-      const itemId = settleModal.item._id || settleModal.item.id;
-      await settleSupplierCredit(itemId, {
-        amountPaid: payAmt,
-        paymentMethod: settleModal.paymentMethod,
-        isOnlinePayment: settleModal.paymentMethod.toLowerCase().includes('bank'),
+      const activeShopId = currentShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : 1);
+      const res = await createVendor({
+        name: addVendorModal.name.trim(),
+        phone: addVendorModal.phone.trim(),
+        location: addVendorModal.location.trim(),
+        farmLocation: addVendorModal.location.trim(),
+        email: addVendorModal.email.trim(),
+        notes: addVendorModal.notes.trim(),
+        shopId: activeShopId
       });
 
-      toast.success(`Payment of Rs. ${payAmt.toLocaleString()} recorded successfully!`);
-      setSettleModal({ isOpen: false, item: null, paymentMethod: 'Cash', amountPaid: '', isSubmitting: false, error: null });
-      if (fetchData) await fetchData();
-      await loadItems();
+      toast.success(res?.message || `Vendor "${addVendorModal.name.trim()}" registered successfully!`);
+      setAddVendorModal({
+        isOpen: false,
+        name: '',
+        phone: '',
+        location: '',
+        email: '',
+        notes: '',
+        isSubmitting: false,
+        error: null,
+      });
+
+      await loadVendors();
+      if (fetchData) fetchData();
     } catch (err) {
       console.error(err);
-      setSettleModal(prev => ({ ...prev, isSubmitting: false, error: err?.response?.data?.message || err.message || 'Payment settlement failed' }));
+      setAddVendorModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err?.response?.data?.message || err.message || 'Failed to create vendor'
+      }));
     }
   };
 
-  // Direct Print Vendor Statement
-  const handleDirectPrintVendor = (vendor) => {
-    const printWin = window.open('', '_blank', 'width=900,height=800');
-    if (!printWin) {
-      alert('Please allow browser popups to print vendor statement');
+  // Handler: Update Vendor
+  const handleUpdateVendor = async (e) => {
+    if (e) e.preventDefault();
+    if (!editVendorModal.name.trim()) {
+      setEditVendorModal(prev => ({ ...prev, error: 'Vendor name is required' }));
       return;
     }
 
-    const tableRows = vendor.products.map((p, idx) => {
-      const petis = p.petiQuantity || 0;
-      const trays = p.trayQuantity || 0;
-      const eggs = p.eggQuantity || p.stock || 0;
-      const rate = p.costPrice || p.price || 0;
-      const cost = p.computedCost || 0;
-      const paid = p.computedPaid || 0;
-      const due = p.computedDue || 0;
-      return `
-        <tr>
-          <td style="text-align:center;">${idx + 1}</td>
-          <td><strong>${p.name || 'Unnamed Product'}</strong></td>
-          <td>${p.category || 'Eggs'}</td>
-          <td style="text-align:center;">${petis}P / ${trays}T / ${Number(eggs).toLocaleString()}E</td>
-          <td style="text-align:right;">Rs. ${Number(rate).toLocaleString()}</td>
-          <td style="text-align:right; font-weight:bold;">Rs. ${Number(cost).toLocaleString()}</td>
-          <td style="text-align:right; color:#059669; font-weight:bold;">Rs. ${Number(paid).toLocaleString()}</td>
-          <td style="text-align:right; color:${due > 0 ? '#e11d48' : '#64748b'}; font-weight:bold;">Rs. ${Number(due).toLocaleString()}</td>
-          <td style="text-align:center;"><span class="badge ${due > 0 ? 'badge-due' : 'badge-paid'}">${due > 0 ? 'Credit Due' : 'Paid'}</span></td>
-        </tr>
-      `;
-    }).join('');
+    setEditVendorModal(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      const activeShopId = currentShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : 1);
+      const res = await updateVendor({
+        oldName: editVendorModal.oldName,
+        name: editVendorModal.name.trim(),
+        phone: editVendorModal.phone.trim(),
+        location: editVendorModal.location.trim(),
+        email: editVendorModal.email.trim(),
+        notes: editVendorModal.notes.trim(),
+        shopId: activeShopId
+      });
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Vendor Statement - ${vendor.name}</title>
-          <meta charset="utf-8" />
-          <style>
-            @page { size: portrait; margin: 8mm 10mm; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 15px; color: #0f172a; background: #fff; font-size: 11px; margin: 0; }
-            .no-print { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
-            .btn-print { padding: 8px 18px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-            .btn-close { padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-            .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; }
-            .header h1 { margin: 0; color: #0f766e; text-transform: uppercase; font-size: 18px; font-weight: 900; letter-spacing: 1px; }
-            .header p { margin: 3px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
-            .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
-            .stats-grid { display: flex; gap: 8px; margin-bottom: 12px; }
-            .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 8px; text-align: center; }
-            .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
-            .stat-card .val { font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-            th, td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 9.5px; text-align: left; }
-            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
-            .badge { padding: 2px 6px; border-radius: 4px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; }
-            .badge-paid { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-            .badge-due { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; }
-            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
-            .sign { border-top: 1.5px solid #94a3b8; width: 150px; text-align: center; padding-top: 5px; }
-            @media print {
-              .no-print { display: none !important; }
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="no-print">
-            <button class="btn-print" onclick="window.print()">🖨️ Direct Print</button>
-            <button class="btn-close" onclick="window.close()">✕ Close</button>
-          </div>
-          <div class="header">
-            <h1>YOSAFZE EGG TRADERS</h1>
-            <p>Vendor Purchase Statement &amp; Ledger</p>
-          </div>
-          <div class="meta">
-            <div>
-              <strong>Vendor / Farm:</strong> ${vendor.name} ${vendor.phone ? `| 📞 ${vendor.phone}` : ''} ${vendor.location ? `| 📍 ${vendor.location}` : ''}
-            </div>
-            <div>
-              <strong>Date:</strong> ${new Date().toLocaleDateString('en-PK')}
-            </div>
-          </div>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <label>Total Purchased</label>
-              <div class="val">Rs. ${Number(vendor.totalPurchasesCost).toLocaleString()}</div>
-            </div>
-            <div class="stat-card">
-              <label style="color:#059669;">Total Paid</label>
-              <div class="val" style="color:#059669;">Rs. ${Number(vendor.totalPaid).toLocaleString()}</div>
-            </div>
-            <div class="stat-card">
-              <label style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Due Balance</label>
-              <div class="val" style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Rs. ${Number(vendor.totalDue).toLocaleString()}</div>
-            </div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width:25px; text-align:center;">#</th>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th style="text-align:center;">Volume (P/T/E)</th>
-                <th style="text-align:right;">Rate</th>
-                <th style="text-align:right;">Total Cost</th>
-                <th style="text-align:right;">Paid</th>
-                <th style="text-align:right;">Due</th>
-                <th style="text-align:center;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
-          </table>
-          <div class="footer">
-            <div class="sign">Vendor Signature</div>
-            <div class="sign">Authorized Signature</div>
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() { window.print(); }, 150);
-            };
-          </script>
-        </body>
-      </html>
-    `;
+      toast.success(res?.message || 'Vendor updated successfully!');
+      setEditVendorModal({
+        isOpen: false,
+        oldName: '',
+        name: '',
+        phone: '',
+        location: '',
+        email: '',
+        notes: '',
+        isSubmitting: false,
+        error: null,
+      });
 
-    printWin.document.open();
-    printWin.document.write(html);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => {
-      try { printWin.print(); } catch (e) { console.error(e); }
-    }, 250);
+      await loadVendors();
+      if (fetchData) fetchData();
+    } catch (err) {
+      console.error(err);
+      setEditVendorModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err?.response?.data?.message || err.message || 'Failed to update vendor'
+      }));
+    }
   };
 
-  // Export Vendor Report PDF
-  const exportVendorPDF = (vendor) => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text(`Vendor Statement: ${vendor.name}`, 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Contact: ${vendor.phone || 'N/A'} | Location: ${vendor.location || 'N/A'}`, 14, 28);
-    doc.text(`Total Purchases: Rs. ${vendor.totalPurchasesCost.toLocaleString()} | Paid: Rs. ${vendor.totalPaid.toLocaleString()} | Due Balance: Rs. ${vendor.totalDue.toLocaleString()}`, 14, 34);
+  // Handler: Delete Vendor
+  const handleDeleteVendor = async () => {
+    if (!deleteVendorModal.name) return;
+    setDeleteVendorModal(prev => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      const activeShopId = currentShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : user.shopId) : 1);
+      const res = await deleteVendor({
+        name: deleteVendorModal.name,
+        shopId: activeShopId
+      });
 
-    const tableData = vendor.products.map(p => [
-      p.name || 'Unnamed Product',
-      p.category || 'Eggs',
-      `${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T / ${p.eggQuantity || 0}E`,
-      `Rs. ${(p.costPrice || p.price || 0).toLocaleString()}`,
-      `Rs. ${(p.computedCost || 0).toLocaleString()}`,
-      `Rs. ${(p.computedPaid || 0).toLocaleString()}`,
-      `Rs. ${(p.computedDue || 0).toLocaleString()}`,
-      p.paymentMethod || 'Cash'
-    ]);
+      toast.success(res?.message || `Vendor "${deleteVendorModal.name}" deleted successfully!`);
+      setDeleteVendorModal({ isOpen: false, name: '', isSubmitting: false, error: null });
 
-    autoTable(doc, {
-      startY: 42,
-      head: [['Product', 'Category', 'Quantity', 'Rate', 'Total Cost', 'Paid', 'Due', 'Payment Method']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [15, 118, 110] },
+      await loadVendors();
+      if (fetchData) fetchData();
+    } catch (err) {
+      console.error(err);
+      setDeleteVendorModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: err?.response?.data?.message || err.message || 'Failed to delete vendor'
+      }));
+    }
+  };
+
+  // WhatsApp quick contact
+  const handleWhatsApp = (phone, name) => {
+    if (!phone) return;
+    const clean = phone.replace(/[^0-9]/g, '');
+    const target = clean.startsWith('0') ? `92${clean.slice(1)}` : clean;
+    const msg = `Hello ${name}, this is Yosafze Egg Traders.`;
+    window.open(`https://api.whatsapp.com/send?phone=${target}&text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  // Metrics
+  const stats = useMemo(() => {
+    const total = vendors.length;
+    const withPhone = vendors.filter(v => v.phone && v.phone.trim()).length;
+    const locations = new Set(vendors.map(v => (v.location || v.farmLocation || '').trim().toLowerCase()).filter(Boolean)).size;
+    return { total, withPhone, locations };
+  }, [vendors]);
+
+  // Filtered vendors
+  const filteredVendors = useMemo(() => {
+    return vendors.filter(v => {
+      const vName = (v.name || '').toLowerCase();
+      const vPhone = (v.phone || '').toLowerCase();
+      const vLoc = (v.location || v.farmLocation || '').toLowerCase();
+      const vEmail = (v.email || '').toLowerCase();
+      const vNotes = (v.notes || '').toLowerCase();
+      const q = searchTerm.toLowerCase().trim();
+
+      const matchesSearch = !q || vName.includes(q) || vPhone.includes(q) || vLoc.includes(q) || vEmail.includes(q) || vNotes.includes(q);
+
+      if (!matchesSearch) return false;
+
+      if (filterType === 'WITH_PHONE') return Boolean(v.phone && v.phone.trim());
+      if (filterType === 'WITH_LOCATION') return Boolean((v.location || v.farmLocation || '').trim());
+
+      return true;
     });
-
-    doc.save(`vendor_statement_${vendor.name.replace(/\s+/g, '_')}.pdf`);
-  };
-
-  const handleWhatsAppVendor = (vendor) => {
-    const phoneClean = (vendor.phone || '').replace(/[^0-9]/g, '');
-    const targetPhone = phoneClean.startsWith('0') ? `92${phoneClean.slice(1)}` : phoneClean.startsWith('92') ? phoneClean : phoneClean;
-    
-    let msg = `*YOSAFZE EGG TRADERS - VENDOR STATEMENT*\n`;
-    msg += `*Vendor:* ${vendor.name}\n`;
-    if (vendor.location) msg += `*Location:* ${vendor.location}\n`;
-    msg += `*Date:* ${new Date().toLocaleDateString()}\n`;
-    msg += `--------------------------------\n`;
-    msg += `*Total Purchased Value:* Rs. ${vendor.totalPurchasesCost.toLocaleString()}\n`;
-    msg += `*Total Paid Amount:* Rs. ${vendor.totalPaid.toLocaleString()}\n`;
-    msg += `*Current Due Balance:* Rs. ${vendor.totalDue.toLocaleString()}\n`;
-    msg += `--------------------------------\n`;
-    msg += `*Supplied Products:*\n`;
-    vendor.products.forEach((p, idx) => {
-      msg += `${idx + 1}. ${p.name} - ${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T - Rs. ${(p.computedCost || 0).toLocaleString()} (Due: Rs. ${(p.computedDue || 0).toLocaleString()})\n`;
-    });
-    msg += `\nThank you for your business!`;
-
-    const url = targetPhone 
-      ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(msg)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
-  };
-
-  const handleExportVendorCsv = (vendor) => {
-    const headers = ['Vendor Name', 'Phone', 'Location', 'Product Name', 'Category', 'Petis', 'Trays', 'Eggs', 'Unit Rate (Rs.)', 'Total Cost (Rs.)', 'Paid Amount (Rs.)', 'Due Amount (Rs.)', 'Payment Method'];
-    const rows = vendor.products.map(p => [
-      `"${vendor.name.replace(/"/g, '""')}"`,
-      `"${(vendor.phone || '').replace(/"/g, '""')}"`,
-      `"${(vendor.location || '').replace(/"/g, '""')}"`,
-      `"${(p.name || '').replace(/"/g, '""')}"`,
-      `"${(p.category || '').replace(/"/g, '""')}"`,
-      p.petiQuantity || 0,
-      p.trayQuantity || 0,
-      p.eggQuantity || p.stock || 0,
-      p.costPrice || p.price || 0,
-      p.computedCost || 0,
-      p.computedPaid || 0,
-      p.computedDue || 0,
-      `"${(p.paymentMethod || 'Cash').replace(/"/g, '""')}"`
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Vendor_${vendor.name.replace(/\s+/g, '_')}_Ledger.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  }, [vendors, searchTerm, filterType]);
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-300 pb-12">
+    <div className="space-y-5 animate-in fade-in duration-300">
 
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-teal-900 via-slate-900 to-zinc-950 p-4 sm:p-5 rounded-3xl border border-teal-500/30 shadow-2xl text-white">
@@ -475,29 +251,30 @@ export function VendorsManagement({ onAddProduct, onEditProduct }) {
             <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-black uppercase tracking-widest text-teal-400 bg-teal-950/60 px-2 py-0.5 rounded-full border border-teal-500/30">
                 Supplier &amp; Farm Directory
               </span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+                🏪 {Number(currentShopId) === 1 ? 'Peshawar Branch' : Number(currentShopId) === 2 ? 'Mardan Branch' : Number(currentShopId) === 3 ? 'Attock Branch' : currentShopId ? `Branch #${currentShopId}` : 'All Branches'}
+              </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mt-0.5">
-              Vendors &amp; Suppliers Management
+              Vendors &amp; Suppliers Directory
             </h1>
           </div>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
-            onClick={() => {
-              if (onAddProduct) onAddProduct();
-            }}
-            className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+            onClick={() => setAddVendorModal(prev => ({ ...prev, isOpen: true, error: null }))}
+            className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-zinc-950 rounded-2xl font-black text-xs uppercase tracking-wider shadow-[0_4px_16px_rgba(245,158,11,0.4)] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border-t border-t-amber-200 border-b-2 border-b-amber-700"
           >
-            <Plus className="w-4 h-4 text-slate-950 stroke-[3]" />
-            <span>+ Purchase from Vendor</span>
+            <Plus className="w-4 h-4 text-zinc-950 stroke-[3]" />
+            <span>Add New Vendor</span>
           </button>
           <button
-            onClick={loadItems}
+            onClick={loadVendors}
             disabled={loading}
             className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white transition-all cursor-pointer"
             title="Refresh Vendors"
@@ -508,87 +285,108 @@ export function VendorsManagement({ onAddProduct, onEditProduct }) {
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
             <span>Total Vendors</span>
             <Building2 className="w-4 h-4 text-teal-600" />
           </div>
           <div className="text-xl sm:text-2xl font-black text-slate-900">
-            <CountUpNumber value={globalStats.vendorCount} />
+            <CountUpNumber value={stats.total} />
           </div>
-          <p className="text-[9px] font-bold text-slate-400">Active egg suppliers &amp; farms</p>
+          <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
         </div>
 
         <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>Total Purchased</span>
-            <Truck className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900">
-            Rs. <CountUpNumber value={globalStats.totalSpend} />
-          </div>
-          <p className="text-[9px] font-bold text-blue-600 uppercase">Gross Purchase Value</p>
-        </div>
-
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>Total Paid (Cash/Bank)</span>
-            <Banknote className="w-4 h-4 text-emerald-600" />
+            <span>With Phone Number</span>
+            <Phone className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl sm:text-2xl font-black text-emerald-700">
-            Rs. <CountUpNumber value={globalStats.totalPaid} />
+            <CountUpNumber value={stats.withPhone} />
           </div>
-          <p className="text-[9px] font-bold text-emerald-600 uppercase">Settled to Suppliers</p>
+          <p className="text-[9px] font-bold text-emerald-600 uppercase">Available for Direct Contact</p>
         </div>
 
         <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>Total Dues (Payable)</span>
-            <CreditCard className="w-4 h-4 text-rose-600" />
+            <span>Locations / Cities</span>
+            <MapPin className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-rose-600">
-            Rs. <CountUpNumber value={globalStats.totalDue} />
+          <div className="text-xl sm:text-2xl font-black text-blue-600">
+            <CountUpNumber value={stats.locations} />
           </div>
-          <p className="text-[9px] font-bold text-rose-600 uppercase">Outstanding Balance</p>
+          <p className="text-[9px] font-bold text-blue-600 uppercase">Farms &amp; Supply Regions</p>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5">
-        <div className="relative w-full sm:w-80">
+        <div className="relative w-full sm:w-96">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search vendor name, phone, farm, product..."
+            placeholder="Search vendor name, phone, city, notes..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-teal-600 focus:bg-white transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-          {[
-            { id: 'ALL', label: 'All Vendors' },
-            { id: 'DUE', label: '⚠️ With Outstanding Due' },
-            { id: 'SETTLED', label: '✅ Fully Settled' },
-          ].map(tab => (
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-1.5">
+            {[
+              { id: 'ALL', label: 'All Vendors' },
+              { id: 'WITH_PHONE', label: 'With Phone' },
+              { id: 'WITH_LOCATION', label: 'With Location' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterType(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  filterType === tab.id
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* List vs Grid View Switcher */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
             <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.id
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'list'
                   ? 'bg-slate-900 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'text-slate-600 hover:text-slate-950'
               }`}
+              title="List View"
             >
-              {tab.label}
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">List</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-950'
+              }`}
+              title="Grid View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <span className="hidden sm:inline">Grid</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Vendors List Grid */}
+      {/* Vendors Display: List or Grid */}
       {filteredVendors.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center space-y-3">
           <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
@@ -596,456 +394,575 @@ export function VendorsManagement({ onAddProduct, onEditProduct }) {
           </div>
           <h3 className="text-sm font-black text-slate-800 uppercase">No Vendors Found</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            {searchTerm ? `No vendor matches "${searchTerm}"` : "You haven't recorded any product purchases from suppliers yet."}
+            {searchTerm ? `No vendor matches "${searchTerm}"` : 'No registered vendors found. Click "+ Add New Vendor" to create your first supplier.'}
           </p>
         </div>
+      ) : viewMode === 'list' ? (
+        /* ─── LIST VIEW (TABLE) ─── */
+        <div className="bg-white border-2 border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-800 table-auto">
+              <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <tr>
+                  <th className="p-3.5 text-center w-12 whitespace-nowrap">#</th>
+                  <th className="p-3.5 whitespace-nowrap">Vendor / Farm Name</th>
+                  <th className="p-3.5 whitespace-nowrap">Contact Phone</th>
+                  <th className="p-3.5 whitespace-nowrap">Location / City</th>
+                  <th className="p-3.5 whitespace-nowrap">Email &amp; Notes</th>
+                  <th className="p-3.5 text-center whitespace-nowrap">Status</th>
+                  <th className="p-3.5 text-center w-36 whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredVendors.map((vendor, idx) => (
+                  <tr
+                    key={vendor.id || idx}
+                    className="hover:bg-teal-50/40 transition-colors group"
+                  >
+                    {/* Serial Number */}
+                    <td className="p-3.5 text-center whitespace-nowrap align-middle">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-black inline-block">
+                        #{idx + 1}
+                      </span>
+                    </td>
+
+                    {/* Vendor Name with Avatar */}
+                    <td className="p-3.5 align-middle">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                          {(vendor.name || 'V').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block font-black text-slate-900 uppercase text-xs truncate max-w-[220px]">
+                            {vendor.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold block">
+                            ID: VEND-{String(vendor.id || idx + 1).padStart(3, '0')}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Phone */}
+                    <td className="p-3.5 align-middle whitespace-nowrap">
+                      {vendor.phone ? (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`tel:${vendor.phone}`}
+                            className="font-bold text-slate-800 hover:text-teal-700 flex items-center gap-1.5"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-teal-600" />
+                            {vendor.phone}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleWhatsApp(vendor.phone, vendor.name)}
+                            className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
+                            title="Chat on WhatsApp"
+                          >
+                            <Send className="w-3 h-3 text-emerald-600" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic">No phone</span>
+                      )}
+                    </td>
+
+                    {/* Location */}
+                    <td className="p-3.5 align-middle whitespace-nowrap">
+                      {vendor.location || vendor.farmLocation ? (
+                        <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                          <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          {vendor.location || vendor.farmLocation}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">—</span>
+                      )}
+                    </td>
+
+                    {/* Email & Notes */}
+                    <td className="p-3.5 align-middle">
+                      <div className="max-w-[220px]">
+                        {vendor.email && (
+                          <div className="flex items-center gap-1.5 text-slate-700 text-[11px] font-medium truncate">
+                            <Mail className="w-3 h-3 text-indigo-500 shrink-0" />
+                            <span className="truncate">{vendor.email}</span>
+                          </div>
+                        )}
+                        {vendor.notes && (
+                          <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] truncate">
+                            <FileText className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span className="truncate">{vendor.notes}</span>
+                          </div>
+                        )}
+                        {!vendor.email && !vendor.notes && (
+                          <span className="text-slate-400 italic">—</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="p-3.5 text-center whitespace-nowrap align-middle">
+                      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[9px] font-black uppercase tracking-wider inline-block">
+                        Active
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-3.5 text-center whitespace-nowrap align-middle">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditVendorModal({
+                            isOpen: true,
+                            oldName: vendor.name,
+                            name: vendor.name,
+                            phone: vendor.phone || '',
+                            location: vendor.location || vendor.farmLocation || '',
+                            email: vendor.email || '',
+                            notes: vendor.notes || '',
+                            isSubmitting: false,
+                            error: null
+                          })}
+                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-black uppercase flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Edit Vendor"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteVendorModal({
+                            isOpen: true,
+                            name: vendor.name,
+                            isSubmitting: false,
+                            error: null
+                          })}
+                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+                          title="Delete Vendor"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* ─── GRID VIEW (CARDS) ─── */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {filteredVendors.map((vendor, idx) => (
             <div
-              key={idx}
-              onClick={() => setSelectedVendor(vendor)}
-              className="bg-white border-2 border-slate-200 hover:border-teal-500 rounded-3xl p-4 shadow-sm hover:shadow-md transition-all space-y-3.5 cursor-pointer flex flex-col justify-between group"
+              key={vendor.id || idx}
+              className="bg-white border-2 border-slate-200 hover:border-teal-500 rounded-3xl p-4 shadow-sm hover:shadow-md transition-all space-y-3 flex flex-col justify-between group"
             >
               {/* Card Header */}
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 bg-teal-50 border border-teal-200 rounded-2xl flex items-center justify-center text-teal-700 font-black text-base shrink-0">
-                    {vendor.name.charAt(0).toUpperCase()}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-11 h-11 bg-gradient-to-br from-teal-500 to-emerald-700 text-white rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-md">
+                    {(vendor.name || 'V').charAt(0).toUpperCase()}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-sm font-black text-slate-900 group-hover:text-teal-700 transition-colors uppercase leading-tight line-clamp-1">
                       {vendor.name}
                     </h3>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-bold">
-                      {vendor.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-slate-400" /> {vendor.phone}
-                        </span>
-                      )}
-                      {vendor.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400" /> {vendor.location}
-                        </span>
-                      )}
-                    </div>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase rounded-full">
+                      Active Vendor
+                    </span>
                   </div>
                 </div>
 
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
-                    vendor.totalDue > 0
-                      ? 'bg-rose-100 text-rose-700 border border-rose-300'
-                      : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                  }`}
-                >
-                  {vendor.totalDue > 0 ? `Due: Rs. ${vendor.totalDue.toLocaleString()}` : 'Fully Settled'}
-                </span>
-              </div>
-
-              {/* Purchase Quantity Summary */}
-              <div className="grid grid-cols-3 gap-1.5 bg-slate-50 p-2 rounded-2xl border border-slate-100 text-center">
-                <div>
-                  <span className="text-[8.5px] font-bold text-slate-400 uppercase block">Petis</span>
-                  <span className="text-xs font-black text-amber-700">{vendor.totalPetis}</span>
-                </div>
-                <div className="border-x border-slate-200">
-                  <span className="text-[8.5px] font-bold text-slate-400 uppercase block">Trays</span>
-                  <span className="text-xs font-black text-teal-700">{vendor.totalTrays}</span>
-                </div>
-                <div>
-                  <span className="text-[8.5px] font-bold text-slate-400 uppercase block">Products</span>
-                  <span className="text-xs font-black text-slate-900">{vendor.products.length}</span>
-                </div>
-              </div>
-
-              {/* Financial Balance Summary */}
-              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-2 rounded-2xl text-[10px]">
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-bold text-slate-500 uppercase">Purchased:</span>
-                  <span className="font-black text-slate-900">Rs. {vendor.totalPurchasesCost.toLocaleString()}</span>
-                </div>
-                <div className="flex flex-col border-l border-slate-200 pl-1.5">
-                  <span className="text-[8px] font-bold text-emerald-700 uppercase">Paid:</span>
-                  <span className="font-black text-emerald-700">Rs. {vendor.totalPaid.toLocaleString()}</span>
-                </div>
-                <div className="flex flex-col border-l border-slate-200 pl-1.5">
-                  <span className="text-[8px] font-bold text-rose-600 uppercase">Due:</span>
-                  <span className={`font-black ${vendor.totalDue > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                    Rs. {vendor.totalDue.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Card Footer Actions */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 relative">
-                <span className="text-[9.5px] font-bold text-teal-700 flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
-                  View Ledger &amp; Products <ChevronRight className="w-3.5 h-3.5" />
-                </span>
-
-                <div className="flex items-center gap-1">
+                {/* Quick Action Buttons */}
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDirectPrintVendor(vendor);
-                    }}
-                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200 transition-all cursor-pointer"
-                    title="Direct Print Statement"
+                    onClick={() => setEditVendorModal({
+                      isOpen: true,
+                      oldName: vendor.name,
+                      name: vendor.name,
+                      phone: vendor.phone || '',
+                      location: vendor.location || vendor.farmLocation || '',
+                      email: vendor.email || '',
+                      notes: vendor.notes || '',
+                      isSubmitting: false,
+                      error: null
+                    })}
+                    className="p-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-700 border border-slate-200 transition-colors cursor-pointer"
+                    title="Edit Vendor"
                   >
-                    <Printer className="w-3.5 h-3.5" />
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
-
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenuVendorId(activeMenuVendorId === idx ? null : idx);
-                      }}
-                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                        activeMenuVendorId === idx
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                      }`}
-                      title="More Options"
-                    >
-                      <MoreVertical className="w-3.5 h-3.5" />
-                    </button>
-
-                    {activeMenuVendorId === idx && (
-                      <div
-                        className="absolute right-0 bottom-full mb-2 w-52 bg-slate-900 border border-slate-700 text-white rounded-2xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 text-left"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseLeave={() => setActiveMenuVendorId(null)}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleDirectPrintVendor(vendor);
-                            setActiveMenuVendorId(null);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-white/10 text-emerald-400 transition-all cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span>🖨️ Direct Print Statement</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            exportVendorPDF(vendor);
-                            setActiveMenuVendorId(null);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-white/10 text-cyan-300 transition-all cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                          <span>📄 Download PDF</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleWhatsAppVendor(vendor);
-                            setActiveMenuVendorId(null);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-white/10 text-teal-300 transition-all cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                          <span>📱 Send on WhatsApp</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleExportVendorCsv(vendor);
-                            setActiveMenuVendorId(null);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-white/10 text-green-300 transition-all cursor-pointer"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5 text-green-400 shrink-0" />
-                          <span>📊 Export Excel (.csv)</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteVendorModal({
+                      isOpen: true,
+                      name: vendor.name,
+                      isSubmitting: false,
+                      error: null
+                    })}
+                    className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border border-slate-200 transition-colors cursor-pointer"
+                    title="Delete Vendor"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
+
+              {/* Vendor Details */}
+              <div className="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                  <span className="font-bold truncate">
+                    {vendor.phone ? vendor.phone : <span className="text-slate-400 font-normal">No phone number</span>}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="font-bold truncate">
+                    {vendor.location || vendor.farmLocation ? (vendor.location || vendor.farmLocation) : <span className="text-slate-400 font-normal">No location specified</span>}
+                  </span>
+                </div>
+
+                {vendor.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span className="font-medium text-[11px] truncate">{vendor.email}</span>
+                  </div>
+                )}
+
+                {vendor.notes && (
+                  <div className="flex items-start gap-2 pt-1 border-t border-slate-200/60 mt-1">
+                    <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="text-[10.5px] text-slate-500 font-medium line-clamp-2">{vendor.notes}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* WhatsApp direct contact if phone exists */}
+              {vendor.phone && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleWhatsApp(vendor.phone, vendor.name)}
+                    className="w-full py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[11px] font-black uppercase flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Send className="w-3 h-3 text-emerald-600" />
+                    <span>Chat on WhatsApp</span>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {/* ─── VENDOR DRILLDOWN MODAL / DRAWER ─── */}
-      {selectedVendor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setSelectedVendor(null)} />
+      {/* ─── ADD NEW VENDOR MODAL ─── */}
+      {addVendorModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => !addVendorModal.isSubmitting && setAddVendorModal(prev => ({ ...prev, isOpen: false }))} />
 
-          <div className="relative w-full max-w-4xl max-h-[90vh] bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 overflow-hidden flex flex-col">
-            
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-teal-900 via-slate-900 to-zinc-950 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-500/20 border border-teal-400/40 rounded-2xl text-teal-300">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-white leading-tight">
-                    {selectedVendor.name} • Purchase Ledger
-                  </h2>
-                  <p className="text-[10px] text-teal-400 font-bold flex items-center gap-3 mt-0.5">
-                    {selectedVendor.phone && <span>📞 {selectedVendor.phone}</span>}
-                    {selectedVendor.location && <span>📍 {selectedVendor.location}</span>}
-                    <span>📦 {selectedVendor.products.length} Products Purchased</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleDirectPrintVendor(selectedVendor)}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 border border-emerald-400 shadow-sm transition-all cursor-pointer"
-                  title="Direct Print Statement"
-                >
-                  <Printer className="w-3.5 h-3.5" /> 🖨️ Direct Print
-                </button>
-                <button
-                  onClick={() => exportVendorPDF(selectedVendor)}
-                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 border border-white/20 transition-all cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" /> PDF
-                </button>
-                <button
-                  onClick={() => handleWhatsAppVendor(selectedVendor)}
-                  className="px-3 py-1.5 bg-teal-600/60 hover:bg-teal-600 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 border border-teal-400/50 transition-all cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" /> WhatsApp
-                </button>
-                <button
-                  onClick={() => handleExportVendorCsv(selectedVendor)}
-                  className="px-3 py-1.5 bg-green-700/60 hover:bg-green-700 text-white rounded-xl text-xs font-black uppercase flex items-center gap-1.5 border border-green-500/50 transition-all cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
-                </button>
-                <button
-                  onClick={() => setSelectedVendor(null)}
-                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all cursor-pointer ml-1"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Financial Summary Banner */}
-            <div className="grid grid-cols-3 gap-2 p-3 bg-slate-100 border-b border-slate-200 text-xs">
-              <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[9px] font-bold text-slate-500 uppercase block">Total Spend</span>
-                <span className="text-sm sm:text-base font-black text-slate-900">
-                  Rs. {selectedVendor.totalPurchasesCost.toLocaleString()}
-                </span>
-              </div>
-              <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[9px] font-bold text-emerald-700 uppercase block">Total Paid</span>
-                <span className="text-sm sm:text-base font-black text-emerald-700">
-                  Rs. {selectedVendor.totalPaid.toLocaleString()}
-                </span>
-              </div>
-              <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-                <span className="text-[9px] font-bold text-rose-600 uppercase block">Due Balance</span>
-                <span className={`text-sm sm:text-base font-black ${selectedVendor.totalDue > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                  Rs. {selectedVendor.totalDue.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Products Table */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Box className="w-4 h-4 text-teal-600" /> Products Purchased from {selectedVendor.name}
-              </h3>
-
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
-                      <th className="p-2.5">Product &amp; Category</th>
-                      <th className="p-2.5">Stock Breakdown</th>
-                      <th className="p-2.5">Unit Rate</th>
-                      <th className="p-2.5">Total Cost</th>
-                      <th className="p-2.5">Paid</th>
-                      <th className="p-2.5">Due</th>
-                      <th className="p-2.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
-                    {selectedVendor.products.map((p, pIdx) => (
-                      <tr key={pIdx} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-2.5">
-                          <div className="flex items-center gap-2">
-                            {p.images && p.images[0] ? (
-                              <img src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 shrink-0">
-                                <Egg className="w-4 h-4" />
-                              </div>
-                            )}
-                            <div>
-                              <span className="font-black text-slate-900 block leading-tight">{p.name || 'Unnamed Product'}</span>
-                              <span className="text-[9.5px] text-teal-700 font-bold">{p.category || 'Eggs'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2.5 text-[11px]">
-                          <span className="text-amber-700 font-black">{p.petiQuantity || 0}P</span> •{' '}
-                          <span className="text-teal-700 font-black">{p.trayQuantity || 0}T</span> •{' '}
-                          <span className="text-emerald-700 font-black">{p.eggQuantity || p.stock || 0}E</span>
-                        </td>
-                        <td className="p-2.5 text-slate-600 font-black">
-                          Rs. {(p.costPrice || p.price || 0).toLocaleString()}
-                        </td>
-                        <td className="p-2.5 text-slate-900 font-black">
-                          Rs. {(p.computedCost || 0).toLocaleString()}
-                        </td>
-                        <td className="p-2.5 text-emerald-700 font-black">
-                          Rs. {(p.computedPaid || 0).toLocaleString()}
-                        </td>
-                        <td className="p-2.5">
-                          <span className={`font-black ${p.computedDue > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                            Rs. {(p.computedDue || 0).toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="p-2.5 text-right space-x-1">
-                          {p.computedDue > 0 && (
-                            <button
-                              onClick={(e) => handleOpenSettle(p, e)}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
-                            >
-                              Settle Due
-                            </button>
-                          )}
-                          {onEditProduct && (
-                            <button
-                              onClick={() => {
-                                setSelectedVendor(null);
-                                onEditProduct(p);
-                              }}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 bg-slate-100 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => setSelectedVendor(null)}
-                className="px-5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ─── SETTLE SUPPLIER CREDIT MODAL ─── */}
-      {settleModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setSettleModal({ ...settleModal, isOpen: false })} />
-
-          <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 overflow-hidden flex flex-col p-5 space-y-4">
+          <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 overflow-hidden flex flex-col p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-700">
-                  <Banknote className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-100 border border-amber-300 rounded-2xl text-amber-700">
+                  <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900 uppercase">Settle Supplier Due</h3>
-                  <p className="text-[10px] text-slate-500 font-bold">{settleModal.item?.supplierName || 'Supplier'}</p>
+                  <h3 className="text-base font-black text-slate-900 uppercase">Add New Vendor</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">Register a new egg supplier or poultry farm</p>
                 </div>
               </div>
               <button
-                onClick={() => setSettleModal({ ...settleModal, isOpen: false })}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-500"
+                type="button"
+                onClick={() => setAddVendorModal(prev => ({ ...prev, isOpen: false }))}
+                disabled={addVendorModal.isSubmitting}
+                className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {settleModal.error && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold">
-                {settleModal.error}
+            {addVendorModal.error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{addVendorModal.error}</span>
               </div>
             )}
 
-            <form onSubmit={handleConfirmSettle} className="space-y-3 text-xs">
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
-                <span className="text-[10px] font-black uppercase text-slate-600">Current Outstanding Due:</span>
-                <span className="text-sm font-black text-rose-600">
-                  Rs. {(settleModal.item?.computedDue || settleModal.item?.dueAmountToSupplier || 0).toLocaleString()}
-                </span>
-              </div>
-
-              {/* Payment Method */}
+            <form onSubmit={handleCreateVendor} className="space-y-3.5 text-xs">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-700 uppercase">Payment Method</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Cash', 'Bank Transfer'].map(m => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setSettleModal(prev => ({ ...prev, paymentMethod: m }))}
-                      className={`py-1.5 rounded-xl text-xs font-black uppercase transition-all cursor-pointer border ${
-                        settleModal.paymentMethod === m
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Amount to Pay */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-700 uppercase">Amount to Pay (Rs.) *</label>
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Vendor / Farm Name *
+                </label>
                 <input
-                  type="number"
-                  step="any"
-                  value={settleModal.amountPaid}
-                  onChange={(e) => setSettleModal(prev => ({ ...prev, amountPaid: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-600 focus:bg-white"
-                  placeholder="Enter payment amount"
+                  type="text"
+                  required
+                  value={addVendorModal.name}
+                  onChange={(e) => setAddVendorModal(prev => ({ ...prev, name: e.target.value, error: null }))}
+                  placeholder="e.g. Yousafzai Farm, Dir Farm, Mardan Farm, Attock Farm..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Contact Phone</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addVendorModal.phone}
+                    onChange={(e) => setAddVendorModal(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="0300-1234567"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Location / City</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addVendorModal.location}
+                    onChange={(e) => setAddVendorModal(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Peshawar, Mardan, Swat, Dir, Attock..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Email Address (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={addVendorModal.email}
+                  onChange={(e) => setAddVendorModal(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="vendor@example.com"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Notes / Description (Optional)
+                </label>
+                <textarea
+                  rows="2"
+                  value={addVendorModal.notes}
+                  onChange={(e) => setAddVendorModal(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Notes on egg quality, poultry capacity, or payment arrangements..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 px-3 text-xs font-bold text-slate-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl flex items-center gap-2.5 text-[11px] text-amber-900 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>This vendor will be saved to your database and suggested when adding new purchases.</span>
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setSettleModal({ ...settleModal, isOpen: false })}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase cursor-pointer"
+                  onClick={() => setAddVendorModal(prev => ({ ...prev, isOpen: false }))}
+                  disabled={addVendorModal.isSubmitting}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={settleModal.isSubmitting}
-                  className="flex-[1.5] py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                  disabled={addVendorModal.isSubmitting}
+                  className="flex-[1.5] py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-zinc-950 rounded-xl font-black text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 border-t border-t-amber-200 border-b-2 border-b-amber-700"
                 >
-                  {settleModal.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Confirm Settlement</span>
+                  {addVendorModal.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin text-zinc-950" /> : <CheckCircle2 className="w-4 h-4 text-zinc-950" />}
+                  <span>{addVendorModal.isSubmitting ? 'Saving...' : 'Save & Register Vendor'}</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── EDIT VENDOR MODAL ─── */}
+      {editVendorModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => !editVendorModal.isSubmitting && setEditVendorModal(prev => ({ ...prev, isOpen: false }))} />
+
+          <div className="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 overflow-hidden flex flex-col p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-teal-100 border border-teal-300 rounded-2xl text-teal-700">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase">Edit Vendor Information</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">Update vendor contact and location details</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditVendorModal(prev => ({ ...prev, isOpen: false }))}
+                disabled={editVendorModal.isSubmitting}
+                className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editVendorModal.error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{editVendorModal.error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateVendor} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Vendor / Farm Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editVendorModal.name}
+                  onChange={(e) => setEditVendorModal(prev => ({ ...prev, name: e.target.value, error: null }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Contact Phone</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editVendorModal.phone}
+                    onChange={(e) => setEditVendorModal(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="0300-1234567"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white transition-all shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Location / City</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editVendorModal.location}
+                    onChange={(e) => setEditVendorModal(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Peshawar, Mardan, Swat, Dir..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editVendorModal.email}
+                  onChange={(e) => setEditVendorModal(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="vendor@example.com"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-700 uppercase">
+                  Notes / Description
+                </label>
+                <textarea
+                  rows="2"
+                  value={editVendorModal.notes}
+                  onChange={(e) => setEditVendorModal(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 px-3 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 focus:bg-white transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditVendorModal(prev => ({ ...prev, isOpen: false }))}
+                  disabled={editVendorModal.isSubmitting}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editVendorModal.isSubmitting}
+                  className="flex-[1.5] py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-black text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {editVendorModal.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
+                  <span>{editVendorModal.isSubmitting ? 'Updating...' : 'Update Vendor'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DELETE VENDOR MODAL ─── */}
+      {deleteVendorModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => !deleteVendorModal.isSubmitting && setDeleteVendorModal(prev => ({ ...prev, isOpen: false }))} />
+
+          <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 overflow-hidden flex flex-col p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-100 border border-rose-300 rounded-2xl text-rose-700">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 uppercase">Delete Vendor</h3>
+                <p className="text-[11px] text-slate-500 font-bold">Remove vendor from registry</p>
+              </div>
+            </div>
+
+            {deleteVendorModal.error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold">
+                {deleteVendorModal.error}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-700 font-medium">
+              Are you sure you want to delete vendor <strong className="text-slate-950 font-black">"{deleteVendorModal.name}"</strong>?
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteVendorModal(prev => ({ ...prev, isOpen: false }))}
+                disabled={deleteVendorModal.isSubmitting}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-xs uppercase cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteVendor}
+                disabled={deleteVendorModal.isSubmitting}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {deleteVendorModal.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Trash2 className="w-4 h-4 text-white" />}
+                <span>{deleteVendorModal.isSubmitting ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

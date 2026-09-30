@@ -43,6 +43,9 @@ app.set('trust proxy', 1);
 // Middleware
 const allowedOrigins = [
   'https://nexflow-inventory.vercel.app', 
+  'https://pos.yousafzaiagrifoods.com',
+  'https://yousafzaiagrifoods.com',
+  'https://api.yousafzaiagrifoods.com',
   'http://localhost:5173', 
   'http://localhost:5174',
   process.env.FRONTEND_URL

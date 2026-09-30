@@ -2174,7 +2174,7 @@ function StoreContent({ shopId }) {
     try {
       const role = user?.role || 'shop_admin';
       await apiDeleteItem(targetId, '', role);
-      setItems(prev => prev.filter(p => String(p._id) !== String(targetId)));
+      setItems(prev => prev.filter(p => String(p._id) !== String(targetId) && String(p.id) !== String(targetId)));
       setAddedMsg('✅ Product deleted successfully!');
       fetchCatalog();
       fetchDashboardStats();
@@ -5932,11 +5932,14 @@ function StoreContent({ shopId }) {
                   </button>
 
                   <button
-                    onClick={() => { navigate('/vendor-directory'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105`}
+                    onClick={() => { setActiveView('vendors'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'vendors'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                      }`}
                   >
-                    <Truck className="w-4 h-4 text-teal-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Vendor Profiles</span>
+                    <Building2 className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
+                    <span className="truncate">Vendors</span>
                   </button>
 
                   <button
@@ -6409,10 +6412,7 @@ function StoreContent({ shopId }) {
 
               {/* ─── VENDORS & SUPPLIERS VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'vendors' && isAdminUser && (
-                <VendorsManagement
-                  onAddProduct={() => setAddProductModal(true)}
-                  onEditProduct={(p) => setEditModalProduct(p)}
-                />
+                <VendorsManagement shopId={shopId} />
               )}
 
               {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}

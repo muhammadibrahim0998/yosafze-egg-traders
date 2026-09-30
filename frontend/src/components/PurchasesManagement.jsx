@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
-import { getItems, deleteItem, settleSupplierCredit, uploadImages, updateVendor, deleteVendor } from '../services/api';
+import { getItems, updateItem, deleteItem, settleSupplierCredit, uploadImages, updateVendor, deleteVendor } from '../services/api';
 import { CountUpNumber } from './CountUpNumber.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,9 +28,36 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
   const [localDeleteDialog, setLocalDeleteDialog] = useState({ isOpen: false, item: null, isDeleting: false });
   const [deletedIds, setDeletedIds] = useState(new Set());
+  const [editedItemsMap, setEditedItemsMap] = useState(new Map());
 
   const [openVendorMenu, setOpenVendorMenu] = useState(null);
   const [openPurchaseMenu, setOpenPurchaseMenu] = useState(null);
+
+  // Dedicated Vendor Invoices List Modal State ("zanla list")
+  const [selectedVendorName, setSelectedVendorName] = useState(null);
+
+  // Quick Edit Single Purchase Entry State
+  const [quickEditPurchase, setQuickEditPurchase] = useState({
+    isOpen: false,
+    item: null,
+    name: '',
+    category: 'Eggs',
+    petiQuantity: '',
+    trayQuantity: '',
+    eggQuantity: '',
+    costPrice: '',
+    totalPurchaseCost: '',
+    amountPaidToSupplier: '',
+    dueAmountToSupplier: '',
+    paymentMethod: 'Cash',
+    supplierName: '',
+    supplierPhone: '',
+    supplierLocation: '',
+    notes: '',
+    isSaving: false,
+    error: null,
+    successMsg: null,
+  });
 
   // Supplier Credit Settlement State
   const [settleModal, setSettleModal] = useState({
@@ -272,29 +299,41 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
   const handleDeleteClick = async (item) => {
     if (!item) return;
-    const itemId = typeof item === 'string' ? item : (item._id || item.id);
-    const itemName = typeof item === 'string' ? 'this product' : (item.name || 'Product');
+    const itemId = item._id || item.id || item.itemId || (typeof item === 'string' ? item : null);
+    const itemName = item.name || 'this purchase';
     if (!itemId || itemId === 'undefined') return;
-    if (!window.confirm(`Are you sure you want to delete product "${itemName}"?`)) return;
+    if (!window.confirm(`Are you sure you want to delete purchase "${itemName}"?`)) return;
     
     // 1. Instantly remove from local UI state
-    setDeletedIds(prev => new Set([...prev, itemId]));
-    setApiProducts(prev => prev.filter(p => p._id !== itemId));
+    const strId = String(itemId);
+    const numId = Number(itemId);
+    setDeletedIds(prev => {
+      const next = new Set(prev);
+      next.add(itemId);
+      next.add(strId);
+      if (!isNaN(numId)) next.add(numId);
+      if (item._id) { next.add(item._id); next.add(String(item._id)); }
+      if (item.id) { next.add(item.id); next.add(String(item.id)); }
+      if (item.itemId) { next.add(item.itemId); next.add(String(item.itemId)); }
+      return next;
+    });
+    setApiProducts(prev => prev.filter(p => String(p._id) !== strId && String(p.id) !== strId && String(p.itemId) !== strId));
 
     // 2. Call backend API
     try {
-      await deleteItem(itemId, '', 'shop_admin');
+      await deleteItem(itemId, '', user?.role || 'super_admin');
     } catch (err) {
       console.error('[Direct Delete Item API]:', err);
     }
 
     // 3. Notify parent and product context
-    if (onDeleteProduct) {
-      try { await onDeleteProduct(item); } catch (_) {}
-    }
-    if (productCtx.deleteProduct) {
+    if (productCtx?.deleteProduct) {
       try { await productCtx.deleteProduct(itemId); } catch (_) {}
     }
+    if (onRefresh) {
+      try { await onRefresh(); } catch (_) {}
+    }
+    await reloadItems();
   };
 
   const products = useMemo(() => {
@@ -302,9 +341,25 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       ? propProducts
       : ((contextProducts && contextProducts.length > 0) ? contextProducts : apiProducts);
     return raw
-      .filter(p => !deletedIds.has(p._id))
+      .filter(p => {
+        const id1 = p._id !== undefined && p._id !== null ? String(p._id) : null;
+        const id2 = p.id !== undefined && p.id !== null ? String(p.id) : null;
+        const id3 = p.itemId !== undefined && p.itemId !== null ? String(p.itemId) : null;
+
+        if (id1 && (deletedIds.has(id1) || deletedIds.has(Number(id1)))) return false;
+        if (id2 && (deletedIds.has(id2) || deletedIds.has(Number(id2)))) return false;
+        if (id3 && (deletedIds.has(id3) || deletedIds.has(Number(id3)))) return false;
+        return true;
+      })
+      .map(p => {
+        const idKey = String(p._id || p.id || p.itemId);
+        if (editedItemsMap.has(idKey)) {
+          return { ...p, ...editedItemsMap.get(idKey) };
+        }
+        return p;
+      })
       .filter(p => !activeShopId || !p.shopId || String(p.shopId?._id || p.shopId) === String(activeShopId));
-  }, [propProducts, contextProducts, apiProducts, deletedIds, activeShopId]);
+  }, [propProducts, contextProducts, apiProducts, deletedIds, editedItemsMap, activeShopId]);
 
   // Timeframe date filtering logic
   const filteredByTimeframeProducts = useMemo(() => {
@@ -415,6 +470,11 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       totalTrays: Math.round(v.totalTrays),
     }));
   }, [filteredByTimeframeProducts]);
+
+  const selectedVendor = useMemo(() => {
+    if (!selectedVendorName) return null;
+    return aggregatedVendors.find(v => v.name.toLowerCase() === selectedVendorName.toLowerCase()) || null;
+  }, [aggregatedVendors, selectedVendorName]);
 
   const stats = useMemo(() => {
     let totalPurchasesCost = 0;
@@ -540,6 +600,484 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
   }, [attachedReceipts]);
 
   const fmt = (n) => Number(n || 0).toLocaleString('en-PK');
+
+  // ── Print Single Purchase Receipt Voucher ("single single am print kegi") ──
+  const handlePrintSinglePurchase = (pItem) => {
+    if (!pItem) return;
+    const printWin = window.open('', '_blank', 'width=900,height=800');
+    if (!printWin) {
+      alert('Please allow browser popups to print purchase receipt');
+      return;
+    }
+
+    const itemPetis = pItem.petiQuantity || (pItem.stock ? (pItem.stock / 360).toFixed(1) : 0);
+    const itemTrays = pItem.trayQuantity || (pItem.stock ? Math.round(pItem.stock / 30) : 0);
+    const itemEggs = pItem.eggQuantity || pItem.stock || 0;
+    const pMethod = String(pItem.paymentMethod || 'Cash').trim();
+    const unitCost = Number(pItem.costPrice) > 0 ? Number(pItem.costPrice) : Number(pItem.price || 0);
+    const unitDivisor = pItem.unitType === 'egg' ? 1 : pItem.unitType === 'tray' ? 30 : 360;
+    const costVal = Number(pItem.costVal) > 0
+      ? Number(pItem.costVal)
+      : (Number(pItem.totalPurchaseCost) > 0
+          ? Number(pItem.totalPurchaseCost)
+          : (Number(itemPetis) > 0 ? Number(itemPetis) * unitCost : (Number(itemEggs) * (unitCost / unitDivisor))));
+
+    const isCreditMethod = pMethod.toLowerCase().includes('credit') || pMethod.toLowerCase().includes('due') || pMethod.toLowerCase().includes('partial');
+    const hasExplicitDue = pItem.dueAmountToSupplier !== undefined && pItem.dueAmountToSupplier !== null && Number(pItem.dueAmountToSupplier) > 0;
+
+    let dueBalanceAmount = 0;
+    let paidAmount = 0;
+
+    if (pItem.dueVal !== undefined && pItem.paidVal !== undefined) {
+      dueBalanceAmount = Number(pItem.dueVal) || 0;
+      paidAmount = Number(pItem.paidVal) || 0;
+    } else if (hasExplicitDue || isCreditMethod) {
+      const rawDue = hasExplicitDue ? Number(pItem.dueAmountToSupplier) : costVal;
+      dueBalanceAmount = Math.min(costVal, Math.max(0, rawDue));
+      paidAmount = Math.max(0, costVal - dueBalanceAmount);
+    } else {
+      paidAmount = costVal;
+      dueBalanceAmount = 0;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Purchase Receipt - ${pItem.name || 'Stock Inward'}</title>
+          <meta charset="utf-8" />
+          <style>
+            @page { size: portrait; margin: 8mm 10mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; margin: 0; }
+            .no-print { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
+            .btn-print { padding: 8px 18px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
+            .btn-close { padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
+            .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px; }
+            .header h1 { margin: 0; color: #0f766e; font-size: 20px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+            .header p { margin: 4px 0 0; color: #64748b; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
+            .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11.5px; }
+            .row:last-child { margin-bottom: 0; }
+            .label { color: #64748b; font-weight: bold; }
+            .val { font-weight: 900; color: #0f172a; }
+            .total-box { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px; margin-top: 15px; }
+            .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; color: #64748b; }
+            .sign { border-top: 1.5px solid #94a3b8; width: 150px; text-align: center; padding-top: 6px; }
+            @media print {
+              .no-print { display: none !important; }
+              body { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button class="btn-print" onclick="window.print()">🖨️ Direct Print</button>
+            <button class="btn-close" onclick="window.close()">✕ Close</button>
+          </div>
+          <div class="header">
+            <h1>YOSAFZE EGG TRADERS</h1>
+            <p>Purchase Invoice &amp; Stock Inward Voucher</p>
+          </div>
+          <div class="box">
+            <div class="row"><span class="label">Product Name:</span><span class="val">${pItem.name || 'N/A'}</span></div>
+            <div class="row"><span class="label">Category:</span><span class="val">${pItem.category || 'Eggs'}</span></div>
+            <div class="row"><span class="label">Vendor / Supplier:</span><span class="val">${pItem.supplierName || 'Farm Vendor'}</span></div>
+            ${pItem.supplierPhone ? `<div class="row"><span class="label">Vendor Contact:</span><span class="val">${pItem.supplierPhone}</span></div>` : ''}
+            ${pItem.supplierLocation ? `<div class="row"><span class="label">Vendor Location:</span><span class="val">${pItem.supplierLocation}</span></div>` : ''}
+            <div class="row"><span class="label">Purchase Date:</span><span class="val">${new Date(pItem.createdAt || pItem.purchaseDate || Date.now()).toLocaleDateString('en-PK')}</span></div>
+          </div>
+          <div class="box">
+            <div class="row"><span class="label">Stock Volume:</span><span class="val">${itemPetis} Petis (${itemTrays} Trays / ${Number(itemEggs).toLocaleString()} Eggs)</span></div>
+            <div class="row"><span class="label">Unit Buy Cost:</span><span class="val">Rs. ${fmt(unitCost)}</span></div>
+            <div class="row"><span class="label">Payment Method:</span><span class="val">${pMethod}</span></div>
+          </div>
+          <div class="total-box">
+            <div class="row" style="font-size: 13px;"><span class="label" style="color: #166534;">Total Purchase Value:</span><span class="val" style="color: #166534;">Rs. ${fmt(costVal)}</span></div>
+            <div class="row" style="font-size: 12px;"><span class="label" style="color: #059669;">Amount Paid:</span><span class="val" style="color: #059669;">Rs. ${fmt(paidAmount)}</span></div>
+            <div class="row" style="font-size: 12px;"><span class="label" style="color: ${dueBalanceAmount > 0 ? '#e11d48' : '#64748b'};">Credit (Due) Balance:</span><span class="val" style="color: ${dueBalanceAmount > 0 ? '#e11d48' : '#64748b'};">Rs. ${fmt(dueBalanceAmount)}</span></div>
+          </div>
+          <div class="footer">
+            <div class="sign">Supplier Signature</div>
+            <div class="sign">Authorized Signature</div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 150);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      try { printWin.print(); } catch (e) { console.error(e); }
+    }, 250);
+  };
+
+  // ── Print Total Consolidated Vendor Statement & Ledger ("total am print kegi") ──
+  const handleDirectPrintVendor = (vendor) => {
+    if (!vendor) return;
+    const printWin = window.open('', '_blank', 'width=900,height=800');
+    if (!printWin) {
+      alert('Please allow popups to print vendor statement');
+      return;
+    }
+
+    const tableRows = (vendor.products || []).map((p, idx) => {
+      const petis = p.petiQuantity || (p.stock ? (p.stock / 360).toFixed(1) : 0);
+      const trays = p.trayQuantity || (p.stock ? Math.round(p.stock / 30) : 0);
+      const eggs = p.eggQuantity || p.stock || 0;
+      const rate = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
+      const cost = Number(p.costVal) || Number(p.totalPurchaseCost) || 0;
+      const paid = Number(p.paidVal) !== undefined ? Number(p.paidVal) : (Number(p.amountPaidToSupplier) || 0);
+      const due = Number(p.dueVal) !== undefined ? Number(p.dueVal) : (Number(p.dueAmountToSupplier) || 0);
+      const pDate = new Date(p.createdAt || p.purchaseDate || Date.now()).toLocaleDateString('en-PK');
+      return `
+        <tr>
+          <td style="text-align:center;">${idx + 1}</td>
+          <td><strong>${p.name || 'Unnamed Product'}</strong><br/><small style="color:#64748b;">${pDate}</small></td>
+          <td>${p.category || 'Eggs'}</td>
+          <td style="text-align:center;">${petis}P / ${trays}T / ${Number(eggs).toLocaleString()}E</td>
+          <td style="text-align:right;">Rs. ${fmt(rate)}</td>
+          <td style="text-align:right; font-weight:bold;">Rs. ${fmt(cost)}</td>
+          <td style="text-align:right; color:#059669; font-weight:bold;">Rs. ${fmt(paid)}</td>
+          <td style="text-align:right; color:${due > 0 ? '#e11d48' : '#64748b'}; font-weight:bold;">Rs. ${fmt(due)}</td>
+          <td style="text-align:center;"><span class="badge ${due > 0 ? 'badge-due' : 'badge-paid'}">${due > 0 ? 'Credit Due' : 'Paid'}</span></td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Vendor Statement - ${vendor.name}</title>
+          <meta charset="utf-8" />
+          <style>
+            @page { size: portrait; margin: 8mm 10mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 15px; color: #0f172a; background: #fff; font-size: 11px; margin: 0; }
+            .no-print { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
+            .btn-print { padding: 8px 18px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
+            .btn-close { padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
+            .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; }
+            .header h1 { margin: 0; color: #0f766e; text-transform: uppercase; font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+            .header p { margin: 3px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
+            .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .stats-grid { display: flex; gap: 8px; margin-bottom: 12px; }
+            .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 8px; text-align: center; }
+            .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
+            .stat-card .val { font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 9.5px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
+            .badge { padding: 2px 6px; border-radius: 4px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; }
+            .badge-paid { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+            .badge-due { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; }
+            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
+            .sign { border-top: 1.5px solid #94a3b8; width: 150px; text-align: center; padding-top: 5px; }
+            @media print {
+              .no-print { display: none !important; }
+              body { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button class="btn-print" onclick="window.print()">🖨️ Direct Print</button>
+            <button class="btn-close" onclick="window.close()">✕ Close</button>
+          </div>
+          <div class="header">
+            <h1>YOSAFZE EGG TRADERS</h1>
+            <p>Vendor Purchase Statement &amp; Ledger (${vendor.products?.length || 0} Total Purchases)</p>
+          </div>
+          <div class="meta">
+            <div>
+              <strong>Vendor / Farm:</strong> ${vendor.name} ${vendor.phone ? `| 📞 ${vendor.phone}` : ''} ${vendor.location ? `| 📍 ${vendor.location}` : ''}
+            </div>
+            <div>
+              <strong>Date:</strong> ${new Date().toLocaleDateString('en-PK')}
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <label>Total Purchased</label>
+              <div class="val">Rs. ${fmt(vendor.totalCost)}</div>
+            </div>
+            <div class="stat-card">
+              <label style="color:#059669;">Total Paid</label>
+              <div class="val" style="color:#059669;">Rs. ${fmt(vendor.totalPaid)}</div>
+            </div>
+            <div class="stat-card">
+              <label style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Due Balance</label>
+              <div class="val" style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Rs. ${fmt(vendor.totalDue)}</div>
+            </div>
+            <div class="stat-card">
+              <label>Total Volume</label>
+              <div class="val" style="font-size:12px;">${vendor.totalPetis}P • ${vendor.totalTrays}T</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:25px; text-align:center;">#</th>
+                <th>Product / Date</th>
+                <th>Category</th>
+                <th style="text-align:center;">Volume (P/T/E)</th>
+                <th style="text-align:right;">Rate</th>
+                <th style="text-align:right;">Total Cost</th>
+                <th style="text-align:right;">Paid</th>
+                <th style="text-align:right;">Due</th>
+                <th style="text-align:center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          <div class="footer">
+            <div class="sign">Vendor Signature</div>
+            <div class="sign">Authorized Signature</div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() { window.print(); }, 150);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      try { printWin.print(); } catch (e) { console.error(e); }
+    }, 250);
+  };
+
+  const handlePrintVendor = (vendor) => {
+    if (!vendor) return;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.setTextColor(15, 118, 110);
+    doc.text(`YOSAFZE EGG TRADERS`, 14, 15);
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`VENDOR STATEMENT: ${vendor.name.toUpperCase()}`, 14, 23);
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Contact: ${vendor.phone || 'N/A'} | Location: ${vendor.location || 'N/A'} | Date: ${new Date().toLocaleDateString()}`, 14, 29);
+    doc.text(`Total Spend: Rs. ${Number(vendor.totalCost || 0).toLocaleString()} | Paid: Rs. ${Number(vendor.totalPaid || 0).toLocaleString()} | Due Balance: Rs. ${Number(vendor.totalDue || 0).toLocaleString()}`, 14, 35);
+
+    const tableBody = (vendor.products || []).map(p => [
+      p.name || 'Unnamed',
+      p.category || 'Eggs',
+      `${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T / ${p.eggQuantity || p.stock || 0}E`,
+      `Rs. ${(p.costPrice || p.price || 0).toLocaleString()}`,
+      `Rs. ${(p.costVal || p.totalPurchaseCost || 0).toLocaleString()}`,
+      `Rs. ${(p.paidVal !== undefined ? p.paidVal : (p.amountPaidToSupplier || 0)).toLocaleString()}`,
+      `Rs. ${(p.dueVal !== undefined ? p.dueVal : (p.dueAmountToSupplier || 0)).toLocaleString()}`,
+      p.paymentMethod || 'Cash'
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['Product', 'Category', 'Stock Volume', 'Unit Rate', 'Total Cost', 'Paid', 'Due Balance', 'Method']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8.5 }
+    });
+
+    doc.save(`Vendor_${vendor.name.replace(/\s+/g, '_')}_Statement.pdf`);
+  };
+
+  const handleWhatsAppVendor = (vendor) => {
+    if (!vendor) return;
+    const phoneClean = (vendor.phone || '').replace(/[^0-9]/g, '');
+    const targetPhone = phoneClean.startsWith('0') ? `92${phoneClean.slice(1)}` : phoneClean.startsWith('92') ? phoneClean : phoneClean;
+    
+    let msg = `*YOSAFZE EGG TRADERS - VENDOR STATEMENT*\n`;
+    msg += `*Vendor:* ${vendor.name}\n`;
+    if (vendor.location) msg += `*Location:* ${vendor.location}\n`;
+    msg += `*Date:* ${new Date().toLocaleDateString()}\n`;
+    msg += `--------------------------------\n`;
+    msg += `*Total Purchased Value:* Rs. ${Number(vendor.totalCost || 0).toLocaleString()}\n`;
+    msg += `*Total Paid Amount:* Rs. ${Number(vendor.totalPaid || 0).toLocaleString()}\n`;
+    msg += `*Current Due Balance:* Rs. ${Number(vendor.totalDue || 0).toLocaleString()}\n`;
+    msg += `--------------------------------\n`;
+    msg += `*Supplied Products:*\n`;
+    (vendor.products || []).forEach((p, idx) => {
+      msg += `${idx + 1}. ${p.name} - ${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T - Rs. ${(p.costVal || p.totalPurchaseCost || 0).toLocaleString()} (Due: Rs. ${(p.dueVal !== undefined ? p.dueVal : (p.dueAmountToSupplier || 0)).toLocaleString()})\n`;
+    });
+    msg += `\nThank you for your business!`;
+
+    const url = targetPhone 
+      ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleExportVendorCsv = (vendor) => {
+    if (!vendor) return;
+    const headers = ['Vendor Name', 'Phone', 'Location', 'Product Name', 'Category', 'Petis', 'Trays', 'Eggs', 'Unit Rate (Rs.)', 'Total Cost (Rs.)', 'Paid Amount (Rs.)', 'Due Amount (Rs.)', 'Payment Method'];
+    const rows = (vendor.products || []).map(p => [
+      `"${vendor.name.replace(/"/g, '""')}"`,
+      `"${(vendor.phone || '').replace(/"/g, '""')}"`,
+      `"${(vendor.location || '').replace(/"/g, '""')}"`,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${(p.category || '').replace(/"/g, '""')}"`,
+      p.petiQuantity || 0,
+      p.trayQuantity || 0,
+      p.eggQuantity || p.stock || 0,
+      p.costPrice || p.price || 0,
+      p.costVal || p.totalPurchaseCost || 0,
+      p.paidVal !== undefined ? p.paidVal : (p.amountPaidToSupplier || 0),
+      p.dueVal !== undefined ? p.dueVal : (p.dueAmountToSupplier || 0),
+      `"${(p.paymentMethod || 'Cash').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Vendor_${vendor.name.replace(/\s+/g, '_')}_Ledger.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // ── Quick Edit Single Purchase Modal Handlers ("che update kegi edit kegi am") ──
+  const handleStartQuickEditPurchase = (item) => {
+    if (!item) return;
+    const petis = Number(item.petiQuantity) || (item.stock ? Math.floor(Number(item.stock) / 360) : 0);
+    const trays = Number(item.trayQuantity) || (item.stock ? Math.floor((Number(item.stock) % 360) / 30) : 0);
+    const eggs = Number(item.eggQuantity) || (item.stock ? (Number(item.stock) % 30) : 0);
+    const unitCost = Number(item.costPrice) > 0 ? Number(item.costPrice) : Number(item.price || 0);
+    const cost = Number(item.costVal) > 0
+      ? Number(item.costVal)
+      : (Number(item.totalPurchaseCost) > 0 ? Number(item.totalPurchaseCost) : (petis > 0 ? petis * unitCost : (petis * 360 + trays * 30 + eggs) * (unitCost / 360)));
+    const paid = item.paidVal !== undefined ? Number(item.paidVal) : (Number(item.amountPaidToSupplier) || cost);
+    const due = item.dueVal !== undefined ? Number(item.dueVal) : Math.max(0, cost - paid);
+
+    setQuickEditPurchase({
+      isOpen: true,
+      item,
+      name: item.name || '',
+      category: item.category || 'Eggs',
+      petiQuantity: petis,
+      trayQuantity: trays,
+      eggQuantity: eggs,
+      costPrice: unitCost,
+      totalPurchaseCost: cost,
+      amountPaidToSupplier: paid,
+      dueAmountToSupplier: due,
+      paymentMethod: item.paymentMethod || 'Cash',
+      supplierName: item.supplierName || '',
+      supplierPhone: item.supplierPhone || '',
+      supplierLocation: item.supplierLocation || '',
+      notes: item.notes || '',
+      isSaving: false,
+      error: null,
+      successMsg: null,
+    });
+  };
+
+  const handleSaveQuickEditPurchase = async (e) => {
+    if (e) e.preventDefault();
+    if (!quickEditPurchase.item) return;
+
+    const itemId = quickEditPurchase.item._id || quickEditPurchase.item.id;
+    const petis = Number(quickEditPurchase.petiQuantity) || 0;
+    const trays = Number(quickEditPurchase.trayQuantity) || 0;
+    const eggs = Number(quickEditPurchase.eggQuantity) || 0;
+    const totalEggs = (petis * 360) + (trays * 30) + eggs;
+    const cost = Number(quickEditPurchase.totalPurchaseCost) || 0;
+    const paid = Number(quickEditPurchase.amountPaidToSupplier) || 0;
+    const due = Number(quickEditPurchase.dueAmountToSupplier) >= 0 ? Number(quickEditPurchase.dueAmountToSupplier) : Math.max(0, cost - paid);
+
+    setQuickEditPurchase(prev => ({ ...prev, isSaving: true, error: null, successMsg: null }));
+
+    try {
+      const payload = {
+        name: quickEditPurchase.name.trim(),
+        category: quickEditPurchase.category || 'Eggs',
+        petiQuantity: petis,
+        trayQuantity: trays,
+        eggQuantity: eggs,
+        stock: totalEggs > 0 ? totalEggs : (Number(quickEditPurchase.item.stock) || 0),
+        costPrice: Number(quickEditPurchase.costPrice) || 0,
+        price: Number(quickEditPurchase.item.price) || Number(quickEditPurchase.costPrice) || 0,
+        totalPurchaseCost: cost,
+        amountPaidToSupplier: paid,
+        dueAmountToSupplier: due,
+        paymentMethod: quickEditPurchase.paymentMethod,
+        supplierName: quickEditPurchase.supplierName.trim() || quickEditPurchase.item.supplierName,
+        supplierPhone: quickEditPurchase.supplierPhone.trim(),
+        supplierLocation: quickEditPurchase.supplierLocation.trim(),
+        notes: quickEditPurchase.notes || '',
+      };
+
+      await updateItem(itemId, payload, '', user?.role || 'super_admin');
+
+      // 1. Immediately store in local editedItemsMap so UI updates everywhere
+      const idKey = String(itemId);
+      setEditedItemsMap(prev => {
+        const next = new Map(prev);
+        const updatedEntry = { ...payload, costVal: cost, paidVal: paid, dueVal: due };
+        next.set(idKey, updatedEntry);
+        if (quickEditPurchase.item._id) next.set(String(quickEditPurchase.item._id), updatedEntry);
+        if (quickEditPurchase.item.id) next.set(String(quickEditPurchase.item.id), updatedEntry);
+        return next;
+      });
+
+      // 2. Update locally in apiProducts
+      setApiProducts(prev => prev.map(p => {
+        if (String(p._id) === idKey || String(p.id) === idKey || String(p.itemId) === idKey) {
+          return {
+            ...p,
+            ...payload,
+            costVal: cost,
+            paidVal: paid,
+            dueVal: due,
+          };
+        }
+        return p;
+      }));
+
+      // 3. Notify product context and parent onRefresh
+      if (productCtx?.fetchProducts) {
+        try { await productCtx.fetchProducts(); } catch (_) {}
+      }
+      if (onRefresh) {
+        try { await onRefresh(); } catch (_) {}
+      }
+
+      await reloadItems();
+      setQuickEditPurchase(prev => ({
+        ...prev,
+        isSaving: false,
+        successMsg: 'Purchase entry updated successfully in database!'
+      }));
+
+      setTimeout(() => {
+        setQuickEditPurchase(prev => ({ ...prev, isOpen: false, item: null, successMsg: null }));
+      }, 700);
+    } catch (err) {
+      console.error('Update purchase error:', err);
+      setQuickEditPurchase(prev => ({
+        ...prev,
+        isSaving: false,
+        error: err.response?.data?.message || err.message || 'Failed to update purchase entry'
+      }));
+    }
+  };
 
   // Print Purchases Report Handler
   // ── PDF Generator via jsPDF & autoTable ──
@@ -1056,90 +1594,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
           const hasDue = dueBalanceAmount > 0;
           const isPurchaseMenuOpen = openPurchaseMenu === item._id;
 
-          const handleDirectPrintPurchase = (pItem) => {
-            const printWin = window.open('', '_blank', 'width=900,height=800');
-            if (!printWin) {
-              alert('Please allow browser popups to print purchase receipt');
-              return;
-            }
-
-            const html = `
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Purchase Receipt - ${pItem.name || 'Stock Inward'}</title>
-                  <meta charset="utf-8" />
-                  <style>
-                    @page { size: portrait; margin: 8mm 10mm; }
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; margin: 0; }
-                    .no-print { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
-                    .btn-print { padding: 8px 18px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-                    .btn-close { padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-                    .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px; }
-                    .header h1 { margin: 0; color: #0f766e; font-size: 20px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-                    .header p { margin: 4px 0 0; color: #64748b; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
-                    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
-                    .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11.5px; }
-                    .row:last-child { margin-bottom: 0; }
-                    .label { color: #64748b; font-weight: bold; }
-                    .val { font-weight: 900; color: #0f172a; }
-                    .total-box { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px; margin-top: 15px; }
-                    .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; color: #64748b; }
-                    .sign { border-top: 1.5px solid #94a3b8; width: 150px; text-align: center; padding-top: 6px; }
-                    @media print {
-                      .no-print { display: none !important; }
-                      body { padding: 0; }
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="no-print">
-                    <button class="btn-print" onclick="window.print()">🖨️ Direct Print</button>
-                    <button class="btn-close" onclick="window.close()">✕ Close</button>
-                  </div>
-                  <div class="header">
-                    <h1>YOSAFZE EGG TRADERS</h1>
-                    <p>Purchase Invoice &amp; Stock Inward Voucher</p>
-                  </div>
-                  <div class="box">
-                    <div class="row"><span class="label">Product Name:</span><span class="val">${pItem.name || 'N/A'}</span></div>
-                    <div class="row"><span class="label">Category:</span><span class="val">${pItem.category || 'Eggs'}</span></div>
-                    <div class="row"><span class="label">Vendor / Supplier:</span><span class="val">${pItem.supplierName || 'Farm Vendor'}</span></div>
-                    ${pItem.supplierPhone ? `<div class="row"><span class="label">Vendor Contact:</span><span class="val">${pItem.supplierPhone}</span></div>` : ''}
-                    ${pItem.supplierLocation ? `<div class="row"><span class="label">Vendor Location:</span><span class="val">${pItem.supplierLocation}</span></div>` : ''}
-                    <div class="row"><span class="label">Purchase Date:</span><span class="val">${new Date(pItem.createdAt || Date.now()).toLocaleDateString('en-PK')}</span></div>
-                  </div>
-                  <div class="box">
-                    <div class="row"><span class="label">Stock Volume:</span><span class="val">${itemPetis} Petis (${itemTrays} Trays / ${Number(itemEggs).toLocaleString()} Eggs)</span></div>
-                    <div class="row"><span class="label">Unit Buy Cost:</span><span class="val">Rs. ${fmt(unitCost)}</span></div>
-                    <div class="row"><span class="label">Payment Method:</span><span class="val">${pMethod}</span></div>
-                  </div>
-                  <div class="total-box">
-                    <div class="row" style="font-size: 13px;"><span class="label" style="color: #166534;">Total Purchase Value:</span><span class="val" style="color: #166534;">Rs. ${fmt(costVal)}</span></div>
-                    <div class="row" style="font-size: 12px;"><span class="label" style="color: #059669;">Amount Paid:</span><span class="val" style="color: #059669;">Rs. ${fmt(paidAmount)}</span></div>
-                    <div class="row" style="font-size: 12px;"><span class="label" style="color: ${dueBalanceAmount > 0 ? '#e11d48' : '#64748b'};">Credit (Due) Balance:</span><span class="val" style="color: ${dueBalanceAmount > 0 ? '#e11d48' : '#64748b'};">Rs. ${fmt(dueBalanceAmount)}</span></div>
-                  </div>
-                  <div class="footer">
-                    <div class="sign">Supplier Signature</div>
-                    <div class="sign">Authorized Signature</div>
-                  </div>
-                  <script>
-                    window.onload = function() {
-                      setTimeout(function() { window.print(); }, 150);
-                    };
-                  </script>
-                </body>
-              </html>
-            `;
-
-            printWin.document.open();
-            printWin.document.write(html);
-            printWin.document.close();
-            printWin.focus();
-            setTimeout(() => {
-              try { printWin.print(); } catch (e) { console.error(e); }
-            }, 250);
-          };
+          const handleDirectPrintPurchase = (pItem) => handlePrintSinglePurchase(pItem);
 
           const handleWhatsAppPurchase = (pItem) => {
             const phoneClean = (pItem.supplierPhone || '').replace(/[^0-9]/g, '');
@@ -1359,9 +1814,9 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
                 <button
                   type="button"
-                  onClick={() => onEditProduct && onEditProduct(item)}
+                  onClick={() => handleStartQuickEditPurchase(item)}
                   className="py-1.5 px-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1 transition-all cursor-pointer shadow-sm"
-                  title="Edit Product"
+                  title="Edit Purchase Entry"
                 >
                   <Edit2 className="w-3 h-3 text-white" />
                   <span>Edit</span>
@@ -1411,6 +1866,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                    <th className="p-3 text-center w-12">#</th>
                     <th className="p-3">Vendor / Farm</th>
                     <th className="p-3">Contact &amp; Location</th>
                     <th className="p-3">Products Supplied</th>
@@ -1427,241 +1883,36 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                     const hasDue = v.totalDue > 0;
                     const isMenuOpen = openVendorMenu === vIdx;
 
-                    const handleDirectPrintVendor = (vendor) => {
-                      const printWin = window.open('', '_blank', 'width=900,height=800');
-                      if (!printWin) {
-                        alert('Please allow popups to print vendor statement');
-                        return;
-                      }
-
-                      const tableRows = vendor.products.map((p, idx) => {
-                        const petis = p.petiQuantity || 0;
-                        const trays = p.trayQuantity || 0;
-                        const eggs = p.eggQuantity || p.stock || 0;
-                        const rate = p.costPrice || p.price || 0;
-                        const cost = p.costVal || 0;
-                        const paid = p.paidVal || 0;
-                        const due = p.dueVal || 0;
-                        return `
-                          <tr>
-                            <td style="text-align:center;">${idx + 1}</td>
-                            <td><strong>${p.name || 'Unnamed Product'}</strong></td>
-                            <td>${p.category || 'Eggs'}</td>
-                            <td style="text-align:center;">${petis}P / ${trays}T / ${Number(eggs).toLocaleString()}E</td>
-                            <td style="text-align:right;">Rs. ${fmt(rate)}</td>
-                            <td style="text-align:right; font-weight:bold;">Rs. ${fmt(cost)}</td>
-                            <td style="text-align:right; color:#059669; font-weight:bold;">Rs. ${fmt(paid)}</td>
-                            <td style="text-align:right; color:${due > 0 ? '#e11d48' : '#64748b'}; font-weight:bold;">Rs. ${fmt(due)}</td>
-                            <td style="text-align:center;"><span class="badge ${due > 0 ? 'badge-due' : 'badge-paid'}">${due > 0 ? 'Credit Due' : 'Paid'}</span></td>
-                          </tr>
-                        `;
-                      }).join('');
-
-                      const html = `
-                        <!DOCTYPE html>
-                        <html>
-                          <head>
-                            <title>Vendor Statement - ${vendor.name}</title>
-                            <meta charset="utf-8" />
-                            <style>
-                              @page { size: portrait; margin: 8mm 10mm; }
-                              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 15px; color: #0f172a; background: #fff; font-size: 11px; margin: 0; }
-                              .no-print { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
-                              .btn-print { padding: 8px 18px; background: #0f766e; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-                              .btn-close { padding: 8px 18px; background: #64748b; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; }
-                              .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; }
-                              .header h1 { margin: 0; color: #0f766e; text-transform: uppercase; font-size: 18px; font-weight: 900; letter-spacing: 1px; }
-                              .header p { margin: 3px 0 0; color: #64748b; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; }
-                              .meta { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 800; margin-bottom: 10px; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
-                              .stats-grid { display: flex; gap: 8px; margin-bottom: 12px; }
-                              .stat-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 8px; text-align: center; }
-                              .stat-card label { font-size: 8px; font-weight: 900; color: #64748b; text-transform: uppercase; display: block; }
-                              .stat-card .val { font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px; }
-                              table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-                              th, td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 9.5px; text-align: left; }
-                              th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 8px; color: #475569; }
-                              .badge { padding: 2px 6px; border-radius: 4px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; }
-                              .badge-paid { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-                              .badge-due { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; }
-                              .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 8.5px; font-weight: 800; color: #64748b; }
-                              .sign { border-top: 1.5px solid #94a3b8; width: 150px; text-align: center; padding-top: 5px; }
-                              @media print {
-                                .no-print { display: none !important; }
-                                body { padding: 0; }
-                              }
-                            </style>
-                          </head>
-                          <body>
-                            <div class="no-print">
-                              <button class="btn-print" onclick="window.print()">🖨️ Direct Print</button>
-                              <button class="btn-close" onclick="window.close()">✕ Close</button>
-                            </div>
-                            <div class="header">
-                              <h1>YOSAFZE EGG TRADERS</h1>
-                              <p>Vendor Purchase Statement &amp; Ledger</p>
-                            </div>
-                            <div class="meta">
-                              <div>
-                                <strong>Vendor / Farm:</strong> ${vendor.name} ${vendor.phone ? `| 📞 ${vendor.phone}` : ''} ${vendor.location ? `| 📍 ${vendor.location}` : ''}
-                              </div>
-                              <div>
-                                <strong>Date:</strong> ${new Date().toLocaleDateString('en-PK')}
-                              </div>
-                            </div>
-                            <div class="stats-grid">
-                              <div class="stat-card">
-                                <label>Total Purchased</label>
-                                <div class="val">Rs. ${fmt(vendor.totalCost)}</div>
-                              </div>
-                              <div class="stat-card">
-                                <label style="color:#059669;">Total Paid</label>
-                                <div class="val" style="color:#059669;">Rs. ${fmt(vendor.totalPaid)}</div>
-                              </div>
-                              <div class="stat-card">
-                                <label style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Due Balance</label>
-                                <div class="val" style="color:${vendor.totalDue > 0 ? '#e11d48' : '#64748b'};">Rs. ${fmt(vendor.totalDue)}</div>
-                              </div>
-                            </div>
-                            <table>
-                              <thead>
-                                <tr>
-                                  <th style="width:25px; text-align:center;">#</th>
-                                  <th>Product Name</th>
-                                  <th>Category</th>
-                                  <th style="text-align:center;">Volume (P/T/E)</th>
-                                  <th style="text-align:right;">Rate</th>
-                                  <th style="text-align:right;">Total Cost</th>
-                                  <th style="text-align:right;">Paid</th>
-                                  <th style="text-align:right;">Due</th>
-                                  <th style="text-align:center;">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                ${tableRows}
-                              </tbody>
-                            </table>
-                            <div class="footer">
-                              <div class="sign">Vendor Signature</div>
-                              <div class="sign">Authorized Signature</div>
-                            </div>
-                            <script>
-                              window.onload = function() {
-                                setTimeout(function() { window.print(); }, 150);
-                              };
-                            </script>
-                          </body>
-                        </html>
-                      `;
-
-                      printWin.document.open();
-                      printWin.document.write(html);
-                      printWin.document.close();
-                      printWin.focus();
-                      setTimeout(() => {
-                        try { printWin.print(); } catch (e) { console.error(e); }
-                      }, 250);
-                    };
-
-                    const handlePrintVendor = (vendor) => {
-                      const doc = new jsPDF();
-                      doc.setFontSize(16);
-                      doc.setTextColor(15, 118, 110);
-                      doc.text(`YOSAFZE EGG TRADERS`, 14, 15);
-                      doc.setFontSize(12);
-                      doc.setTextColor(30, 41, 59);
-                      doc.text(`VENDOR STATEMENT: ${vendor.name.toUpperCase()}`, 14, 23);
-                      doc.setFontSize(9);
-                      doc.setTextColor(100, 116, 139);
-                      doc.text(`Contact: ${vendor.phone || 'N/A'} | Location: ${vendor.location || 'N/A'} | Date: ${new Date().toLocaleDateString()}`, 14, 29);
-                      doc.text(`Total Spend: Rs. ${vendor.totalCost.toLocaleString()} | Paid: Rs. ${vendor.totalPaid.toLocaleString()} | Due Balance: Rs. ${vendor.totalDue.toLocaleString()}`, 14, 35);
-
-                      const tableBody = vendor.products.map(p => [
-                        p.name || 'Unnamed',
-                        p.category || 'Eggs',
-                        `${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T / ${p.eggQuantity || p.stock || 0}E`,
-                        `Rs. ${(p.costPrice || p.price || 0).toLocaleString()}`,
-                        `Rs. ${(p.costVal || 0).toLocaleString()}`,
-                        `Rs. ${(p.paidVal || 0).toLocaleString()}`,
-                        `Rs. ${(p.dueVal || 0).toLocaleString()}`,
-                        p.paymentMethod || 'Cash'
-                      ]);
-
-                      autoTable(doc, {
-                        startY: 40,
-                        head: [['Product', 'Category', 'Stock Volume', 'Unit Rate', 'Total Cost', 'Paid', 'Due Balance', 'Method']],
-                        body: tableBody,
-                        theme: 'grid',
-                        headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
-                        styles: { fontSize: 8.5 }
-                      });
-
-                      doc.save(`Vendor_${vendor.name.replace(/\s+/g, '_')}_Statement.pdf`);
-                    };
-
-                    const handleWhatsAppVendor = (vendor) => {
-                      const phoneClean = (vendor.phone || '').replace(/[^0-9]/g, '');
-                      const targetPhone = phoneClean.startsWith('0') ? `92${phoneClean.slice(1)}` : phoneClean.startsWith('92') ? phoneClean : phoneClean;
-                      
-                      let msg = `*YOSAFZE EGG TRADERS - VENDOR STATEMENT*\n`;
-                      msg += `*Vendor:* ${vendor.name}\n`;
-                      if (vendor.location) msg += `*Location:* ${vendor.location}\n`;
-                      msg += `*Date:* ${new Date().toLocaleDateString()}\n`;
-                      msg += `--------------------------------\n`;
-                      msg += `*Total Purchased Value:* Rs. ${vendor.totalCost.toLocaleString()}\n`;
-                      msg += `*Total Paid Amount:* Rs. ${vendor.totalPaid.toLocaleString()}\n`;
-                      msg += `*Current Due Balance:* Rs. ${vendor.totalDue.toLocaleString()}\n`;
-                      msg += `--------------------------------\n`;
-                      msg += `*Supplied Products:*\n`;
-                      vendor.products.forEach((p, idx) => {
-                        msg += `${idx + 1}. ${p.name} - ${p.petiQuantity || 0}P / ${p.trayQuantity || 0}T - Rs. ${(p.costVal || 0).toLocaleString()} (Due: Rs. ${(p.dueVal || 0).toLocaleString()})\n`;
-                      });
-                      msg += `\nThank you for your business!`;
-
-                      const url = targetPhone 
-                        ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(msg)}`
-                        : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                      window.open(url, '_blank');
-                    };
-
-                    const handleExportVendorCsv = (vendor) => {
-                      const headers = ['Vendor Name', 'Phone', 'Location', 'Product Name', 'Category', 'Petis', 'Trays', 'Eggs', 'Unit Rate (Rs.)', 'Total Cost (Rs.)', 'Paid Amount (Rs.)', 'Due Amount (Rs.)', 'Payment Method'];
-                      const rows = vendor.products.map(p => [
-                        `"${vendor.name.replace(/"/g, '""')}"`,
-                        `"${(vendor.phone || '').replace(/"/g, '""')}"`,
-                        `"${(vendor.location || '').replace(/"/g, '""')}"`,
-                        `"${(p.name || '').replace(/"/g, '""')}"`,
-                        `"${(p.category || '').replace(/"/g, '""')}"`,
-                        p.petiQuantity || 0,
-                        p.trayQuantity || 0,
-                        p.eggQuantity || p.stock || 0,
-                        p.costPrice || p.price || 0,
-                        p.costVal || 0,
-                        p.paidVal || 0,
-                        p.dueVal || 0,
-                        `"${(p.paymentMethod || 'Cash').replace(/"/g, '""')}"`
-                      ]);
-
-                      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const link = document.createElement('a');
-                      link.setAttribute('href', url);
-                      link.setAttribute('download', `Vendor_${vendor.name.replace(/\s+/g, '_')}_Ledger.csv`);
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    };
-
                     return (
                       <tr key={vIdx} className="hover:bg-slate-50/90 transition-colors">
+                        <td className="p-3 text-center">
+                          <span className="w-6 h-6 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 font-mono font-black text-xs inline-flex items-center justify-center shadow-2xs">
+                            {vIdx + 1}
+                          </span>
+                        </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 bg-teal-50 border border-teal-200 rounded-lg flex items-center justify-center text-teal-700 font-black text-xs shrink-0">
+                            <div className="w-8 h-8 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-center text-teal-700 font-black text-xs shrink-0 shadow-sm">
                               {v.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <span className="font-black text-slate-900 block leading-tight">{v.name}</span>
-                              <span className="text-[9px] text-slate-400 font-medium">{v.products.length} purchase entry</span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedVendorName(v.name)}
+                                className="font-black text-slate-900 block leading-tight hover:text-teal-700 hover:underline text-left cursor-pointer transition-colors"
+                                title="Click to view all purchase invoices from this vendor"
+                              >
+                                {v.name}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedVendorName(v.name)}
+                                className="text-[9.5px] text-teal-800 font-black bg-teal-50 hover:bg-teal-100 px-1.5 py-0.5 rounded-lg border border-teal-200 mt-0.5 inline-flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                                title="Click to view dedicated purchase list for this vendor"
+                              >
+                                <FileText className="w-2.5 h-2.5 text-teal-600" />
+                                <span>{v.products.length} purchase{v.products.length > 1 ? 's' : ''} (View List)</span>
+                              </button>
                             </div>
                           </div>
                         </td>
@@ -1713,7 +1964,18 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                           )}
                         </td>
                         <td className="p-3 text-right relative">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Direct button to open dedicated vendor purchases list ("zanla list") */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedVendorName(v.name)}
+                              className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 hover:border-teal-300 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                              title="Open Vendor Dedicated Purchases List"
+                            >
+                              <FileText className="w-3 h-3 text-teal-600" />
+                              <span className="hidden sm:inline">Invoices ({v.products.length})</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => setOpenVendorMenu(isMenuOpen ? null : vIdx)}
@@ -1732,6 +1994,18 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                                 className="absolute right-3 top-10 w-56 bg-slate-900 border border-slate-700 text-white rounded-2xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 text-left"
                                 onMouseLeave={() => setOpenVendorMenu(null)}
                               >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedVendorName(v.name);
+                                    setOpenVendorMenu(null);
+                                  }}
+                                  className="w-full px-3 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-white/10 text-teal-300 transition-all cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                                  <span>📋 View All Purchases ({v.products.length})</span>
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2212,6 +2486,558 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                       <>
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── VENDOR DEDICATED PURCHASES & INVOICES MODAL ("zanla list") ─── */}
+      <AnimatePresence>
+        {selectedVendor && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl sm:max-w-4xl text-slate-800 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden my-auto"
+            >
+              {/* Modal Header */}
+              <div className="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-slate-50">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center font-black text-sm shadow-2xs shrink-0">
+                    {selectedVendor.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 truncate">
+                        {selectedVendor.name}
+                      </h3>
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                        {selectedVendor.products.length} Purchases
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[10.5px] text-slate-500 font-bold mt-0.5">
+                      {selectedVendor.phone && <span>📞 {selectedVendor.phone}</span>}
+                      {selectedVendor.location && <span>📍 {selectedVendor.location}</span>}
+                      <span>⏱️ Filter: {timeframe}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Header Action Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectPrintVendor(selectedVendor)}
+                    className="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                    title="Print Total Vendor Statement & Ledger"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-white" />
+                    <span>🖨️ Print Total</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintVendor(selectedVendor)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 border border-slate-200 transition-all cursor-pointer"
+                    title="Download PDF"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleWhatsAppVendor(selectedVendor)}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                    title="Share via WhatsApp"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportVendorCsv(selectedVendor)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1 border border-slate-200 transition-all cursor-pointer"
+                    title="Export CSV"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>CSV</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVendorName(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer ml-0.5"
+                    title="Close Modal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Vendor Summary Cards */}
+              <div className="px-4 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50/70 border-b border-slate-200">
+                <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Total Purchased</span>
+                  <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">Rs. {fmt(selectedVendor.totalCost)}</div>
+                  <span className="text-[8.5px] text-slate-400 block mt-0.5">{selectedVendor.products.length} purchase record(s)</span>
+                </div>
+
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 block">Total Paid</span>
+                  <div className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">Rs. {fmt(selectedVendor.totalPaid)}</div>
+                  <span className="text-[8.5px] text-emerald-600 block mt-0.5">Cleared Payments</span>
+                </div>
+
+                <div className={`rounded-xl p-2.5 border shadow-2xs ${selectedVendor.totalDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-white border-slate-200'}`}>
+                  <span className={`text-[9px] font-black uppercase tracking-wider block ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-500'}`}>Due Balance</span>
+                  <div className={`text-sm sm:text-base font-black mt-0.5 ${selectedVendor.totalDue > 0 ? 'text-rose-700' : 'text-slate-700'}`}>Rs. {fmt(selectedVendor.totalDue)}</div>
+                  <span className="text-[8.5px] text-slate-400 block mt-0.5">{selectedVendor.totalDue > 0 ? 'Pending credit' : 'All cleared'}</span>
+                </div>
+
+                <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 block">Total Volume</span>
+                  <div className="text-sm sm:text-base font-black text-amber-900 mt-0.5">{selectedVendor.totalPetis} <span className="text-[10px]">Petis</span></div>
+                  <span className="text-[8.5px] text-amber-700/80 block mt-0.5">{selectedVendor.totalTrays} Trays • {fmt(selectedVendor.totalEggs)} Eggs</span>
+                </div>
+              </div>
+
+              {/* Invoices List Table */}
+              <div className="p-3 sm:px-4 sm:py-3 flex-1 overflow-y-auto space-y-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                    Purchases &amp; Invoices List ({selectedVendor.products.length})
+                  </h4>
+                  <span className="text-[10px] text-teal-700 font-bold">
+                    💡 Click "Print" to print single purchase receipt, or "Edit" to update
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                          <th className="py-2 px-2 text-center w-9">#</th>
+                          <th className="py-2 px-2.5 text-left">Farm &amp; Product</th>
+                          <th className="py-2 px-2 text-center">Volume (P/T/E)</th>
+                          <th className="py-2 px-2 text-right">Unit Rate</th>
+                          <th className="py-2 px-2 text-right">Total Cost</th>
+                          <th className="py-2 px-2 text-right">Paid</th>
+                          <th className="py-2 px-2 text-right">Due</th>
+                          <th className="py-2 px-2 text-center">Payment</th>
+                          <th className="py-2 px-2 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
+                        {selectedVendor.products.map((p, idx) => {
+                          const petis = p.petiQuantity || (p.stock ? (p.stock / 360).toFixed(1) : 0);
+                          const trays = p.trayQuantity || (p.stock ? Math.round(p.stock / 30) : 0);
+                          const eggs = p.eggQuantity || p.stock || 0;
+                          const rate = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
+                          const cost = Number(p.costVal) || Number(p.totalPurchaseCost) || 0;
+                          const paid = Number(p.paidVal) !== undefined ? Number(p.paidVal) : (Number(p.amountPaidToSupplier) || 0);
+                          const due = Number(p.dueVal) !== undefined ? Number(p.dueVal) : (Number(p.dueAmountToSupplier) || 0);
+                          const pDate = new Date(p.createdAt || p.purchaseDate || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+
+                          return (
+                            <tr key={p._id || p.id || idx} className="hover:bg-slate-50/90 transition-colors">
+                              <td className="py-2 px-2 text-center">
+                                <span className="w-5 h-5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono font-black text-[10px] inline-flex items-center justify-center shadow-2xs">
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2.5 text-left">
+                                <div className="flex items-center gap-1 text-[11px] font-black text-teal-800">
+                                  <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                                  <span className="truncate">{p.supplierName || selectedVendor.name || 'Direct Farm'}</span>
+                                </div>
+                                <div className="font-bold text-slate-900 text-[11px] mt-0.5">{p.name || 'Stock Inward'}</div>
+                                <div className="text-[9px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                  <span>📅 {pDate}</span>
+                                  <span>•</span>
+                                  <span className="text-teal-700 font-black">{p.category || 'Eggs'}</span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-2 text-center text-[10.5px]">
+                                <span className="text-amber-700 font-black">{petis}P</span> •{' '}
+                                <span className="text-teal-700 font-black">{trays}T</span> •{' '}
+                                <span className="text-slate-500">{fmt(eggs)}E</span>
+                              </td>
+                              <td className="py-2 px-2 text-right font-black text-slate-700 text-xs">
+                                Rs. {fmt(rate)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-black text-slate-900 text-xs">
+                                Rs. {fmt(cost)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-black text-emerald-700 text-xs">
+                                Rs. {fmt(paid)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-black text-xs">
+                                <span className={due > 0 ? 'text-rose-600' : 'text-slate-400'}>
+                                  Rs. {fmt(due)}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2 text-center">
+                                <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-full text-[8.5px] font-black uppercase">
+                                  {p.paymentMethod || 'Cash'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {/* Single Print Receipt ("single single am print kegi") */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrintSinglePurchase(p)}
+                                    className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-[9.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                    title="Print Single Purchase Receipt"
+                                  >
+                                    <Printer className="w-3 h-3" />
+                                    <span>Print</span>
+                                  </button>
+
+                                  {/* Quick Edit ("che update kegi edit kegi am") */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartQuickEditPurchase(p)}
+                                    className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[9.5px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                    title="Edit Purchase Entry"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                    <span>Edit</span>
+                                  </button>
+
+                                  {/* Pay Due Credit */}
+                                  {due > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenSettleModal(p, due)}
+                                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                                      title="Pay Due Balance"
+                                    >
+                                      Pay Due
+                                    </button>
+                                  )}
+
+                                  {/* Del */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteClick(p)}
+                                    className="p-1 hover:bg-rose-50 text-rose-600 hover:text-rose-700 rounded-lg border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                                    title="Delete Purchase"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="text-[11px] text-slate-600 font-bold">
+                  Showing all <strong className="text-slate-900">{selectedVendor.products.length}</strong> purchase records for <strong className="text-teal-800">{selectedVendor.name}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedVendorName(null)}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── QUICK EDIT SINGLE PURCHASE MODAL ("che update kegi edit kegi am") ─── */}
+      <AnimatePresence>
+        {quickEditPurchase.isOpen && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white border border-slate-200 rounded-3xl p-6 max-w-xl w-full text-slate-800 shadow-2xl space-y-4 my-auto"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black uppercase tracking-tight text-slate-900">
+                      Edit Purchase Entry
+                    </h3>
+                    <p className="text-xs text-slate-500 font-bold">
+                      Update stock volume, buy rates, paid amount &amp; credit
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickEditPurchase(prev => ({ ...prev, isOpen: false, item: null }))}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {quickEditPurchase.error && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{quickEditPurchase.error}</span>
+                </div>
+              )}
+
+              {quickEditPurchase.successMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{quickEditPurchase.successMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveQuickEditPurchase} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Product / Batch Name */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Product / Batch Name <span className="text-amber-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={quickEditPurchase.name}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Payment Method */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Payment Method
+                    </label>
+                    <select
+                      value={quickEditPurchase.paymentMethod}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="JazzCash / EasyPaisa">JazzCash / EasyPaisa</option>
+                      <option value="Credit / Due">Credit / Due</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  </div>
+
+                  {/* Petis Quantity */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-amber-700 block">
+                      Petis Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.petiQuantity}
+                      onChange={e => {
+                        const pVal = e.target.value;
+                        setQuickEditPurchase(prev => {
+                          const newPetis = Number(pVal) || 0;
+                          const rate = Number(prev.costPrice) || 0;
+                          const autoCost = rate > 0 && newPetis > 0 ? Math.round(newPetis * rate) : prev.totalPurchaseCost;
+                          const paid = Number(prev.amountPaidToSupplier) || 0;
+                          return {
+                            ...prev,
+                            petiQuantity: pVal,
+                            totalPurchaseCost: autoCost,
+                            dueAmountToSupplier: Math.max(0, autoCost - paid),
+                          };
+                        });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-amber-800 focus:outline-none focus:border-amber-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Trays Quantity */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-teal-700 block">
+                      Trays Quantity
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.trayQuantity}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, trayQuantity: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-teal-800 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Unit Buy Rate */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Unit Buy Rate (Rs. / Peti)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.costPrice}
+                      onChange={e => {
+                        const rVal = e.target.value;
+                        setQuickEditPurchase(prev => {
+                          const rate = Number(rVal) || 0;
+                          const petis = Number(prev.petiQuantity) || 0;
+                          const autoCost = rate > 0 && petis > 0 ? Math.round(petis * rate) : prev.totalPurchaseCost;
+                          const paid = Number(prev.amountPaidToSupplier) || 0;
+                          return {
+                            ...prev,
+                            costPrice: rVal,
+                            totalPurchaseCost: autoCost,
+                            dueAmountToSupplier: Math.max(0, autoCost - paid),
+                          };
+                        });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Total Purchase Cost */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Total Purchase Cost (Rs.)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.totalPurchaseCost}
+                      onChange={e => {
+                        const cVal = e.target.value;
+                        setQuickEditPurchase(prev => {
+                          const cost = Number(cVal) || 0;
+                          const paid = Number(prev.amountPaidToSupplier) || 0;
+                          return {
+                            ...prev,
+                            totalPurchaseCost: cVal,
+                            dueAmountToSupplier: Math.max(0, cost - paid),
+                          };
+                        });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Amount Paid */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">
+                      Amount Paid (Rs.)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.amountPaidToSupplier}
+                      onChange={e => {
+                        const pVal = e.target.value;
+                        setQuickEditPurchase(prev => {
+                          const paid = Number(pVal) || 0;
+                          const cost = Number(prev.totalPurchaseCost) || 0;
+                          return {
+                            ...prev,
+                            amountPaidToSupplier: pVal,
+                            dueAmountToSupplier: Math.max(0, cost - paid),
+                          };
+                        });
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-emerald-800 focus:outline-none focus:border-emerald-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Due Balance */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">
+                      Due (Credit) Balance (Rs.)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={quickEditPurchase.dueAmountToSupplier}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, dueAmountToSupplier: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-rose-700 focus:outline-none focus:border-rose-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Supplier Phone */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Supplier Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={quickEditPurchase.supplierPhone}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, supplierPhone: e.target.value }))}
+                      placeholder="e.g. 03069578493"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Supplier Location */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 block">
+                      Farm / Supplier Location
+                    </label>
+                    <input
+                      type="text"
+                      value={quickEditPurchase.supplierLocation}
+                      onChange={e => setQuickEditPurchase(prev => ({ ...prev, supplierLocation: e.target.value }))}
+                      placeholder="e.g. Lahore, Peshawar"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-teal-500 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setQuickEditPurchase(prev => ({ ...prev, isOpen: false, item: null }))}
+                    disabled={quickEditPurchase.isSaving}
+                    className="py-2.5 px-4 rounded-xl border border-slate-300 text-xs font-black uppercase text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={quickEditPurchase.isSaving}
+                    className="py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-teal-600 hover:bg-teal-700 flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer font-bold"
+                  >
+                    {quickEditPurchase.isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Save Purchase</span>
                       </>
                     )}
                   </button>

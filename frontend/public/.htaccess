@@ -1,8 +1,17 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # Proxy /api and /uploads to production backend if mod_proxy is enabled
+  <IfModule mod_proxy.c>
+    RewriteRule ^api/(.*)$ https://api.yousafzaiagrifoods.com/api/$1 [P,L]
+    RewriteRule ^uploads/(.*)$ https://api.yousafzaiagrifoods.com/uploads/$1 [P,L]
+  </IfModule>
+
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteCond %{REQUEST_URI} !^/uploads/
   RewriteRule . /index.html [L]
 </IfModule>
