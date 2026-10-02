@@ -313,7 +313,7 @@ function CustomerAuthView({ shopInfo }) {
 // ─── Cart Drawer Component (Sleek Gray Theme with Smooth Transitions) ───────────────────────────────────────────────────
 function CartDrawer({ currency }) {
   const safeCurrency = (!currency || currency === '$') ? 'Rs.' : currency;
-  const { cart, cartOpen, setCartOpen, cartTotal, updateCartItem, updateCartItemUnit, removeFromCart, clearCart } = useCustomerAuth();
+  const { cart, cartOpen, setCartOpen, cartTotal, cartCount, updateCartItem, updateCartItemUnit, removeFromCart, clearCart } = useCustomerAuth();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (!cartOpen) return null;
@@ -334,7 +334,7 @@ function CartDrawer({ currency }) {
             <div>
               <h2 className="text-lg font-black text-white uppercase tracking-tight">Your Cart</h2>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider inline-block mt-0.5">
-                {cart.length} item{cart.length !== 1 ? 's' : ''}
+                {(cartCount || cart.reduce((s, i) => s + (Number(i.quantity) || 0), 0))} item{(cartCount || cart.length) !== 1 ? 's' : ''}
               </span>
             </div>
           </div>

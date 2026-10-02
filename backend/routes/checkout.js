@@ -57,14 +57,21 @@ router.post('/', authenticateCustomer, async (req, res) => {
 
     // Automatically record this online customer transaction into Sale collection
     try {
-      const saleItems = (customer.cart || []).map(item => ({
-        productId: item.productId || item._id || item.id,
-        name: item.name,
-        quantity: Number(item.quantity) || 1,
-        price: Number(item.price) || 0,
-        subtotal: (Number(item.price) || 0) * (Number(item.quantity) || 1),
-        profit: (Number(item.price) - Number(item.costPrice || 0)) * (Number(item.quantity) || 1)
-      }));
+      const saleItems = (customer.cart || []).map(item => {
+        const qty = Number(item.quantity) || 1;
+        const pr = Number(item.price) || 0;
+        const cp = Number(item.costPrice || 0);
+        return {
+          productId: item.productId || item.itemId || item._id || item.id,
+          name: item.name,
+          unit: item.unit || 'egg',
+          quantity: qty,
+          price: pr,
+          costPrice: cp,
+          subtotal: pr * qty,
+          profit: (pr - cp) * qty
+        };
+      });
 
       await Sale.create({
         shopId,
@@ -325,17 +332,24 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
         }
 
         if (dbItem) {
-          // Deduct stock safely
+          // Deduct stock safely based on quantity and unit
           const qty = Number(item.quantity) || 1;
-          dbItem.stock = Math.max(0, dbItem.stock - qty);
+          const unit = String(item.unit || 'egg').toLowerCase();
+          const tPerPeti = Number(dbItem.traysPerPeti) || 12;
+          const ePerTray = Number(dbItem.eggsPerTray) || 30;
+          const ePerPeti = tPerPeti * ePerTray;
+          const unitMultiplier = unit === 'peti' ? ePerPeti : unit === 'tray' ? ePerTray : 1;
+          const totalEggs = qty * unitMultiplier;
+
+          dbItem.stock = Math.max(0, (Number(dbItem.stock) || 0) - totalEggs);
           if (dbItem.unitType === 'peti') {
-            dbItem.petiQuantity = Math.max(0, (dbItem.petiQuantity || 0) - qty);
+            dbItem.petiQuantity = Math.max(0, (Number(dbItem.petiQuantity) || 0) - (unit === 'peti' ? qty : (totalEggs / ePerPeti)));
           } else if (dbItem.unitType === 'tray') {
-            dbItem.trayQuantity = Math.max(0, (dbItem.trayQuantity || 0) - qty);
+            dbItem.trayQuantity = Math.max(0, (Number(dbItem.trayQuantity) || 0) - (unit === 'tray' ? qty : (totalEggs / ePerTray)));
           } else if (dbItem.unitType === 'egg') {
-            dbItem.eggQuantity = Math.max(0, (dbItem.eggQuantity || 0) - qty);
+            dbItem.eggQuantity = Math.max(0, (Number(dbItem.eggQuantity) || 0) - totalEggs);
           } else if ((dbItem.petiQuantity || 0) > 0) {
-            dbItem.petiQuantity = Math.max(0, dbItem.petiQuantity - qty);
+            dbItem.petiQuantity = Math.max(0, dbItem.petiQuantity - (unit === 'peti' ? qty : (totalEggs / ePerPeti)));
           }
           dbItem.lastUpdated = new Date().toISOString().split('T')[0];
           await dbItem.save();

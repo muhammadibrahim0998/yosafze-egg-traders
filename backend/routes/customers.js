@@ -157,20 +157,38 @@ router.post('/cart', authenticateCustomer, async (req, res) => {
     const cleanName = item.name.replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
 
     const customer = req.customer;
-    const existing = customer.cart.find(c => c.itemId.toString() === itemId && (c.unit || 'egg') === unit);
+    if (!Array.isArray(customer.cart)) {
+      customer.cart = [];
+    }
+    const targetUnit = unit || 'egg';
+    const addQty = Math.max(1, Number(quantity) || 1);
+    const existing = customer.cart.find(c => String(c.itemId) === String(itemId) && (c.unit || 'egg') === targetUnit);
     if (existing) {
-      existing.quantity += quantity;
+      existing.quantity = (Number(existing.quantity) || 0) + addQty;
       existing.price = finalPrice;
     } else {
       customer.cart.push({
         itemId: item._id,
         name: `${cleanName} (${unitLabel})`,
-        unit: unit,
+        unit: targetUnit,
         price: finalPrice,
         image: item.images?.[0] || '',
-        quantity
+        quantity: addQty
       });
     }
+
+    // Merge any existing duplicate cart entries
+    const mergedCart = [];
+    for (const c of customer.cart) {
+      const match = mergedCart.find(m => String(m.itemId) === String(c.itemId) && (m.unit || 'egg') === (c.unit || 'egg'));
+      if (match) {
+        match.quantity = (Number(match.quantity) || 0) + (Number(c.quantity) || 0);
+      } else {
+        mergedCart.push(c);
+      }
+    }
+    customer.cart = mergedCart;
+
     await customer.save();
     res.json({ success: true, cart: customer.cart });
   } catch (err) {
@@ -183,15 +201,16 @@ router.put('/cart/:itemId', authenticateCustomer, async (req, res) => {
   try {
     const { quantity, unit, newUnit } = req.body;
     const customer = req.customer;
+    if (!Array.isArray(customer.cart)) customer.cart = [];
     const currentUnit = unit || 'egg';
-    const cartItem = customer.cart.find(c => c.itemId.toString() === req.params.itemId && (c.unit || 'egg') === currentUnit);
+    const cartItem = customer.cart.find(c => String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit);
     if (!cartItem) return res.status(404).json({ message: 'Item not in cart' });
 
     if (quantity !== undefined) {
       if (quantity <= 0) {
-        customer.cart = customer.cart.filter(c => !(c.itemId.toString() === req.params.itemId && (c.unit || 'egg') === currentUnit));
+        customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit));
       } else {
-        cartItem.quantity = quantity;
+        cartItem.quantity = Number(quantity);
       }
     }
 
@@ -223,10 +242,10 @@ router.put('/cart/:itemId', authenticateCustomer, async (req, res) => {
         const cleanName = item.name.replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
 
         // Check if item with newUnit already exists in cart, merge if so
-        const existingNewUnitItem = customer.cart.find(c => c.itemId.toString() === req.params.itemId && (c.unit || 'egg') === newUnit);
+        const existingNewUnitItem = customer.cart.find(c => String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === newUnit);
         if (existingNewUnitItem) {
-          existingNewUnitItem.quantity += cartItem.quantity;
-          customer.cart = customer.cart.filter(c => !(c.itemId.toString() === req.params.itemId && (c.unit || 'egg') === currentUnit));
+          existingNewUnitItem.quantity = (Number(existingNewUnitItem.quantity) || 0) + (Number(cartItem.quantity) || 1);
+          customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit));
         } else {
           cartItem.unit = newUnit;
           cartItem.price = unitPrice;
@@ -246,11 +265,12 @@ router.put('/cart/:itemId', authenticateCustomer, async (req, res) => {
 router.delete('/cart/:itemId', authenticateCustomer, async (req, res) => {
   try {
     const customer = req.customer;
+    if (!Array.isArray(customer.cart)) customer.cart = [];
     const { unit } = req.query;
     if (unit) {
-      customer.cart = customer.cart.filter(c => !(c.itemId.toString() === req.params.itemId && (c.unit || 'egg') === unit));
+      customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === unit));
     } else {
-      customer.cart = customer.cart.filter(c => c.itemId.toString() !== req.params.itemId);
+      customer.cart = customer.cart.filter(c => String(c.itemId) !== String(req.params.itemId));
     }
     await customer.save();
     res.json({ success: true, cart: customer.cart });
