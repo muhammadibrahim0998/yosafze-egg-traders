@@ -339,6 +339,9 @@ export class BaseModel {
     const sql = `INSERT INTO \`${targetTable}\` (${cols}) VALUES (${placeholders})`;
     const [result] = await pool.query(sql, vals);
     const newId = result.insertId || cleanData[this.primaryKey];
+    if (this.isBranchEntity && shopId) {
+      return await this.findOne({ [this.primaryKey]: newId, shopId });
+    }
     return await this.findById(newId);
   }
 
