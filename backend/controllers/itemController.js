@@ -645,6 +645,16 @@ const getVendors = async (req, res) => {
   }
 };
 
+// Helper to inspect table columns dynamically so queries never fail on missing optional columns (e.g. farmLocation on live DB)
+const getVendorTableColumns = async (tableName) => {
+  try {
+    const [cols] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+    return new Set(cols.map(c => c.Field.toLowerCase()));
+  } catch (e) {
+    return new Set(['id', 'shopid', 'name', 'phone', 'location', 'status']);
+  }
+};
+
 // @desc    Create a new Vendor for a specific branch
 const createVendor = async (req, res) => {
   try {
@@ -664,6 +674,9 @@ const createVendor = async (req, res) => {
     const vEmail = (email || '').trim();
     const vNotes = (notes || '').trim();
 
+    // Dynamically check columns to support all live & local database schemas
+    const cols = await getVendorTableColumns(targetTable);
+
     // Check if vendor already exists in this branch's vendor table
     const [existing] = await pool.query(
       `SELECT * FROM \`${targetTable}\` WHERE LOWER(name) = LOWER(?)`,
@@ -671,34 +684,116 @@ const createVendor = async (req, res) => {
     );
 
     if (existing.length > 0) {
-      await pool.query(
-        `UPDATE \`${targetTable}\` 
-         SET phone = COALESCE(NULLIF(?, ''), phone),
-             location = COALESCE(NULLIF(?, ''), location),
-             farmLocation = COALESCE(NULLIF(?, ''), farmLocation),
-             email = COALESCE(NULLIF(?, ''), email),
-             notes = COALESCE(NULLIF(?, ''), notes),
-             updatedAt = NOW()
-         WHERE id = ?`,
-        [vPhone, vLoc, vLoc, vEmail, vNotes, existing[0].id]
-      );
+      const updates = [];
+      const values = [];
+
+      if (cols.has('phone')) {
+        updates.push("phone = COALESCE(NULLIF(?, ''), phone)");
+        values.push(vPhone);
+      }
+      if (cols.has('location')) {
+        updates.push("location = COALESCE(NULLIF(?, ''), location)");
+        values.push(vLoc);
+      }
+      if (cols.has('farmlocation')) {
+        updates.push("farmLocation = COALESCE(NULLIF(?, ''), farmLocation)");
+        values.push(vLoc);
+      }
+      if (cols.has('email')) {
+        updates.push("email = COALESCE(NULLIF(?, ''), email)");
+        values.push(vEmail);
+      }
+      if (cols.has('notes')) {
+        updates.push("notes = COALESCE(NULLIF(?, ''), notes)");
+        values.push(vNotes);
+      }
+      if (cols.has('updatedat')) {
+        updates.push("updatedAt = NOW()");
+      }
+
+      if (updates.length > 0) {
+        values.push(existing[0].id);
+        await pool.query(
+          `UPDATE \`${targetTable}\` SET ${updates.join(', ')} WHERE id = ?`,
+          values
+        );
+      }
+
       const [updated] = await pool.query(`SELECT * FROM \`${targetTable}\` WHERE id = ?`, [existing[0].id]);
+      const resVendor = updated[0] || {};
+      resVendor.farmLocation = resVendor.farmLocation || resVendor.location || vLoc;
+      resVendor.location = resVendor.location || vLoc;
       return res.status(200).json({
         message: 'Vendor already exists in this branch and details updated',
-        vendor: updated[0]
+        vendor: resVendor
       });
     }
 
+    const insertCols = ['name'];
+    const insertPlaceholders = ['?'];
+    const insertVals = [vName];
+
+    if (cols.has('shopid')) {
+      insertCols.push('shopId');
+      insertPlaceholders.push('?');
+      insertVals.push(targetShopId);
+    }
+    if (cols.has('phone')) {
+      insertCols.push('phone');
+      insertPlaceholders.push('?');
+      insertVals.push(vPhone);
+    }
+    if (cols.has('location')) {
+      insertCols.push('location');
+      insertPlaceholders.push('?');
+      insertVals.push(vLoc);
+    }
+    if (cols.has('farmlocation')) {
+      insertCols.push('farmLocation');
+      insertPlaceholders.push('?');
+      insertVals.push(vLoc);
+    }
+    if (cols.has('email')) {
+      insertCols.push('email');
+      insertPlaceholders.push('?');
+      insertVals.push(vEmail);
+    }
+    if (cols.has('notes')) {
+      insertCols.push('notes');
+      insertPlaceholders.push('?');
+      insertVals.push(vNotes);
+    }
+    if (cols.has('status')) {
+      insertCols.push('status');
+      insertPlaceholders.push("'active'");
+    }
+    if (cols.has('isactive')) {
+      insertCols.push('isActive');
+      insertPlaceholders.push("1");
+    }
+    if (cols.has('createdat')) {
+      insertCols.push('createdAt');
+      insertPlaceholders.push("NOW()");
+    }
+    if (cols.has('updatedat')) {
+      insertCols.push('updatedAt');
+      insertPlaceholders.push("NOW()");
+    }
+
     const [result] = await pool.query(
-      `INSERT INTO \`${targetTable}\` (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
-      [targetShopId, vName, vPhone, vLoc, vLoc, vEmail, vNotes]
+      `INSERT INTO \`${targetTable}\` (${insertCols.map(c => `\`${c}\``).join(', ')})
+       VALUES (${insertPlaceholders.join(', ')})`,
+      insertVals
     );
 
     const [newVendor] = await pool.query(`SELECT * FROM \`${targetTable}\` WHERE id = ?`, [result.insertId]);
+    const resVendor = newVendor[0] || {};
+    resVendor.farmLocation = resVendor.farmLocation || resVendor.location || vLoc;
+    resVendor.location = resVendor.location || vLoc;
+
     return res.status(201).json({
       message: 'Vendor created successfully in branch',
-      vendor: newVendor[0]
+      vendor: resVendor
     });
   } catch (error) {
     console.error('[createVendor error]', error);
@@ -735,23 +830,50 @@ const updateVendor = async (req, res) => {
 
       // 1. Update/Upsert in branch vendors table
       try {
+        const vCols = await getVendorTableColumns(vTable);
         const [existingVendors] = await pool.query(
           `SELECT * FROM \`${vTable}\` WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)`,
           [currentName, newName]
         );
 
         if (existingVendors.length > 0) {
-          await pool.query(
-            `UPDATE \`${vTable}\` 
-             SET name = ?, phone = ?, location = ?, farmLocation = ?, email = COALESCE(?, email), notes = COALESCE(?, notes), updatedAt = NOW() 
-             WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)`,
-            [newName, newPhone, newLocation, newLocation, email || null, notes || null, currentName, newName]
-          );
+          const upCols = [];
+          const upVals = [];
+          if (vCols.has('name')) { upCols.push('name = ?'); upVals.push(newName); }
+          if (vCols.has('phone')) { upCols.push('phone = ?'); upVals.push(newPhone); }
+          if (vCols.has('location')) { upCols.push('location = ?'); upVals.push(newLocation); }
+          if (vCols.has('farmlocation')) { upCols.push('farmLocation = ?'); upVals.push(newLocation); }
+          if (vCols.has('email')) { upCols.push('email = COALESCE(?, email)'); upVals.push(email || null); }
+          if (vCols.has('notes')) { upCols.push('notes = COALESCE(?, notes)'); upVals.push(notes || null); }
+          if (vCols.has('updatedat')) { upCols.push('updatedAt = NOW()'); }
+
+          if (upCols.length > 0) {
+            upVals.push(currentName, newName);
+            await pool.query(
+              `UPDATE \`${vTable}\` SET ${upCols.join(', ')} WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)`,
+              upVals
+            );
+          }
         } else if (targetShopId) {
+          const insCols = ['name'];
+          const insPlaceholders = ['?'];
+          const insVals = [newName];
+
+          if (vCols.has('shopid')) { insCols.push('shopId'); insPlaceholders.push('?'); insVals.push(targetShopId); }
+          if (vCols.has('phone')) { insCols.push('phone'); insPlaceholders.push('?'); insVals.push(newPhone); }
+          if (vCols.has('location')) { insCols.push('location'); insPlaceholders.push('?'); insVals.push(newLocation); }
+          if (vCols.has('farmlocation')) { insCols.push('farmLocation'); insPlaceholders.push('?'); insVals.push(newLocation); }
+          if (vCols.has('email')) { insCols.push('email'); insPlaceholders.push('?'); insVals.push(email || ''); }
+          if (vCols.has('notes')) { insCols.push('notes'); insPlaceholders.push('?'); insVals.push(notes || ''); }
+          if (vCols.has('status')) { insCols.push('status'); insPlaceholders.push("'active'"); }
+          if (vCols.has('isactive')) { insCols.push('isActive'); insPlaceholders.push("1"); }
+          if (vCols.has('createdat')) { insCols.push('createdAt'); insPlaceholders.push("NOW()"); }
+          if (vCols.has('updatedat')) { insCols.push('updatedAt'); insPlaceholders.push("NOW()"); }
+
           await pool.query(
-            `INSERT INTO \`${vTable}\` (shopId, name, phone, location, farmLocation, email, notes, status, createdAt, updatedAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())`,
-            [targetShopId, newName, newPhone, newLocation, newLocation, email || '', notes || '']
+            `INSERT INTO \`${vTable}\` (${insCols.map(c => `\`${c}\``).join(', ')})
+             VALUES (${insPlaceholders.join(', ')})`,
+            insVals
           );
         }
       } catch (vErr) {
@@ -762,9 +884,9 @@ const updateVendor = async (req, res) => {
       try {
         await pool.query(
           `UPDATE \`${iTable}\` 
-           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, farmLocation = ?, updatedAt = NOW() 
+           SET supplierName = ?, supplierPhone = ?, supplierLocation = ?, updatedAt = NOW() 
            WHERE supplierName = ? OR supplierName = ?`,
-          [newName, newPhone, newLocation, newLocation, currentName, newName]
+          [newName, newPhone, newLocation, currentName, newName]
         );
       } catch (_) {}
 
