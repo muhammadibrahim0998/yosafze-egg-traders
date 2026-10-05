@@ -387,5 +387,27 @@ export const deleteOrderProof = async (orderId) => {
   return response.data;
 };
 
+// --- FUEL & VEHICLE EXPENSES API ---
+export const getFuelExpenses = async (shopId) => {
+  const url = shopId ? `/fuel-expenses/shop/${shopId}` : '/fuel-expenses';
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const createFuelExpense = async (data, shopId) => {
+  const url = shopId ? `/fuel-expenses/shop/${shopId}` : '/fuel-expenses';
+  const response = await api.post(url, data);
+  return response.data;
+};
+
+export const updateFuelExpense = async (id, data) => {
+  const response = await api.put(`/fuel-expenses/${id}`, data);
+  return response.data;
+};
+
+export const deleteFuelExpense = async (id) => {
+  const response = await api.delete(`/fuel-expenses/${id}`);
+  return response.data;
+};
 
 export default api;

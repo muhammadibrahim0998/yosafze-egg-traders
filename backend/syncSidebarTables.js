@@ -114,6 +114,41 @@ async function syncAllSidebarTables() {
     `);
     console.log('✅ 4. Created/Verified table: purchase_credits');
 
+    // 5. Fuel & Vehicle Expenses Tables for all branches
+    const fuelBranchPrefixes = ['peshawar_branch', 'mardan_branch', 'attock_branch'];
+    for (const pfx of fuelBranchPrefixes) {
+      const fuelTable = `${pfx}__fuel_expenses`;
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS \`${fuelTable}\` (
+          \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+          \`shopId\` INT NOT NULL DEFAULT 1,
+          \`vehicleNo\` VARCHAR(100) NOT NULL,
+          \`vehicleName\` VARCHAR(150) NULL,
+          \`driverName\` VARCHAR(150) NULL,
+          \`driverPhone\` VARCHAR(50) NULL,
+          \`purpose\` VARCHAR(255) DEFAULT 'Stock Purchase Transport',
+          \`fuelType\` VARCHAR(50) DEFAULT 'Diesel',
+          \`liters\` DECIMAL(10,2) DEFAULT 0.00,
+          \`ratePerLiter\` DECIMAL(10,2) DEFAULT 0.00,
+          \`totalAmount\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          \`paymentMethod\` VARCHAR(50) DEFAULT 'CASH',
+          \`paidAmount\` DECIMAL(12,2) DEFAULT 0.00,
+          \`dueAmount\` DECIMAL(12,2) DEFAULT 0.00,
+          \`petrolPump\` VARCHAR(255) NULL,
+          \`odometerReading\` VARCHAR(50) NULL,
+          \`expenseDate\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          \`notes\` TEXT NULL,
+          \`createdBy\` VARCHAR(255) DEFAULT 'Shop Admin',
+          \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          KEY \`idx_fuel_shopId\` (\`shopId\`),
+          KEY \`idx_fuel_date\` (\`expenseDate\`),
+          KEY \`idx_fuel_vehicle\` (\`vehicleNo\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      console.log(`✅ 5. Created/Verified table: ${fuelTable}`);
+    }
+
     // Synchronize data from existing items into vendors, purchases, and purchase_credits
     const [items] = await pool.query('SELECT * FROM items');
     for (const it of items) {

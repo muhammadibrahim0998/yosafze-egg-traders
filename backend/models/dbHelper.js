@@ -30,7 +30,8 @@ const BRANCH_ENTITIES = new Set([
   'orders',
   'easypaisa',
   'profit_reports',
-  'vendors'
+  'vendors',
+  'fuel_expenses'
 ]);
 
 const rawBranchPrefixes = {

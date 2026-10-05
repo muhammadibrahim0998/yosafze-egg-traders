@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertCircle, Sparkles, UserCircle2, Store,
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
-  Truck, Edit2, Edit, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box, MoreVertical,
+  Truck, Fuel, Edit2, Edit, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box, MoreVertical,
   BarChart3, PieChart
 } from 'lucide-react';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
@@ -27,11 +27,12 @@ import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
 import { VendorsManagement } from './VendorsManagement.jsx';
 import { CreditManagement } from '../components/CreditManagement.jsx';
+import { FuelReportManagement } from '../components/FuelReportManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { CustomerCharts } from '../components/CustomerCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -718,6 +719,7 @@ function StoreContent({ shopId }) {
       // Parallel fast fetch of all financial records for real-time instant dashboard sync
       fetchShopSales();
       fetchExpenses();
+      fetchFuelExpenses();
       fetchDamagedProducts();
       fetchRegisteredCustomers();
       fetchDashboardStats();
@@ -726,7 +728,7 @@ function StoreContent({ shopId }) {
 
   useEffect(() => {
     if (!isAdminUser) {
-      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'analytics-charts', 'customer-credits', 'purchase-credits'];
+      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'report-fuel', 'analytics-charts', 'customer-credits', 'purchase-credits'];
       if (adminOnlyViews.includes(activeView)) {
         setActiveView('products');
       }
@@ -737,8 +739,9 @@ function StoreContent({ shopId }) {
       fetchRegisteredCustomers();
       fetchCatalog();
     }
-    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard' || activeView === 'purchase-credits') {
+    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard' || activeView === 'purchase-credits' || activeView === 'report-fuel' || activeView === 'report-profit') {
       fetchExpenses();
+      fetchFuelExpenses();
       fetchDamagedProducts();
     }
   }, [activeView, isAdminUser]);
@@ -3294,6 +3297,39 @@ function StoreContent({ shopId }) {
     return parsed;
   };
 
+  // ─── Dynamic Vehicle & Transport Fuel Expenses State ───
+  const [fuelExpensesList, setFuelExpensesList] = useState([]);
+
+  const fetchFuelExpenses = async () => {
+    if (!shopId) return [];
+    try {
+      const res = await getFuelExpenses(shopId);
+      if (res?.success && Array.isArray(res.data)) {
+        const normalized = res.data.map(item => ({
+          ...item,
+          id: item.id !== undefined && item.id !== null ? item.id : item._id
+        }));
+        setFuelExpensesList(normalized);
+        localStorage.setItem(`yosafze_fuel_records_${shopId}`, JSON.stringify(normalized));
+        return normalized;
+      }
+    } catch (e) {
+      console.error('Fetch fuel expenses error:', e);
+    }
+    const local = localStorage.getItem(`yosafze_fuel_records_${shopId}`);
+    const parsed = local ? JSON.parse(local) : [];
+    setFuelExpensesList(parsed);
+    return parsed;
+  };
+
+  useEffect(() => {
+    const handleFuelUpdate = () => {
+      fetchFuelExpenses();
+    };
+    window.addEventListener('yosafze_fuel_updated', handleFuelUpdate);
+    return () => window.removeEventListener('yosafze_fuel_updated', handleFuelUpdate);
+  }, [shopId]);
+
   const handleEditExpense = (exp) => {
     setEditingExpenseId(exp._id);
     const pSource = String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK') ? 'BANK' : 'CASH';
@@ -4040,6 +4076,15 @@ function StoreContent({ shopId }) {
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
+    // 4b. Filter Vehicle Fuel Expenses for active timeframe / date range
+    const filteredFuelExpenses = (fuelExpensesList || []).filter(f => {
+      if (!f) return false;
+      const fDate = new Date(f.expenseDate || f.createdAt || f.date || 0);
+      return isDateInSelectedRange(fDate);
+    });
+
+    const totalFuelExpense = filteredFuelExpenses.reduce((sum, f) => sum + (Number(f.totalAmount) || 0), 0);
+
     // 5. Filter Damaged Stock Logs for active timeframe / date range
     const filteredDamaged = (damagedProductsList || []).filter(d => {
       if (!d) return false;
@@ -4054,14 +4099,25 @@ function StoreContent({ shopId }) {
       totalDamagedEggs += Number(d.quantity) || 1;
     });
 
-    // 6. Final Realized Net Profit (Revenue - Purchases - Expenses - Damaged Loss)
+    // Gross Sales Revenue before fuel deduction
+    const grossRevenue = totalRevenue;
+    // Minus fuel expense from total sales as requested ("da fuel expens da total sale na minus ka")
+    const netSalesAfterFuel = Math.max(0, grossRevenue - totalFuelExpense);
+    const finalSalesRevenue = netSalesAfterFuel;
+
+    // 6. Final Realized Net Profit (Net Revenue - Purchases - Shop Overhead - Damaged Loss)
     const finalNetProfit = totalPurchasesCost > 0
-      ? (totalRevenue - totalPurchasesCost - totalExpenses - totalDamagedLoss)
-      : (grossProfit - totalExpenses - totalDamagedLoss);
+      ? (finalSalesRevenue - totalPurchasesCost - totalExpenses - totalDamagedLoss)
+      : (grossProfit - totalFuelExpense - totalExpenses - totalDamagedLoss);
 
     return {
       grossProfit,
-      totalRevenue,
+      grossRevenue,
+      totalRevenue: finalSalesRevenue,
+      netSalesAfterFuel,
+      totalFuelExpense,
+      filteredFuelCount: filteredFuelExpenses.length,
+      filteredFuelExpenses,
       totalPurchasesCost,
       totalPurchasesPetis,
       totalPurchasesTrays,
@@ -4087,7 +4143,7 @@ function StoreContent({ shopId }) {
       filteredExpenses,
       filteredDamaged
     };
-  }, [unifiedSalesList, shopSalesList, items, expensesList, damagedProductsList, reportTimeframe, appliedStartDate, appliedEndDate, dashStats]);
+  }, [unifiedSalesList, shopSalesList, items, expensesList, damagedProductsList, fuelExpensesList, reportTimeframe, appliedStartDate, appliedEndDate, dashStats]);
 
   // ─── Live Dynamic Breakdown Hooks for 100% Real-time Dashboard Accuracy ───
   const salesLiveBreakdown = useMemo(() => {
@@ -6078,6 +6134,7 @@ function StoreContent({ shopId }) {
   useEffect(() => { fetchCatalog(); }, [shopId, search, activeCategory]);
   useEffect(() => {
     fetchExpenses();
+    fetchFuelExpenses();
     fetchDamagedProducts();
     fetchDashboardStats();
     const timer = setInterval(fetchDashboardStats, 8000);
@@ -6478,6 +6535,17 @@ function StoreContent({ shopId }) {
                   </button>
 
                   <button
+                    onClick={() => { setActiveView('report-fuel'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-fuel'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
+                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                      }`}
+                  >
+                    <Truck className="w-4 h-4 text-cyan-400 group-hover:text-zinc-950 transition-colors" />
+                    <span className="truncate">Fuel &amp; Vehicle</span>
+                  </button>
+
+                  <button
                     onClick={() => { setActiveView('analytics-charts'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'analytics-charts'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
@@ -6657,10 +6725,10 @@ function StoreContent({ shopId }) {
                           </div>
                         </div>
 
-                        {/* ─── 5 FINAL RESULT CARDS IN EXACT SEQUENCE (GRAY & WHITE THEME) ─── */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 relative z-10">
+                        {/* ─── 6 FINAL RESULT CARDS IN EXACT SEQUENCE (GRAY & WHITE THEME) ─── */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 relative z-10">
                           
-                          {/* 1. TOTAL SALE */}
+                          {/* 1. TOTAL SALE (NET AFTER MINUSING FUEL EXPENSE) */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-1.5">
@@ -6676,17 +6744,46 @@ function StoreContent({ shopId }) {
                                 Rs. {(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                               </h3>
                               <p className="text-[10px] text-emerald-700 font-bold mt-1">
-                                🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales
+                                {(profitReportStats.totalFuelExpense || 0) > 0 ? (
+                                  <span>Gross: Rs. {(profitReportStats.grossRevenue || 0).toLocaleString('en-PK')} &bull; <span className="text-rose-600 font-black">(-Rs. {(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')} Fuel)</span></span>
+                                ) : (
+                                  <span>🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales</span>
+                                )}
                               </p>
                             </div>
                           </div>
 
-                          {/* 2. TOTAL EXPENSE */}
+                          {/* 2. TOTAL FUEL EXPENSE (FROM FUEL REPORT PAGE) */}
+                          <div 
+                            onClick={() => setActiveView('report-fuel')}
+                            className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Vehicle Fuel Management"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1.5">
+                                <Fuel className="w-3.5 h-3.5 text-amber-600" />
+                                2. Fuel Expense
+                              </span>
+                              <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0 group-hover:bg-amber-200 transition-colors">
+                                <Truck className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div>
+                              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                Rs. {(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}
+                              </h3>
+                              <p className="text-[10px] text-amber-700 font-bold mt-1">
+                                ⛽ {profitReportStats.filteredFuelCount || 0} Logs &bull; Deducted from Sales
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 3. TOTAL EXPENSE */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-rose-50/50 border-2 border-rose-200 hover:border-rose-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-rose-700 flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5 text-rose-600" />
-                                2. Total Expense
+                                3. Shop Expense
                               </span>
                               <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 shrink-0">
                                 <TrendingDown className="w-4 h-4" />
@@ -6702,12 +6799,12 @@ function StoreContent({ shopId }) {
                             </div>
                           </div>
 
-                          {/* 3. TOTAL DAMAGED PRODUCT */}
+                          {/* 4. TOTAL DAMAGED PRODUCT */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1.5">
                                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                                3. Total Damaged
+                                4. Total Damaged
                               </span>
                               <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
                                 <AlertCircle className="w-4 h-4" />
@@ -6723,12 +6820,12 @@ function StoreContent({ shopId }) {
                             </div>
                           </div>
 
-                          {/* 4. TOTAL PROFIT */}
+                          {/* 5. TOTAL PROFIT */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-100/70 border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 flex items-center gap-1.5">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                4. Total Profit
+                                5. Total Profit
                               </span>
                               <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                                 <TrendingUp className="w-4 h-4" />
@@ -6744,12 +6841,12 @@ function StoreContent({ shopId }) {
                             </div>
                           </div>
 
-                          {/* 5. TOTAL LOSS */}
+                          {/* 6. TOTAL LOSS */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-rose-100/70 border-2 border-rose-300 hover:border-rose-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-rose-800 flex items-center gap-1.5">
                                 <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
-                                5. Total Loss
+                                6. Total Loss
                               </span>
                               <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                                 <AlertTriangle className="w-4 h-4" />
@@ -11416,6 +11513,16 @@ function StoreContent({ shopId }) {
 
                   </div>
                 </div>
+              )}
+
+              {/* ─── FUEL & VEHICLE EXPENSES VIEW ─── */}
+              {activeView === 'report-fuel' && isAdminUser && (
+                <FuelReportManagement
+                  shopId={shopId}
+                  shop={shop}
+                  user={user}
+                  onRecordsChange={(records) => setFuelExpensesList(records)}
+                />
               )}
 
               {/* ─── 4. CHARTS & ANALYTICS DEDICATED VIEW FOR SHOP ADMIN ─── */}

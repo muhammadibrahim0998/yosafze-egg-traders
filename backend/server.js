@@ -25,6 +25,7 @@ import checkoutRoutes from './routes/checkout.js';
 import expensesRoutes from './routes/expenses.js';
 import damagedProductsRoutes from './routes/damagedProducts.js';
 import vendorsRoutes from './routes/vendors.js';
+import fuelExpensesRoutes from './routes/fuelExpenses.js';
 
 dotenv.config();
 
@@ -91,6 +92,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/damaged-products', damagedProductsRoutes);
 app.use('/api/vendors', vendorsRoutes);
+app.use('/api/fuel-expenses', fuelExpensesRoutes);
 
 // Root route
 app.get('/', (req, res) => {
