@@ -17,7 +17,9 @@ import {
   Trash2,
   Users,
   List,
-  LayoutGrid
+  LayoutGrid,
+  Calendar,
+  Filter
 } from 'lucide-react';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
@@ -34,6 +36,37 @@ export function VendorsManagement({ shopId: propShopId }) {
   const [filterType, setFilterType] = useState('ALL'); // ALL, WITH_PHONE, WITH_LOCATION
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [loading, setLoading] = useState(false);
+  const [vendorStartDate, setVendorStartDate] = useState('');
+  const [vendorEndDate, setVendorEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handleApplyDateFilter = (startVal = vendorStartDate, endVal = vendorEndDate) => {
+    setAppliedStartDate(startVal);
+    setAppliedEndDate(endVal);
+  };
+
+  const handleClearDateFilter = () => {
+    setVendorStartDate('');
+    setVendorEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+  };
+
+  const isDateInSelectedRange = (rawDate) => {
+    if (!rawDate) return false;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return false;
+    if (appliedStartDate) {
+      const s = new Date(appliedStartDate + 'T00:00:00');
+      if (d < s) return false;
+    }
+    if (appliedEndDate) {
+      const e = new Date(appliedEndDate + 'T23:59:59.999');
+      if (d > e) return false;
+    }
+    return true;
+  };
 
   // Add Vendor Modal State
   const [addVendorModal, setAddVendorModal] = useState({
@@ -223,6 +256,9 @@ export function VendorsManagement({ shopId: propShopId }) {
   // Filtered vendors
   const filteredVendors = useMemo(() => {
     return vendors.filter(v => {
+      if (appliedStartDate || appliedEndDate) {
+        if (!isDateInSelectedRange(v.createdAt)) return false;
+      }
       const vName = (v.name || '').toLowerCase();
       const vPhone = (v.phone || '').toLowerCase();
       const vLoc = (v.location || v.farmLocation || '').toLowerCase();
@@ -239,7 +275,7 @@ export function VendorsManagement({ shopId: propShopId }) {
 
       return true;
     });
-  }, [vendors, searchTerm, filterType]);
+  }, [vendors, searchTerm, filterType, appliedStartDate, appliedEndDate]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -331,6 +367,52 @@ export function VendorsManagement({ shopId: propShopId }) {
             placeholder="Search vendor name, phone, city, notes..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-teal-600 focus:bg-white transition-all"
           />
+        </div>
+
+        {/* Calendar Date Range Filter */}
+        <div className="flex items-center flex-wrap gap-1.5 p-1 rounded-xl border border-slate-200 bg-slate-50 shadow-sm text-slate-800 shrink-0">
+          <div className="flex items-center gap-1 pl-1">
+            <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Start:</span>
+            <input
+              type="date"
+              value={vendorStartDate}
+              onChange={(e) => setVendorStartDate(e.target.value)}
+              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-slate-300 bg-white text-slate-900 focus:border-teal-500 cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">End:</span>
+            <input
+              type="date"
+              value={vendorEndDate}
+              onChange={(e) => setVendorEndDate(e.target.value)}
+              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-slate-300 bg-white text-slate-900 focus:border-teal-500 cursor-pointer"
+            />
+          </div>
+          <button
+            onClick={() => handleApplyDateFilter()}
+            className="px-2.5 py-1 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 active:scale-95 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+            title="Filter vendors by date range"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filter</span>
+          </button>
+          {(appliedStartDate || appliedEndDate || vendorStartDate || vendorEndDate) && (
+            <button
+              onClick={handleClearDateFilter}
+              className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0"
+              title="Clear date filter"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear</span>
+            </button>
+          )}
+          {(appliedStartDate || appliedEndDate) && (
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-teal-50 text-teal-700 border border-teal-300 whitespace-nowrap">
+              Active: {appliedStartDate && appliedEndDate ? `${appliedStartDate} to ${appliedEndDate}` : (appliedStartDate ? `From ${appliedStartDate}` : `Up to ${appliedEndDate}`)}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto justify-between sm:justify-end">

@@ -33,13 +33,48 @@ const BRANCH_ENTITIES = new Set([
   'vendors'
 ]);
 
-export const BRANCH_TABLE_PREFIXES = {
+const rawBranchPrefixes = {
   1: 'peshawar_branch',
   2: 'mardan_branch',
-  3: 'attock_branch'
+  3: 'attock_branch',
+  4: 'peshawar_branch'
 };
 
+export const BRANCH_TABLE_PREFIXES = new Proxy(rawBranchPrefixes, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    const num = Number(prop);
+    if (!isNaN(num) && num in target) return target[num];
+    if (typeof prop === 'string' || typeof prop === 'number') {
+      const s = String(prop).toLowerCase();
+      if (s.includes('mardan')) return 'mardan_branch';
+      if (s.includes('attock')) return 'attock_branch';
+      return 'peshawar_branch';
+    }
+    return target[prop];
+  }
+});
+
 export const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_branch'];
+
+export const refreshBranchPrefixes = async () => {
+  try {
+    const [shops] = await pool.query('SELECT id, name FROM shops');
+    for (const s of shops) {
+      const name = (s.name || '').toLowerCase();
+      if (name.includes('mardan')) {
+        rawBranchPrefixes[s.id] = 'mardan_branch';
+      } else if (name.includes('attock')) {
+        rawBranchPrefixes[s.id] = 'attock_branch';
+      } else {
+        rawBranchPrefixes[s.id] = 'peshawar_branch';
+      }
+    }
+  } catch (_) {}
+};
+
+// Initial background sync from DB
+refreshBranchPrefixes();
 
 /**
  * Base Model Helper for MySQL

@@ -22,6 +22,8 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   const customerPhone = bill.customerPhone || '';
   const items = bill.items || [];
   const totalAmount = bill.totalAmount || 0;
+  const discountAmount = Number(bill.discount) || 0;
+  const subtotalAmount = Number(bill.subtotal) || (totalAmount + discountAmount);
   const shopName = shop?.name || 'Yosafze Egg Traders';
   const shopAddress = shop?.address || '';
   const shopPhone = shop?.phone || '';
@@ -505,8 +507,35 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
       return;
     }
 
+    let totalItemsQty = 0;
+    let totalPetis = 0;
+    let totalTrays = 0;
+    let totalEggs = 0;
+
     let itemsHtml = items.map((item, idx) => {
       const d = getItemBreakdownDetails(item);
+      const qty = Number(item.quantity) || 1;
+      totalItemsQty += qty;
+
+      const tPerPeti = Number(item.traysPerPeti) || 12;
+      const ePerTray = Number(item.eggsPerTray) || 30;
+      const ePerPeti = tPerPeti * ePerTray;
+      const unit = String(item.unit || item.selectedUnit || d.unit || '').toLowerCase();
+
+      if (unit === 'peti') {
+        totalPetis += qty;
+        totalTrays += qty * tPerPeti;
+        totalEggs += qty * ePerPeti;
+      } else if (unit === 'tray') {
+        totalPetis += qty / tPerPeti;
+        totalTrays += qty;
+        totalEggs += qty * ePerTray;
+      } else {
+        totalPetis += qty / ePerPeti;
+        totalTrays += qty / ePerTray;
+        totalEggs += qty;
+      }
+
       return `
       <tr>
         <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">${idx + 1}</td>
@@ -525,6 +554,10 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
     `;
     }).join('');
 
+    const displayPetis = (totalPetis % 1 === 0 ? totalPetis : totalPetis.toFixed(2)).toLocaleString('en-PK');
+    const displayTrays = (totalTrays % 1 === 0 ? totalTrays : totalTrays.toFixed(1)).toLocaleString('en-PK');
+    const displayEggs = Math.round(totalEggs).toLocaleString('en-PK');
+
     printWin.document.write(`
       <!DOCTYPE html>
       <html>
@@ -539,10 +572,18 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             .serial-tag { background: #047857; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 900; }
             table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
             th { background: #f1f5f9; text-transform: uppercase; font-weight: 900; font-size: 10px; color: #475569; padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left; }
-            .total-bar { margin-top: 16px; padding: 12px 16px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 10px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px; color: #047857; }
+            .breakdown-box { margin-top: 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; }
+            .breakdown-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; margin-top: 8px; }
+            .breakdown-card { border-radius: 8px; padding: 8px; }
+            .total-bar { margin-top: 16px; padding: 12px 16px; background: #ecfdf5; border: 2px solid #a7f3d0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
+            .total-bar .tot-lbl { font-weight: 900; font-size: 13px; color: #047857; }
+            .total-bar .tot-val { font-weight: 900; font-size: 16px; color: #047857; }
             .bank-info { margin-top: 12px; padding: 10px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 10px; color: #92400e; font-weight: bold; }
             .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; }
             .sign { border-top: 2px solid #cbd5e1; width: 180px; text-align: center; padding-top: 6px; }
+            @media print {
+              .breakdown-box, .breakdown-card, .total-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
           </style>
         </head>
         <body>
@@ -581,11 +622,52 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             <tbody>
               ${itemsHtml}
             </tbody>
+            <tfoot>
+              <tr style="background:#f1f5f9; font-weight:900; border-top:2px solid #0f172a;">
+                <td colspan="2" style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right; font-size:11px; text-transform:uppercase; color:#0f172a;">Total Items &amp; Qty:</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:center; font-size:12px; color:#059669; font-weight:900;">${totalItemsQty}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right; font-size:10px; color:#64748b; font-weight:800;">${items.length} Product${items.length > 1 ? 's' : ''}</td>
+                <td style="padding:8px 10px; border:1px solid #cbd5e1; text-align:right; font-size:12px; color:#047857; font-weight:900;">${currency} ${totalAmount.toLocaleString('en-PK')}</td>
+              </tr>
+            </tfoot>
           </table>
 
+          <div class="breakdown-box">
+            <div style="font-size:10px; font-weight:900; color:#475569; text-transform:uppercase; letter-spacing:1px; display:flex; justify-content:space-between; align-items:center;">
+              <span>📊 TOTAL GOODS &amp; QUANTITY DETAILS</span>
+              <span style="color:#059669; font-size:10px; font-weight:800;">${items.length} Product${items.length > 1 ? 's' : ''} (${totalItemsQty} Total Quantity)</span>
+            </div>
+            <div class="breakdown-grid">
+              <div class="breakdown-card" style="border:1px solid #fde68a; background:#fefce8;">
+                <div style="font-size:9px; font-weight:900; color:#92400e; text-transform:uppercase;">📦 Total Petis / Items</div>
+                <div style="font-size:16px; font-weight:900; color:#78350f; margin-top:2px;">${displayPetis} <span style="font-size:9.5px; color:#92400e;">PETIS</span></div>
+              </div>
+              <div class="breakdown-card" style="border:1px solid #bfdbfe; background:#eff6ff;">
+                <div style="font-size:9px; font-weight:900; color:#1d4ed8; text-transform:uppercase;">🍱 Total Trays</div>
+                <div style="font-size:16px; font-weight:900; color:#1e40af; margin-top:2px;">${displayTrays} <span style="font-size:9.5px; color:#1d4ed8;">TRAYS</span></div>
+              </div>
+              <div class="breakdown-card" style="border:1px solid #bbf7d0; background:#f0fdf4;">
+                <div style="font-size:9px; font-weight:900; color:#15803d; text-transform:uppercase;">🥚 Total Single Eggs</div>
+                <div style="font-size:16px; font-weight:900; color:#166534; margin-top:2px;">${displayEggs} <span style="font-size:9.5px; color:#15803d;">EGGS</span></div>
+              </div>
+            </div>
+          </div>
+
+          ${discountAmount > 0 ? `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 14px; background:#fffbeb; border:1px dashed #f59e0b; border-radius:8px; margin-bottom:8px; font-size:12px; font-weight:800; color:#b45309;">
+            <span>🏷️ SPECIAL DISCOUNT APPLIED:</span>
+            <span>- ${currency} ${discountAmount.toLocaleString('en-PK')}</span>
+          </div>
+          ` : ''}
+
           <div class="total-bar">
-            <span>GRAND TOTAL AMOUNT PAID:</span>
-            <span>${currency} ${totalAmount.toLocaleString('en-PK')}</span>
+            <div>
+              <div class="tot-lbl">${discountAmount > 0 ? 'NET FINAL BILL AMOUNT:' : 'GRAND TOTAL AMOUNT PAID:'}</div>
+              <div style="font-size:10px; color:#047857; font-weight:700; margin-top:2px;">
+                TOTAL GOODS: ${displayPetis} PETIS • ${displayTrays} TRAYS • ${displayEggs} SINGLE EGGS
+              </div>
+            </div>
+            <span class="tot-val">${currency} ${totalAmount.toLocaleString('en-PK')}</span>
           </div>
 
           <div class="footer">
@@ -732,8 +814,24 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
               </tbody>
             </table>
             <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 space-y-2">
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between items-center text-xs text-slate-400">
+                    <span className="font-bold uppercase tracking-wider text-[11px]">Subtotal:</span>
+                    <span className="font-black text-slate-200">{currency} {subtotalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-amber-400">
+                    <span className="font-bold uppercase tracking-wider text-[11px] flex items-center gap-1">
+                      <span>🏷️</span> Discount:
+                    </span>
+                    <span className="font-black">- {currency} {discountAmount.toLocaleString()}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total Amount</span>
+                <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
+                  {discountAmount > 0 ? 'Net Final Amount' : 'Grand Total Amount'}
+                </span>
                 <span className="text-xl font-black text-emerald-400">{currency} {totalAmount.toLocaleString()}</span>
               </div>
               {Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0) && (

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Package, Eye, Trash2, CheckCircle2, Clock, X, RefreshCw, Printer,
-  Truck, Home, XCircle, CreditCard, MapPin, Phone, User as UserIcon
+  Truck, Home, XCircle, CreditCard, MapPin, Phone, User as UserIcon,
+  Calendar, Filter
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useProducts } from '../contexts/ProductContext';
@@ -33,6 +34,37 @@ export function OrdersManagement({ shopId = null }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [orderStartDate, setOrderStartDate] = useState('');
+  const [orderEndDate, setOrderEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handleApplyDateFilter = (startVal = orderStartDate, endVal = orderEndDate) => {
+    setAppliedStartDate(startVal);
+    setAppliedEndDate(endVal);
+  };
+
+  const handleClearDateFilter = () => {
+    setOrderStartDate('');
+    setOrderEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+  };
+
+  const isDateInSelectedRange = (rawDate) => {
+    if (!rawDate) return false;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return false;
+    if (appliedStartDate) {
+      const s = new Date(appliedStartDate + 'T00:00:00');
+      if (d < s) return false;
+    }
+    if (appliedEndDate) {
+      const e = new Date(appliedEndDate + 'T23:59:59.999');
+      if (d > e) return false;
+    }
+    return true;
+  };
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -193,6 +225,11 @@ export function OrdersManagement({ shopId = null }) {
     printWin.document.close();
   };
 
+  const displayedOrders = useMemo(() => {
+    if (!appliedStartDate && !appliedEndDate) return orders;
+    return orders.filter(ord => isDateInSelectedRange(ord.createdAt || ord.orderDate));
+  }, [orders, appliedStartDate, appliedEndDate]);
+
   return (
     <div className="bg-[var(--color-surface-card)] rounded-xl border border-[var(--color-border-subtle)] shadow-sm p-6 overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-700 space-y-6">
       {/* Header */}
@@ -201,7 +238,7 @@ export function OrdersManagement({ shopId = null }) {
           <h3 className="text-2xl font-black text-[var(--color-text-primary)] tracking-tighter flex items-center gap-3 uppercase">
             Customer EasyPaisa & Orders Verification
             <span className="text-[9px] font-black bg-emerald-600/10 text-emerald-500 px-2.5 py-0.5 rounded-full border border-emerald-600/20 uppercase tracking-widest">
-              {orders.length} Orders
+              {displayedOrders.length} Orders
             </span>
           </h3>
           <div className="text-[10px] text-[var(--color-text-muted)] font-black uppercase tracking-[0.2em]">
@@ -210,6 +247,52 @@ export function OrdersManagement({ shopId = null }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Calendar Date Range Filter */}
+          <div className="flex items-center flex-wrap gap-1.5 p-1 rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-base)] shadow-sm">
+            <div className="flex items-center gap-1 pl-1">
+              <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-muted)]">Start:</span>
+              <input
+                type="date"
+                value={orderStartDate}
+                onChange={(e) => setOrderStartDate(e.target.value)}
+                className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] text-[var(--color-text-primary)] focus:border-emerald-500 cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-muted)]">End:</span>
+              <input
+                type="date"
+                value={orderEndDate}
+                onChange={(e) => setOrderEndDate(e.target.value)}
+                className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] text-[var(--color-text-primary)] focus:border-emerald-500 cursor-pointer"
+              />
+            </div>
+            <button
+              onClick={() => handleApplyDateFilter()}
+              className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+              title="Filter orders by date range"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filter</span>
+            </button>
+            {(appliedStartDate || appliedEndDate || orderStartDate || orderEndDate) && (
+              <button
+                onClick={handleClearDateFilter}
+                className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+            )}
+            {(appliedStartDate || appliedEndDate) && (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 whitespace-nowrap">
+                Active: {appliedStartDate && appliedEndDate ? `${appliedStartDate} to ${appliedEndDate}` : (appliedStartDate ? `From ${appliedStartDate}` : `Up to ${appliedEndDate}`)}
+              </span>
+            )}
+          </div>
+
           <select
             value={paymentFilter}
             onChange={(e) => setPaymentFilter(e.target.value)}
@@ -248,15 +331,15 @@ export function OrdersManagement({ shopId = null }) {
 
       {loading ? (
         <div className="py-20 text-center text-slate-400 font-bold">Loading shop orders and payment receipts...</div>
-      ) : orders.length === 0 ? (
+      ) : displayedOrders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-[var(--color-surface-base)] rounded-3xl border-2 border-dashed border-[var(--color-border-subtle)] text-center space-y-3">
           <Package className="w-12 h-12 text-zinc-300" />
-          <p className="text-lg font-black text-[var(--color-text-primary)] uppercase tracking-tighter">No Orders Placed Yet</p>
-          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Customer orders for your shop will appear here</p>
+          <p className="text-lg font-black text-[var(--color-text-primary)] uppercase tracking-tighter">No Orders Found</p>
+          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">{appliedStartDate || appliedEndDate ? 'No orders found matching the selected date range' : 'Customer orders for your shop will appear here'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {orders.map((ord) => (
+          {displayedOrders.map((ord) => (
             <div key={ord._id || ord.id} className="bg-[var(--color-surface-base)] border border-[var(--color-border-subtle)] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-3 flex-wrap">

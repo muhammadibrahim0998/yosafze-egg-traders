@@ -569,6 +569,150 @@ function StoreContent({ shopId }) {
     } catch (e) { }
   }, [activeView]);
 
+  const [dateFromFilter, setDateFromFilter] = useState('2026-08-01');
+  const [dateToFilter, setDateToFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [reportTimeframe, setReportTimeframe] = useState('ALL'); // 'DAY', 'MONTH', 'YEAR', 'ALL', 'CUSTOM'
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handleApplyDateFilter = (startVal = reportStartDate, endVal = reportEndDate) => {
+    setAppliedStartDate(startVal);
+    setAppliedEndDate(endVal);
+    if (startVal || endVal) {
+      setReportTimeframe('CUSTOM');
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setReportStartDate('');
+    setReportEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+    setReportTimeframe('ALL');
+  };
+
+  const isDateInSelectedRange = (rawDate) => {
+    if (!rawDate) return false;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return false;
+
+    if (appliedStartDate || appliedEndDate) {
+      if (appliedStartDate) {
+        const s = new Date(appliedStartDate + 'T00:00:00');
+        if (d < s) return false;
+      }
+      if (appliedEndDate) {
+        const e = new Date(appliedEndDate + 'T23:59:59.999');
+        if (d > e) return false;
+      }
+      return true;
+    }
+
+    if (reportTimeframe === 'DAY') {
+      const now = new Date();
+      return d.toDateString() === now.toDateString() || d.toISOString().split('T')[0] === now.toISOString().split('T')[0];
+    }
+    if (reportTimeframe === 'MONTH') {
+      const now = new Date();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (reportTimeframe === 'YEAR') {
+      const now = new Date();
+      return d.getFullYear() === now.getFullYear();
+    }
+
+    return true;
+  };
+
+  const getActivePeriodLabel = () => {
+    if (appliedStartDate && appliedEndDate) {
+      if (appliedStartDate === appliedEndDate) return `Date: ${appliedStartDate}`;
+      return `${appliedStartDate} to ${appliedEndDate}`;
+    }
+    if (appliedStartDate) return `From ${appliedStartDate}`;
+    if (appliedEndDate) return `Up to ${appliedEndDate}`;
+    if (reportTimeframe === 'DAY') return 'Today';
+    if (reportTimeframe === 'MONTH') return 'This Month';
+    if (reportTimeframe === 'YEAR') return 'This Year';
+    return 'All-Time Records';
+  };
+
+  const renderCalendarFilter = (variant = 'dark') => {
+    const isDark = variant === 'dark';
+    return (
+      <div className={`flex items-center flex-wrap gap-1.5 p-1 rounded-xl border transition-all ${
+        isDark 
+          ? 'bg-slate-900/95 border-slate-700/80 shadow-md text-white' 
+          : 'bg-white border-slate-200/90 shadow-sm text-slate-800'
+      }`}>
+        <div className="flex items-center gap-1">
+          <Calendar className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+          <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Start:
+          </span>
+          <input
+            type="date"
+            value={reportStartDate}
+            onChange={(e) => setReportStartDate(e.target.value)}
+            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${
+              isDark 
+                ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500' 
+                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+            }`}
+          />
+        </div>
+
+        <div className="flex items-center gap-1">
+          <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            End:
+          </span>
+          <input
+            type="date"
+            value={reportEndDate}
+            onChange={(e) => setReportEndDate(e.target.value)}
+            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${
+              isDark 
+                ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500' 
+                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+            }`}
+          />
+        </div>
+
+        <button
+          onClick={() => handleApplyDateFilter()}
+          className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+          title="Filter by start and end date"
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>Filter</span>
+        </button>
+
+        {(appliedStartDate || appliedEndDate || reportStartDate || reportEndDate) && (
+          <button
+            onClick={handleClearDateFilter}
+            className={`px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0 ${
+              isDark 
+                ? 'bg-rose-950/50 text-rose-300 hover:bg-rose-900/60 border border-rose-700/50' 
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+            }`}
+            title="Clear date filter and show all"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Clear</span>
+          </button>
+        )}
+
+        {(appliedStartDate || appliedEndDate) && (
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+            Active: {getActivePeriodLabel()}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => {
     if (isAdminUser && shopId) {
       // Parallel fast fetch of all financial records for real-time instant dashboard sync
@@ -610,6 +754,7 @@ function StoreContent({ shopId }) {
   const [walkInPartialDestination, setWalkInPartialDestination] = useState('CASH'); // 'CASH' | 'BANK'
   const [walkInTransactionId, setWalkInTransactionId] = useState('');
   const [walkInPaymentProof, setWalkInPaymentProof] = useState('');
+  const [walkInDiscount, setWalkInDiscount] = useState('');
   const [viewingReceiptModal, setViewingReceiptModal] = useState(null);
   const [completedBill, setCompletedBill] = useState(null);
   const [isProcessingWalkIn, setIsProcessingWalkIn] = useState(false);
@@ -1172,6 +1317,9 @@ function StoreContent({ shopId }) {
 
   const filteredUnifiedCustomers = useMemo(() => {
     return (unifiedCustomersList || []).filter(cust => {
+      if (appliedStartDate || appliedEndDate) {
+        if (!isDateInSelectedRange(cust.createdAt)) return false;
+      }
       if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
       if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
       if (customerSearch.trim()) {
@@ -1183,7 +1331,7 @@ function StoreContent({ shopId }) {
       }
       return true;
     });
-  }, [unifiedCustomersList, customerFilterTab, customerSearch]);
+  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate]);
 
   const getCustomerStats = (cust) => {
     const custId = String(cust._id || '').toLowerCase();
@@ -1899,12 +2047,38 @@ function StoreContent({ shopId }) {
     setWalkInCart(prev =>
       prev.map(item => {
         if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
-          const newQty = item.quantity + delta;
-          return newQty > 0 ? { ...item, quantity: newQty } : null;
+          const current = Number(item.quantity) || 0;
+          const newQty = Math.max(1, current + delta);
+          return { ...item, quantity: newQty };
         }
         return item;
-      }).filter(Boolean)
+      })
     );
+  };
+
+  const setWalkInDirectQty = (productId, unit, directVal) => {
+    if (directVal === '') {
+      setWalkInCart(prev =>
+        prev.map(item => {
+          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+            return { ...item, quantity: '' };
+          }
+          return item;
+        })
+      );
+      return;
+    }
+    const parsed = parseFloat(directVal);
+    if (!isNaN(parsed) && parsed >= 0) {
+      setWalkInCart(prev =>
+        prev.map(item => {
+          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+            return { ...item, quantity: parsed };
+          }
+          return item;
+        })
+      );
+    }
   };
 
   const removeFromWalkInCart = (productId, unit) => {
@@ -1980,8 +2154,11 @@ function StoreContent({ shopId }) {
         };
       });
 
-      const totalAmount = saleItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
-      const totalProfit = saleItems.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+      const rawSubtotal = saleItems.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);
+      const discountVal = Number(walkInDiscount) > 0 ? Number(walkInDiscount) : 0;
+      const totalAmount = Math.max(0, rawSubtotal - discountVal);
+      const rawProfit = saleItems.reduce((sum, i) => sum + (Number(i.profit) || 0), 0);
+      const totalProfit = Math.max(0, rawProfit - discountVal);
 
       let cashPaid = 0;
       let bankPaid = 0;
@@ -2027,6 +2204,8 @@ function StoreContent({ shopId }) {
       const saleData = {
         shopId,
         items: saleItems,
+        subtotal: rawSubtotal,
+        discount: discountVal,
         totalAmount,
         totalProfit,
         cashierName: user?.fullName || 'Shop Admin',
@@ -2057,6 +2236,8 @@ function StoreContent({ shopId }) {
         isCredit: isCreditSale,
         paymentMethod: finalPaymentMethod,
         items: saleItems,
+        subtotal: rawSubtotal,
+        discount: discountVal,
         totalAmount,
         totalProfit,
         cashierName: user?.fullName || 'Shop Admin',
@@ -2067,6 +2248,7 @@ function StoreContent({ shopId }) {
 
       setCompletedBill(billData);
       setWalkInCart([]);
+      setWalkInDiscount('');
       setWalkInCustomerName('');
       setWalkInCustomerPhone('');
       setWalkInCustomerEmail('');
@@ -2186,10 +2368,6 @@ function StoreContent({ shopId }) {
   };
 
   const confirmDeleteProduct = handleDirectDeleteProduct;
-
-  const [dateFromFilter, setDateFromFilter] = useState('2026-08-01');
-  const [dateToFilter, setDateToFilter] = useState(new Date().toISOString().split('T')[0]);
-  const [reportTimeframe, setReportTimeframe] = useState('ALL'); // 'DAY', 'MONTH', 'YEAR', 'ALL'
   const [salesReportSearchTerm, setSalesReportSearchTerm] = useState('');
   const [salesReportPaymentFilter, setSalesReportPaymentFilter] = useState('ALL');
   const [salesReportViewMode, setSalesReportViewMode] = useState('GROUPED_CUSTOMERS'); // 'GROUPED_CUSTOMERS' | 'ALL_INVOICES'
@@ -2263,25 +2441,11 @@ function StoreContent({ shopId }) {
 
   // ─── Filtered Sales for Sales Report View (Strict Timeframe + Search) ───
   const filteredSalesForReport = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
     return (unifiedSalesList || []).filter(s => {
       if (!s) return false;
       const sDate = new Date(s.saleDate || s.createdAt || s.date || 0);
-      const sDateStr = sDate.toISOString().split('T')[0];
 
-      let matchTime = true;
-      if (reportTimeframe === 'DAY') {
-        matchTime = sDateStr === todayStr;
-      } else if (reportTimeframe === 'MONTH') {
-        matchTime = sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear;
-      } else if (reportTimeframe === 'YEAR') {
-        matchTime = sDate.getFullYear() === currentYear;
-      }
-
+      const matchTime = isDateInSelectedRange(sDate);
       if (!matchTime) return false;
 
       if (!salesReportSearchTerm.trim()) return true;
@@ -2295,7 +2459,7 @@ function StoreContent({ shopId }) {
 
       return inv.includes(q) || cust.includes(q) || email.includes(q) || phone.includes(q) || cashier.includes(q) || itemsStr.includes(q);
     });
-  }, [unifiedSalesList, reportTimeframe, salesReportSearchTerm]);
+  }, [unifiedSalesList, reportTimeframe, appliedStartDate, appliedEndDate, salesReportSearchTerm]);
 
   // ─── Customer-Wise Grouped Sales (Multi-Identifier Match: Name, Phone, Email, Account) ───
   const customerWiseSalesReport = useMemo(() => {
@@ -2432,10 +2596,70 @@ function StoreContent({ shopId }) {
       return;
     }
 
+    const catalogItems = (typeof items !== 'undefined' && Array.isArray(items)) ? items : [];
+
+    // Helper to get category for each item
+    const getItemCategory = (it) => {
+      if (it.category && typeof it.category === 'string' && it.category.trim()) {
+        return it.category.trim();
+      }
+      if (it.productCategory && typeof it.productCategory === 'string' && it.productCategory.trim()) {
+        return it.productCategory.trim();
+      }
+      const match = catalogItems.find(p => {
+        if (!p) return false;
+        if (it.productId && String(p._id || p.id) === String(it.productId)) return true;
+        if (it.product && String(p._id || p.id) === String(it.product._id || it.product)) return true;
+        const pName = (p.name || '').toLowerCase().trim();
+        const rawName = (it.rawProductName || it.name || '').toLowerCase().trim();
+        if (pName && rawName && (pName === rawName || rawName.startsWith(pName))) return true;
+        return false;
+      });
+      if (match?.category && typeof match.category === 'string' && match.category.trim()) {
+        return match.category.trim();
+      }
+      return 'Egg Product';
+    };
+
+    // Calculate customer total purchases breakdown by category
+    const categorySummary = {};
+    invoices.forEach(inv => {
+      (inv.items || []).forEach(it => {
+        const cat = getItemCategory(it);
+        const qty = Number(it.quantity) || 1;
+        const sub = (Number(it.price) || (inv.totalAmount && (inv.items.length === 1) ? Number(inv.totalAmount) : 0)) * (it.price ? qty : 1);
+        if (!categorySummary[cat]) {
+          categorySummary[cat] = {
+            categoryName: cat,
+            productCount: 0,
+            totalQty: 0,
+            totalSubtotal: 0
+          };
+        }
+        categorySummary[cat].productCount += 1;
+        categorySummary[cat].totalQty += qty;
+        categorySummary[cat].totalSubtotal += sub > 0 ? sub : (Number(it.subtotal) || 0);
+      });
+    });
+
     let salesRows = invoices.length > 0 ? invoices.map((inv, idx) => {
       const invNo = inv.invoiceNumber || (inv.serialNumber ? `#${inv.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
       const invDate = new Date(inv.saleDate || inv.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const itemsList = (inv.items || []).map(i => `${i.name || 'Item'} (x${i.quantity || 1})`).join(', ');
+      const itemsList = (inv.items && inv.items.length > 0) ? (inv.items || []).map(i => {
+        const cat = getItemCategory(i);
+        return `
+          <div style="margin-bottom: 5px; line-height: 1.35;">
+            <div style="font-weight: 700; color: #0f172a; font-size: 11px;">
+              • ${i.name || 'Item'} <span style="color: #059669; font-weight: 800;">(x${i.quantity || 1})</span>
+            </div>
+            <div style="margin-top: 2px;">
+              <span style="display: inline-block; font-size: 8.5px; font-weight: 800; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px;">
+                📂 Category: ${cat}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('') : '<span style="color:#94a3b8;">—</span>';
       const pMethod = String(inv.paymentMethod || 'CASH').toUpperCase();
       const isCredit = pMethod === 'CREDIT' || Number(inv.dueAmount) > 0 || inv.isCredit;
       const due = Number(inv.dueAmount) || (isCredit ? Number(inv.totalAmount) : 0);
@@ -2444,20 +2668,20 @@ function StoreContent({ shopId }) {
 
       return `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold;">${idx + 1}</td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-weight:bold; color:#0f172a;">
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; vertical-align:top;">${idx + 1}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-weight:bold; color:#0f172a; vertical-align:top;">
             ${invNo}
-            ${billCustName && billCustName !== name ? `<div style="font-size:9px; color:#64748b; font-weight:normal;">Name: ${billCustName}</div>` : ''}
+            ${billCustName && billCustName !== name ? `<div style="font-size:9px; color:#64748b; font-weight:normal; margin-top:2px;">Name: ${billCustName}</div>` : ''}
           </td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; color:#475569;">${invDate}</td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; text-transform:uppercase;">${itemsList || '—'}</td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center;">
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; color:#475569; vertical-align:top;">${invDate}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; font-size:11px; vertical-align:top;">${itemsList}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:center; vertical-align:top;">
             <span style="font-size:10px; font-weight:800; padding:3px 8px; border-radius:4px; ${isCredit ? 'background:#ffe4e6; color:#be123c;' : 'background:#ecfdf5; color:#047857;'}">
               ${pMethod}
             </span>
           </td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857;">RS ${amount.toLocaleString('en-PK')}</td>
-          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:${due > 0 ? '#e11d48' : '#64748b'};">${due > 0 ? `RS ${due.toLocaleString('en-PK')}` : 'PAID'}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857; vertical-align:top;">RS ${amount.toLocaleString('en-PK')}</td>
+          <td style="padding:9px 10px; border:1px solid #cbd5e1; text-align:right; font-weight:bold; color:${due > 0 ? '#e11d48' : '#64748b'}; vertical-align:top;">${due > 0 ? `RS ${due.toLocaleString('en-PK')}` : 'PAID'}</td>
         </tr>
       `;
     }).join('') : `
@@ -2487,6 +2711,9 @@ function StoreContent({ shopId }) {
             .info-box .val { font-size: 13px; font-weight: 800; color: #0f172a; }
             table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-top: 12px; }
             th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 9.5px; padding: 9px 10px; text-align: left; border: 1px solid #0f172a; }
+            .category-box { margin-top: 18px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 12px 16px; }
+            .category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+            .category-card { background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; }
             .summary-box { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
             .card-tot { background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 12px; padding: 14px 18px; }
             .card-due { background: #fff1f2; border: 1.5px solid #f43f5e; border-radius: 12px; padding: 14px 18px; }
@@ -2498,6 +2725,7 @@ function StoreContent({ shopId }) {
             @media print {
               body { background: #ffffff; padding: 0; }
               .wrapper { border: 1px solid #94a3b8; }
+              * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
@@ -2545,7 +2773,7 @@ function StoreContent({ shopId }) {
                     <th style="text-align:center; width:35px;">#</th>
                     <th>Invoice No</th>
                     <th>Date</th>
-                    <th>Items</th>
+                    <th>Items &amp; Category</th>
                     <th style="text-align:center;">Payment</th>
                     <th style="text-align:right;">Amount</th>
                     <th style="text-align:right;">Due</th>
@@ -2555,6 +2783,31 @@ function StoreContent({ shopId }) {
                   ${salesRows}
                 </tbody>
               </table>
+
+              ${Object.keys(categorySummary).length > 0 ? `
+              <div class="category-box">
+                <div style="font-size: 10px; font-weight: 900; color: #166534; text-transform: uppercase; letter-spacing: 0.8px; display: flex; justify-content: space-between; align-items: center;">
+                  <span>📂 PURCHASED PRODUCTS BY CATEGORY (د کټګورۍ تفصيل)</span>
+                  <span style="color: #15803d; font-size: 9.5px; font-weight: 800;">${Object.keys(categorySummary).length} Categor${Object.keys(categorySummary).length > 1 ? 'ies' : 'y'} Listed</span>
+                </div>
+                <div class="category-grid">
+                  ${Object.values(categorySummary).map(c => `
+                    <div class="category-card">
+                      <div>
+                        <div style="font-size: 11.5px; font-weight: 900; color: #0f172a; text-transform: uppercase;">📂 ${c.categoryName}</div>
+                        <div style="font-size: 9.5px; font-weight: 700; color: #059669; margin-top: 2px;">
+                          ${c.totalQty} Total Qty • ${c.productCount} Item${c.productCount > 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <div style="text-align: right;">
+                        <div style="font-size: 8.5px; font-weight: 800; color: #64748b; text-transform: uppercase;">Purchased</div>
+                        <div style="font-size: 12px; font-weight: 900; color: #047857;">${c.totalSubtotal > 0 ? `RS ${c.totalSubtotal.toLocaleString('en-PK')}` : `${c.totalQty} Qty`}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+              ` : ''}
 
               <div class="summary-box">
                 <div class="card-tot">
@@ -3582,6 +3835,11 @@ function StoreContent({ shopId }) {
     let totalBankExp = 0;
     let totalExpCount = (expensesList || []).length;
 
+    let rangeExp = 0;
+    let rangeCashExp = 0;
+    let rangeBankExp = 0;
+    let rangeExpCount = 0;
+
     (expensesList || []).forEach(e => {
       const amt = Number(e.amount) || 0;
       const isBank = String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK');
@@ -3610,6 +3868,12 @@ function StoreContent({ shopId }) {
         else yearCashExp += amt;
         yearExpCount++;
       }
+      if (isDateInSelectedRange(d)) {
+        rangeExp += amt;
+        if (isBank) rangeBankExp += amt;
+        else rangeCashExp += amt;
+        rangeExpCount++;
+      }
     });
 
     let todayDamaged = 0;
@@ -3617,6 +3881,8 @@ function StoreContent({ shopId }) {
     let yearDamaged = 0;
     let totalDamaged = 0;
     let totalDamagedEggs = 0;
+    let rangeDamaged = 0;
+    let rangeDamagedEggs = 0;
 
     (damagedProductsList || []).forEach(d => {
       const loss = Number(d.totalLoss) > 0
@@ -3637,6 +3903,10 @@ function StoreContent({ shopId }) {
       }
       if (!isNaN(date.getTime()) && date.getFullYear() === currentYear) {
         yearDamaged += loss;
+      }
+      if (isDateInSelectedRange(date)) {
+        rangeDamaged += loss;
+        rangeDamagedEggs += eggs;
       }
     });
 
@@ -3662,12 +3932,19 @@ function StoreContent({ shopId }) {
       yearDamaged,
       totalDamaged,
       totalDamagedEggs,
+      rangeExp,
+      rangeCashExp,
+      rangeBankExp,
+      rangeExpCount,
+      rangeDamaged,
+      rangeDamagedEggs,
+      rangeTotalLoss: rangeExp + rangeDamaged,
       todayTotalLoss: todayExp + todayDamaged,
       monthTotalLoss: monthExp + monthDamaged,
       yearTotalLoss: yearExp + yearDamaged,
       grandTotalLoss: totalExp + totalDamaged,
     };
-  }, [expensesList, damagedProductsList]);
+  }, [expensesList, damagedProductsList, reportTimeframe, appliedStartDate, appliedEndDate]);
 
   // ─── Filtered Profit Analytics (Sales, Purchases with Peti/Tray/Egg, Expenses, Damaged Losses = Pure Net Profit) ───
   const profitReportStats = useMemo(() => {
@@ -3703,17 +3980,11 @@ function StoreContent({ shopId }) {
     const allSalesTotal = activeSalesData.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
     const allProfitTotal = activeSalesData.reduce((sum, s) => sum + (Number(s.totalProfit) || (Number(s.totalAmount) * 0.15)), 0);
 
-    // 2. Filter Sales for active timeframe
+    // 2. Filter Sales for active timeframe / date range
     const filteredSales = activeSalesData.filter(s => {
       if (!s) return false;
       const sDate = new Date(s.saleDate || s.createdAt || s.date || 0);
-      if (isNaN(sDate.getTime())) return reportTimeframe === 'ALL';
-      const sDateStr = sDate.toISOString().split('T')[0];
-
-      if (reportTimeframe === 'DAY') return sDateStr === todayStr || sDate.toDateString() === now.toDateString();
-      if (reportTimeframe === 'MONTH') return sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear;
-      if (reportTimeframe === 'YEAR') return sDate.getFullYear() === currentYear;
-      return true;
+      return isDateInSelectedRange(sDate);
     });
 
     let grossProfit = 0;
@@ -3726,26 +3997,20 @@ function StoreContent({ shopId }) {
     if (grossProfit === 0 && totalRevenue > 0) {
       grossProfit = Math.round(totalRevenue * 0.15);
     }
-    if (grossProfit === 0) {
+    if (grossProfit === 0 && !appliedStartDate && !appliedEndDate) {
       grossProfit = reportTimeframe === 'DAY' ? todayProfitTotal : reportTimeframe === 'MONTH' ? monthProfitTotal : reportTimeframe === 'YEAR' ? yearProfitTotal : allProfitTotal;
     }
 
     // Fallback to dashStats if sales list was momentarily empty
-    if (totalRevenue === 0) {
+    if (totalRevenue === 0 && !appliedStartDate && !appliedEndDate) {
       totalRevenue = reportTimeframe === 'DAY' ? (dashStats.todaySales || 0) : reportTimeframe === 'MONTH' ? (dashStats.monthlySales || 0) : reportTimeframe === 'YEAR' ? (dashStats.yearlySales || 0) : (dashStats.totalRevenue || 0);
     }
 
-    // 3. Filter Purchases / Restocks (items) for active timeframe
+    // 3. Filter Purchases / Restocks (items) for active timeframe / date range
     const filteredPurchases = (items || []).filter(p => {
       if (!p) return false;
       const pDate = new Date(p.purchaseDate || p.createdAt || p.date || 0);
-      if (isNaN(pDate.getTime())) return reportTimeframe === 'ALL';
-      const pDateStr = pDate.toISOString().split('T')[0];
-
-      if (reportTimeframe === 'DAY') return pDateStr === todayStr || pDate.toDateString() === now.toDateString();
-      if (reportTimeframe === 'MONTH') return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
-      if (reportTimeframe === 'YEAR') return pDate.getFullYear() === currentYear;
-      return true;
+      return isDateInSelectedRange(pDate);
     });
 
     let totalPurchasesCost = 0;
@@ -3766,32 +4031,20 @@ function StoreContent({ shopId }) {
     const totalPurchasesPetis = Number((totalPurchasesEggs / 360).toFixed(1));
     const totalPurchasesTrays = Math.round(totalPurchasesEggs / 30);
 
-    // 4. Filter Expenses for active timeframe
+    // 4. Filter Expenses for active timeframe / date range
     const filteredExpenses = (expensesList || []).filter(e => {
       if (!e) return false;
       const eDate = new Date(e.expenseDate || e.createdAt || 0);
-      if (isNaN(eDate.getTime())) return reportTimeframe === 'ALL';
-      const eDateStr = eDate.toISOString().split('T')[0];
-
-      if (reportTimeframe === 'DAY') return eDateStr === todayStr || eDate.toDateString() === now.toDateString();
-      if (reportTimeframe === 'MONTH') return eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear;
-      if (reportTimeframe === 'YEAR') return eDate.getFullYear() === currentYear;
-      return true;
+      return isDateInSelectedRange(eDate);
     });
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-    // 5. Filter Damaged Stock Logs for active timeframe
+    // 5. Filter Damaged Stock Logs for active timeframe / date range
     const filteredDamaged = (damagedProductsList || []).filter(d => {
       if (!d) return false;
       const dDate = new Date(d.damageDate || d.createdAt || 0);
-      if (isNaN(dDate.getTime())) return reportTimeframe === 'ALL';
-      const dDateStr = dDate.toISOString().split('T')[0];
-
-      if (reportTimeframe === 'DAY') return dDateStr === todayStr || dDate.toDateString() === now.toDateString();
-      if (reportTimeframe === 'MONTH') return dDate.getMonth() === currentMonth && dDate.getFullYear() === currentYear;
-      if (reportTimeframe === 'YEAR') return dDate.getFullYear() === currentYear;
-      return true;
+      return isDateInSelectedRange(dDate);
     });
 
     let totalDamagedLoss = 0;
@@ -3834,7 +4087,7 @@ function StoreContent({ shopId }) {
       filteredExpenses,
       filteredDamaged
     };
-  }, [unifiedSalesList, shopSalesList, items, expensesList, damagedProductsList, reportTimeframe, dashStats]);
+  }, [unifiedSalesList, shopSalesList, items, expensesList, damagedProductsList, reportTimeframe, appliedStartDate, appliedEndDate, dashStats]);
 
   // ─── Live Dynamic Breakdown Hooks for 100% Real-time Dashboard Accuracy ───
   const salesLiveBreakdown = useMemo(() => {
@@ -4510,6 +4763,20 @@ function StoreContent({ shopId }) {
     }
 
     const salesList = filteredSalesForReport.length > 0 ? filteredSalesForReport : shopSalesList;
+    const catalogItems = (typeof items !== 'undefined' && Array.isArray(items)) ? items : [];
+    const getItemCat = (it) => {
+      if (it.category && typeof it.category === 'string' && it.category.trim()) return it.category.trim();
+      if (it.productCategory && typeof it.productCategory === 'string' && it.productCategory.trim()) return it.productCategory.trim();
+      const match = catalogItems.find(p => {
+        if (!p) return false;
+        if (it.productId && String(p._id || p.id) === String(it.productId)) return true;
+        if (it.product && String(p._id || p.id) === String(it.product._id || it.product)) return true;
+        const pName = (p.name || '').toLowerCase().trim();
+        const rawName = (it.rawProductName || it.name || '').toLowerCase().trim();
+        return pName && rawName && (pName === rawName || rawName.startsWith(pName));
+      });
+      return match?.category?.trim() || 'Egg Product';
+    };
 
     const tableRows = salesList.map((s, idx) => {
       const inv = s.invoiceNumber || (s.serialNumber ? `#${s.serialNumber}` : `INV-${String(idx + 1).padStart(4, '0')}`);
@@ -4517,7 +4784,10 @@ function StoreContent({ shopId }) {
       const cust = s.customerName || 'Walk-in Customer';
       const email = s.customerEmail || s.email || s.customerId?.email || '';
       const phone = s.customerPhone || s.phone || '';
-      const itemsList = (s.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ') || 'Eggs';
+      const itemsList = (s.items && s.items.length > 0) ? (s.items || []).map(i => {
+        const cat = getItemCat(i);
+        return `<div style="margin-bottom:2px; line-height:1.25;">• ${i.name} (x${i.quantity}) <span style="font-size:7.5px; font-weight:800; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:0.5px 4px; border-radius:3px; text-transform:uppercase;">📂 ${cat}</span></div>`;
+      }).join('') : 'Eggs';
       const method = s.paymentMethod || 'CASH';
       const total = Number(s.totalAmount) || 0;
 
@@ -4588,7 +4858,7 @@ function StoreContent({ shopId }) {
                 <th>Invoice #</th>
                 <th>Date &amp; Time</th>
                 <th>Customer</th>
-                <th>Items Purchased</th>
+                <th>Items Purchased &amp; Category</th>
                 <th style="text-align:center;">Method</th>
                 <th style="text-align:right;">Total Amount</th>
               </tr>
@@ -4991,7 +5261,114 @@ function StoreContent({ shopId }) {
     const paymentMethod = String(sale.paymentMethod || 'CASH').toUpperCase();
     const isCredit = paymentMethod === 'CREDIT' || Number(sale.dueAmount) > 0 || sale.isCredit;
     const totalAmount = Number(sale.totalAmount) || 0;
-    const items = sale.items || [];
+    const discountAmount = Number(sale.discount) || 0;
+    const saleItems = sale.items || [];
+    const catalogItems = (typeof items !== 'undefined' && Array.isArray(items)) ? items : [];
+
+    // Helper to get category for each item
+    const getItemCategory = (it) => {
+      if (it.category && typeof it.category === 'string' && it.category.trim()) {
+        return it.category.trim();
+      }
+      if (it.productCategory && typeof it.productCategory === 'string' && it.productCategory.trim()) {
+        return it.productCategory.trim();
+      }
+      const match = catalogItems.find(p => {
+        if (!p) return false;
+        if (it.productId && String(p._id || p.id) === String(it.productId)) return true;
+        if (it.product && String(p._id || p.id) === String(it.product._id || it.product)) return true;
+        const pName = (p.name || '').toLowerCase().trim();
+        const rawName = (it.rawProductName || it.name || '').toLowerCase().trim();
+        if (pName && rawName && (pName === rawName || rawName.startsWith(pName))) return true;
+        return false;
+      });
+      if (match?.category && typeof match.category === 'string' && match.category.trim()) {
+        return match.category.trim();
+      }
+      return 'Egg Product';
+    };
+
+    // Calculate category breakdown
+    const categorySummary = {};
+    saleItems.forEach(it => {
+      const cat = getItemCategory(it);
+      const qty = Number(it.quantity) || 1;
+      const sub = (Number(it.price) || 0) * qty;
+
+      if (!categorySummary[cat]) {
+        categorySummary[cat] = {
+          categoryName: cat,
+          productCount: 0,
+          totalQty: 0,
+          totalSubtotal: 0
+        };
+      }
+      categorySummary[cat].productCount += 1;
+      categorySummary[cat].totalQty += qty;
+      categorySummary[cat].totalSubtotal += sub;
+    });
+
+    // Calculate complete breakdown totals across all items in the sale
+    let totalItemsQty = 0;
+    let totalPetis = 0;
+    let totalTrays = 0;
+    let totalEggs = 0;
+
+    saleItems.forEach(item => {
+      const qty = Number(item.quantity) || 1;
+      totalItemsQty += qty;
+
+      const nameStr = item.name || '';
+      const unit = String(item.unit || item.selectedUnit || '').toLowerCase();
+
+      if (item.totalEggs && Number(item.totalEggs) > 0) {
+        const eggs = Number(item.totalEggs);
+        totalEggs += eggs;
+        totalTrays += eggs / 30;
+        totalPetis += eggs / 360;
+      } else {
+        const petiMatch = nameStr.match(/([\d,.]+)\s*Peti/i);
+        const trayMatch = nameStr.match(/([\d,.]+)\s*Tray/i);
+        const eggMatch = nameStr.match(/([\d,.]+)\s*Egg/i);
+
+        if (eggMatch) {
+          const eggs = parseFloat(eggMatch[1].replace(/,/g, '')) || 0;
+          totalEggs += eggs;
+          if (trayMatch) {
+            totalTrays += parseFloat(trayMatch[1].replace(/,/g, '')) || (eggs / 30);
+          } else {
+            totalTrays += eggs / 30;
+          }
+          if (petiMatch) {
+            totalPetis += parseFloat(petiMatch[1].replace(/,/g, '')) || (eggs / 360);
+          } else {
+            totalPetis += eggs / 360;
+          }
+        } else {
+          const tPerPeti = Number(item.traysPerPeti) || 12;
+          const ePerTray = Number(item.eggsPerTray) || 30;
+          const ePerPeti = tPerPeti * ePerTray;
+
+          if (unit === 'peti' || nameStr.toLowerCase().includes('peti')) {
+            totalPetis += qty;
+            totalTrays += qty * tPerPeti;
+            totalEggs += qty * ePerPeti;
+          } else if (unit === 'tray' || nameStr.toLowerCase().includes('tray')) {
+            totalPetis += qty / tPerPeti;
+            totalTrays += qty;
+            totalEggs += qty * ePerTray;
+          } else {
+            totalPetis += qty / ePerPeti;
+            totalTrays += qty / ePerTray;
+            totalEggs += qty;
+          }
+        }
+      }
+    });
+
+    const displayPetis = (totalPetis % 1 === 0 ? totalPetis : totalPetis.toFixed(2)).toLocaleString('en-PK');
+    const displayTrays = (totalTrays % 1 === 0 ? totalTrays : totalTrays.toFixed(1)).toLocaleString('en-PK');
+    const displayEggs = Math.round(totalEggs).toLocaleString('en-PK');
 
     const printWin = window.open('', '_blank');
     if (!printWin) {
@@ -4999,15 +5376,23 @@ function StoreContent({ shopId }) {
       return;
     }
 
-    let itemsHtml = items.map((item, idx) => `
+    let itemsHtml = saleItems.map((item, idx) => {
+      const catName = getItemCategory(item);
+      return `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
         <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#64748b;">${idx + 1}</td>
-        <td style="padding:10px 12px; border:1px solid #cbd5e1; font-weight:800; color:#0f172a;">${item.name}</td>
+        <td style="padding:10px 12px; border:1px solid #cbd5e1; font-weight:800; color:#0f172a;">
+          <div style="font-size:12.5px;">${item.name}</div>
+          <div style="margin-top:3px; display:inline-block; font-size:9.5px; font-weight:800; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:1.5px 7px; border-radius:4px; text-transform:uppercase; letter-spacing:0.4px;">
+            📂 Category: ${catName}
+          </div>
+        </td>
         <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:center; font-weight:900; color:#059669;">${item.quantity}</td>
         <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-weight:600; color:#475569;">RS ${(item.price || 0).toLocaleString()}</td>
         <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#047857;">RS ${((item.quantity || 1) * (item.price || 0)).toLocaleString()}</td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     printWin.document.write(`
       <!DOCTYPE html>
@@ -5034,7 +5419,11 @@ function StoreContent({ shopId }) {
             table { width: 100%; border-collapse: collapse; border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; margin-top: 10px; }
             th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 10px; padding: 10px 12px; text-align: left; letter-spacing: 0.5px; }
             
-            .total-bar { margin-top: 18px; padding: 14px 20px; background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .breakdown-box { margin-top: 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 14px 18px; }
+            .breakdown-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center; margin-top: 10px; }
+            .breakdown-card { background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 8px; }
+            
+            .total-bar { margin-top: 16px; padding: 14px 20px; background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
             .total-bar .tot-lbl { font-weight: 900; font-size: 13px; color: #065f46; letter-spacing: 0.5px; }
             .total-bar .tot-val { font-weight: 900; font-size: 20px; color: #047857; }
             
@@ -5045,8 +5434,11 @@ function StoreContent({ shopId }) {
               body { padding: 0; background: #ffffff; }
               .header-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .info-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .breakdown-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .breakdown-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .total-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
@@ -5110,10 +5502,76 @@ function StoreContent({ shopId }) {
             <tbody>
               ${itemsHtml}
             </tbody>
+            <tfoot>
+              <tr style="background:#f1f5f9; font-weight:900; border-top:2px solid #0f172a;">
+                <td colspan="2" style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-size:11px; text-transform:uppercase; color:#0f172a;">Total Items &amp; Quantity:</td>
+                <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:center; font-size:12.5px; color:#059669; font-weight:900;">${totalItemsQty}</td>
+                <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-size:10px; color:#64748b; font-weight:800;">${items.length} Product${items.length > 1 ? 's' : ''}</td>
+                <td style="padding:10px 12px; border:1px solid #cbd5e1; text-align:right; font-size:13px; color:#047857; font-weight:900;">RS ${totalAmount.toLocaleString('en-PK')}</td>
+              </tr>
+            </tfoot>
           </table>
 
+          <!-- Comprehensive Total Goods Details -->
+          <div class="breakdown-box">
+            <div style="font-size:10px; font-weight:900; color:#475569; text-transform:uppercase; letter-spacing:1px; display:flex; justify-content:space-between; align-items:center;">
+              <span>📊 TOTAL GOODS &amp; QUANTITY DETAILS</span>
+              <span style="color:#059669; font-size:10.5px; font-weight:800;">${saleItems.length} Product${saleItems.length > 1 ? 's' : ''} Listed (${totalItemsQty} Total Quantity)</span>
+            </div>
+            <div class="breakdown-grid">
+              <div class="breakdown-card" style="border-color:#fde68a; background:#fefce8;">
+                <div style="font-size:9.5px; font-weight:900; color:#92400e; text-transform:uppercase; letter-spacing:0.5px;">📦 Total Petis / Items</div>
+                <div style="font-size:18px; font-weight:900; color:#78350f; margin-top:4px;">${displayPetis} <span style="font-size:10px; color:#92400e; font-weight:700;">PETIS</span></div>
+              </div>
+              <div class="breakdown-card" style="border-color:#bfdbfe; background:#eff6ff;">
+                <div style="font-size:9.5px; font-weight:900; color:#1d4ed8; text-transform:uppercase; letter-spacing:0.5px;">🍱 Total Trays</div>
+                <div style="font-size:18px; font-weight:900; color:#1e40af; margin-top:4px;">${displayTrays} <span style="font-size:10px; color:#1d4ed8; font-weight:700;">TRAYS</span></div>
+              </div>
+              <div class="breakdown-card" style="border-color:#bbf7d0; background:#f0fdf4;">
+                <div style="font-size:9.5px; font-weight:900; color:#15803d; text-transform:uppercase; letter-spacing:0.5px;">🥚 Total Single Eggs</div>
+                <div style="font-size:18px; font-weight:900; color:#166534; margin-top:4px;">${displayEggs} <span style="font-size:10px; color:#15803d; font-weight:700;">EGGS</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category-Wise Purchased Products Summary -->
+          <div class="breakdown-box" style="margin-top:14px; border-color:#86efac; background:#f0fdf4;">
+            <div style="font-size:10px; font-weight:900; color:#166534; text-transform:uppercase; letter-spacing:1px; display:flex; justify-content:space-between; align-items:center;">
+              <span>📂 PURCHASED PRODUCTS BY CATEGORY (د کټګورۍ تفصيل)</span>
+              <span style="color:#15803d; font-size:10px; font-weight:800;">${Object.keys(categorySummary).length} Categor${Object.keys(categorySummary).length > 1 ? 'ies' : 'y'} Listed</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:10px;">
+              ${Object.values(categorySummary).map(c => `
+                <div style="background:#ffffff; border:1.5px solid #bbf7d0; border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <div style="font-size:12px; font-weight:900; color:#0f172a; text-transform:uppercase;">📂 ${c.categoryName}</div>
+                    <div style="font-size:10px; font-weight:700; color:#059669; margin-top:2px;">
+                      ${c.totalQty} Total Qty • ${c.productCount} Product${c.productCount > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;">Subtotal</div>
+                    <div style="font-size:13px; font-weight:900; color:#047857;">RS ${c.totalSubtotal.toLocaleString('en-PK')}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          ${discountAmount > 0 ? `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 16px; background:#fffbeb; border:1.5px dashed #f59e0b; border-radius:10px; margin-top:12px; font-size:12px; font-weight:800; color:#b45309;">
+            <span>🏷️ SPECIAL DISCOUNT APPLIED:</span>
+            <span>- RS ${discountAmount.toLocaleString('en-PK')}</span>
+          </div>
+          ` : ''}
+
           <div class="total-bar">
-            <span class="tot-lbl">GRAND TOTAL AMOUNT PAID:</span>
+            <div>
+              <div class="tot-lbl">GRAND TOTAL AMOUNT PAID:</div>
+              <div style="font-size:10px; color:#065f46; font-weight:800; margin-top:2px;">
+                TOTAL GOODS: ${displayPetis} PETIS • ${displayTrays} TRAYS • ${displayEggs} SINGLE EGGS
+              </div>
+            </div>
             <span class="tot-val">RS ${totalAmount.toLocaleString('en-PK')}</span>
           </div>
 
@@ -6187,27 +6645,8 @@ function StoreContent({ shopId }) {
 
                           {/* Controls: Timeframe Filter + View Full Report */}
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Timeframe Switcher */}
-                            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-2xl p-1 shadow-inner gap-1">
-                              {[
-                                { id: 'DAY', label: 'Today' },
-                                { id: 'MONTH', label: 'This Month' },
-                                { id: 'YEAR', label: 'This Year' },
-                                { id: 'ALL', label: 'All-Time' },
-                              ].map(t => (
-                                <button
-                                  key={t.id}
-                                  onClick={() => setReportTimeframe(t.id)}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                    reportTimeframe === t.id
-                                      ? 'bg-slate-900 text-white shadow-md scale-105'
-                                      : 'text-slate-600 hover:text-slate-950 hover:bg-slate-200'
-                                  }`}
-                                >
-                                  {t.label}
-                                </button>
-                              ))}
-                            </div>
+                            {/* Calendar Date Range Filter */}
+                            {renderCalendarFilter('light')}
 
                             <button
                               onClick={() => { setActiveView('report-profit'); }}
@@ -6688,7 +7127,7 @@ function StoreContent({ shopId }) {
               {activeView === 'walkin' && isAdminUser && (
                 <div className="space-y-4">
                   {/* Top Banner - white/gray */}
-                  <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-wrap">
                     <div>
                       <div className="flex items-center gap-2 text-emerald-700 text-xs font-black uppercase tracking-widest mb-0.5">
                         <Receipt className="w-4 h-4" /> Smart POS Terminal
@@ -6696,12 +7135,15 @@ function StoreContent({ shopId }) {
                       <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">POS Bill Sale &amp; Billing</h2>
                       <p className="text-gray-400 text-xs mt-0.5">Select items, enter customer details, complete sale &amp; generate bill.</p>
                     </div>
-                    <button
-                      onClick={() => { setActiveView('report-sales'); fetchShopSales(); }}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <DollarSign className="w-4 h-4 text-emerald-600" /> Sales Report
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap ml-auto">
+                      {renderCalendarFilter('light')}
+                      <button
+                        onClick={() => { setActiveView('report-sales'); fetchShopSales(); }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <DollarSign className="w-4 h-4 text-emerald-600" /> Sales Report
+                      </button>
+                    </div>
                   </div>
 
                   {/* POS Split Screen */}
@@ -7415,20 +7857,35 @@ function StoreContent({ shopId }) {
                                         ))}
                                       </div>
 
-                                      {/* Qty +/- */}
-                                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-200">
+                                      {/* Qty +/- and Direct Input */}
+                                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-300 shadow-sm">
                                         <button
                                           type="button"
                                           onClick={() => updateWalkInQty(item.product._id, currentUnit, -1)}
-                                          className="w-5 h-5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center justify-center cursor-pointer font-black text-xs"
+                                          className="w-6 h-6 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 rounded flex items-center justify-center cursor-pointer font-black text-xs transition-all select-none"
+                                          title="Decrease"
                                         >
                                           -
                                         </button>
-                                        <span className="font-black text-gray-900 text-xs w-6 text-center">{item.quantity}</span>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="any"
+                                          value={item.quantity === '' ? '' : item.quantity}
+                                          onChange={(e) => setWalkInDirectQty(item.product._id, currentUnit, e.target.value)}
+                                          onBlur={() => {
+                                            if (!item.quantity || Number(item.quantity) <= 0) {
+                                              setWalkInDirectQty(item.product._id, currentUnit, 1);
+                                            }
+                                          }}
+                                          className="w-12 h-6 text-center font-black text-gray-900 text-xs bg-gray-50 border border-gray-200 rounded focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                          title="Type quantity directly"
+                                        />
                                         <button
                                           type="button"
                                           onClick={() => updateWalkInQty(item.product._id, currentUnit, 1)}
-                                          className="w-5 h-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded flex items-center justify-center cursor-pointer font-black text-xs"
+                                          className="w-6 h-6 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded flex items-center justify-center cursor-pointer font-black text-xs transition-all select-none shadow-sm"
+                                          title="Increase"
                                         >
                                           +
                                         </button>
@@ -7474,15 +7931,75 @@ function StoreContent({ shopId }) {
 
                         {/* Bill Total & Complete */}
                         <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Total Amount</span>
-                            <span className="text-2xl font-black text-emerald-600">
-                              {currency} {walkInCart.reduce((sum, i) => {
-                                const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
-                                return sum + (rate * (Number(i.quantity) || 1));
-                              }, 0).toLocaleString()}
-                            </span>
-                          </div>
+                          {(() => {
+                            const rawTotal = walkInCart.reduce((sum, i) => {
+                              const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
+                              return sum + (rate * (Number(i.quantity) || 1));
+                            }, 0);
+                            const discountNum = Number(walkInDiscount) > 0 ? Number(walkInDiscount) : 0;
+                            const finalNetTotal = Math.max(0, rawTotal - discountNum);
+
+                            return (
+                              <div className="space-y-2.5">
+                                {/* Total Amount */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Total Amount</span>
+                                  <span className="text-lg font-black text-gray-800">
+                                    {currency} {rawTotal.toLocaleString()}
+                                  </span>
+                                </div>
+
+                                {/* Discount Input Field */}
+                                <div className="bg-white border border-amber-200 rounded-xl p-2.5 shadow-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label className="text-[11px] font-black uppercase tracking-wider text-amber-700 flex items-center gap-1 shrink-0">
+                                      <span>🏷️</span> Discount:
+                                    </label>
+                                    <div className="relative flex-1 max-w-[170px]">
+                                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-black text-gray-400">
+                                        {currency}
+                                      </span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={rawTotal}
+                                        value={walkInDiscount}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === '') {
+                                            setWalkInDiscount('');
+                                          } else {
+                                            const num = Math.max(0, Number(val));
+                                            setWalkInDiscount(num > rawTotal ? String(rawTotal) : String(num));
+                                          }
+                                        }}
+                                        placeholder="0"
+                                        className="w-full bg-amber-50/40 border border-amber-300 focus:border-amber-500 rounded-lg pl-9 pr-2.5 py-1.5 text-xs font-black text-amber-900 outline-none transition-all text-right shadow-inner"
+                                      />
+                                    </div>
+                                  </div>
+                                  {discountNum > 0 && (
+                                    <div className="text-[10px] font-bold text-amber-600 text-right mt-1">
+                                      - {currency} {discountNum.toLocaleString()} Discount Applied
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Final Net Bill */}
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                  <div>
+                                    <span className="text-xs font-black text-emerald-800 uppercase tracking-widest block">Final Bill (Net)</span>
+                                    {discountNum > 0 && (
+                                      <span className="text-[9.5px] font-bold text-gray-400">After {currency} {discountNum.toLocaleString()} Discount</span>
+                                    )}
+                                  </div>
+                                  <span className="text-2xl font-black text-emerald-600">
+                                    {currency} {finalNetTotal.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <button
                             onClick={handleCompleteWalkInSale}
                             disabled={walkInCart.length === 0 || isProcessingWalkIn}
@@ -7595,7 +8112,7 @@ function StoreContent({ shopId }) {
                   </div>
 
                   {/* Filter Tabs & Search Bar */}
-                  <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-3 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-3 shadow-sm flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
                     <div className="flex items-center bg-gray-100 p-1 rounded-2xl gap-1.5 overflow-x-auto">
                       <button
                         onClick={() => setCustomerFilterTab('ALL')}
@@ -7632,23 +8149,27 @@ function StoreContent({ shopId }) {
                       </button>
                     </div>
 
-                    <div className="relative flex-1 sm:max-w-xs">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="text"
-                        value={customerSearch}
-                        onChange={e => setCustomerSearch(e.target.value)}
-                        placeholder="Search name, phone, email..."
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-500 focus:bg-white shadow-inner"
-                      />
-                      {customerSearch && (
-                        <button
-                          onClick={() => setCustomerSearch('')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                    <div className="flex items-center flex-wrap gap-2 justify-between xl:justify-end flex-1">
+                      {renderCalendarFilter('light')}
+
+                      <div className="relative flex-1 sm:max-w-xs min-w-[200px]">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          value={customerSearch}
+                          onChange={e => setCustomerSearch(e.target.value)}
+                          placeholder="Search name, phone, email..."
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-500 focus:bg-white shadow-inner"
+                        />
+                        {customerSearch && (
+                          <button
+                            onClick={() => setCustomerSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -8039,7 +8560,7 @@ function StoreContent({ shopId }) {
               {activeView === 'report-sales' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
                         <TrendingUp className="w-4 h-4" />
@@ -8060,7 +8581,7 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Single Clean Line Action Buttons & Timeframe Selector */}
-                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                    <div className="flex items-center gap-1.5 flex-wrap w-full xl:w-auto justify-start xl:justify-end">
                       <button
                         onClick={() => setActiveView('walkin')}
                         className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-300/40 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
@@ -8086,26 +8607,8 @@ function StoreContent({ shopId }) {
                         <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
 
-                      {/* Day / Month / Year Timeframe Selector */}
-                      <div className="flex items-center gap-0.5 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 ml-1">
-                        {[
-                          { id: 'ALL', label: 'All' },
-                          { id: 'DAY', label: 'Today' },
-                          { id: 'MONTH', label: 'Month' },
-                          { id: 'YEAR', label: 'Year' },
-                        ].map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => setReportTimeframe(t.id)}
-                            className={`px-2 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
-                              ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                              }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Calendar Date Range Filter */}
+                      {renderCalendarFilter('dark')}
                     </div>
                   </div>
 
@@ -8169,7 +8672,7 @@ function StoreContent({ shopId }) {
                     <div className="bg-white border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-emerald-800 uppercase tracking-widest">
-                          {reportTimeframe === 'DAY' ? 'Today Total Sales' : reportTimeframe === 'MONTH' ? 'Month Total Sales' : reportTimeframe === 'YEAR' ? 'Year Total Sales' : 'Total Gross Sales'}
+                          {(appliedStartDate || appliedEndDate) ? `${getActivePeriodLabel()} Sales` : (reportTimeframe === 'DAY' ? 'Today Total Sales' : reportTimeframe === 'MONTH' ? 'Month Total Sales' : reportTimeframe === 'YEAR' ? 'Year Total Sales' : 'Total Gross Sales')}
                         </span>
                         <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
                           <Receipt className="w-3.5 h-3.5" />
@@ -9396,7 +9899,7 @@ function StoreContent({ shopId }) {
               {activeView === 'report-profit' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
                         <DollarSign className="w-4 h-4" />
@@ -9417,7 +9920,7 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Single Clean Line Action Buttons & Timeframe Selector */}
-                    <div className="flex items-center gap-1.5 shrink-0 flex-nowrap overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                    <div className="flex items-center gap-1.5 flex-wrap w-full xl:w-auto justify-start xl:justify-end">
                       <button
                         onClick={() => handlePrintSingleReport('profit', reportTimeframe)}
                         className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-emerald-400/30 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
@@ -9437,26 +9940,8 @@ function StoreContent({ shopId }) {
                         <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                       </button>
 
-                      {/* Day / Month / Year Timeframe Selector */}
-                      <div className="flex items-center gap-0.5 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 ml-1">
-                        {[
-                          { id: 'ALL', label: 'All' },
-                          { id: 'DAY', label: 'Today' },
-                          { id: 'MONTH', label: 'Month' },
-                          { id: 'YEAR', label: 'Year' },
-                        ].map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => setReportTimeframe(t.id)}
-                            className={`px-2 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
-                              ? 'bg-emerald-500 text-slate-950 shadow-sm font-extrabold'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
-                              }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Calendar Date Range Filter */}
+                      {renderCalendarFilter('dark')}
                     </div>
                   </div>
 
@@ -9540,7 +10025,7 @@ function StoreContent({ shopId }) {
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-teal-600" />
-                        2. Net Profit Calculation Flow ({reportTimeframe === 'DAY' ? 'Today' : reportTimeframe === 'MONTH' ? 'This Month' : reportTimeframe === 'YEAR' ? 'This Year' : 'All-Time'})
+                        2. Net Profit Calculation Flow ({getActivePeriodLabel()})
                       </h4>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                         Revenue - Purchases - Expenses - Damage = Net Profit
@@ -10000,28 +10485,29 @@ function StoreContent({ shopId }) {
 
                     const currentSales = (shopSalesList || []).filter(s => {
                       const d = new Date(s.saleDate || s.createdAt || s.date || 0);
-                      if (reportTimeframe === 'DAY') return d.toISOString().split('T')[0] === todayStr || d.toDateString() === now.toDateString();
-                      if (reportTimeframe === 'MONTH') return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-                      if (reportTimeframe === 'YEAR') return d.getFullYear() === currentYear;
-                      return true;
+                      return isDateInSelectedRange(d);
                     });
 
                     const timeframeCashSales = currentSales.reduce((sum, s) => sum + (s.cashPaid !== undefined ? Number(s.cashPaid) : (s.paymentMethod === 'CASH' ? Number(s.totalAmount) : 0)), 0);
                     const timeframeBankSales = currentSales.reduce((sum, s) => sum + (s.bankPaid !== undefined ? Number(s.bankPaid) : (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' ? Number(s.totalAmount) : 0)), 0);
 
-                    const timeframeCashExp = reportTimeframe === 'DAY' ? dynamicExpenseStats.todayCashExp :
+                    const timeframeCashExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeCashExp :
+                      reportTimeframe === 'DAY' ? dynamicExpenseStats.todayCashExp :
                       reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthCashExp :
                       reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearCashExp : dynamicExpenseStats.totalCashExp;
 
-                    const timeframeBankExp = reportTimeframe === 'DAY' ? dynamicExpenseStats.todayBankExp :
+                    const timeframeBankExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeBankExp :
+                      reportTimeframe === 'DAY' ? dynamicExpenseStats.todayBankExp :
                       reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthBankExp :
                       reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearBankExp : dynamicExpenseStats.totalBankExp;
 
-                    const timeframeTotalExp = reportTimeframe === 'DAY' ? dynamicExpenseStats.todayExp :
+                    const timeframeTotalExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeExp :
+                      reportTimeframe === 'DAY' ? dynamicExpenseStats.todayExp :
                       reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthExp :
                       reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearExp : dynamicExpenseStats.totalExp;
 
-                    const timeframeDamaged = reportTimeframe === 'DAY' ? dynamicExpenseStats.todayDamaged :
+                    const timeframeDamaged = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeDamaged :
+                      reportTimeframe === 'DAY' ? dynamicExpenseStats.todayDamaged :
                       reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthDamaged :
                       reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearDamaged : dynamicExpenseStats.totalDamaged;
 
@@ -10098,46 +10584,30 @@ function StoreContent({ shopId }) {
                       <div>
                         <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                           <FileText className="w-4 h-4 text-rose-600" />
-                          Expenses Timeframe Filter (Day / Month / Year)
+                          Expenses Date Range Filter (Calendar)
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-1">
-                          Filter and analyze operating expense entries and breakage losses by selected duration
+                          Filter and analyze operating expense entries and breakage losses by calendar date range
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                        {[
-                          { id: 'DAY', label: 'Today (Day)' },
-                          { id: 'MONTH', label: 'This Month' },
-                          { id: 'YEAR', label: 'This Year' },
-                          { id: 'ALL', label: 'All-Time' },
-                        ].map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => setReportTimeframe(t.id)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${reportTimeframe === t.id
-                              ? 'bg-rose-600 text-white shadow-md'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
-                              }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Calendar Date Range Filter */}
+                      {renderCalendarFilter('light')}
                     </div>
 
                     {/* Filtered Period Highlight Bar */}
                     <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div>
                         <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
-                          {reportTimeframe === 'DAY' ? 'Today (Day) Expenses & Losses' : reportTimeframe === 'MONTH' ? 'Monthly Expenses & Losses' : reportTimeframe === 'YEAR' ? 'Yearly Expenses & Losses' : 'All-Time Cumulative Expenses'}
+                          {getActivePeriodLabel()} Expenses & Losses
                         </span>
                         <h4 className="text-3xl font-black text-slate-900 tracking-tight">
                           {currency} {(
+                            (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeTotalLoss :
                             reportTimeframe === 'DAY' ? dynamicExpenseStats.todayTotalLoss :
-                              reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
-                                reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
-                                  dynamicExpenseStats.grandTotalLoss
+                            reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
+                            reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
+                            dynamicExpenseStats.grandTotalLoss
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -10174,10 +10644,7 @@ function StoreContent({ shopId }) {
                       const now = new Date();
                       const filteredExpForTable = expensesList.filter(exp => {
                         const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
-                        if (reportTimeframe === 'DAY') return d.toDateString() === now.toDateString();
-                        if (reportTimeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                        if (reportTimeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
-                        return true;
+                        return isDateInSelectedRange(d);
                       });
 
                       const cashExpCount = filteredExpForTable.filter(e => !String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).length;
@@ -10202,7 +10669,7 @@ function StoreContent({ shopId }) {
                                 Itemized Logged Expenses ({displayedExpenses.length} Entries)
                               </h4>
                               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                • {reportTimeframe === 'DAY' ? 'Today' : reportTimeframe === 'MONTH' ? 'This Month' : reportTimeframe === 'YEAR' ? 'This Year' : 'All-Time'}
+                                • {getActivePeriodLabel()}
                               </span>
                             </div>
 
@@ -10620,45 +11087,29 @@ function StoreContent({ shopId }) {
                       <div>
                         <h3 className="text-sm font-black text-zinc-800 uppercase tracking-[0.15em] flex items-center gap-2">
                           <PackageX className="w-4 h-4 text-amber-600" />
-                          Damaged Timeframe Selector (Days / Months / Year)
+                          Damaged Date Range Filter (Calendar)
                         </h3>
                         <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-1">
-                          Select time filter to isolate and display only that period's damaged stock report
+                          Select start and end dates to isolate and display damaged stock report
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        {[
-                          { id: 'DAY', label: 'Today (Day)' },
-                          { id: 'MONTH', label: 'This Month' },
-                          { id: 'YEAR', label: 'This Year' },
-                          { id: 'ALL', label: 'All-Time' },
-                        ].map(t => (
-                          <button
-                            key={t.id}
-                            onClick={() => setReportTimeframe(t.id)}
-                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${reportTimeframe === t.id
-                              ? 'bg-amber-600 text-white shadow-md'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                              }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Calendar Date Range Filter */}
+                      {renderCalendarFilter('light')}
                     </div>
 
                     <div className="p-6 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div>
                         <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">
-                          {reportTimeframe === 'DAY' ? 'Today (Day) Damaged Stock Loss' : reportTimeframe === 'MONTH' ? 'Monthly Damaged Stock Loss' : reportTimeframe === 'YEAR' ? 'Yearly Damaged Stock Loss' : 'All-Time Total Damaged Loss'}
+                          {getActivePeriodLabel()} Damaged Stock Loss
                         </span>
                         <h4 className="text-3xl font-black text-amber-600 tracking-tight">
                           {currency} {(
+                            (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
                             reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
-                              reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
-                                reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
-                                  (dynamicExpenseStats.totalDamaged || 0)
+                            reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                            reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                            (dynamicExpenseStats.totalDamaged || 0)
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -10697,22 +11148,22 @@ function StoreContent({ shopId }) {
                       <div className="block md:hidden bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-700 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
-                            {reportTimeframe === 'DAY' ? 'Today (Daily Damaged Report)' :
-                             reportTimeframe === 'MONTH' ? 'This Month (Monthly Damaged Report)' :
-                             reportTimeframe === 'YEAR' ? 'This Year (Yearly Damaged Report)' :
-                             'All-Time Cumulative Damaged Loss'}
+                            {getActivePeriodLabel()} Damaged Report
                           </span>
                           <span className="px-2 py-0.5 rounded-full font-black text-[9px] uppercase bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
-                            {reportTimeframe === 'DAY' ? 'Today Only' :
-                             reportTimeframe === 'MONTH' ? 'Monthly Only' :
-                             reportTimeframe === 'YEAR' ? 'Yearly Only' :
-                             'All-Time'}
+                            {appliedStartDate || appliedEndDate ? 'DATE FILTER' : (
+                              reportTimeframe === 'DAY' ? 'Today Only' :
+                              reportTimeframe === 'MONTH' ? 'Monthly Only' :
+                              reportTimeframe === 'YEAR' ? 'Yearly Only' :
+                              'All-Time'
+                            )}
                           </span>
                         </div>
                         <div className="flex items-center justify-between pt-1 border-t border-slate-700/80">
                           <span className="text-xs font-bold text-slate-300">Damaged Loss Amount:</span>
                           <span className="text-lg font-black text-amber-300">
                             {currency} {(
+                              (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
                               reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
                               reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
                               reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
@@ -10733,33 +11184,43 @@ function StoreContent({ shopId }) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-zinc-200">
-                            {reportTimeframe === 'DAY' && (
-                              <tr className="bg-amber-100/80 font-bold">
-                                <td className="p-3.5 font-bold">Today (Daily Damaged Report)</td>
-                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.todayDamaged || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-amber-500/10 text-amber-700 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                            {(appliedStartDate || appliedEndDate) ? (
+                              <tr className="bg-amber-100/90 font-bold">
+                                <td className="p-3.5 font-bold text-slate-900">{getActivePeriodLabel()} Damaged Report</td>
+                                <td className="p-3.5 text-amber-700 font-black text-sm">{currency} {(dynamicExpenseStats.rangeDamaged || 0).toLocaleString('en-PK')}</td>
+                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-800 rounded-full font-black text-[9px]">FILTERED DATES</span></td>
                               </tr>
-                            )}
-                            {reportTimeframe === 'MONTH' && (
-                              <tr className="bg-amber-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Month (Monthly Damaged Report)</td>
-                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.monthDamaged || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'YEAR' && (
-                              <tr className="bg-amber-100/80 font-bold">
-                                <td className="p-3.5 font-bold">This Year (Yearly Damaged Report)</td>
-                                <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.yearDamaged || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
-                              </tr>
-                            )}
-                            {reportTimeframe === 'ALL' && (
-                              <tr className="bg-slate-900 text-white font-bold">
-                                <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Damaged Loss</td>
-                                <td className="p-3.5 text-amber-300 font-black text-sm">{currency} {(dynamicExpenseStats.totalDamaged || 0).toLocaleString('en-PK')}</td>
-                                <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME DAMAGED LOSS</td>
-                              </tr>
+                            ) : (
+                              <>
+                                {reportTimeframe === 'DAY' && (
+                                  <tr className="bg-amber-100/80 font-bold">
+                                    <td className="p-3.5 font-bold">Today (Daily Damaged Report)</td>
+                                    <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.todayDamaged || 0).toLocaleString('en-PK')}</td>
+                                    <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-amber-500/10 text-amber-700 rounded-full font-black text-[9px]">TODAY ONLY</span></td>
+                                  </tr>
+                                )}
+                                {reportTimeframe === 'MONTH' && (
+                                  <tr className="bg-amber-100/80 font-bold">
+                                    <td className="p-3.5 font-bold">This Month (Monthly Damaged Report)</td>
+                                    <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.monthDamaged || 0).toLocaleString('en-PK')}</td>
+                                    <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded-full font-black text-[9px]">MONTHLY ONLY</span></td>
+                                  </tr>
+                                )}
+                                {reportTimeframe === 'YEAR' && (
+                                  <tr className="bg-amber-100/80 font-bold">
+                                    <td className="p-3.5 font-bold">This Year (Yearly Damaged Report)</td>
+                                    <td className="p-3.5 text-amber-700 font-bold">{currency} {(dynamicExpenseStats.yearDamaged || 0).toLocaleString('en-PK')}</td>
+                                    <td className="p-3.5 text-right"><span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 rounded-full font-black text-[9px]">YEARLY ONLY</span></td>
+                                  </tr>
+                                )}
+                                {reportTimeframe === 'ALL' && (
+                                  <tr className="bg-slate-900 text-white font-bold">
+                                    <td className="p-3.5 font-black uppercase text-yellow-400">All-Time Cumulative Damaged Loss</td>
+                                    <td className="p-3.5 text-amber-300 font-black text-sm">{currency} {(dynamicExpenseStats.totalDamaged || 0).toLocaleString('en-PK')}</td>
+                                    <td className="p-3.5 text-right text-yellow-300 font-black">ALL-TIME DAMAGED LOSS</td>
+                                  </tr>
+                                )}
+                              </>
                             )}
                           </tbody>
                         </table>
@@ -10767,36 +11228,43 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* ─── DYNAMIC LOGGED DAMAGED PRODUCTS TABLE & CARDS ─── */}
-                    <div className="space-y-3 pt-6 border-t border-zinc-100">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
-                          <PackageX className="w-4 h-4 text-amber-600" />
-                          Damaged Products List ({damagedProductsList.length})
-                        </h4>
-                        <button
-                          onClick={() => setShowAddDamagedModal(true)}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Log Damaged Entry
-                        </button>
-                      </div>
+                    {(() => {
+                      const filteredDamagedForTable = (damagedProductsList || []).filter(dmg => {
+                        const d = new Date(dmg.damageDate || dmg.createdAt || dmg.date || Date.now());
+                        return isDateInSelectedRange(d);
+                      });
 
-                      {damagedProductsList.length === 0 ? (
-                        <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">No damaged products or stock losses logged yet.</p>
-                          <p className="text-[10px] text-slate-400 mt-1">Click "+ Log Damaged Product" to record egg breakage, cracked eggs, or spoiled stock losses.</p>
-                          <button
-                            onClick={() => setShowAddDamagedModal(true)}
-                            className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Log First Damaged Product
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
-                          <div className="block md:hidden space-y-3">
-                            {damagedProductsList.map((dmg, idx) => (
+                      return (
+                        <div className="space-y-3 pt-6 border-t border-zinc-100">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
+                              <PackageX className="w-4 h-4 text-amber-600" />
+                              Damaged Products List ({filteredDamagedForTable.length})
+                            </h4>
+                            <button
+                              onClick={() => setShowAddDamagedModal(true)}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Log Damaged Entry
+                            </button>
+                          </div>
+
+                          {filteredDamagedForTable.length === 0 ? (
+                            <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">No damaged products or stock losses logged yet.</p>
+                              <p className="text-[10px] text-slate-400 mt-1">Click "+ Log Damaged Product" to record egg breakage, cracked eggs, or spoiled stock losses.</p>
+                              <button
+                                onClick={() => setShowAddDamagedModal(true)}
+                                className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Log First Damaged Product
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
+                              <div className="block md:hidden space-y-3">
+                                {filteredDamagedForTable.map((dmg, idx) => (
                               <div key={`mob_dmg_${dmg._id || idx}`} className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
                                 {/* Card Top: Serial, Product Name, Reason & Total Loss */}
                                 <div className="flex items-start justify-between gap-2">
@@ -10893,7 +11361,7 @@ function StoreContent({ shopId }) {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-zinc-200">
-                                {damagedProductsList.map(dmg => (
+                                {filteredDamagedForTable.map(dmg => (
                                   <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-3.5 font-bold text-slate-500">
                                       {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -10943,6 +11411,8 @@ function StoreContent({ shopId }) {
                         </>
                       )}
                     </div>
+                  );
+                })()}
 
                   </div>
                 </div>
@@ -10951,11 +11421,21 @@ function StoreContent({ shopId }) {
               {/* ─── 4. CHARTS & ANALYTICS DEDICATED VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'analytics-charts' && isAdminUser && (
                 <div className="space-y-6">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-emerald-600" />
+                      <div>
+                        <h2 className="text-sm sm:text-base font-black text-slate-800 uppercase tracking-tight">Business Analytics &amp; Visual Trends</h2>
+                        <p className="text-[11px] text-slate-400 font-bold">Interactive data visualizations filtered by selected date range</p>
+                      </div>
+                    </div>
+                    {renderCalendarFilter('light')}
+                  </div>
                   <ShopAdminCharts
-                    sales={shopSalesList}
+                    sales={(appliedStartDate || appliedEndDate) ? (shopSalesList || []).filter(s => isDateInSelectedRange(s.createdAt || s.saleDate)) : shopSalesList}
                     products={items}
-                    expenses={expensesList}
-                    damaged={damagedProductsList}
+                    expenses={(appliedStartDate || appliedEndDate) ? (expensesList || []).filter(e => isDateInSelectedRange(e.date || e.createdAt)) : expensesList}
+                    damaged={(appliedStartDate || appliedEndDate) ? (damagedProductsList || []).filter(d => isDateInSelectedRange(d.date || d.createdAt)) : damagedProductsList}
                     dashStats={dashStats}
                     profitReportStats={profitReportStats}
                     currency={currency}

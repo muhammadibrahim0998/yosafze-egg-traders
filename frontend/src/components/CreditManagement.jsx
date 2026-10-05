@@ -51,6 +51,37 @@ export function CreditManagement({
   }, [initialTab]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'UNPAID' | 'PARTIAL'
+  const [creditStartDate, setCreditStartDate] = useState('');
+  const [creditEndDate, setCreditEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handleApplyDateFilter = (startVal = creditStartDate, endVal = creditEndDate) => {
+    setAppliedStartDate(startVal);
+    setAppliedEndDate(endVal);
+  };
+
+  const handleClearDateFilter = () => {
+    setCreditStartDate('');
+    setCreditEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+  };
+
+  const isDateInSelectedRange = (rawDate) => {
+    if (!rawDate) return false;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return false;
+    if (appliedStartDate) {
+      const s = new Date(appliedStartDate + 'T00:00:00');
+      if (d < s) return false;
+    }
+    if (appliedEndDate) {
+      const e = new Date(appliedEndDate + 'T23:59:59.999');
+      if (d > e) return false;
+    }
+    return true;
+  };
 
   // Supplier Settle Modal State
   const [settleSupplierModal, setSettleSupplierModal] = useState({
@@ -183,6 +214,9 @@ export function CreditManagement({
   // Filtered lists based on search & filter status
   const filteredPurchases = useMemo(() => {
     return purchaseCreditList.filter(item => {
+      if (appliedStartDate || appliedEndDate) {
+        if (!isDateInSelectedRange(item.createdAt || item.purchaseDate || item.date)) return false;
+      }
       const matchSearch = (
         (item.name || item.productName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.supplierName || item.supplier || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -192,10 +226,13 @@ export function CreditManagement({
       if (filterStatus === 'PARTIAL') return item.calculatedDue > 0 && item.calculatedPaid > 0;
       return true;
     });
-  }, [purchaseCreditList, searchTerm, filterStatus]);
+  }, [purchaseCreditList, searchTerm, filterStatus, appliedStartDate, appliedEndDate]);
 
   const filteredCustomerSales = useMemo(() => {
     return customerCreditList.filter(sale => {
+      if (appliedStartDate || appliedEndDate) {
+        if (!isDateInSelectedRange(sale.createdAt || sale.saleDate || sale.date)) return false;
+      }
       const matchSearch = (
         (sale.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.customerPhone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -206,7 +243,7 @@ export function CreditManagement({
       if (filterStatus === 'PARTIAL') return sale.calculatedDue > 0 && sale.calculatedPaid > 0;
       return true;
     });
-  }, [customerCreditList, searchTerm, filterStatus]);
+  }, [customerCreditList, searchTerm, filterStatus, appliedStartDate, appliedEndDate]);
 
   // Open Settle Supplier Credit Modal
   const handleOpenSettleSupplier = (item) => {
@@ -631,6 +668,52 @@ export function CreditManagement({
               {customerCreditList.filter(c => c.calculatedDue > 0).length}
             </span>
           </button>
+        </div>
+
+        {/* Calendar Date Range Filter */}
+        <div className="flex items-center flex-wrap gap-1.5 p-1 rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm text-zinc-800 shrink-0">
+          <div className="flex items-center gap-1 pl-1">
+            <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Start:</span>
+            <input
+              type="date"
+              value={creditStartDate}
+              onChange={(e) => setCreditStartDate(e.target.value)}
+              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">End:</span>
+            <input
+              type="date"
+              value={creditEndDate}
+              onChange={(e) => setCreditEndDate(e.target.value)}
+              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
+            />
+          </div>
+          <button
+            onClick={() => handleApplyDateFilter()}
+            className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+            title="Filter credit records by date range"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filter</span>
+          </button>
+          {(appliedStartDate || appliedEndDate || creditStartDate || creditEndDate) && (
+            <button
+              onClick={handleClearDateFilter}
+              className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0"
+              title="Clear date filter"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear</span>
+            </button>
+          )}
+          {(appliedStartDate || appliedEndDate) && (
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-300 whitespace-nowrap">
+              Active: {appliedStartDate && appliedEndDate ? `${appliedStartDate} to ${appliedEndDate}` : (appliedStartDate ? `From ${appliedStartDate}` : `Up to ${appliedEndDate}`)}
+            </span>
+          )}
         </div>
 
         {/* Filter / Search Bar */}
