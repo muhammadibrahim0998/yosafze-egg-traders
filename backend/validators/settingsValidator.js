@@ -36,6 +36,9 @@ export const settingsSchema = z.object({
     .optional()
     .or(z.literal('')),
   easypaisaEnabled: z.boolean().optional(),
+  bankName: z.string().optional().or(z.literal('')),
+  bankAccountNumber: z.string().optional().or(z.literal('')),
+  bankAccountTitle: z.string().optional().or(z.literal('')),
 });
 
 export const validateSettings = (req, res, next) => {

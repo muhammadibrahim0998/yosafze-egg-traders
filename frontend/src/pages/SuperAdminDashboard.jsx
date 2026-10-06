@@ -13,6 +13,25 @@ import { useProducts } from '../contexts/ProductContext';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import { CountUpNumber } from '../components/CountUpNumber';
 
+const PAKISTANI_BANKS = [
+    'Meezan Bank',
+    'Habib Bank Limited (HBL)',
+    'Bank Alfalah',
+    'United Bank Limited (UBL)',
+    'MCB Bank',
+    'Allied Bank (ABL)',
+    'Bank of Khyber (BOK)',
+    'Bank of Punjab (BOP)',
+    'Askari Bank',
+    'Faysal Bank',
+    'Standard Chartered',
+    'Soneri Bank',
+    'JS Bank',
+    'Dubai Islamic Bank',
+    'Bank Islami',
+    'Al Baraka Bank'
+];
+
 export function SuperAdminDashboard() {
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -22,7 +41,17 @@ export function SuperAdminDashboard() {
     sessionStorage.setItem('superAdminTab', tab);
   };
     const [editingShop, setEditingShop] = useState(null);
-    const [editData, setEditData] = useState({ name: '', address: '', contactNumber: '', status: 'active' });
+    const [editData, setEditData] = useState({ 
+        name: '', 
+        address: '', 
+        contactNumber: '', 
+        status: 'active',
+        ownerEmail: '',
+        easypaisaNumber: '',
+        bankName: '',
+        bankAccountNumber: '',
+        bankAccountTitle: ''
+    });
     const [viewingShop, setViewingShop] = useState(null);
     const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: '' });
     const [isDeleting, setIsDeleting] = useState(false);
@@ -51,7 +80,10 @@ export function SuperAdminDashboard() {
             adminFullName: '',
             adminUsername: '',
             adminPassword: '',
-            easypaisaNumber: ''
+            easypaisaNumber: '',
+            bankName: '',
+            bankAccountNumber: '',
+            bankAccountTitle: ''
         }
     });
 
@@ -252,27 +284,31 @@ export function SuperAdminDashboard() {
     const handleUpdateShop = async (id) => {
         try {
             await api.put(`/shops/${id}`, editData);
-            toast.success("Shop updated successfully");
+            toast.success("Shop and Bank details updated successfully");
             setEditingShop(null);
             fetchShops();
         } catch (err) {
-            toast.error("Failed to update shop");
+            toast.error(err.response?.data?.message || "Failed to update shop");
         }
     };
 
     const startEdit = (shop) => {
         setActiveTab('management'); // Switch to management tab if not there
-        setEditingShop(shop._id);
+        setEditingShop(shop._id || shop.id);
         setEditData({
             name: shop.name || '',
             address: shop.address || '',
             contactNumber: shop.contactNumber || '',
-            ownerEmail: shop.ownerDetails?.email || '',
-            status: shop.status
+            ownerEmail: shop.ownerDetails?.email || shop.ownerEmail || '',
+            status: shop.status || 'active',
+            easypaisaNumber: shop.easypaisaNumber || '',
+            bankName: shop.bankName || '',
+            bankAccountNumber: shop.bankAccountNumber || '',
+            bankAccountTitle: shop.bankAccountTitle || ''
         });
         // Scroll to management section if needed - added a slight delay to ensure tab is rendered
         setTimeout(() => {
-            const el = document.getElementById(`shop-manage-${shop._id}`);
+            const el = document.getElementById(`shop-manage-${shop._id || shop.id}`);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
     };
@@ -488,10 +524,51 @@ export function SuperAdminDashboard() {
                                     <p className="text-[9px] text-zinc-400 font-bold mt-1 pl-1">Customers will send EasyPaisa payments to this number.</p>
                                 </div>
                             </div>
+
+                            {/* Bank Details Section */}
+                            <div className="pt-4 border-t border-zinc-50 space-y-3">
+                                <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                    <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                                    Bank Account Details
+                                </h3>
+                                <div>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Select Bank</label>
+                                    <select
+                                        {...register('bankName')}
+                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankName ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold outline-none focus:bg-white focus:border-blue-500/40 transition-all cursor-pointer`}
+                                    >
+                                        <option value="">-- Choose Official Bank --</option>
+                                        {PAKISTANI_BANKS.map((b) => (
+                                            <option key={b} value={b}>{b}</option>
+                                        ))}
+                                        <option value="Other Bank">Other Bank / Custom</option>
+                                    </select>
+                                    {errors.bankName && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankName.message}</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Bank Account / IBAN Number</label>
+                                    <input
+                                        {...register('bankAccountNumber')}
+                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankAccountNumber ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold placeholder:text-zinc-300 outline-none focus:bg-white focus:border-blue-500/40 transition-all`}
+                                        placeholder="01020304050607 or IBAN"
+                                    />
+                                    {errors.bankAccountNumber && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankAccountNumber.message}</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Account Title / Beneficiary Name</label>
+                                    <input
+                                        {...register('bankAccountTitle')}
+                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankAccountTitle ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold placeholder:text-zinc-300 outline-none focus:bg-white focus:border-blue-500/40 transition-all`}
+                                        placeholder="Account Title (e.g. Yousafzai Traders)"
+                                    />
+                                    {errors.bankAccountTitle && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankAccountTitle.message}</p>}
+                                </div>
+                            </div>
+
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full py-4 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-green-700 shadow-lg shadow-green-500/20 active:scale-95 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full py-4 bg-green-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-green-700 shadow-lg shadow-green-500/20 active:scale-95 transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {isSubmitting ? 'Registering...' : 'Create Shop'}
                             </button>
@@ -504,36 +581,101 @@ export function SuperAdminDashboard() {
                         {filteredShops.map(shop => {
                             const isEditing = editingShop === shop._id;
                             return (
-                                <div key={shop._id} id={`shop-manage-${shop._id}`} className="bg-white p-5 rounded-2xl border border-zinc-100 flex items-center justify-between shadow-sm hover:shadow-rich hover:border-green-500/20 transition-all group/shop relative overflow-hidden">
-                                    <div className="flex items-center gap-5 flex-1 min-w-0">
-                                        <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-100 transition-colors group-hover/shop:bg-green-50/50 flex-shrink-0">
+                                <div key={shop._id} id={`shop-manage-${shop._id}`} className="bg-white p-5 rounded-2xl border border-zinc-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm hover:shadow-rich hover:border-green-500/20 transition-all group/shop relative overflow-hidden">
+                                    <div className="flex items-start md:items-center gap-4 flex-1 min-w-0 w-full">
+                                        <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-100 transition-colors group-hover/shop:bg-green-50/50 flex-shrink-0 mt-1 md:mt-0">
                                             <Store className="w-6 h-6 text-zinc-400 group-hover/shop:text-green-500 transition-colors" />
                                         </div>
                                         {isEditing ? (
-                                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-5 gap-3">
-                                                <input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="px-3 py-2 rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Name" />
-                                                <input value={editData.ownerEmail} onChange={(e) => setEditData({ ...editData, ownerEmail: e.target.value })} className="px-3 py-2 rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Email Address" type="email" />
-                                                <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="px-3 py-2 rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Address" />
-                                                <input value={editData.contactNumber} onChange={(e) => setEditData({ ...editData, contactNumber: e.target.value })} className="px-3 py-2 rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Phone" />
-                                                <select value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="px-3 py-2 rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none">
-                                                    <option value="active">Active</option>
-                                                    <option value="inactive">Inactive</option>
-                                                </select>
+                                            <div className="flex-1 space-y-3 py-1 w-full animate-in fade-in duration-200">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Shop Name</label>
+                                                        <input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Shop Name" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Admin Email</label>
+                                                        <input value={editData.ownerEmail} onChange={(e) => setEditData({ ...editData, ownerEmail: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Email Address" type="email" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Contact Phone</label>
+                                                        <input value={editData.contactNumber} onChange={(e) => setEditData({ ...editData, contactNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Phone" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Status</label>
+                                                        <select value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none">
+                                                            <option value="active">Active</option>
+                                                            <option value="inactive">Inactive</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Address</label>
+                                                    <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Address" />
+                                                </div>
+                                                <div className="pt-2 border-t border-zinc-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-emerald-600 pl-1 mb-1">EasyPaisa Number</label>
+                                                        <input value={editData.easypaisaNumber} onChange={(e) => setEditData({ ...editData, easypaisaNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="03001234567" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Bank Name</label>
+                                                        <select 
+                                                            value={PAKISTANI_BANKS.includes(editData.bankName) ? editData.bankName : (editData.bankName ? 'Other Bank' : '')} 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                if (val === 'Other Bank') {
+                                                                    setEditData({ ...editData, bankName: editData.bankName || 'Other Bank' });
+                                                                } else {
+                                                                    setEditData({ ...editData, bankName: val });
+                                                                }
+                                                            }} 
+                                                            className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none cursor-pointer"
+                                                        >
+                                                            <option value="">-- Choose Bank --</option>
+                                                            {PAKISTANI_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                                                            <option value="Other Bank">Other Bank</option>
+                                                        </select>
+                                                        {(!PAKISTANI_BANKS.includes(editData.bankName) && editData.bankName) && (
+                                                            <input 
+                                                                value={editData.bankName} 
+                                                                onChange={(e) => setEditData({ ...editData, bankName: e.target.value })} 
+                                                                className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-xs font-bold outline-none" 
+                                                                placeholder="Type Custom Bank Name" 
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Bank Account / IBAN</label>
+                                                        <input value={editData.bankAccountNumber} onChange={(e) => setEditData({ ...editData, bankAccountNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Account # or IBAN" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Account Title</label>
+                                                        <input value={editData.bankAccountTitle} onChange={(e) => setEditData({ ...editData, bankAccountTitle: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Beneficiary Title" />
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="min-w-0 flex-1">
-                                                <h3 className="font-bold text-zinc-900 text-sm uppercase tracking-tight truncate">{shop.name}</h3>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-bold text-zinc-900 text-sm uppercase tracking-tight truncate">{shop.name}</h3>
+                                                    {shop.bankName && (
+                                                        <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[9px] font-black uppercase">
+                                                            🏛️ {shop.bankName}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest mt-0.5 truncate">
-                                                    {shop.address || 'Global'} {shop.contactNumber && `• ${shop.contactNumber}`}
+                                                    {shop.address || 'Global'} {shop.contactNumber && `• ${shop.contactNumber}`} {shop.bankAccountNumber && `• A/C: ${shop.bankAccountNumber}`}
                                                 </p>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                                    <div className="flex items-center gap-3 ml-auto md:ml-4 flex-shrink-0">
                                         {isEditing ? (
                                             <>
-                                                <button onClick={() => handleUpdateShop(shop._id)} className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all border border-emerald-100"><Check className="w-4 h-4" /></button>
-                                                <button onClick={() => setEditingShop(null)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-zinc-600 rounded-lg transition-all border border-zinc-100"><X className="w-4 h-4" /></button>
+                                                <button onClick={() => handleUpdateShop(shop._id)} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-xs flex items-center gap-1.5 cursor-pointer"><Check className="w-4 h-4" /> Save</button>
+                                                <button onClick={() => setEditingShop(null)} className="p-2.5 bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-xl transition-all border border-zinc-200 cursor-pointer"><X className="w-4 h-4" /></button>
                                             </>
                                         ) : (
                                             <>
@@ -544,9 +686,9 @@ export function SuperAdminDashboard() {
                                                     <button onClick={() => window.open(`/shop/${shop._id}`, '_blank')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Open Store Portal">
                                                         <Store className="w-3.5 h-3.5" /> Open Portal
                                                     </button>
-                                                    <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-100" title="View Details"><Eye className="w-4 h-4" /></button>
-                                                    <button onClick={() => startEdit(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all border border-zinc-100" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-zinc-100" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>
+                                                    <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="View Details"><Eye className="w-4 h-4" /></button>
+                                                    <button onClick={() => startEdit(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>
                                                 </div>
                                             </>
                                         )}
@@ -569,11 +711,11 @@ export function SuperAdminDashboard() {
                     {/* Shop View Modal */}
                     {viewingShop && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-900/60 backdrop-blur-md animate-in fade-in duration-200">
-                            <div className="bg-white w-full max-w-[420px] rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 animate-in zoom-in-95 duration-200">
+                            <div className="bg-white w-full max-w-[440px] rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 animate-in zoom-in-95 duration-200">
                                 <div className="relative p-5 space-y-4">
                                     <button
                                         onClick={() => setViewingShop(null)}
-                                        className="absolute top-4 right-4 p-1.5 bg-zinc-100 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 rounded-xl transition-all active:scale-95"
+                                        className="absolute top-4 right-4 p-1.5 bg-zinc-100 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 rounded-xl transition-all active:scale-95 cursor-pointer"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -618,15 +760,41 @@ export function SuperAdminDashboard() {
                                         </div>
                                     </div>
 
+                                    {/* Bank & Payment Accounts in Detail Modal */}
+                                    <div className="pt-2 border-t border-zinc-100 space-y-2">
+                                        <h4 className="text-[9px] font-black text-blue-600 uppercase tracking-widest pl-1 flex items-center gap-1.5">
+                                            <Building2 className="w-3 h-3 text-blue-500" />
+                                            Bank & Payment Accounts
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
+                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Bank Name</p>
+                                                <p className="text-[11px] font-bold text-blue-900 truncate">{viewingShop.bankName || "Not Configured"}</p>
+                                            </div>
+                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
+                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Account Number / IBAN</p>
+                                                <p className="text-[11px] font-bold text-zinc-800 truncate font-mono">{viewingShop.bankAccountNumber || "Not Configured"}</p>
+                                            </div>
+                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
+                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Account Title</p>
+                                                <p className="text-[11px] font-bold text-zinc-800 truncate">{viewingShop.bankAccountTitle || "Not Configured"}</p>
+                                            </div>
+                                            <div className="bg-emerald-50/40 p-2.5 rounded-xl border border-emerald-100 space-y-0.5">
+                                                <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">EasyPaisa Number</p>
+                                                <p className="text-[11px] font-bold text-emerald-800 truncate">{viewingShop.easypaisaNumber || "Not Configured"}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <button
                                         onClick={() => {
                                             startEdit(viewingShop);
                                             setViewingShop(null);
                                         }}
-                                        className="w-full mt-2 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                                        className="w-full mt-2 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
                                     >
                                         <Edit2 className="w-3.5 h-3.5" />
-                                        Enter Administrative Bridge
+                                        Enter Administrative Bridge (Edit Details)
                                     </button>
                                 </div>
                             </div>

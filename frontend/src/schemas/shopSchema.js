@@ -26,4 +26,7 @@ export const shopSchema = z.object({
     .regex(/^0[0-9]{10}$/, { message: "EasyPaisa number must be 11 digits (e.g. 03001234567)" })
     .optional()
     .or(z.literal('')),
+  bankName: z.string().optional().or(z.literal('')),
+  bankAccountNumber: z.string().optional().or(z.literal('')),
+  bankAccountTitle: z.string().optional().or(z.literal('')),
 });

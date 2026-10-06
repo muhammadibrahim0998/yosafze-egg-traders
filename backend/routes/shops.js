@@ -46,7 +46,22 @@ router.get('/public', async (req, res) => {
 router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const shops = await Shop.find().sort({ createdAt: -1 });
-    res.json(shops);
+    const enrichedShops = await Promise.all(shops.map(async (s) => {
+      try {
+        const st = await Settings.findOne({ shopId: s._id || s.id });
+        if (st) {
+          return {
+            ...s,
+            bankName: s.bankName || st.bankName || '',
+            bankAccountNumber: s.bankAccountNumber || st.bankAccountNumber || '',
+            bankAccountTitle: s.bankAccountTitle || st.bankAccountTitle || '',
+            easypaisaNumber: s.easypaisaNumber || st.easypaisaNumber || ''
+          };
+        }
+      } catch (e) {}
+      return s;
+    }));
+    res.json(enrichedShops);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -55,7 +70,7 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
 // Create shop (Super Admin only)
 router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res) => {
   try {
-    const { name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, logoUrl, easypaisaNumber } = req.body;
+    const { name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, logoUrl, easypaisaNumber, bankName, bankAccountNumber, bankAccountTitle } = req.body;
     
     // Check if username is taken
     if (adminUsername) {
@@ -70,6 +85,10 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       address, 
       contactNumber, 
       logoUrl,
+      easypaisaNumber: easypaisaNumber || '',
+      bankName: bankName || '',
+      bankAccountNumber: bankAccountNumber || '',
+      bankAccountTitle: bankAccountTitle || '',
       ownerDetails: {
         fullName: adminFullName || 'Shop Admin',
         email: adminEmail || adminUsername || '',
@@ -85,6 +104,9 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       phone: contactNumber || '',
       easypaisaNumber: easypaisaNumber || '',
       easypaisaEnabled: easypaisaNumber ? true : false,
+      bankName: bankName || '',
+      bankAccountNumber: bankAccountNumber || '',
+      bankAccountTitle: bankAccountTitle || '',
     });
 
     let adminUser = null;
@@ -108,7 +130,7 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
 // Update shop details
 router.put('/:id', authenticate, validateShop, async (req, res) => {
   try {
-    const { name, address, contactNumber, status, ownerEmail } = req.body;
+    const { name, address, contactNumber, status, ownerEmail, easypaisaNumber, bankName, bankAccountNumber, bankAccountTitle } = req.body;
     
     // Authorization Check: Super Admin OR the Shop's Admin
     const isSuperAdmin = req.user.role === 'super_admin';
@@ -125,6 +147,10 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
     shop.name = name;
     shop.address = address;
     shop.contactNumber = contactNumber;
+    if (easypaisaNumber !== undefined) shop.easypaisaNumber = easypaisaNumber;
+    if (bankName !== undefined) shop.bankName = bankName;
+    if (bankAccountNumber !== undefined) shop.bankAccountNumber = bankAccountNumber;
+    if (bankAccountTitle !== undefined) shop.bankAccountTitle = bankAccountTitle;
     
     if (isSuperAdmin && status) {
       shop.status = status;
@@ -145,7 +171,27 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
     }
 
     await shop.save();
-    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    // Sync to settings as well
+    try {
+      const shopSettings = await Settings.findOne({ shopId: shop._id || shop.id });
+      if (shopSettings) {
+        if (name) shopSettings.shopName = name;
+        if (address !== undefined) shopSettings.address = address;
+        if (contactNumber !== undefined) shopSettings.phone = contactNumber;
+        if (easypaisaNumber !== undefined) {
+          shopSettings.easypaisaNumber = easypaisaNumber;
+          shopSettings.easypaisaEnabled = !!easypaisaNumber;
+        }
+        if (bankName !== undefined) shopSettings.bankName = bankName;
+        if (bankAccountNumber !== undefined) shopSettings.bankAccountNumber = bankAccountNumber;
+        if (bankAccountTitle !== undefined) shopSettings.bankAccountTitle = bankAccountTitle;
+        await shopSettings.save();
+      }
+    } catch (sErr) {
+      console.warn('Sync settings on shop update error:', sErr);
+    }
+
     res.json(shop);
   } catch (error) {
     res.status(400).json({ message: error.message });
