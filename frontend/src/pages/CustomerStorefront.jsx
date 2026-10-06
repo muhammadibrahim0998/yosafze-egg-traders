@@ -2009,7 +2009,7 @@ function StoreContent({ shopId }) {
       if (existing) {
         return prev.map(item =>
           item.product._id === product._id && (item.selectedUnit || 'tray') === unit
-            ? { ...item, quantity: item.quantity + 1, unitPrice }
+            ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
@@ -2034,7 +2034,25 @@ function StoreContent({ shopId }) {
     setWalkInCart(prev =>
       prev.map(item => {
         if (item.product._id === productId && (item.selectedUnit || 'tray') === currentUnit) {
-          const newUnitPrice = getProductUnitPrice(item.product, newUnit);
+          const tPerP = item.product?.traysPerPeti || 12;
+          const ePerT = item.product?.eggsPerTray || 30;
+          const ePerP = tPerP * ePerT;
+
+          let newUnitPrice = getProductUnitPrice(item.product, newUnit);
+          if ((!newUnitPrice || newUnitPrice === 0) && item.unitPrice && Number(item.unitPrice) > 0) {
+            const currentP = Number(item.unitPrice);
+            if (currentUnit === 'peti') {
+              if (newUnit === 'tray') newUnitPrice = Math.round(currentP / tPerP);
+              else if (newUnit === 'egg') newUnitPrice = Number((currentP / ePerP).toFixed(2));
+            } else if (currentUnit === 'tray') {
+              if (newUnit === 'peti') newUnitPrice = Math.round(currentP * tPerP);
+              else if (newUnit === 'egg') newUnitPrice = Number((currentP / ePerT).toFixed(2));
+            } else if (currentUnit === 'egg') {
+              if (newUnit === 'peti') newUnitPrice = Math.round(currentP * ePerP);
+              else if (newUnit === 'tray') newUnitPrice = Math.round(currentP * ePerT);
+            }
+          }
+
           return {
             ...item,
             selectedUnit: newUnit,
@@ -2077,6 +2095,31 @@ function StoreContent({ shopId }) {
         prev.map(item => {
           if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
             return { ...item, quantity: parsed };
+          }
+          return item;
+        })
+      );
+    }
+  };
+
+  const setWalkInDirectPrice = (productId, unit, directVal) => {
+    if (directVal === '') {
+      setWalkInCart(prev =>
+        prev.map(item => {
+          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+            return { ...item, unitPrice: '' };
+          }
+          return item;
+        })
+      );
+      return;
+    }
+    const parsed = parseFloat(directVal);
+    if (!isNaN(parsed) && parsed >= 0) {
+      setWalkInCart(prev =>
+        prev.map(item => {
+          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+            return { ...item, unitPrice: parsed };
           }
           return item;
         })
@@ -2132,7 +2175,7 @@ function StoreContent({ shopId }) {
 
         const unitMultiplier = unit === 'peti' ? ePerPeti : unit === 'tray' ? ePerTray : 1;
         const totalEggs = qty * unitMultiplier;
-        const unitPrice = item.unitPrice || getProductUnitPrice(item.product, unit);
+        const unitPrice = (item.unitPrice !== undefined && item.unitPrice !== '') ? Number(item.unitPrice) : getProductUnitPrice(item.product, unit);
         const subtotal = Math.round(unitPrice * qty);
 
         const unitCost = Number(item.product.costPrice) > 0 ? Number(item.product.costPrice) : (Number(item.product.price) || 0) * 0.8;
@@ -7584,8 +7627,9 @@ function StoreContent({ shopId }) {
                           {/* Payment Method - 4 Options: Cash, Bank, Split/Partial, Credit */}
                           {(() => {
                             const walkInTotal = walkInCart.reduce((sum, i) => {
-                              const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
-                              return sum + (rate * (Number(i.quantity) || 1));
+                              const currentUnit = i.selectedUnit || 'tray';
+                              const rawRate = (i.unitPrice !== undefined && i.unitPrice !== '') ? Number(i.unitPrice) : getProductUnitPrice(i.product, currentUnit);
+                              return sum + (rawRate * (Number(i.quantity) || 1));
                             }, 0);
 
                             return (
@@ -7904,7 +7948,8 @@ function StoreContent({ shopId }) {
                             ) : (
                               walkInCart.map(item => {
                                 const currentUnit = item.selectedUnit || 'tray';
-                                const itemRate = item.unitPrice || getProductUnitPrice(item.product, currentUnit);
+                                const rawRate = (item.unitPrice !== undefined && item.unitPrice !== '') ? item.unitPrice : getProductUnitPrice(item.product, currentUnit);
+                                const itemRate = rawRate === '' ? 0 : (Number(rawRate) || 0);
                                 const itemTotal = itemRate * (Number(item.quantity) || 1);
 
                                 return (
@@ -7915,9 +7960,20 @@ function StoreContent({ shopId }) {
                                     <div className="flex items-center justify-between">
                                       <div className="min-w-0 flex-1">
                                         <p className="font-black text-gray-900 uppercase truncate text-xs">{item.product.name}</p>
-                                        <span className="text-[10px] font-bold text-emerald-700">
-                                          {currency} {itemRate.toLocaleString()} <span className="text-[9px] font-normal text-gray-400">/ {currentUnit.toUpperCase()}</span>
-                                        </span>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                          <span className="text-[10px] font-black text-emerald-700">{currency}</span>
+                                          <input
+                                            type="number"
+                                            step="any"
+                                            min="0"
+                                            value={item.unitPrice === '' ? '' : (item.unitPrice !== undefined ? item.unitPrice : (rawRate || ''))}
+                                            onChange={(e) => setWalkInDirectPrice(item.product._id, currentUnit, e.target.value)}
+                                            placeholder="0"
+                                            className="w-24 h-6 px-1.5 font-black text-emerald-800 text-xs bg-white border border-gray-300 rounded focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-xs"
+                                            title="Enter sale rate per unit"
+                                          />
+                                          <span className="text-[9px] font-black text-gray-400 uppercase">/ {currentUnit.toUpperCase()}</span>
+                                        </div>
                                       </div>
 
                                       <div className="text-right flex items-center gap-2">
@@ -8032,8 +8088,9 @@ function StoreContent({ shopId }) {
                         <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50">
                           {(() => {
                             const rawTotal = walkInCart.reduce((sum, i) => {
-                              const rate = i.unitPrice || getProductUnitPrice(i.product, i.selectedUnit || 'tray');
-                              return sum + (rate * (Number(i.quantity) || 1));
+                              const currentUnit = i.selectedUnit || 'tray';
+                              const rawRate = (i.unitPrice !== undefined && i.unitPrice !== '') ? Number(i.unitPrice) : getProductUnitPrice(i.product, currentUnit);
+                              return sum + (rawRate * (Number(i.quantity) || 1));
                             }, 0);
                             const discountNum = Number(walkInDiscount) > 0 ? Number(walkInDiscount) : 0;
                             const finalNetTotal = Math.max(0, rawTotal - discountNum);

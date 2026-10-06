@@ -582,32 +582,19 @@ export function ProductModal({ isOpen, onClose, onSave, product, mode, categorie
             
             {/* Pricing */}
             <div className="p-2.5 bg-[#f3f4f6] rounded-xl border border-gray-300 space-y-1.5 shadow-sm">
-              <span className="text-[9.5px] font-black text-emerald-700 uppercase tracking-wider block leading-none">
+              <span className="text-[9.5px] font-black text-amber-700 uppercase tracking-wider block leading-none">
                 Pricing (Rs.)
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[8.5px] font-black text-emerald-700 uppercase">Sale / {unitType} *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    {...register("price")}
-                    disabled={mode === "view"}
-                    className={`w-full bg-white border ${errors.price ? 'border-rose-500' : 'border-gray-300'} rounded-lg py-1 px-2 text-xs font-black text-emerald-700 outline-none focus:border-emerald-600`}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[8.5px] font-black text-amber-700 uppercase">Cost / {unitType}</label>
-                  <input
-                    type="number"
-                    step="any"
-                    {...register("costPrice")}
-                    disabled={mode === "view"}
-                    className="w-full bg-white border border-gray-300 rounded-lg py-1 px-2 text-xs font-black text-amber-700 outline-none focus:border-emerald-600"
-                    placeholder="0"
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-[8.5px] font-black text-amber-700 uppercase">Cost / {unitType}</label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register("costPrice")}
+                  disabled={mode === "view"}
+                  className="w-full bg-white border border-gray-300 rounded-lg py-1 px-2 text-xs font-black text-amber-700 outline-none focus:border-amber-600"
+                  placeholder="0"
+                />
               </div>
             </div>
 
