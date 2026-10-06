@@ -6868,13 +6868,15 @@ function StoreContent({ shopId }) {
                       {/* ─── DYNAMIC CHARTS & GRAPHS ANALYTICS ON DASHBOARD ─── */}
                       <div className="pt-2 animate-in fade-in duration-500">
                         <ShopAdminCharts
-                          sales={shopSalesList}
+                          sales={(appliedStartDate || appliedEndDate) ? (shopSalesList || []).filter(s => isDateInSelectedRange(s.createdAt || s.saleDate)) : shopSalesList}
                           products={items}
-                          expenses={expensesList}
-                          damaged={damagedProductsList}
+                          expenses={(appliedStartDate || appliedEndDate) ? (expensesList || []).filter(e => isDateInSelectedRange(e.date || e.createdAt)) : expensesList}
+                          damaged={(appliedStartDate || appliedEndDate) ? (damagedProductsList || []).filter(d => isDateInSelectedRange(d.date || d.createdAt)) : damagedProductsList}
                           dashStats={dashStats}
                           profitReportStats={profitReportStats}
                           currency={currency}
+                          startDate={appliedStartDate}
+                          endDate={appliedEndDate}
                         />
                       </div>
                     </div>
@@ -11546,6 +11548,8 @@ function StoreContent({ shopId }) {
                     dashStats={dashStats}
                     profitReportStats={profitReportStats}
                     currency={currency}
+                    startDate={appliedStartDate}
+                    endDate={appliedEndDate}
                   />
                 </div>
               )}

@@ -62,8 +62,8 @@ const corsOptions = {
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-password', 'x-user-role'],
-  exposedHeaders: ['x-owner-password', 'x-user-role']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-password', 'x-user-role', 'x-shop-id', 'Accept', 'X-Requested-With'],
+  exposedHeaders: ['x-owner-password', 'x-user-role', 'x-shop-id']
 };
 
 app.use(cors(corsOptions));

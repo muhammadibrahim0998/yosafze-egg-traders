@@ -1,4 +1,5 @@
 import { Trash2, Edit, Download, Receipt, ShoppingBag, RotateCcw, Eye, FileSpreadsheet, Calendar } from 'lucide-react';
+import { getBackendBaseUrl } from '../services/api';
 
 export function SalesHistory({
   sales,
@@ -113,7 +114,7 @@ export function SalesHistory({
                   {sale.invoiceUrl && (
                     <button
                       onClick={() => {
-                        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                        const apiUrl = getBackendBaseUrl();
                         window.open(`${apiUrl}${sale.invoiceUrl}`, '_blank');
                       }}
                       className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-[var(--color-text-primary)] rounded-xl transition-all border border-emerald-500/20"

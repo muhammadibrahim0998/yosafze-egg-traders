@@ -24,37 +24,61 @@ export function ShopAdminCharts({
   damaged = [],
   dashStats = {},
   profitReportStats = null,
-  currency = 'Rs.'
+  currency = 'Rs.',
+  startDate = '',
+  endDate = ''
 }) {
-  const [timeframe, setTimeframe] = useState('7D'); // '7D' | '14D' | '30D' | 'ALL'
   const [activeHoverPoint, setActiveHoverPoint] = useState(null);
   const [activeDonutSegment, setActiveDonutSegment] = useState(null);
 
   // ─── 1. Calculate Daily Trend Data for the Area/Line Graph ─────────────────────
   const trendData = useMemo(() => {
-    const now = new Date();
-    let daysCount = 7;
-    if (timeframe === '14D') daysCount = 14;
-    else if (timeframe === '30D') daysCount = 30;
-    else if (timeframe === 'ALL') daysCount = 60;
-
     const days = [];
 
-    for (let i = daysCount - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
-      days.push({
-        dateStr,
-        label,
-        revenue: 0,
-        cash: 0,
-        bank: 0,
-        credit: 0,
-        ordersCount: 0,
-        unitsCount: 0
-      });
+    if (startDate && endDate) {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        const diffDays = Math.min(Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1), 60);
+        for (let i = 0; i < diffDays; i++) {
+          const d = new Date(s);
+          d.setDate(s.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          const label = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+          days.push({
+            dateStr,
+            label,
+            revenue: 0,
+            cash: 0,
+            bank: 0,
+            credit: 0,
+            ordersCount: 0,
+            unitsCount: 0
+          });
+        }
+      }
+    }
+
+    // Default to last 14 days if no calendar range selected
+    if (days.length === 0) {
+      const now = new Date();
+      const count = 14;
+      for (let i = count - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const label = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+        days.push({
+          dateStr,
+          label,
+          revenue: 0,
+          cash: 0,
+          bank: 0,
+          credit: 0,
+          ordersCount: 0,
+          unitsCount: 0
+        });
+      }
     }
 
     const dayMap = new Map(days.map(item => [item.dateStr, item]));
@@ -97,7 +121,7 @@ export function ShopAdminCharts({
       avgRev,
       peakDay
     };
-  }, [sales, timeframe]);
+  }, [sales, startDate, endDate]);
 
   // ─── 2. Calculate Financial Inflow vs. Cost Deductions ──────────────────────────
   const financialAnatomy = useMemo(() => {
@@ -321,26 +345,18 @@ export function ShopAdminCharts({
           </div>
         </div>
 
-        {/* Timeframe Selector */}
-        <div className="flex items-center gap-1 bg-slate-200/90 p-1 rounded-2xl border border-slate-300 w-full sm:w-auto justify-between sm:justify-start">
-          {[
-            { id: '7D', label: '7 Days' },
-            { id: '14D', label: '14 Days' },
-            { id: '30D', label: '1 Month' },
-            { id: 'ALL', label: 'All-Time' },
-          ].map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTimeframe(t.id)}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                timeframe === t.id
-                  ? 'bg-emerald-600 text-white font-extrabold shadow-sm'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-300/70'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Calendar Synchronization Status Badge */}
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/90 px-3.5 py-2 rounded-2xl text-emerald-800 shadow-xs">
+          <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="text-[11px] font-black uppercase tracking-wider">
+            {startDate && endDate 
+              ? `${startDate} → ${endDate}`
+              : startDate
+                ? `From ${startDate}`
+                : endDate
+                  ? `Until ${endDate}`
+                  : 'Calendar Filter Active'}
+          </span>
         </div>
       </div>
 

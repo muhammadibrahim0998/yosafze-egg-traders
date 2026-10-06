@@ -1,14 +1,43 @@
 import axios from 'axios';
 
-// Use environment variable for API URL in production (e.g. https://api.yourdomain.com)
-// Auto-detect production domain when running on deployed hosting,
-// Fallback to empty string for local dev (Vite proxy forwards /api to localhost:5000).
-export const API_BASE = (
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-    ? 'https://api.yousafzaiagrifoods.com'
-    : '')
-);
+// Dynamic API Base URL resolution for local, custom domains, and production hosting:
+export const API_BASE = (() => {
+  if (import.meta.env.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).trim().replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    // Local development: use empty string so Vite proxy forwards /api to localhost:5000
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return '';
+    }
+    // Specific domain for Yousafzai Agri Foods
+    if (host.includes('yousafzaiagrifoods.com')) {
+      return 'https://api.yousafzaiagrifoods.com';
+    }
+    // Dynamic default for custom hosting domains / VPS / cPanel (relative routing)
+    return '';
+  }
+  return '';
+})();
+
+// Helper to get full backend host URL for downloads, invoices, and direct assets
+export const getBackendBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return String(import.meta.env.VITE_API_URL).trim().replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+    if (host.includes('yousafzaiagrifoods.com')) {
+      return 'https://api.yousafzaiagrifoods.com';
+    }
+    return window.location.origin;
+  }
+  return 'http://localhost:5000';
+};
 
 export const getApiUrl = (endpoint = '') => {
   const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -19,7 +48,7 @@ export const getApiUrl = (endpoint = '') => {
 };
 
 // Global transparent fetch router:
-// Redirects any relative fetch('/api/...') or fetch('/uploads/...') to production backend directly,
+// Redirects any relative fetch('/api/...') or fetch('/uploads/...') to backend directly,
 // preventing any SPA hosting provider from accidentally returning index.html (HTML/DOCTYPE).
 if (typeof window !== 'undefined' && API_BASE) {
   const originalFetch = window.fetch;
@@ -31,6 +60,8 @@ if (typeof window !== 'undefined' && API_BASE) {
           config = { ...config, credentials: 'include' };
         }
       } else if (resource.startsWith('/uploads/') || resource === '/uploads') {
+        resource = `${API_BASE}${resource}`;
+      } else if (resource.startsWith('/invoices/') || resource === '/invoices') {
         resource = `${API_BASE}${resource}`;
       }
     }

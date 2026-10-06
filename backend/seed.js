@@ -88,6 +88,8 @@ export const seedDatabase = async () => {
       await pcModule.initPurchaseCreditTables();
       const prModule = await import('./create_profit_reports_tables.js');
       await prModule.initProfitReportTables();
+      const fuelModule = await import('./create_fuel_expenses_tables.js');
+      await fuelModule.initFuelAndBankSchema();
     } catch (tblErr) {
       console.error('Branch table initialization warning:', tblErr.message);
     }
