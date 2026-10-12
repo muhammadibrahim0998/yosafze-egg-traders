@@ -392,7 +392,7 @@ const settleSupplierCredit = async (req, res) => {
       return res.status(400).json({ message: 'Invalid product or credit ID' });
     }
 
-    const { paymentMethod = 'Cash', amountPaid, paymentReceipt } = req.body;
+    const { paymentMethod = 'Cash', amountPaid, paymentReceipt, cashAmount, bankAmount } = req.body;
 
     // 1. Search in Item by id
     let item = await Item.findById(id);
@@ -415,7 +415,9 @@ const settleSupplierCredit = async (req, res) => {
       return res.status(404).json({ message: 'Product or Credit Record not found' });
     }
 
-    const isBank = String(paymentMethod).toLowerCase().includes('bank') || String(paymentMethod).toLowerCase().includes('online') || String(paymentMethod).toLowerCase().includes('transfer');
+    const isSplit = String(paymentMethod).toLowerCase().includes('split');
+    const isBank = !isSplit && (String(paymentMethod).toLowerCase().includes('bank') || String(paymentMethod).toLowerCase().includes('online') || String(paymentMethod).toLowerCase().includes('transfer'));
+    const isCredit = !isSplit && String(paymentMethod).toLowerCase().includes('credit');
 
     // Case A: If matching Item exists
     if (item) {
@@ -437,7 +439,11 @@ const settleSupplierCredit = async (req, res) => {
         : (pcRecord ? Number(pcRecord.pendingDue || 0) : Math.max(0, totalCost - (Number(item.amountPaidToSupplier) || 0)));
 
       let payAmt = Number(amountPaid);
-      if (isNaN(payAmt) || payAmt <= 0) {
+      if (isSplit) {
+        const cAmt = Number(cashAmount) || 0;
+        const bAmt = Number(bankAmount) || 0;
+        payAmt = cAmt + bAmt;
+      } else if (isNaN(payAmt) || payAmt <= 0) {
         payAmt = currentDue > 0 ? currentDue : 0;
       }
       if (payAmt <= 0) {
@@ -455,11 +461,23 @@ const settleSupplierCredit = async (req, res) => {
         lastUpdated: new Date().toISOString().split('T')[0]
       };
 
-      if (isBank) {
+      if (isSplit) {
+        const cAmt = Number(cashAmount) || 0;
+        const bAmt = Number(bankAmount) || 0;
+        updatePayload.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + cAmt;
+        updatePayload.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + bAmt;
+        updatePayload.isOnlinePayment = bAmt > 0;
+        if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
+        updatePayload.paymentMethod = 'Split';
+      } else if (isBank) {
         updatePayload.bankPaidToSupplier = (Number(item.bankPaidToSupplier) || 0) + payAmt;
         updatePayload.isOnlinePayment = true;
         if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
         updatePayload.paymentMethod = 'Bank Transfer';
+      } else if (isCredit) {
+        updatePayload.isOnlinePayment = false;
+        if (paymentReceipt) updatePayload.paymentReceipt = paymentReceipt;
+        updatePayload.paymentMethod = 'Credit';
       } else {
         updatePayload.cashPaidToSupplier = (Number(item.cashPaidToSupplier) || 0) + payAmt;
         if ((Number(item.bankPaidToSupplier) || 0) === 0) {
@@ -499,7 +517,7 @@ const settleSupplierCredit = async (req, res) => {
 
       return res.json({
         success: true,
-        message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
+        message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isSplit ? 'Split Payment' : isBank ? 'Bank Transfer' : isCredit ? 'Credit' : 'Cash'}`,
         item: updatedItem
       });
     }
@@ -509,7 +527,13 @@ const settleSupplierCredit = async (req, res) => {
       const currentPaid = Number(pcRecord.paidToDate || 0);
       const currentDue = Number(pcRecord.pendingDue || 0);
       let payAmt = Number(amountPaid);
-      if (isNaN(payAmt) || payAmt <= 0) payAmt = currentDue > 0 ? currentDue : 0;
+      if (isSplit) {
+        const cAmt = Number(cashAmount) || 0;
+        const bAmt = Number(bankAmount) || 0;
+        payAmt = cAmt + bAmt;
+      } else if (isNaN(payAmt) || payAmt <= 0) {
+        payAmt = currentDue > 0 ? currentDue : 0;
+      }
       if (payAmt <= 0) {
         return res.status(400).json({ message: 'Invalid payment amount' });
       }

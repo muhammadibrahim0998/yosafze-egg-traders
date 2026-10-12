@@ -248,11 +248,15 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
   }, [activeShopId]);
 
   const handleOpenSettleModal = (item, dueAmt) => {
+    const due = dueAmt !== undefined ? Number(dueAmt) : Number(item.dueAmountToSupplier || 0);
+    const half = Math.floor(due / 2);
     setSettleModal({
       isOpen: true,
       item,
       paymentMethod: 'Cash',
-      amountPaid: dueAmt !== undefined ? String(dueAmt) : String(item.dueAmountToSupplier || ''),
+      amountPaid: due ? String(due) : '',
+      cashAmount: half > 0 ? String(half) : '',
+      bankAmount: (due - half) > 0 ? String(due - half) : '',
       receiptFile: null,
       receiptPreview: null,
       isSubmitting: false,
@@ -277,7 +281,11 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     if (!settleModal.item) return;
 
     const itemId = settleModal.item._id || settleModal.item.id;
-    const payAmt = Number(settleModal.amountPaid);
+    const isSplit = settleModal.paymentMethod === 'Split';
+    const cashVal = isSplit ? (Number(settleModal.cashAmount) || 0) : (settleModal.paymentMethod === 'Cash' ? (Number(settleModal.amountPaid) || 0) : 0);
+    const bankVal = isSplit ? (Number(settleModal.bankAmount) || 0) : (settleModal.paymentMethod === 'Bank Transfer' ? (Number(settleModal.amountPaid) || 0) : 0);
+    const payAmt = isSplit ? (cashVal + bankVal) : Number(settleModal.amountPaid);
+
     if (isNaN(payAmt) || payAmt <= 0) {
       setSettleModal(prev => ({ ...prev, error: 'Please enter a valid amount greater than 0' }));
       return;
@@ -297,6 +305,8 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       const res = await settleSupplierCredit(itemId, {
         paymentMethod: settleModal.paymentMethod,
         amountPaid: payAmt,
+        cashAmount: cashVal,
+        bankAmount: bankVal,
         paymentReceipt: receiptUrl || undefined,
       });
 
@@ -2252,80 +2262,80 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       {/* Supplier Credit Settlement Modal */}
       <AnimatePresence>
         {settleModal.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative max-w-md w-full bg-slate-900 border border-slate-700 rounded-3xl p-6 text-white shadow-2xl space-y-4"
+              className="relative max-w-md w-full bg-white border border-zinc-200 rounded-3xl p-6 text-zinc-900 shadow-2xl space-y-4"
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-rose-500/20 text-rose-400 rounded-xl">
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black uppercase tracking-tight text-white">
+                    <h3 className="text-base font-black uppercase tracking-tight text-zinc-900">
                       Pay Supplier Credit
                     </h3>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase">
-                      {settleModal.item?.name} • <span className="text-teal-400">{settleModal.item?.supplierName || 'Supplier'}</span>
+                    <p className="text-[11px] font-bold text-zinc-400 uppercase">
+                      {settleModal.item?.name} • <span className="text-zinc-700 font-black">{settleModal.item?.supplierName || 'Supplier'}</span>
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSettleModal(prev => ({ ...prev, isOpen: false, item: null }))}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+                  className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded-xl hover:bg-zinc-100 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Outstanding Due Banner */}
-              <div className="bg-rose-950/40 border border-rose-800/60 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-black uppercase text-rose-300 block tracking-wider">
+                  <span className="text-[10px] font-black uppercase text-zinc-500 block tracking-wider">
                     Total Pending Credit (Due)
                   </span>
-                  <span className="text-xl font-black text-rose-400 tracking-tight">
+                  <span className="text-xl font-black text-rose-600 tracking-tight">
                     Rs. {fmt(settleModal.item?.dueAmountToSupplier || 0)}
                   </span>
                 </div>
-                <span className="px-2.5 py-1 bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                <span className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-black rounded-lg uppercase tracking-wider">
                   ⚠️ Credit Due
                 </span>
               </div>
 
               {/* Feedback messages */}
               {settleModal.error && (
-                <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-xl text-rose-200 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{settleModal.error}</span>
                 </div>
               )}
               {settleModal.successMsg && (
-                <div className="p-3 bg-emerald-900/50 border border-emerald-700 rounded-xl text-emerald-200 text-xs font-bold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{settleModal.successMsg}</span>
                 </div>
               )}
 
               <form onSubmit={handleConfirmSettle} className="space-y-4">
-                {/* Payment Method Selector (Cash vs Bank Transfer) */}
+                {/* Payment Method Selector (Cash vs Bank Transfer vs Split) */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-zinc-700 block">
                     Select Payment Method
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setSettleModal(prev => ({ ...prev, paymentMethod: 'Cash' }))}
-                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         settleModal.paymentMethod === 'Cash'
-                          ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/30'
-                          : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
                       }`}
                     >
                       <Banknote className="w-4 h-4" />
@@ -2335,59 +2345,164 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                     <button
                       type="button"
                       onClick={() => setSettleModal(prev => ({ ...prev, paymentMethod: 'Bank Transfer' }))}
-                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         settleModal.paymentMethod === 'Bank Transfer'
-                          ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-900/30'
-                          : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
                       }`}
                     >
                       <Building2 className="w-4 h-4" />
-                      <span>🏦 Bank Transfer</span>
+                      <span>🏦 Bank</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSettleModal(prev => {
+                        const due = Number(prev.item?.dueAmountToSupplier || 0);
+                        const half = Math.round(due / 2);
+                        const c = prev.cashAmount && Number(prev.cashAmount) > 0 ? prev.cashAmount : String(half);
+                        const b = prev.bankAmount && Number(prev.bankAmount) > 0 ? prev.bankAmount : String(due - half);
+                        return {
+                          ...prev,
+                          paymentMethod: 'Split',
+                          cashAmount: c,
+                          bankAmount: b,
+                          amountPaid: String(Number(c) + Number(b)),
+                        };
+                      })}
+                      className={`p-3 rounded-2xl border text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        settleModal.paymentMethod === 'Split'
+                          ? 'bg-amber-500 border-amber-500 text-zinc-950 font-black shadow-sm'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>🔀 Split</span>
                     </button>
                   </div>
                 </div>
 
                 {/* Amount to Pay */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
-                      Payment Amount (Rs.)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setSettleModal(prev => ({ ...prev, amountPaid: String(prev.item?.dueAmountToSupplier || 0) }))}
-                      className="text-[10px] font-black uppercase text-teal-400 hover:text-teal-300 underline"
-                    >
-                      Pay Full (Rs. {fmt(settleModal.item?.dueAmountToSupplier || 0)})
-                    </button>
+                {settleModal.paymentMethod === 'Split' ? (
+                  <div className="space-y-3 bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 animate-in fade-in duration-200">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-[10px] font-black text-zinc-700 uppercase tracking-wider block mb-1">
+                          💵 Cash Paid (Rs.):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={settleModal.cashAmount ?? ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSettleModal(prev => {
+                              const c = Math.max(0, Number(val) || 0);
+                              const b = Math.max(0, Number(prev.bankAmount) || 0);
+                              return {
+                                ...prev,
+                                cashAmount: val,
+                                amountPaid: String(c + b),
+                                error: null,
+                              };
+                            });
+                          }}
+                          className="w-full bg-white border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-black text-zinc-900 outline-none shadow-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-zinc-700 uppercase tracking-wider block mb-1">
+                          🏦 Bank Paid (Rs.):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={settleModal.bankAmount ?? ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setSettleModal(prev => {
+                              const c = Math.max(0, Number(prev.cashAmount) || 0);
+                              const b = Math.max(0, Number(val) || 0);
+                              return {
+                                ...prev,
+                                bankAmount: val,
+                                amountPaid: String(c + b),
+                                error: null,
+                              };
+                            });
+                          }}
+                          className="w-full bg-white border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-black text-zinc-900 outline-none shadow-sm"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[9.5px] font-black uppercase text-amber-800 tracking-wider block">
+                          📋 Remaining Credit (Due):
+                        </span>
+                        <span className="font-black text-rose-600 text-sm">
+                          Rs. {Math.max(0, (Number(settleModal.item?.dueAmountToSupplier || 0)) - ((Number(settleModal.cashAmount) || 0) + (Number(settleModal.bankAmount) || 0))).toLocaleString('en-PK')}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9.5px] font-black uppercase text-zinc-500 tracking-wider block">
+                          Total Paid Now:
+                        </span>
+                        <span className="font-black text-emerald-700 text-sm">
+                          Rs. {((Number(settleModal.cashAmount) || 0) + (Number(settleModal.bankAmount) || 0)).toLocaleString('en-PK')}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="number"
-                    min="1"
-                    max={settleModal.item?.dueAmountToSupplier || undefined}
-                    value={settleModal.amountPaid}
-                    onChange={(e) => setSettleModal(prev => ({ ...prev, amountPaid: e.target.value, error: null }))}
-                    placeholder="Enter amount to pay..."
-                    required
-                    className="w-full bg-slate-800 border border-slate-700 focus:border-teal-400 rounded-xl px-4 py-2.5 text-white font-black text-sm outline-none transition-all placeholder:text-slate-500"
-                  />
-                </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-zinc-700">
+                        Payment Amount (Rs.)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setSettleModal(prev => ({ ...prev, amountPaid: String(prev.item?.dueAmountToSupplier || 0) }))}
+                        className="text-[10px] font-black uppercase text-amber-600 hover:text-amber-700 underline"
+                      >
+                        Pay Full (Rs. {fmt(settleModal.item?.dueAmountToSupplier || 0)})
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max={settleModal.item?.dueAmountToSupplier || undefined}
+                      value={settleModal.amountPaid}
+                      onChange={(e) => setSettleModal(prev => ({ ...prev, amountPaid: e.target.value, error: null }))}
+                      placeholder="Enter amount to pay..."
+                      required
+                      className="w-full bg-zinc-50 border border-zinc-200 focus:border-amber-500 rounded-xl px-4 py-2.5 text-zinc-900 font-black text-sm outline-none transition-all placeholder:text-zinc-400 shadow-inner"
+                    />
+                    <div className="text-[10px] text-right font-bold text-zinc-500">
+                      Remaining Credit: Rs. {Math.max(0, (Number(settleModal.item?.dueAmountToSupplier || 0)) - (Number(settleModal.amountPaid) || 0)).toLocaleString('en-PK')}
+                    </div>
+                  </div>
+                )}
 
                 {/* Bank Transfer Receipt Attachment (Optional) */}
-                {settleModal.paymentMethod === 'Bank Transfer' && (
+                {(settleModal.paymentMethod === 'Bank Transfer' || settleModal.paymentMethod === 'Split') && (
                   <div className="space-y-1.5 animate-in fade-in">
-                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-300 block">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-zinc-700 block">
                       Bank Transfer Receipt / Screenshot (Optional)
                     </label>
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-blue-400 rounded-2xl p-3 cursor-pointer bg-slate-800/50 hover:bg-slate-800 transition-all">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 hover:border-zinc-300 rounded-2xl p-3 cursor-pointer bg-zinc-50 hover:bg-zinc-100 transition-all">
                       {settleModal.receiptPreview ? (
                         <div className="flex items-center gap-2">
-                          <img src={settleModal.receiptPreview} alt="Receipt preview" className="w-12 h-12 object-cover rounded-lg border border-slate-600" />
-                          <span className="text-xs font-bold text-teal-400">Receipt Attached (Click to change)</span>
+                          <img src={settleModal.receiptPreview} alt="Receipt preview" className="w-12 h-12 object-cover rounded-lg border border-zinc-300" />
+                          <span className="text-xs font-bold text-emerald-700">Receipt Attached (Click to change)</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                          <UploadCloud className="w-5 h-5 text-blue-400" />
+                        <div className="flex items-center gap-2 text-zinc-500 text-xs font-bold">
+                          <UploadCloud className="w-5 h-5 text-zinc-500" />
                           <span>Upload Transfer Screenshot</span>
                         </div>
                       )}
@@ -2407,7 +2522,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                     type="button"
                     onClick={() => setSettleModal(prev => ({ ...prev, isOpen: false, item: null }))}
                     disabled={settleModal.isSubmitting}
-                    className="py-3 px-4 rounded-xl border border-slate-700 text-xs font-black uppercase text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                    className="py-3 px-4 rounded-xl border border-zinc-200 bg-zinc-100 text-xs font-black uppercase text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -2415,11 +2530,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                   <button
                     type="submit"
                     disabled={settleModal.isSubmitting}
-                    className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 transition-all shadow-lg active:scale-95 cursor-pointer ${
-                      settleModal.paymentMethod === 'Cash'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-950/40'
-                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/40'
-                    }`}
+                    className="py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-zinc-950 bg-amber-500 hover:bg-amber-400 flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
                   >
                     {settleModal.isSubmitting ? (
                       <>

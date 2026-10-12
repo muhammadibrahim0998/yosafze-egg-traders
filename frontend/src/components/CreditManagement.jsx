@@ -247,11 +247,15 @@ export function CreditManagement({
 
   // Open Settle Supplier Credit Modal
   const handleOpenSettleSupplier = (item) => {
+    const due = Number(item.calculatedDue || item.dueAmountToSupplier || 0);
+    const half = Math.round(due / 2);
     setSettleSupplierModal({
       isOpen: true,
       item,
       paymentMethod: 'Cash',
-      amountPaid: String(item.calculatedDue || item.dueAmountToSupplier || ''),
+      amountPaid: String(due || ''),
+      cashAmount: String(half),
+      bankAmount: String(due - half),
       receiptFile: null,
       receiptPreview: null,
       isSubmitting: false,
@@ -276,7 +280,11 @@ export function CreditManagement({
     if (!settleSupplierModal.item) return;
 
     const itemId = settleSupplierModal.item.itemId || settleSupplierModal.item._id || settleSupplierModal.item.id;
-    const payAmt = Number(settleSupplierModal.amountPaid);
+    const isSplit = settleSupplierModal.paymentMethod === 'Split';
+    const cashVal = isSplit ? (Number(settleSupplierModal.cashAmount) || 0) : (settleSupplierModal.paymentMethod === 'Cash' ? (Number(settleSupplierModal.amountPaid) || 0) : 0);
+    const bankVal = isSplit ? (Number(settleSupplierModal.bankAmount) || 0) : (settleSupplierModal.paymentMethod === 'Bank Transfer' ? (Number(settleSupplierModal.amountPaid) || 0) : 0);
+    const payAmt = isSplit ? (cashVal + bankVal) : Number(settleSupplierModal.amountPaid);
+
     if (isNaN(payAmt) || payAmt <= 0) {
       setSettleSupplierModal(prev => ({ ...prev, error: 'Please enter a valid amount greater than 0' }));
       return;
@@ -296,13 +304,17 @@ export function CreditManagement({
       await settleSupplierCredit(itemId, {
         paymentMethod: settleSupplierModal.paymentMethod,
         amountPaid: payAmt,
+        cashAmount: cashVal,
+        bankAmount: bankVal,
         paymentReceipt: receiptUrl || undefined,
       });
 
       setSettleSupplierModal(prev => ({
         ...prev,
         isSubmitting: false,
-        successMsg: `Rs. ${payAmt.toLocaleString('en-PK')} successfully paid to supplier!`,
+        successMsg: isSplit
+          ? `Rs. ${payAmt.toLocaleString('en-PK')} paid (Cash: Rs. ${cashVal.toLocaleString('en-PK')}, Bank: Rs. ${bankVal.toLocaleString('en-PK')}) successfully!`
+          : `Rs. ${payAmt.toLocaleString('en-PK')} successfully paid to supplier!`,
       }));
 
       await fetchPurchaseCreditsData();
@@ -316,6 +328,8 @@ export function CreditManagement({
           item: null,
           paymentMethod: 'Cash',
           amountPaid: '',
+          cashAmount: '',
+          bankAmount: '',
           receiptFile: null,
           receiptPreview: null,
           isSubmitting: false,
@@ -1143,48 +1157,162 @@ export function CreditManagement({
                 <label className="text-[11px] font-black text-zinc-700 uppercase tracking-wider block mb-1.5">
                   Payment Method:
                 </label>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setSettleSupplierModal(prev => ({ ...prev, paymentMethod: 'Cash' }))}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    onClick={() => setSettleSupplierModal(prev => {
+                      const due = Number(prev.item?.calculatedDue || prev.item?.dueAmountToSupplier || 0);
+                      return {
+                        ...prev,
+                        paymentMethod: 'Cash',
+                        amountPaid: prev.amountPaid || String(due)
+                      };
+                    })}
+                    className={`py-2.5 px-2 rounded-xl border text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       settleSupplierModal.paymentMethod === 'Cash'
                         ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-sm'
                         : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
                     }`}
                   >
-                    <DollarSign className="w-3.5 h-3.5" /> Cash Payment
+                    <DollarSign className="w-3.5 h-3.5" /> Cash
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setSettleSupplierModal(prev => ({ ...prev, paymentMethod: 'Bank Transfer' }))}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    onClick={() => setSettleSupplierModal(prev => {
+                      const due = Number(prev.item?.calculatedDue || prev.item?.dueAmountToSupplier || 0);
+                      return {
+                        ...prev,
+                        paymentMethod: 'Bank Transfer',
+                        amountPaid: prev.amountPaid || String(due)
+                      };
+                    })}
+                    className={`py-2.5 px-2 rounded-xl border text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       settleSupplierModal.paymentMethod === 'Bank Transfer'
                         ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-sm'
                         : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
                     }`}
                   >
-                    <Building2 className="w-3.5 h-3.5" /> Bank Transfer
+                    <Building2 className="w-3.5 h-3.5" /> Bank
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettleSupplierModal(prev => {
+                      const due = Number(prev.item?.calculatedDue || prev.item?.dueAmountToSupplier || 0);
+                      const half = Math.round(due / 2);
+                      const c = prev.cashAmount && Number(prev.cashAmount) > 0 ? prev.cashAmount : String(half);
+                      const b = prev.bankAmount && Number(prev.bankAmount) > 0 ? prev.bankAmount : String(due - half);
+                      return {
+                        ...prev,
+                        paymentMethod: 'Split',
+                        cashAmount: c,
+                        bankAmount: b,
+                        amountPaid: String(Number(c) + Number(b))
+                      };
+                    })}
+                    className={`py-2.5 px-2 rounded-xl border text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      settleSupplierModal.paymentMethod === 'Split'
+                        ? 'bg-amber-500 text-zinc-950 border-amber-500 shadow-sm'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" /> Split
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="text-[11px] font-black text-zinc-700 uppercase tracking-wider block mb-1.5">
-                  Amount Paying ({currency}):
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max={Number(settleSupplierModal.item?.calculatedDue || settleSupplierModal.item?.dueAmountToSupplier || 999999999)}
-                  value={settleSupplierModal.amountPaid}
-                  onChange={e => setSettleSupplierModal(prev => ({ ...prev, amountPaid: e.target.value }))}
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-black text-zinc-900 outline-none focus:border-amber-500 shadow-inner"
-                  placeholder="Enter amount to pay"
-                />
-              </div>
+              {settleSupplierModal.paymentMethod === 'Split' ? (
+                <div className="space-y-3 bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-700 uppercase tracking-wider block mb-1">
+                        💵 Cash Payment ({currency}):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={settleSupplierModal.cashAmount ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setSettleSupplierModal(prev => {
+                            const c = Math.max(0, Number(val) || 0);
+                            const b = Math.max(0, Number(prev.bankAmount) || 0);
+                            return {
+                              ...prev,
+                              cashAmount: val,
+                              amountPaid: String(c + b)
+                            };
+                          });
+                        }}
+                        className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-black text-zinc-900 outline-none focus:border-amber-500 shadow-sm"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-700 uppercase tracking-wider block mb-1">
+                        🏦 Bank Transfer ({currency}):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={settleSupplierModal.bankAmount ?? ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setSettleSupplierModal(prev => {
+                            const c = Math.max(0, Number(prev.cashAmount) || 0);
+                            const b = Math.max(0, Number(val) || 0);
+                            return {
+                              ...prev,
+                              bankAmount: val,
+                              amountPaid: String(c + b)
+                            };
+                          });
+                        }}
+                        className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2 text-xs font-black text-zinc-900 outline-none focus:border-amber-500 shadow-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[9.5px] font-black uppercase text-amber-800 tracking-wider block">📋 Remaining Credit (Due):</span>
+                      <span className="font-black text-rose-600 text-sm">
+                        {currency} {Math.max(0, (Number(settleSupplierModal.item?.calculatedDue || settleSupplierModal.item?.dueAmountToSupplier || 0)) - ((Number(settleSupplierModal.cashAmount) || 0) + (Number(settleSupplierModal.bankAmount) || 0))).toLocaleString('en-PK')}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9.5px] font-black uppercase text-zinc-500 tracking-wider block">Total Paid Now:</span>
+                      <span className="font-black text-emerald-700 text-sm">
+                        {currency} {((Number(settleSupplierModal.cashAmount) || 0) + (Number(settleSupplierModal.bankAmount) || 0)).toLocaleString('en-PK')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[11px] font-black text-zinc-700 uppercase tracking-wider">
+                      Amount Paying ({currency}):
+                    </label>
+                    <span className="text-[10px] font-bold text-zinc-500">
+                      Remaining Credit: {currency} {Math.max(0, (Number(settleSupplierModal.item?.calculatedDue || settleSupplierModal.item?.dueAmountToSupplier || 0)) - (Number(settleSupplierModal.amountPaid) || 0)).toLocaleString('en-PK')}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max={Number(settleSupplierModal.item?.calculatedDue || settleSupplierModal.item?.dueAmountToSupplier || 999999999)}
+                    value={settleSupplierModal.amountPaid}
+                    onChange={e => setSettleSupplierModal(prev => ({ ...prev, amountPaid: e.target.value }))}
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm font-black text-zinc-900 outline-none focus:border-amber-500 shadow-inner"
+                    placeholder="Enter amount to pay"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-[11px] font-black text-zinc-700 uppercase tracking-wider block mb-1.5">

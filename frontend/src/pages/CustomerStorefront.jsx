@@ -12740,32 +12740,32 @@ function StoreContent({ shopId }) {
 
       {/* Edit Sale Report Record Modal */}
       {editingSale && (
-        <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-xl w-full p-5 sm:p-6 text-white space-y-4 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-100 border border-slate-300 rounded-[2rem] max-w-xl w-full p-5 sm:p-6 text-slate-900 space-y-4 shadow-2xl relative max-h-[92vh] overflow-y-auto">
             {/* Close button */}
             <button
               type="button"
               onClick={() => setEditingSale(null)}
-              className="absolute top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-slate-200/80 hover:bg-slate-300 rounded-full text-slate-600 hover:text-slate-900 transition-colors cursor-pointer border border-slate-300"
             >
               <X className="w-4 h-4" />
             </button>
 
             {/* Header */}
-            <div className="flex items-center gap-3 pr-8 border-b border-slate-800 pb-3">
-              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/40 shrink-0">
-                <Edit className="w-5 h-5" />
+            <div className="flex items-center gap-3 pr-8 border-b border-slate-200 pb-3">
+              <div className="p-2.5 bg-amber-100 text-amber-800 rounded-2xl border border-amber-300 shrink-0 shadow-sm">
+                <Edit className="w-5 h-5 text-amber-700" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-white">
+                  <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
                     Edit Sale &amp; Invoice Record
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
                     Live Database
                   </span>
                 </div>
-                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mt-0.5">
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mt-0.5">
                   {editSaleFormData.invoiceNumber || 'INVOICE'} • ID: #{String(editingSale._id || editingSale.id || '').slice(-6)}
                 </p>
               </div>
@@ -12773,68 +12773,68 @@ function StoreContent({ shopId }) {
 
             <form onSubmit={handleSaveSaleEdit} className="space-y-4">
               {/* Customer Details Grid */}
-              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-600 block">
                   Customer Information
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Customer Name</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Customer Name</label>
                     <input
                       type="text"
                       required
                       value={editSaleFormData.customerName}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, customerName: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                       placeholder="Customer Name"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Contact Phone</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Contact Phone</label>
                     <input
                       type="text"
                       value={editSaleFormData.customerPhone}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                       placeholder="Phone (e.g. 03069578493)"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Customer Email</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Customer Email</label>
                     <input
                       type="email"
                       value={editSaleFormData.customerEmail}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                       placeholder="Email (e.g. customer@gmail.com)"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Invoice Date &amp; Time</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Invoice Date &amp; Time</label>
                     <input
                       type="datetime-local"
                       value={editSaleFormData.saleDate}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, saleDate: e.target.value }))}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Financial & Payment Details */}
-              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-600 block">
                   Payment &amp; Financial Breakdown
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Payment Method</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Payment Method</label>
                     <select
                       value={editSaleFormData.paymentMethod}
                       onChange={e => handlePaymentMethodChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm cursor-pointer"
                     >
                       <option value="CASH">💵 Cash (Cash Drawer)</option>
                       <option value="BANK_TRANSFER">🏦 Bank Transfer</option>
@@ -12843,7 +12843,7 @@ function StoreContent({ shopId }) {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Total Bill Amount ({currency})</label>
+                    <label className="text-[9px] font-black uppercase text-slate-600 block mb-1">Total Bill Amount ({currency})</label>
                     <input
                       type="number"
                       min="0"
@@ -12859,40 +12859,40 @@ function StoreContent({ shopId }) {
                           dueAmount: prev.paymentMethod === 'CREDIT' ? val : prev.dueAmount
                         }));
                       }}
-                      className="w-full px-3 py-2 bg-slate-900 border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-400 focus:outline-none focus:border-emerald-400"
+                      className="w-full px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-black text-emerald-800 focus:outline-none focus:border-emerald-500 focus:bg-white shadow-sm"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800">
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
                   <div>
-                    <label className="text-[8.5px] font-bold uppercase text-slate-400 block mb-1">Cash Paid (Rs)</label>
+                    <label className="text-[8.5px] font-black uppercase text-slate-600 block mb-1">Cash Paid (Rs)</label>
                     <input
                       type="number"
                       min="0"
                       value={editSaleFormData.cashPaid}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, cashPaid: Number(e.target.value) || 0 }))}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                     />
                   </div>
                   <div>
-                    <label className="text-[8.5px] font-bold uppercase text-slate-400 block mb-1">Bank Paid (Rs)</label>
+                    <label className="text-[8.5px] font-black uppercase text-slate-600 block mb-1">Bank Paid (Rs)</label>
                     <input
                       type="number"
                       min="0"
                       value={editSaleFormData.bankPaid}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, bankPaid: Number(e.target.value) || 0 }))}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white shadow-sm"
                     />
                   </div>
                   <div>
-                    <label className="text-[8.5px] font-bold uppercase text-rose-400 block mb-1">Credit Due (Rs)</label>
+                    <label className="text-[8.5px] font-black uppercase text-rose-700 block mb-1">Credit Due (Rs)</label>
                     <input
                       type="number"
                       min="0"
                       value={editSaleFormData.dueAmount}
                       onChange={e => setEditSaleFormData(prev => ({ ...prev, dueAmount: Number(e.target.value) || 0 }))}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-rose-500/50 rounded-lg text-xs font-bold text-rose-400 focus:outline-none focus:border-rose-400"
+                      className="w-full px-2.5 py-1.5 bg-rose-50 border border-rose-300 rounded-lg text-xs font-bold text-rose-800 focus:outline-none focus:border-rose-500 focus:bg-white shadow-sm"
                     />
                   </div>
                 </div>
@@ -12900,25 +12900,25 @@ function StoreContent({ shopId }) {
 
               {/* Purchased Items List */}
               {editSaleFormData.items && editSaleFormData.items.length > 0 && (
-                <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
+                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-600 block">
                     Purchased Items &amp; Quantities ({editSaleFormData.items.length} Items)
                   </span>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {editSaleFormData.items.map((it, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs">
+                      <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs shadow-sm">
                         <div className="min-w-0 pr-2">
-                          <div className="font-extrabold text-white truncate text-xs">{it.name || it.title || 'Egg Item'}</div>
-                          <div className="text-[10px] text-slate-400 font-bold">
+                          <div className="font-extrabold text-slate-900 truncate text-xs">{it.name || it.title || 'Egg Item'}</div>
+                          <div className="text-[10px] text-slate-500 font-bold">
                             Price: {currency} {Number(it.price || it.unitPrice || 0).toLocaleString('en-PK')}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                          <div className="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden shadow-sm">
                             <button
                               type="button"
                               onClick={() => handleItemQtyChange(idx, Number(it.quantity || 1) - 1)}
-                              className="px-2 py-1 text-slate-300 hover:bg-slate-700 font-black cursor-pointer"
+                              className="px-2 py-1 text-slate-700 hover:bg-slate-100 font-black cursor-pointer"
                             >
                               -
                             </button>
@@ -12927,17 +12927,17 @@ function StoreContent({ shopId }) {
                               min="1"
                               value={it.quantity || 1}
                               onChange={e => handleItemQtyChange(idx, e.target.value)}
-                              className="w-10 text-center bg-transparent text-xs font-bold text-white focus:outline-none"
+                              className="w-10 text-center bg-transparent text-xs font-bold text-slate-900 focus:outline-none"
                             />
                             <button
                               type="button"
                               onClick={() => handleItemQtyChange(idx, Number(it.quantity || 1) + 1)}
-                              className="px-2 py-1 text-slate-300 hover:bg-slate-700 font-black cursor-pointer"
+                              className="px-2 py-1 text-slate-700 hover:bg-slate-100 font-black cursor-pointer"
                             >
                               +
                             </button>
                           </div>
-                          <span className="font-black text-emerald-400 text-xs min-w-[70px] text-right">
+                          <span className="font-black text-emerald-700 text-xs min-w-[70px] text-right">
                             {currency} {(Number(it.subtotal) || (Number(it.price || 0) * Number(it.quantity || 1))).toLocaleString('en-PK')}
                           </span>
                         </div>
@@ -12948,18 +12948,18 @@ function StoreContent({ shopId }) {
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingSale(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingSaleEdit}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isSavingSaleEdit ? (
                     <span>Updating Database...</span>
