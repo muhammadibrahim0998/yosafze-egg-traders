@@ -34,18 +34,25 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   const invoiceDisplay = bill.invoiceNumber || `INV-${serialNo.padStart(5, '0')}`;
 
   const getBranchBank = () => {
+    if (shop?.bankName || shop?.bankAccountNumber) {
+      return {
+        bank: shop.bankName || 'Branch Bank',
+        accountNo: shop.bankAccountNumber || '—',
+        accountTitle: shop.bankAccountTitle || ''
+      };
+    }
     const name = String(shopName || '').toLowerCase();
     const address = String(shopAddress || '').toLowerCase();
     if (name.includes('peshawar') || name.includes('peshawer') || address.includes('peshawar')) {
-      return { bank: 'Meezan Bank (RIZWAN ULLAH)', accountNo: '07190104740373' };
+      return { bank: 'Meezan Bank (RIZWAN ULLAH)', accountNo: '07190104740373', accountTitle: 'RIZWAN ULLAH' };
     }
     if (name.includes('mardan') || address.includes('mardan')) {
-      return { bank: 'Bank Al Habib', accountNo: '2013008100773501' };
+      return { bank: 'Bank Al Habib', accountNo: '2013008100773501', accountTitle: '' };
     }
     if (name.includes('attock') || address.includes('attock')) {
-      return { bank: 'UBL (Yousafzai Eggs Traders)', accountNo: 'UBL-0109000306243543' };
+      return { bank: 'UBL (Yousafzai Eggs Traders)', accountNo: 'UBL-0109000306243543', accountTitle: 'Yousafzai Eggs Traders' };
     }
-    return { bank: 'UBL / Meezan', accountNo: 'UBL-0109000306243543' };
+    return { bank: 'UBL / Meezan', accountNo: 'UBL-0109000306243543', accountTitle: '' };
   };
   const branchBank = getBranchBank();
 
@@ -747,7 +754,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs flex justify-between items-center text-slate-800 font-mono">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Branch Bank ({branchBank.bank}):</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Branch Bank ({branchBank.bank}){branchBank.accountTitle ? ` [${branchBank.accountTitle}]` : ''}:</span>
               <span className="font-bold bg-white px-2 py-0.5 rounded border border-slate-300 text-slate-900 shadow-sm">{branchBank.accountNo}</span>
             </div>
 

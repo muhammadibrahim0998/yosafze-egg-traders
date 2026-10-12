@@ -91,6 +91,10 @@ router.put("/", authenticate, preventSuperAdmin, validateSettings, async (req, r
     if (updates.shopName) shopUpdates.name = updates.shopName;
     if (updates.address) shopUpdates.address = updates.address;
     if (updates.phone) shopUpdates.contactNumber = updates.phone;
+    if (updates.bankName !== undefined) shopUpdates.bankName = updates.bankName;
+    if (updates.bankAccountNumber !== undefined) shopUpdates.bankAccountNumber = updates.bankAccountNumber;
+    if (updates.bankAccountTitle !== undefined) shopUpdates.bankAccountTitle = updates.bankAccountTitle;
+    if (updates.easypaisaNumber !== undefined) shopUpdates.easypaisaNumber = updates.easypaisaNumber;
     if (updates.ownerFullName || updates.ownerEmail || updates.ownerPhone) {
       shopUpdates['ownerDetails.fullName'] = updates.ownerFullName;
       shopUpdates['ownerDetails.email'] = updates.ownerEmail;

@@ -37,13 +37,13 @@ router.get('/:shopId', async (req, res) => {
     const { search, category } = req.query;
 
     const resolvedId = await resolveShopId(shopId);
-    const shop = await Shop.findById(resolvedId).select('name address contactNumber status logoUrl');
+    const shop = await Shop.findById(resolvedId).select('name address contactNumber status logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber');
     if (!shop || shop.status !== 'active') {
       return res.status(404).json({ message: 'Shop not found or inactive' });
     }
 
     const realShopId = shop._id;
-    const settings = await Settings.findOne({ shopId: realShopId }).select('shopName logoUrl currency address phone');
+    const settings = await Settings.findOne({ shopId: realShopId }).select('shopName logoUrl currency address phone bankName bankAccountNumber bankAccountTitle easypaisaNumber');
     const BranchModel = getBranchItemModel(realShopId);
 
     const filter = { shopId: realShopId };
@@ -102,11 +102,17 @@ router.get('/:shopId', async (req, res) => {
 
     res.json({
       shop: {
+        _id: realShopId,
+        id: realShopId,
         name: settings?.shopName || shop.name,
         address: settings?.address || shop.address,
         phone: settings?.phone || shop.contactNumber,
         logoUrl: settings?.logoUrl || shop.logoUrl,
-        currency: (!settings?.currency || settings.currency === '$') ? 'Rs.' : settings.currency
+        currency: (!settings?.currency || settings.currency === '$') ? 'Rs.' : settings.currency,
+        bankName: settings?.bankName || shop.bankName || '',
+        bankAccountNumber: settings?.bankAccountNumber || shop.bankAccountNumber || '',
+        bankAccountTitle: settings?.bankAccountTitle || shop.bankAccountTitle || '',
+        easypaisaNumber: settings?.easypaisaNumber || shop.easypaisaNumber || ''
       },
       items,
       categories
@@ -119,7 +125,7 @@ router.get('/:shopId', async (req, res) => {
 // GET /api/catalog  — list all active shops (for multi-shop entry)
 router.get('/', async (req, res) => {
   try {
-    const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl');
+    const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber');
     res.json(shops);
   } catch (err) {
     res.status(500).json({ message: err.message });

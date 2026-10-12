@@ -121,10 +121,14 @@ export const generateInvoice = async (sale, filePath, settings = {}) => {
       // 📝 FOOTER TEXT & BANK DETAILS
       // ==========================
       let bankAcc = "UBL: UBL-0109000306243543";
-      const sName = (shopName || '').toLowerCase();
-      if (sName.includes('peshawar') || sName.includes('peshawer')) bankAcc = "Meezan Bank: 07190104740373 (Title: RIZWAN ULLAH)";
-      else if (sName.includes('mardan')) bankAcc = "Bank Al Habib: 2013008100773501";
-      else if (sName.includes('attock')) bankAcc = "UBL: UBL-0109000306243543 (Title: Yousafzai Eggs Traders)";
+      if (settings?.bankName || settings?.bankAccountNumber) {
+        bankAcc = `${settings.bankName || 'Bank'}: ${settings.bankAccountNumber || '—'}${settings.bankAccountTitle ? ` (Title: ${settings.bankAccountTitle})` : ''}`;
+      } else {
+        const sName = (shopName || '').toLowerCase();
+        if (sName.includes('peshawar') || sName.includes('peshawer')) bankAcc = "Meezan Bank: 07190104740373 (Title: RIZWAN ULLAH)";
+        else if (sName.includes('mardan')) bankAcc = "Bank Al Habib: 2013008100773501";
+        else if (sName.includes('attock')) bankAcc = "UBL: UBL-0109000306243543 (Title: Yousafzai Eggs Traders)";
+      }
 
       doc.moveDown(4.5);
       doc.font(bold).fontSize(8).fillColor("#2563eb").text(`BRANCH BANK: ${bankAcc}`, { align: "center" });

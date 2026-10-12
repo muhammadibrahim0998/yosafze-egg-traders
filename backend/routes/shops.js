@@ -36,7 +36,20 @@ const router = express.Router();
 router.get('/public', async (req, res) => {
   try {
     const shops = await Shop.find({ status: 'active' }).sort({ createdAt: 1 });
-    res.json(shops);
+    const enriched = await Promise.all(shops.map(async (s) => {
+      const raw = typeof s.toObject === 'function' ? s.toObject() : { ...s };
+      try {
+        const st = await Settings.findOne({ shopId: s._id || s.id });
+        if (st) {
+          raw.bankName = raw.bankName || st.bankName || '';
+          raw.bankAccountNumber = raw.bankAccountNumber || st.bankAccountNumber || '';
+          raw.bankAccountTitle = raw.bankAccountTitle || st.bankAccountTitle || '';
+          raw.easypaisaNumber = raw.easypaisaNumber || st.easypaisaNumber || '';
+        }
+      } catch (e) {}
+      return raw;
+    }));
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -47,19 +60,17 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const shops = await Shop.find().sort({ createdAt: -1 });
     const enrichedShops = await Promise.all(shops.map(async (s) => {
+      const raw = typeof s.toObject === 'function' ? s.toObject() : { ...s };
       try {
         const st = await Settings.findOne({ shopId: s._id || s.id });
         if (st) {
-          return {
-            ...s,
-            bankName: s.bankName || st.bankName || '',
-            bankAccountNumber: s.bankAccountNumber || st.bankAccountNumber || '',
-            bankAccountTitle: s.bankAccountTitle || st.bankAccountTitle || '',
-            easypaisaNumber: s.easypaisaNumber || st.easypaisaNumber || ''
-          };
+          raw.bankName = raw.bankName || st.bankName || '';
+          raw.bankAccountNumber = raw.bankAccountNumber || st.bankAccountNumber || '';
+          raw.bankAccountTitle = raw.bankAccountTitle || st.bankAccountTitle || '';
+          raw.easypaisaNumber = raw.easypaisaNumber || st.easypaisaNumber || '';
         }
       } catch (e) {}
-      return s;
+      return raw;
     }));
     res.json(enrichedShops);
   } catch (error) {
@@ -174,20 +185,21 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
 
     // Sync to settings as well
     try {
-      const shopSettings = await Settings.findOne({ shopId: shop._id || shop.id });
-      if (shopSettings) {
-        if (name) shopSettings.shopName = name;
-        if (address !== undefined) shopSettings.address = address;
-        if (contactNumber !== undefined) shopSettings.phone = contactNumber;
-        if (easypaisaNumber !== undefined) {
-          shopSettings.easypaisaNumber = easypaisaNumber;
-          shopSettings.easypaisaEnabled = !!easypaisaNumber;
-        }
-        if (bankName !== undefined) shopSettings.bankName = bankName;
-        if (bankAccountNumber !== undefined) shopSettings.bankAccountNumber = bankAccountNumber;
-        if (bankAccountTitle !== undefined) shopSettings.bankAccountTitle = bankAccountTitle;
-        await shopSettings.save();
+      let shopSettings = await Settings.findOne({ shopId: shop._id || shop.id });
+      if (!shopSettings) {
+        shopSettings = new Settings({ shopId: shop._id || shop.id });
       }
+      if (name) shopSettings.shopName = name;
+      if (address !== undefined) shopSettings.address = address;
+      if (contactNumber !== undefined) shopSettings.phone = contactNumber;
+      if (easypaisaNumber !== undefined) {
+        shopSettings.easypaisaNumber = easypaisaNumber;
+        shopSettings.easypaisaEnabled = !!easypaisaNumber;
+      }
+      if (bankName !== undefined) shopSettings.bankName = bankName;
+      if (bankAccountNumber !== undefined) shopSettings.bankAccountNumber = bankAccountNumber;
+      if (bankAccountTitle !== undefined) shopSettings.bankAccountTitle = bankAccountTitle;
+      await shopSettings.save();
     } catch (sErr) {
       console.warn('Sync settings on shop update error:', sErr);
     }

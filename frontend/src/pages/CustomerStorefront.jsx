@@ -8066,6 +8066,13 @@ function StoreContent({ shopId }) {
                                             <Building2 className="w-3 h-3" /> Branch Bank Account
                                           </p>
                                           {(() => {
+                                            if (shop?.bankName || shop?.bankAccountNumber) {
+                                              return (
+                                                <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">
+                                                  {shop.bankName || 'Bank'}: {shop.bankAccountNumber || '—'}{shop.bankAccountTitle ? ` (${shop.bankAccountTitle})` : ''}
+                                                </p>
+                                              );
+                                            }
                                             const sName = (shop?.name || '').toLowerCase();
                                             const sAddr = (shop?.address || '').toLowerCase();
                                             if (sName.includes('mardan') || sAddr.includes('mardan')) {
@@ -8111,6 +8118,13 @@ function StoreContent({ shopId }) {
                                         <Building2 className="w-3 h-3" /> Official Bank Account
                                       </p>
                                       {(() => {
+                                        if (shop?.bankName || shop?.bankAccountNumber) {
+                                          return (
+                                            <p className="text-xs font-mono font-black text-gray-900 bg-white border border-amber-200 px-2.5 py-1.5 rounded-lg shadow-sm">
+                                              {shop.bankName || 'Bank'}: {shop.bankAccountNumber || '—'}{shop.bankAccountTitle ? ` (${shop.bankAccountTitle})` : ''}
+                                            </p>
+                                          );
+                                        }
                                         const sName = (shop?.name || '').toLowerCase();
                                         const sAddr = (shop?.address || '').toLowerCase();
                                         if (sName.includes('mardan') || sAddr.includes('mardan')) {
@@ -12650,6 +12664,13 @@ function StoreContent({ shopId }) {
                     <Building2 className="w-3 h-3" /> Branch Bank Account:
                   </p>
                   {(() => {
+                    if (shop?.bankName || shop?.bankAccountNumber) {
+                      return (
+                        <p className="text-[11px] font-mono font-black text-amber-200 bg-black/50 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+                          {shop.bankName || 'Bank'}: {shop.bankAccountNumber || '—'}{shop.bankAccountTitle ? ` (${shop.bankAccountTitle})` : ''}
+                        </p>
+                      );
+                    }
                     const sName = (shop?.name || '').toLowerCase();
                     const sAddr = (shop?.address || '').toLowerCase();
                     if (sName.includes('mardan') || sAddr.includes('mardan')) {
