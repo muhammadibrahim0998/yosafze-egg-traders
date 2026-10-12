@@ -446,10 +446,33 @@ router.put('/:id/return', authenticate, requireShopAdmin, async (req, res) => {
 
 // Edit a sale (and adjust stock)
 router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
-  const { items, totalAmount, totalProfit, customerName, customerPhone, customerEmail, paymentMethod, cashPaid, bankPaid, dueAmount } = req.body;
+  const { items, totalAmount, totalProfit, customerName, customerPhone, customerEmail, paymentMethod, cashPaid, bankPaid, dueAmount, saleDate, invoiceNumber } = req.body;
   try {
-    const sale = await Sale.findById(req.params.id);
+    const targetId = req.params.id;
+    let sale = await Sale.findById(targetId);
     if (!sale) {
+      sale = await Sale.findOne({ invoiceNumber: targetId });
+    }
+    if (!sale) {
+      sale = await Sale.findOne({ orderId: targetId });
+    }
+
+    if (!sale) {
+      // Check Order collection directly
+      try {
+        const order = await Order.findById(targetId);
+        if (order) {
+          const ordUpdate = {};
+          if (customerName !== undefined) ordUpdate.customerName = customerName;
+          if (customerPhone !== undefined) ordUpdate.customerPhone = customerPhone;
+          if (customerEmail !== undefined) ordUpdate.customerEmail = customerEmail;
+          if (totalAmount !== undefined) ordUpdate.totalAmount = Number(totalAmount);
+          if (paymentMethod !== undefined) ordUpdate.paymentMethod = paymentMethod;
+          if (items !== undefined) ordUpdate.items = items;
+          const updatedOrder = await Order.findByIdAndUpdate(order.id, ordUpdate, { new: true });
+          return res.json({ success: true, message: 'Order sale updated successfully', ...updatedOrder, sale: updatedOrder });
+        }
+      } catch (ordErr) { }
       return res.status(404).json({ message: 'Sale not found' });
     }
 
@@ -487,8 +510,23 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
       updateData.dueAmount = Number(dueAmount);
       updateData.isCredit = Number(dueAmount) > 0;
     }
+    if (saleDate !== undefined) updateData.saleDate = new Date(saleDate);
+    if (invoiceNumber !== undefined) updateData.invoiceNumber = invoiceNumber;
 
     const updatedSale = await Sale.findByIdAndUpdate(sale.id, updateData, { new: true });
+
+    // Sync linked Order if exists
+    if (sale.orderId) {
+      try {
+        await Order.findByIdAndUpdate(sale.orderId, {
+          customerName: updateData.customerName || sale.customerName,
+          customerPhone: updateData.customerPhone || sale.customerPhone,
+          customerEmail: updateData.customerEmail || sale.customerEmail,
+          totalAmount: updateData.totalAmount !== undefined ? updateData.totalAmount : sale.totalAmount,
+          paymentMethod: updateData.paymentMethod || sale.paymentMethod
+        });
+      } catch (e) { }
+    }
 
     // Update active CashSession if cash amount changed
     if (cashPaid !== undefined && cashPaid !== oldCashPaid) {
@@ -504,7 +542,7 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
       } catch (e) { }
     }
 
-    res.json(updatedSale);
+    res.json({ success: true, message: 'Sale updated successfully', ...updatedSale, sale: updatedSale });
   } catch (err) {
     console.error('Edit sale error:', err);
     res.status(500).json({ message: err.message });

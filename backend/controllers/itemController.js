@@ -220,22 +220,6 @@ const createItem = async (req, res) => {
       }
     }
 
-    // Auto-create expense record if payment was made to supplier
-    if (newItem.amountPaidToSupplier && newItem.amountPaidToSupplier > 0) {
-      try {
-        await Expense.create({
-          shopId: newItem.shopId,
-          title: `Supplier Payment - ${newItem.supplierName || 'Egg Farm/Supplier'} (${newItem.name})`,
-          category: 'Other',
-          amount: Number(newItem.amountPaidToSupplier),
-          notes: `Paid via ${newItem.paymentMethod || 'Cash'} for egg inventory purchase (${newItem.name}). Due Balance: Rs ${newItem.dueAmountToSupplier || 0}`,
-          createdBy: req.user?.fullName || 'Shop Admin'
-        });
-      } catch (expErr) {
-        console.error('[createItem] Expense creation failed:', expErr.message);
-      }
-    }
-
     // Log system update for new product
     await logSystemUpdate(
       "New Features", 
@@ -513,20 +497,6 @@ const settleSupplierCredit = async (req, res) => {
         }
       } catch (pcErr) {}
 
-      // Auto-create expense record for supplier payment
-      try {
-        await Expense.create({
-          shopId: item.shopId,
-          title: `Supplier Credit Paid - ${item.supplierName || 'Egg Farm'} (${item.name})`,
-          category: 'Other',
-          amount: payAmt,
-          paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
-          paymentSource: isBank ? 'BANK' : 'CASH',
-          notes: `Paid Rs ${payAmt} via ${isBank ? 'Bank Transfer' : 'Cash'} for ${item.name} supplier credit. Remaining Due: Rs ${newDue}`,
-          createdBy: req.user?.fullName || 'Shop Admin'
-        });
-      } catch (expErr) {}
-
       return res.json({
         success: true,
         message: `Supplier Credit of Rs. ${payAmt.toLocaleString('en-PK')} paid via ${isBank ? 'Bank Transfer' : 'Cash'}`,
@@ -564,19 +534,6 @@ const settleSupplierCredit = async (req, res) => {
           );
         } catch (_) {}
       }
-
-      try {
-        await Expense.create({
-          shopId: pcRecord.shopId || 1,
-          title: `Supplier Credit Paid - ${pcRecord.supplierName || 'Egg Farm'} (${pcRecord.productName})`,
-          category: 'Other',
-          amount: payAmt,
-          paymentMethod: isBank ? 'BANK_TRANSFER' : 'CASH',
-          paymentSource: isBank ? 'BANK' : 'CASH',
-          notes: `Paid Rs ${payAmt} via ${isBank ? 'Bank Transfer' : 'Cash'} for ${pcRecord.productName} supplier credit. Remaining Due: Rs ${newDue}`,
-          createdBy: req.user?.fullName || 'Shop Admin'
-        });
-      } catch (expErr) {}
 
       return res.json({
         success: true,

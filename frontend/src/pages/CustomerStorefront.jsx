@@ -32,7 +32,7 @@ import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSumma
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { CustomerCharts } from '../components/CustomerCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, updateSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -771,6 +771,166 @@ function StoreContent({ shopId }) {
   const [activeCustGroupMenuId, setActiveCustGroupMenuId] = useState(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [allShopOrders, setAllShopOrders] = useState([]);
+
+  // ─── Sale Report Edit State & Handlers ───
+  const [editingSale, setEditingSale] = useState(null);
+  const [editSaleFormData, setEditSaleFormData] = useState({
+    invoiceNumber: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    paymentMethod: 'CASH',
+    totalAmount: 0,
+    cashPaid: 0,
+    bankPaid: 0,
+    dueAmount: 0,
+    saleDate: '',
+    items: []
+  });
+  const [isSavingSaleEdit, setIsSavingSaleEdit] = useState(false);
+
+  const handleOpenEditSale = (sale) => {
+    if (!sale) return;
+    const pMethod = String(sale.paymentMethod || 'CASH').toUpperCase();
+    const d = sale.saleDate || sale.createdAt ? new Date(sale.saleDate || sale.createdAt) : new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const localDateTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    const itemsList = Array.isArray(sale.items) ? JSON.parse(JSON.stringify(sale.items)) : [];
+    const tot = Number(sale.totalAmount) || 0;
+    const cPaid = sale.cashPaid !== undefined ? Number(sale.cashPaid) : (pMethod === 'CASH' ? tot : 0);
+    const bPaid = sale.bankPaid !== undefined ? Number(sale.bankPaid) : (pMethod.includes('BANK') || pMethod.includes('ONLINE') ? tot : 0);
+    const dAmt = sale.dueAmount !== undefined ? Number(sale.dueAmount) : (pMethod === 'CREDIT' ? tot : 0);
+
+    setEditingSale(sale);
+    setEditSaleFormData({
+      invoiceNumber: sale.invoiceNumber || (sale.serialNumber ? `#${sale.serialNumber}` : ''),
+      customerName: sale.customerName || '',
+      customerPhone: sale.customerPhone || '',
+      customerEmail: sale.customerEmail || sale.email || '',
+      paymentMethod: pMethod,
+      totalAmount: tot,
+      cashPaid: cPaid,
+      bankPaid: bPaid,
+      dueAmount: dAmt,
+      saleDate: localDateTime,
+      items: itemsList
+    });
+  };
+
+  const handleItemQtyChange = (idx, newQty) => {
+    const qty = Math.max(1, Number(newQty) || 1);
+    setEditSaleFormData(prev => {
+      const newItems = [...prev.items];
+      const item = { ...newItems[idx] };
+      item.quantity = qty;
+      const price = Number(item.price || item.unitPrice || (item.subtotal && item.quantity ? item.subtotal / item.quantity : 0));
+      item.subtotal = price * qty;
+      newItems[idx] = item;
+      const newTot = newItems.reduce((s, it) => s + (Number(it.subtotal) || (Number(it.price || 0) * Number(it.quantity || 1))), 0);
+
+      let cPaid = prev.cashPaid;
+      let bPaid = prev.bankPaid;
+      let dAmt = prev.dueAmount;
+      if (prev.paymentMethod === 'CASH') { cPaid = newTot; bPaid = 0; dAmt = 0; }
+      else if (prev.paymentMethod.includes('BANK')) { bPaid = newTot; cPaid = 0; dAmt = 0; }
+      else if (prev.paymentMethod === 'CREDIT') { dAmt = newTot; cPaid = 0; bPaid = 0; }
+
+      return {
+        ...prev,
+        items: newItems,
+        totalAmount: newTot,
+        cashPaid: cPaid,
+        bankPaid: bPaid,
+        dueAmount: dAmt
+      };
+    });
+  };
+
+  const handlePaymentMethodChange = (method) => {
+    const tot = Number(editSaleFormData.totalAmount) || 0;
+    let cPaid = 0;
+    let bPaid = 0;
+    let dAmt = 0;
+    if (method === 'CASH') cPaid = tot;
+    else if (method.includes('BANK') || method === 'ONLINE') bPaid = tot;
+    else if (method === 'CREDIT') dAmt = tot;
+
+    setEditSaleFormData(prev => ({
+      ...prev,
+      paymentMethod: method,
+      cashPaid: cPaid,
+      bankPaid: bPaid,
+      dueAmount: dAmt
+    }));
+  };
+
+  const handleSaveSaleEdit = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingSale) return;
+
+    const saleId = editingSale._id || editingSale.id || editingSale.orderId;
+    if (!saleId) return;
+
+    setIsSavingSaleEdit(true);
+    try {
+      const token = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
+      const totalAmt = Number(editSaleFormData.totalAmount) || 0;
+
+      const itemsProfit = (editSaleFormData.items || []).reduce((sum, item) => {
+        const cost = Number(item.costPrice || item.buyCost || 0);
+        const price = Number(item.price || item.unitPrice || 0);
+        const qty = Number(item.quantity || 1);
+        return sum + ((price - cost) * qty);
+      }, 0);
+
+      const payload = {
+        customerName: editSaleFormData.customerName.trim(),
+        customerPhone: editSaleFormData.customerPhone.trim(),
+        customerEmail: editSaleFormData.customerEmail.trim(),
+        paymentMethod: editSaleFormData.paymentMethod,
+        totalAmount: totalAmt,
+        totalProfit: itemsProfit > 0 ? itemsProfit : (Number(editingSale.totalProfit) || 0),
+        cashPaid: Number(editSaleFormData.cashPaid) || 0,
+        bankPaid: Number(editSaleFormData.bankPaid) || 0,
+        dueAmount: Number(editSaleFormData.dueAmount) || 0,
+        saleDate: editSaleFormData.saleDate ? new Date(editSaleFormData.saleDate).toISOString() : new Date().toISOString(),
+        items: editSaleFormData.items
+      };
+
+      const res = await fetch(`/api/sales/${saleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+          'x-user-role': 'shop_admin'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        toast.success('Sale record updated successfully in database!');
+        setEditingSale(null);
+        setShopSalesList(prev => prev.map(s => {
+          if (String(s._id || s.id || s.orderId) === String(saleId)) {
+            return { ...s, ...payload };
+          }
+          return s;
+        }));
+        if (typeof fetchShopSales === 'function') fetchShopSales();
+        if (typeof fetchRegisteredCustomers === 'function') fetchRegisteredCustomers();
+        if (typeof fetchDashboardStats === 'function') fetchDashboardStats();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || 'Failed to update sale record in database');
+      }
+    } catch (error) {
+      console.error('Save sale edit error:', error);
+      toast.error('Failed to update sale: ' + error.message);
+    } finally {
+      setIsSavingSaleEdit(false);
+    }
+  };
 
   // Credit Payment / Settlement Modal State
   const [settlingCreditSale, setSettlingCreditSale] = useState(null);
@@ -3326,7 +3486,11 @@ function StoreContent({ shopId }) {
       const res = await fetch(`/api/expenses/shop/${shopId}`);
       if (res.ok) {
         const data = await res.json();
-        const list = data.data || [];
+        const rawList = data.data || [];
+        const list = rawList.filter(exp => {
+          const t = String(exp.title || '').trim().toLowerCase();
+          return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
+        });
         setExpensesList(list);
         localStorage.setItem(`nexflow_expenses_${shopId}`, JSON.stringify(list));
         return list;
@@ -3336,8 +3500,12 @@ function StoreContent({ shopId }) {
     }
     const local = localStorage.getItem(`nexflow_expenses_${shopId}`);
     const parsed = local ? JSON.parse(local) : [];
-    setExpensesList(parsed);
-    return parsed;
+    const list = parsed.filter(exp => {
+      const t = String(exp.title || '').trim().toLowerCase();
+      return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
+    });
+    setExpensesList(list);
+    return list;
   };
 
   // ─── Dynamic Vehicle & Transport Fuel Expenses State ───
@@ -9108,6 +9276,20 @@ function StoreContent({ shopId }) {
                                               <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                             </div>
 
+                                            {custGroup.invoices && custGroup.invoices.length > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActiveCustGroupMenuId(null);
+                                                  handleOpenEditSale(custGroup.invoices[0]);
+                                                }}
+                                                className="w-full px-3 py-2 text-xs font-bold text-amber-700 bg-amber-50/80 hover:bg-amber-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                              >
+                                                <Edit className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                <span>Edit Invoice / Bill</span>
+                                              </button>
+                                            )}
+
                                             {custGroup.totalDue > 0 && (
                                               <button
                                                 type="button"
@@ -9208,6 +9390,14 @@ function StoreContent({ shopId }) {
                                             <div className="flex items-center gap-1">
                                               <button
                                                 type="button"
+                                                onClick={() => handleOpenEditSale(inv)}
+                                                className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-all cursor-pointer"
+                                                title="Edit Bill"
+                                              >
+                                                <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                              </button>
+                                              <button
+                                                type="button"
                                                 onClick={() => setCompletedBill(inv)}
                                                 className="p-1.5 bg-white text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-all cursor-pointer"
                                                 title="View Bill"
@@ -9221,6 +9411,14 @@ function StoreContent({ shopId }) {
                                                 title="Print Invoice"
                                               >
                                                 <Printer className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSale(inv._id || inv.id || inv.orderId)}
+                                                className="p-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all cursor-pointer"
+                                                title="Delete Bill"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                                               </button>
                                             </div>
                                           </div>
@@ -9405,6 +9603,20 @@ function StoreContent({ shopId }) {
                                                       <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                                     </div>
 
+                                                    {custGroup.invoices && custGroup.invoices.length > 0 && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setActiveCustGroupMenuId(null);
+                                                          handleOpenEditSale(custGroup.invoices[0]);
+                                                        }}
+                                                        className="w-full px-3 py-2 text-xs font-bold text-amber-700 bg-amber-50/80 hover:bg-amber-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                                      >
+                                                        <Edit className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                        <span>Edit Invoice / Bill</span>
+                                                      </button>
+                                                    )}
+
                                                     {custGroup.totalDue > 0 && (
                                                       <button
                                                         type="button"
@@ -9555,6 +9767,14 @@ function StoreContent({ shopId }) {
                                                         </td>
                                                         <td className="p-2 text-center">
                                                           <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => handleOpenEditSale(s)}
+                                                              className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded transition-all cursor-pointer"
+                                                              title="Edit Sale / Invoice"
+                                                            >
+                                                              <Edit className="w-3 h-3 text-amber-600" />
+                                                            </button>
                                                             <button
                                                               type="button"
                                                               onClick={() => setCompletedBill(s)}
@@ -9777,6 +9997,15 @@ function StoreContent({ shopId }) {
                                       <div className="flex items-center gap-1.5 ml-auto">
                                         <button
                                           type="button"
+                                          onClick={() => handleOpenEditSale(s)}
+                                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                          title="Edit Sale"
+                                        >
+                                          <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                          <span>Edit</span>
+                                        </button>
+                                        <button
+                                          type="button"
                                           onClick={() => setCompletedBill(s)}
                                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
                                           title="View Bill"
@@ -9955,6 +10184,14 @@ function StoreContent({ shopId }) {
                                         </td>
                                         <td className="p-3 text-center">
                                           <div className="flex items-center justify-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenEditSale(s)}
+                                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition-all cursor-pointer"
+                                              title="Edit Sale Record"
+                                            >
+                                              <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={() => setCompletedBill(s)}
@@ -12419,6 +12656,244 @@ function StoreContent({ shopId }) {
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
                   {isSettlingCredit ? 'Processing...' : settleMethod === 'BANK' ? 'Deposit into Bank' : 'Deposit into Cash'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Sale Report Record Modal */}
+      {editingSale && (
+        <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-xl w-full p-5 sm:p-6 text-white space-y-4 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setEditingSale(null)}
+              className="absolute top-4 right-4 p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 pr-8 border-b border-slate-800 pb-3">
+              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/40 shrink-0">
+                <Edit className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-white">
+                    Edit Sale &amp; Invoice Record
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                    Live Database
+                  </span>
+                </div>
+                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mt-0.5">
+                  {editSaleFormData.invoiceNumber || 'INVOICE'} • ID: #{String(editingSale._id || editingSale.id || '').slice(-6)}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveSaleEdit} className="space-y-4">
+              {/* Customer Details Grid */}
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+                  Customer Information
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editSaleFormData.customerName}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, customerName: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      placeholder="Customer Name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={editSaleFormData.customerPhone}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, customerPhone: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      placeholder="Phone (e.g. 03069578493)"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Customer Email</label>
+                    <input
+                      type="email"
+                      value={editSaleFormData.customerEmail}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                      placeholder="Email (e.g. customer@gmail.com)"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Invoice Date &amp; Time</label>
+                    <input
+                      type="datetime-local"
+                      value={editSaleFormData.saleDate}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, saleDate: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial & Payment Details */}
+              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+                  Payment &amp; Financial Breakdown
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Payment Method</label>
+                    <select
+                      value={editSaleFormData.paymentMethod}
+                      onChange={e => handlePaymentMethodChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                    >
+                      <option value="CASH">💵 Cash (Cash Drawer)</option>
+                      <option value="BANK_TRANSFER">🏦 Bank Transfer</option>
+                      <option value="CREDIT">📋 Credit (Outstanding Due)</option>
+                      <option value="SPLIT">🔀 Split Payment</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Total Bill Amount ({currency})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={editSaleFormData.totalAmount}
+                      onChange={e => {
+                        const val = Number(e.target.value) || 0;
+                        setEditSaleFormData(prev => ({
+                          ...prev,
+                          totalAmount: val,
+                          cashPaid: prev.paymentMethod === 'CASH' ? val : prev.cashPaid,
+                          bankPaid: prev.paymentMethod.includes('BANK') ? val : prev.bankPaid,
+                          dueAmount: prev.paymentMethod === 'CREDIT' ? val : prev.dueAmount
+                        }));
+                      }}
+                      className="w-full px-3 py-2 bg-slate-900 border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-400 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800">
+                  <div>
+                    <label className="text-[8.5px] font-bold uppercase text-slate-400 block mb-1">Cash Paid (Rs)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editSaleFormData.cashPaid}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, cashPaid: Number(e.target.value) || 0 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8.5px] font-bold uppercase text-slate-400 block mb-1">Bank Paid (Rs)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editSaleFormData.bankPaid}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, bankPaid: Number(e.target.value) || 0 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[8.5px] font-bold uppercase text-rose-400 block mb-1">Credit Due (Rs)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editSaleFormData.dueAmount}
+                      onChange={e => setEditSaleFormData(prev => ({ ...prev, dueAmount: Number(e.target.value) || 0 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-rose-500/50 rounded-lg text-xs font-bold text-rose-400 focus:outline-none focus:border-rose-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Purchased Items List */}
+              {editSaleFormData.items && editSaleFormData.items.length > 0 && (
+                <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400 block">
+                    Purchased Items &amp; Quantities ({editSaleFormData.items.length} Items)
+                  </span>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                    {editSaleFormData.items.map((it, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs">
+                        <div className="min-w-0 pr-2">
+                          <div className="font-extrabold text-white truncate text-xs">{it.name || it.title || 'Egg Item'}</div>
+                          <div className="text-[10px] text-slate-400 font-bold">
+                            Price: {currency} {Number(it.price || it.unitPrice || 0).toLocaleString('en-PK')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => handleItemQtyChange(idx, Number(it.quantity || 1) - 1)}
+                              className="px-2 py-1 text-slate-300 hover:bg-slate-700 font-black cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              value={it.quantity || 1}
+                              onChange={e => handleItemQtyChange(idx, e.target.value)}
+                              className="w-10 text-center bg-transparent text-xs font-bold text-white focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleItemQtyChange(idx, Number(it.quantity || 1) + 1)}
+                              className="px-2 py-1 text-slate-300 hover:bg-slate-700 font-black cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="font-black text-emerald-400 text-xs min-w-[70px] text-right">
+                            {currency} {(Number(it.subtotal) || (Number(it.price || 0) * Number(it.quantity || 1))).toLocaleString('en-PK')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingSale(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSaleEdit}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingSaleEdit ? (
+                    <span>Updating Database...</span>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Save &amp; Update Database</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
