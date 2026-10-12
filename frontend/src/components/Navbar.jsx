@@ -38,7 +38,7 @@ export function Navbar({
   const logoUrl = settings?.logoUrl || null;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-4 border-b-blue-500 shadow-[0_15px_50px_rgba(37,99,235,0.9),_0_10px_30px_rgba(59,130,246,0.85)] transition-all duration-300">
+    <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#166534] via-[#16a34a] to-[#15803d] backdrop-blur-xl border-b-4 border-b-emerald-500 shadow-[0_15px_50px_rgba(22,101,52,0.4),_0_10px_30px_rgba(34,197,94,0.3)] transition-all duration-300">
       <div className="flex items-center justify-between h-20 gap-2 sm:gap-4 px-4 sm:px-6 max-w-[1600px] mx-auto">
 
         {/* Left: Branding */}
@@ -51,7 +51,7 @@ export function Navbar({
                 if (onMenuClick) onMenuClick();
               }
             }}
-            className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer"
+            className="p-2.5 -ml-2 text-white bg-[#14532d] hover:bg-gradient-to-r hover:from-emerald-500 hover:to-[#14532d] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-4 border-b-[#0f3d20] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer"
             aria-label="Toggle Menu"
           >
             <Menu className="w-6 h-6" />
@@ -108,7 +108,7 @@ export function Navbar({
               className="w-full bg-white/95 backdrop-blur-sm rounded-full py-3 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-blue-400/50 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_6px_rgba(0,0,0,0.15),_0_8px_24px_rgba(37,99,235,0.55),_0_2px_8px_rgba(30,58,138,0.4)] hover:shadow-[0_12px_36px_rgba(59,130,246,0.85)] border-b-4 border-blue-600 focus:border-blue-500"
             />
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_6px_14px_rgba(37,99,235,0.6)] hover:shadow-[0_10px_25px_rgba(59,130,246,0.85)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-2 border-b-[#0f3d20] hover:scale-115 hover:-rotate-12 active:scale-95 cursor-pointer"
               onClick={() => {
                 if (searchTerm) navigate('/store');
               }}
@@ -122,7 +122,7 @@ export function Navbar({
         <div className="flex items-center gap-3">
           {!isSuperAdmin() && (
             <>
-              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] transition-all duration-300 ease-out shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] cursor-pointer">
+              <button onClick={onShiftClick} className="hidden sm:flex items-center gap-2.5 px-4 py-2.5 rounded-full border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#0f3d20] bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-[#166534] transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-108 hover:-translate-y-0.5 active:translate-y-[2px] cursor-pointer">
                 <div className={`w-2.5 h-2.5 rounded-full ${currentSession ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]'}`} />
                 <span className="text-xs font-black text-white uppercase tracking-widest">
                   {currentSession?.shiftType || 'No Active Shift'}
@@ -137,7 +137,7 @@ export function Navbar({
                     if (onCartClick) onCartClick();
                     else navigate(user?.shopId?._id ? `/shop/${user.shopId._id}` : '/shop');
                   }}
-                  className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_8px_20px_rgba(37,99,235,0.55),_0_2px_6px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_32px_rgba(59,130,246,0.85),_0_4px_14px_rgba(37,99,235,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
+                  className="relative p-3 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-200 border-b-4 border-b-[#0f3d20] shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-115 hover:-translate-y-1 active:scale-95 flex items-center justify-center cursor-pointer"
                   title={isShopAdmin() || isSuperAdmin() ? "View Customer Sale & POS Bill Cart" : "View Shopping Cart"}
                 >
                   {(isShopAdmin() || isSuperAdmin()) ? (
@@ -146,7 +146,7 @@ export function Navbar({
                     <ShoppingCart className="w-5 h-5 shadow-sm" />
                   )}
                   {cartCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
+                    <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#14532d] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                       {cartCount}
                     </span>
                   )}
@@ -160,7 +160,7 @@ export function Navbar({
               <span className="text-sm font-black text-white italic leading-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] group-hover:text-emerald-300 transition-colors duration-300">{user?.fullName}</span>
               <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mt-1">{user?.role?.replace('_', ' ')}</span>
             </div>
-            <button onClick={logout} className="p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-rose-600 hover:to-rose-900 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-rose-300 border-b-4 border-b-[#071306] hover:border-b-rose-950 shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(244,63,94,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 cursor-pointer">
+            <button onClick={logout} className="p-3 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-rose-600 hover:to-rose-900 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-rose-300 border-b-4 border-b-[#0f3d20] hover:border-b-rose-950 shadow-[0_8px_18px_rgba(0,0,0,0.5)] hover:shadow-[0_12px_28px_rgba(244,63,94,0.7)] hover:scale-115 hover:-translate-y-1 active:scale-95 cursor-pointer">
               <LogOut className="w-5 h-5" />
             </button>
           </div>

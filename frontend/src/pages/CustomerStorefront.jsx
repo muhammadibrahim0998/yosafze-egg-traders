@@ -1481,7 +1481,10 @@ function StoreContent({ shopId }) {
   const filteredUnifiedCustomers = useMemo(() => {
     return (unifiedCustomersList || []).filter(cust => {
       if (appliedStartDate || appliedEndDate) {
-        if (!isDateInSelectedRange(cust.createdAt)) return false;
+        const stats = getCustomerStats(cust);
+        const hasSaleInRange = (stats.matchingSales || []).some(s => isDateInSelectedRange(s.saleDate || s.createdAt));
+        const regInRange = isDateInSelectedRange(cust.createdAt);
+        if (!regInRange && !hasSaleInRange) return false;
       }
       if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
       if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
@@ -1494,7 +1497,7 @@ function StoreContent({ shopId }) {
       }
       return true;
     });
-  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate]);
+  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate, shopSalesList]);
 
   const getCustomerStats = (cust) => {
     const custId = String(cust._id || '').toLowerCase();
@@ -2296,6 +2299,9 @@ function StoreContent({ shopId }) {
     try {
       const sales = await getSales(shopId);
       setShopSalesList(sales || []);
+      if (typeof fetchRegisteredCustomers === 'function') {
+        fetchRegisteredCustomers();
+      }
     } catch (err) {
       console.error("Failed to load sales:", err);
     } finally {
@@ -2667,7 +2673,7 @@ function StoreContent({ shopId }) {
     });
   }, [unifiedSalesList, reportTimeframe, appliedStartDate, appliedEndDate, salesReportSearchTerm]);
 
-  // ─── Customer-Wise Grouped Sales (Multi-Identifier Match: Name, Phone, Email, Account) ───
+  // ─── Customer-Wise Grouped Sales (Synced 1-to-1 with Registered & Physical Customers Directory) ───
   const customerWiseSalesReport = useMemo(() => {
     const groups = [];
     const emailToGroup = new Map();
@@ -2680,7 +2686,43 @@ function StoreContent({ shopId }) {
       return !n || n === 'walk-in' || n === 'walkin' || n === 'walk-in customer' || n === 'cash customer' || n === 'customer' || n === 'credit customer' || n === 'online customer';
     };
 
-    (filteredSalesForReport || []).forEach((s) => {
+    // 1. Initialize from unifiedCustomersList so BOTH pages show the exact same customer accounts!
+    (unifiedCustomersList || []).forEach((cust) => {
+      const cId = String(cust._id || cust.id || '');
+      const rawEmail = (cust.email || '').trim().toLowerCase();
+      const cleanEmail = (rawEmail && rawEmail !== 'physical store pos' && rawEmail !== 'online / phone order') ? rawEmail : '';
+      const rawPhone = (cust.phone || '').trim();
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      const rawName = (cust.fullName || cust.name || '').trim();
+      const normName = rawName.toLowerCase();
+
+      const newGroup = {
+        id: cust._id || `cust_grp_${cleanEmail || cleanPhone || normName || groups.length + 1}`,
+        customerName: rawName || 'Customer',
+        aliasNames: rawName ? [rawName] : [],
+        customerEmail: cleanEmail,
+        customerPhone: rawPhone || '',
+        isOnline: cust.isOnline === true,
+        invoices: [],
+        totalSpent: 0,
+        totalDue: 0,
+        totalCash: 0,
+        totalBank: 0,
+        lastPurchaseDate: cust.createdAt || Date.now()
+      };
+
+      groups.push(newGroup);
+
+      if (cleanEmail && cleanEmail.length >= 4) emailToGroup.set(cleanEmail, newGroup);
+      if (cleanPhone && cleanPhone.length >= 7) phoneToGroup.set(cleanPhone, newGroup);
+      if (cId) cidToGroup.set(cId.toLowerCase(), newGroup);
+      if (!isGenericName(normName)) nameToGroup.set(normName, newGroup);
+      if (rawName && !isGenericName(rawName)) nameToGroup.set(rawName.toLowerCase(), newGroup);
+    });
+
+    // 2. Attach matching sales from filteredSalesForReport (or fallback to unifiedSalesList)
+    const salesToGroup = (filteredSalesForReport && filteredSalesForReport.length > 0) ? filteredSalesForReport : (unifiedSalesList || []);
+    (salesToGroup || []).forEach((s) => {
       if (!s) return;
       const rawEmail = (s.customerEmail || s.email || '').trim().toLowerCase();
       const cleanEmail = (rawEmail && rawEmail !== 'physical store pos' && rawEmail !== 'online / phone order') ? rawEmail : '';
@@ -2689,7 +2731,7 @@ function StoreContent({ shopId }) {
       const rawName = (s.customerName || s.name || '').trim();
       const normName = rawName.toLowerCase();
       const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
-      const cid = s.customerId ? String(s.customerId?._id || s.customerId) : null;
+      const cid = s.customerId ? String(s.customerId?._id || s.customerId).toLowerCase() : null;
 
       const total = Number(s.totalAmount) || 0;
       const isCredit = s.isCredit || s.paymentMethod === 'CREDIT' || s.paymentMethod === 'DUE' || Number(s.dueAmount) > 0;
@@ -2697,23 +2739,24 @@ function StoreContent({ shopId }) {
       const cash = Number(s.cashPaid) || (s.paymentMethod === 'CASH' && !isCredit ? (total - due) : 0);
       const bank = Number(s.bankPaid) || (s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' || s.paymentMethod === 'EASYPAISA' ? (total - due) : 0);
 
-      // Find existing group by email, phone, customerId, or non-generic name
+      // Find existing group by customerId, email, phone, or name
       let targetGroup = null;
-      if (cleanEmail && cleanEmail.length >= 4 && emailToGroup.has(cleanEmail)) {
+      if (cid && cidToGroup.has(cid)) {
+        targetGroup = cidToGroup.get(cid);
+      } else if (cleanEmail && cleanEmail.length >= 4 && emailToGroup.has(cleanEmail)) {
         targetGroup = emailToGroup.get(cleanEmail);
       } else if (cleanPhone && cleanPhone.length >= 7 && phoneToGroup.has(cleanPhone)) {
         targetGroup = phoneToGroup.get(cleanPhone);
-      } else if (cid && cidToGroup.has(cid)) {
-        targetGroup = cidToGroup.get(cid);
       } else if (!isGenericName(normName) && nameToGroup.has(normName)) {
         targetGroup = nameToGroup.get(normName);
       }
 
       if (!targetGroup) {
+        // If an extra unmapped sale exists (e.g. anonymous walk-in), add as group
         const newGroupId = `cust_grp_${cleanEmail || cleanPhone || normName || s._id || groups.length + 1}`;
         targetGroup = {
           id: newGroupId,
-          customerName: rawName || 'Customer',
+          customerName: rawName || 'Walk-in / Physical Customer',
           aliasNames: rawName ? [rawName] : [],
           customerEmail: cleanEmail,
           customerPhone: rawPhone || '',
@@ -2726,42 +2769,52 @@ function StoreContent({ shopId }) {
           lastPurchaseDate: s.saleDate || s.createdAt || Date.now()
         };
         groups.push(targetGroup);
+        if (cleanEmail && cleanEmail.length >= 4) emailToGroup.set(cleanEmail, targetGroup);
+        if (cleanPhone && cleanPhone.length >= 7) phoneToGroup.set(cleanPhone, targetGroup);
+        if (!isGenericName(normName)) nameToGroup.set(normName, targetGroup);
       } else {
-        // Merge into existing group
-        targetGroup.invoices.push(s);
-        targetGroup.totalSpent += total;
-        if (due > 0) targetGroup.totalDue += due;
-        targetGroup.totalCash += cash;
-        targetGroup.totalBank += bank;
+        // Prevent duplicate invoice pushed
+        if (!targetGroup.invoices.some(inv => (inv._id && s._id && String(inv._id) === String(s._id)) || (inv.invoiceNumber && s.invoiceNumber && inv.invoiceNumber === s.invoiceNumber))) {
+          targetGroup.invoices.push(s);
+          targetGroup.totalSpent += total;
+          if (due > 0) targetGroup.totalDue += due;
+          targetGroup.totalCash += cash;
+          targetGroup.totalBank += bank;
 
-        if (rawName && !targetGroup.aliasNames.includes(rawName)) {
-          targetGroup.aliasNames.push(rawName);
-        }
-        if (isGenericName(targetGroup.customerName) && !isGenericName(rawName)) {
-          targetGroup.customerName = rawName;
-        }
-        if (!targetGroup.customerEmail && cleanEmail) {
-          targetGroup.customerEmail = cleanEmail;
-        }
-        if ((!targetGroup.customerPhone || targetGroup.customerPhone === '—') && rawPhone) {
-          targetGroup.customerPhone = rawPhone;
-        }
-        if (isOnline) targetGroup.isOnline = true;
+          if (rawName && !targetGroup.aliasNames.includes(rawName)) {
+            targetGroup.aliasNames.push(rawName);
+          }
+          if (isGenericName(targetGroup.customerName) && !isGenericName(rawName)) {
+            targetGroup.customerName = rawName;
+          }
+          if (!targetGroup.customerEmail && cleanEmail) {
+            targetGroup.customerEmail = cleanEmail;
+          }
+          if ((!targetGroup.customerPhone || targetGroup.customerPhone === '—') && rawPhone) {
+            targetGroup.customerPhone = rawPhone;
+          }
+          if (isOnline) targetGroup.isOnline = true;
 
-        const currentLast = new Date(targetGroup.lastPurchaseDate || 0).getTime();
-        const thisDate = new Date(s.saleDate || s.createdAt || 0).getTime();
-        if (thisDate > currentLast) {
-          targetGroup.lastPurchaseDate = s.saleDate || s.createdAt;
+          const currentLast = new Date(targetGroup.lastPurchaseDate || 0).getTime();
+          const thisDate = new Date(s.saleDate || s.createdAt || 0).getTime();
+          if (thisDate > currentLast) {
+            targetGroup.lastPurchaseDate = s.saleDate || s.createdAt;
+          }
         }
       }
-
-      // Link identifiers to this targetGroup so any future bill with any of these attributes merges
-      if (cleanEmail && cleanEmail.length >= 4) emailToGroup.set(cleanEmail, targetGroup);
-      if (cleanPhone && cleanPhone.length >= 7) phoneToGroup.set(cleanPhone, targetGroup);
-      if (cid) cidToGroup.set(cid, targetGroup);
-      if (!isGenericName(normName)) nameToGroup.set(normName, targetGroup);
-      if (rawName && !isGenericName(rawName)) nameToGroup.set(rawName.toLowerCase(), targetGroup);
     });
+
+    // If search term is applied, filter the groups
+    if (salesReportSearchTerm && salesReportSearchTerm.trim()) {
+      const q = salesReportSearchTerm.toLowerCase();
+      return groups.filter(g =>
+        (g.customerName || '').toLowerCase().includes(q) ||
+        (g.customerEmail || '').toLowerCase().includes(q) ||
+        (g.customerPhone || '').toLowerCase().includes(q) ||
+        (g.aliasNames || []).some(a => a.toLowerCase().includes(q)) ||
+        (g.invoices || []).some(inv => (inv.invoiceNumber || '').toLowerCase().includes(q))
+      );
+    }
 
     // Sort invoices inside each group by date descending
     groups.forEach(g => {
@@ -2769,7 +2822,7 @@ function StoreContent({ shopId }) {
     });
 
     return groups;
-  }, [filteredSalesForReport]);
+  }, [filteredSalesForReport, unifiedSalesList, unifiedCustomersList, salesReportSearchTerm]);
 
   const getCustomerIdentityGroupKey = (s) => {
     if (!s) return null;
@@ -6386,8 +6439,8 @@ function StoreContent({ shopId }) {
         </div>
       )}
 
-      {/* Top Navbar — Luxury Dark Black-Green Gradient */}
-      <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] backdrop-blur-xl border-b-2 border-b-emerald-800/40 shadow-lg transition-all duration-300">
+      {/* Top Navbar — Light & Vibrant Green Gradient */}
+      <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-[#166534] via-[#16a34a] to-[#15803d] backdrop-blur-xl border-b-2 border-b-emerald-400/40 shadow-lg transition-all duration-300">
         <div className="flex items-center justify-between h-20 gap-4 px-4 sm:px-6 max-w-[1600px] mx-auto">
 
           {/* Left branding */}
@@ -6395,7 +6448,7 @@ function StoreContent({ shopId }) {
             {/* Mobile Toggle */}
             <button
               onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_6px_16px_rgba(37,99,235,0.55),_0_2px_5px_rgba(30,58,138,0.7)] hover:shadow-[0_12px_30px_rgba(59,130,246,0.85),_0_4px_12px_rgba(37,99,235,0.7)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer md:hidden"
+              className="p-2.5 -ml-2 text-white bg-[#14532d] hover:bg-gradient-to-r hover:from-emerald-500 hover:to-[#14532d] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-4 border-b-[#0f3d20] hover:scale-110 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer md:hidden"
               aria-label="Toggle Mobile Menu"
             >
               <Menu className="w-6 h-6" />
@@ -6404,13 +6457,13 @@ function StoreContent({ shopId }) {
             {/* Desktop Toggle */}
             <button
               onClick={() => setIsDesktopOpen(!isDesktopOpen)}
-              className="p-2.5 -ml-2 text-white bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
+              className="p-2.5 -ml-2 text-white bg-[#14532d] hover:bg-gradient-to-r hover:from-emerald-500 hover:to-[#14532d] hover:border-t-emerald-300 rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-4 border-b-[#0f3d20] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block"
               aria-label="Toggle Desktop Menu"
             >
               <Menu className="w-6 h-6" />
             </button>
 
-            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#0F220C] hover:bg-gradient-to-r hover:from-blue-600 hover:to-[#0F220C] hover:border-t-blue-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] border-t border-t-white/30 border-b-4 border-b-[#071306] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
+            <button onClick={() => navigate('/shop')} className="p-2.5 bg-[#14532d] hover:bg-gradient-to-r hover:from-emerald-500 hover:to-[#14532d] hover:border-t-emerald-300 text-white rounded-xl transition-all duration-300 ease-out shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-4 border-b-[#0f3d20] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] active:scale-95 cursor-pointer hidden md:block" title="Back to Stores">
               <ArrowLeft className="w-5 h-5" />
             </button>
 
@@ -6453,7 +6506,7 @@ function StoreContent({ shopId }) {
                 placeholder="Search products..."
                 className="w-full bg-white/95 backdrop-blur-sm rounded-full py-2.5 flex items-center pl-6 pr-14 text-sm font-black text-gray-900 placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-blue-400/40 hover:bg-white transition-all duration-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.08),0_4px_14px_rgba(15,23,42,0.35),0_0_10px_rgba(59,130,246,0.2),0_0_8px_rgba(245,158,11,0.12)] hover:shadow-[0_6px_20px_rgba(15,23,42,0.45),0_0_15px_rgba(59,130,246,0.3),0_0_12px_rgba(245,158,11,0.2)] border-b-2 border-blue-500 focus:border-blue-400"
               />
-              <button className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_4px_10px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25)] hover:shadow-[0_6px_16px_rgba(15,23,42,0.5),0_0_12px_rgba(245,158,11,0.3)] border-t border-t-white/30 border-b-2 border-b-[#071306] hover:scale-105 active:scale-95 cursor-pointer">
+              <button className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-emerald-700 text-white p-2 rounded-full transition-all duration-300 ease-out shadow-[0_4px_10px_rgba(0,0,0,0.3)] border-t border-t-white/30 border-b-2 border-b-[#0f3d20] hover:scale-105 active:scale-95 cursor-pointer">
                 <Search className="w-4 h-4" />
               </button>
 
@@ -6505,7 +6558,7 @@ function StoreContent({ shopId }) {
             {canBuy && (
               <button
                 onClick={() => setOrderOpen(true)}
-                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-[#1B3817] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-300 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
+                className="relative p-2.5 sm:px-4 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-[#166534] text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-300 border-b-4 border-b-[#0f3d20] shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-105 hover:-translate-y-0.5 active:translate-y-[2px] flex items-center justify-center gap-2 cursor-pointer"
                 title="View My Orders & Payment Status"
               >
                 <Truck className="w-5 h-5 text-blue-400" />
@@ -6516,11 +6569,11 @@ function StoreContent({ shopId }) {
             {canBuy ? (
               <button
                 onClick={() => setCartOpen(true)}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-200 border-b-4 border-b-[#0f3d20] shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
               >
                 <ShoppingCart className="w-5 h-5" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#14532d] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                     {cartCount}
                   </span>
                 )}
@@ -6528,12 +6581,12 @@ function StoreContent({ shopId }) {
             ) : isAdminUser ? (
               <button
                 onClick={() => setActiveView('walkin')}
-                className="relative p-3 bg-gradient-to-r from-[#1B3817] to-[#0F220C] hover:from-blue-600 hover:to-blue-800 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-blue-200 border-b-4 border-b-[#071306] shadow-[0_4px_12px_rgba(15,23,42,0.4),0_0_8px_rgba(59,130,246,0.25),0_0_8px_rgba(245,158,11,0.15)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.5),0_0_14px_rgba(59,130,246,0.35),0_0_12px_rgba(245,158,11,0.25)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
+                className="relative p-3 bg-gradient-to-r from-[#166534] to-[#14532d] hover:from-emerald-500 hover:to-emerald-700 text-white rounded-full transition-all duration-300 ease-out border-t border-white/30 hover:border-t-emerald-200 border-b-4 border-b-[#0f3d20] shadow-[0_4px_12px_rgba(0,0,0,0.3)] hover:scale-105 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center cursor-pointer"
                 title="View Walk-in Customer Bill Cart"
               >
                 <Receipt className="w-5 h-5 text-emerald-400" />
                 {walkInCart.reduce((sum, item) => sum + item.quantity, 0) > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#0F220C] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
+                  <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-black h-5.5 w-5.5 rounded-full flex items-center justify-center border-2 border-[#14532d] shadow-[0_3px_8px_rgba(0,0,0,0.5)] animate-bounce">
                     {walkInCart.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 )}
@@ -6554,23 +6607,25 @@ function StoreContent({ shopId }) {
           />
         )}
 
-        {/* ─── Luxury Dark Green Sidebar with Balanced Blue, Yellow & Gray Shadow ─────────────────────── */}
+        {/* ─── Light & Vibrant Green Sidebar ─────────────────────── */}
         <aside
-          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#071306] via-[#152F12] to-[#0A1A08] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-2 border-r-slate-700/80 z-[100] md:z-20 overflow-hidden shadow-[10px_0_30px_rgba(15,23,42,0.65),4px_0_15px_rgba(37,99,235,0.18)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#15803d] via-[#16a34a] to-[#166534] text-white backdrop-blur-xl transition-all duration-300 ease-in-out border-r-2 border-r-emerald-500/40 z-[100] md:z-20 overflow-hidden shadow-[10px_0_30px_rgba(22,101,52,0.35),4px_0_15px_rgba(34,197,94,0.15)] w-56 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
             } ${!isDesktopOpen ? 'md:-ml-56' : 'md:ml-0'
             }`}
         >
-          {/* User Profile Box */}
-          <div className="mx-4 mb-6 mt-4 rounded-2xl flex items-center px-3.5 py-3 gap-3 border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner">
+          {/* User Profile Box - 3D Shape */}
+          <div className="mx-3.5 mb-5 mt-4 rounded-2xl flex items-center px-3.5 py-3 gap-3 bg-gradient-to-b from-[#186337] to-[#0e3f21] border-t-2 border-t-white/40 border-x border-x-emerald-500/40 border-b-4 border-b-[#072513] shadow-[0_6px_14px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] transition-transform duration-200 hover:scale-[1.02]">
             <div className="relative flex-shrink-0">
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-[#111827] rounded-full shadow-sm" />
-              <UserCircle2 className="w-8 h-8 text-green-300" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#072513] rounded-full shadow-md animate-pulse" />
+              <div className="p-1 rounded-xl bg-black/25 border border-white/20 shadow-inner">
+                <UserCircle2 className="w-8 h-8 text-emerald-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+              </div>
             </div>
             <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-              <span className="text-xs font-bold text-white truncate leading-tight" title={user?.fullName || customer?.fullName || 'User'}>
+              <span className="text-[13px] font-black text-white truncate leading-tight drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]" title={user?.fullName || customer?.fullName || 'User'}>
                 {user?.fullName || user?.username || customer?.fullName || customer?.email || 'Guest User'}
               </span>
-              <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mt-0.5 truncate">
+              <span className="text-[9px] font-black text-amber-300 uppercase tracking-widest mt-1 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] bg-black/35 px-2 py-0.5 rounded-md w-fit border border-amber-400/30">
                 {user?.role === 'super_admin' ? 'SUPER ADMIN' : (user?.role === 'shop_admin' || customer?.role === 'shop_admin' || isShopAdmin()) ? 'SHOP ADMIN' : customer ? 'CUSTOMER' : 'GUEST'}
               </span>
             </div>
@@ -6581,37 +6636,37 @@ function StoreContent({ shopId }) {
 
             {/* Dashboard Link - for Admin and Customer */}
             <div>
-              <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">
+              <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">
                 {isAdminUser ? 'Overview' : 'Customer Overview'}
               </p>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <button
                   onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'dashboard'
-                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                    : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                  className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'dashboard'
+                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                    : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                     }`}
                 >
-                  <LayoutDashboard className="w-4 h-4 transition-colors group-hover:text-zinc-950" />
-                  <span>{isAdminUser ? 'Dashboard' : 'Customer Dashboard'}</span>
+                  <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'dashboard' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                  <span className={`truncate ${activeView === 'dashboard' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>{isAdminUser ? 'Dashboard' : 'Customer Dashboard'}</span>
                 </button>
 
                 {!isAdminUser && (
                   <>
                     <button
                       onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                      className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                      className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                     >
-                      <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                      <span className="truncate">My Orders</span>
+                      <Truck className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
+                      <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Orders</span>
                     </button>
 
                     <button
                       onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
-                      className="w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                      className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                     >
-                      <ShoppingCart className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
-                      <span className="truncate">My Cart ({cartCount})</span>
+                      <ShoppingCart className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
+                      <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Cart ({cartCount})</span>
                     </button>
                   </>
                 )}
@@ -6621,150 +6676,149 @@ function StoreContent({ shopId }) {
             {/* Shop Admin POS & Sales Section */}
             {isAdminUser && (
               <div>
-                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">POS Billing & Sales</p>
-                <div className="space-y-1">
+                <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">POS Billing & Sales</p>
+                <div className="space-y-1.5">
                   <button
                     onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'walkin'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'walkin'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Receipt className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">POS Bill Sale</span>
+                    <Receipt className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'walkin' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'walkin' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>POS Bill Sale</span>
                   </button>
-
 
                   <button
                     onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'orders'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'orders'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Truck className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">EasyPaisa & Orders</span>
+                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'orders' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'orders' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>EasyPaisa & Orders</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchases'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchases'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Truck className="w-4 h-4 text-teal-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Purchases & Restocks</span>
+                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchases' ? 'text-zinc-950' : 'text-teal-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'purchases' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchases & Restocks</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('vendors'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'vendors'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendors'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Building2 className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Vendors</span>
+                    <Building2 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendors' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'vendors' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendors</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'registered-customers'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Users className="w-4 h-4 text-indigo-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Registered Customers</span>
+                    <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'registered-customers' ? 'text-zinc-950' : 'text-indigo-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'registered-customers' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Registered Customers</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-sales'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-sales'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <TrendingUp className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Sales Report</span>
+                    <TrendingUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-sales' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'report-sales' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Sales Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('customer-credits'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'customer-credits'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-credits'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <CreditCard className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Customer Credit</span>
+                    <CreditCard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-credits' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'customer-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Credit</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('purchase-credits'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'purchase-credits'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchase-credits'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Truck className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Purchase Credits</span>
+                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchase-credits' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'purchase-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchase Credits</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-profit'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-profit'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <DollarSign className="w-4 h-4 text-green-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Profit Report</span>
+                    <DollarSign className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-profit' ? 'text-zinc-950' : 'text-green-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'report-profit' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Profit Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-expenses'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-expenses'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <FileText className="w-4 h-4 text-rose-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Expenses Report</span>
+                    <FileText className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-expenses' ? 'text-zinc-950' : 'text-rose-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'report-expenses' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Expenses Report</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'damaged-products'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'damaged-products'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <PackageX className="w-4 h-4 text-amber-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Damaged Stock</span>
+                    <PackageX className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'damaged-products' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'damaged-products' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Damaged Stock</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('report-fuel'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'report-fuel'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-fuel'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <Truck className="w-4 h-4 text-cyan-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Fuel &amp; Vehicle</span>
+                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-fuel' ? 'text-zinc-950' : 'text-cyan-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'report-fuel' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Fuel & Vehicle</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveView('analytics-charts'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'analytics-charts'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                      : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105 cursor-pointer"
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'analytics-charts'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                       }`}
                   >
-                    <BarChart3 className="w-4 h-4 text-emerald-400 group-hover:text-zinc-950 transition-colors" />
-                    <span className="truncate">Charts &amp; Graphs</span>
+                    <BarChart3 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'analytics-charts' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'analytics-charts' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Charts & Graphs</span>
                   </button>
                 </div>
               </div>
@@ -6772,17 +6826,17 @@ function StoreContent({ shopId }) {
 
             {/* Products Section */}
             <div>
-              <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Catalog</p>
-              <div className="space-y-1">
+              <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Catalog</p>
+              <div className="space-y-1.5">
                 <button
                   onClick={() => { setActiveView('products'); setActiveCategory('All'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-3 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && activeCategory === 'All'
-                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                    : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                  className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'products' && activeCategory === 'All'
+                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                    : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                     }`}
                 >
-                  <Store className="w-4 h-4 text-white group-hover:text-zinc-950 transition-colors" />
-                  <span>All Products</span>
+                  <Store className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                  <span className={`truncate ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>All Products</span>
                 </button>
               </div>
             </div>
@@ -6790,21 +6844,21 @@ function StoreContent({ shopId }) {
             {/* Categories */}
             {categories.filter(c => c !== 'All').length > 0 && (
               <div>
-                <p className="px-5 text-[11px] font-black text-emerald-200 mb-1.5 tracking-widest uppercase">Categories</p>
-                <div className="space-y-1">
+                <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Categories</p>
+                <div className="space-y-1.5">
                   {categories.filter(c => c !== 'All').map(cat => {
                     const active = activeCategory === cat;
                     return (
                       <button
                         key={cat}
                         onClick={() => { setActiveView('products'); setActiveCategory(cat); setIsMobileOpen(false); }}
-                        className={`w-full flex items-center gap-2.5 group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out max-w-[200px] ${activeView === 'products' && active
-                          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-                          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+                        className={`w-full flex items-center gap-2.5 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'products' && active
+                          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                          : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
                           }`}
                       >
-                        <Package className={`w-4 h-4 shrink-0 transition-all ${active ? 'text-zinc-950 scale-110' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                        <span className="capitalize truncate text-white">{cat}</span>
+                        <Package className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${active ? 'text-zinc-950 scale-110' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                        <span className={`capitalize truncate ${active ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>{cat}</span>
                       </button>
                     );
                   })}
@@ -6819,10 +6873,10 @@ function StoreContent({ shopId }) {
                   if (userLogout) userLogout();
                   if (customerLogout) customerLogout();
                 }}
-                className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13.5px] font-bold tracking-wide text-rose-300 hover:text-white hover:bg-gradient-to-r hover:from-rose-600 hover:to-rose-900 border border-transparent hover:border-rose-300 hover:shadow-[0_8px_22px_rgba(244,63,94,0.6)] hover:scale-105 transition-all duration-300 ease-out"
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[13.5px] font-black tracking-wide text-white bg-gradient-to-b from-rose-800 to-rose-950 border-t-2 border-t-white/30 border-x border-x-rose-700/50 border-b-4 border-b-rose-950 shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)] hover:from-rose-700 hover:to-rose-900 hover:border-t-white/50 hover:shadow-[0_6px_16px_rgba(244,63,94,0.5)] hover:scale-[1.02] active:translate-y-1 active:border-b-2 transition-all duration-200 cursor-pointer"
               >
-                <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white transition-colors" />
-                <span>Logout</span>
+                <LogOut className="w-4 h-4 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+                <span className="text-white font-black drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">Logout</span>
               </button>
             </div>
 
@@ -8883,22 +8937,22 @@ function StoreContent({ shopId }) {
               {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'report-sales' && isAdminUser && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Executive Sleek Header Banner */}
-                  <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
+                  {/* Executive Sleek Header Banner (Clean Gray & White Theme) */}
+                  <div className="bg-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-gray-200 shadow-sm text-gray-900 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
+                      <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shrink-0">
                         <TrendingUp className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase tracking-widest leading-none">
+                        <div className="flex items-center gap-1.5 text-emerald-700 text-[10px] font-black uppercase tracking-widest leading-none">
                           <span>Analytics</span>
-                          <span className="text-slate-600">&bull;</span>
-                          <span className="text-slate-400 font-bold">POS Bills &amp; Online Orders</span>
+                          <span className="text-gray-300">&bull;</span>
+                          <span className="text-gray-500 font-bold">POS Bills &amp; Online Orders</span>
                         </div>
-                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-gray-900 mt-0.5 truncate">
                           Sales Analytics Report
                         </h2>
-                        <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
+                        <p className="text-gray-500 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
                           Real-time Revenue, Orders, Egg Quantities &amp; Invoices
                         </p>
                       </div>
@@ -8914,9 +8968,9 @@ function StoreContent({ shopId }) {
                       </button>
                       <button
                         onClick={() => handlePrintSingleReport('sales', reportTimeframe)}
-                        className="px-2.5 py-1.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-slate-600 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
+                        className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm border border-gray-300 whitespace-nowrap active:scale-95 transition-all cursor-pointer"
                       >
-                        <Printer className="w-3.5 h-3.5 text-emerald-400" /> Print PDF
+                        <Printer className="w-3.5 h-3.5 text-emerald-600" /> Print PDF
                       </button>
                       <button
                         onClick={() => handleWhatsAppReportShare('sales', reportTimeframe)}
@@ -8932,7 +8986,7 @@ function StoreContent({ shopId }) {
                       </button>
 
                       {/* Calendar Date Range Filter */}
-                      {renderCalendarFilter('dark')}
+                      {renderCalendarFilter('light')}
                     </div>
                   </div>
 

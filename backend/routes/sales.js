@@ -172,10 +172,13 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
       try {
         const existingCust = await Customer.findOne({ fullName: finalCustomerName, shopId: targetShopId });
         if (!existingCust) {
+          const cleanPhone = (salePayload.customerPhone || '').replace(/\D/g, '');
+          const cleanName = finalCustomerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const fallbackEmail = salePayload.customerEmail || `${cleanName || 'cust'}_${cleanPhone || Date.now()}@walkin.local`;
           const newCust = await Customer.create({
             fullName: finalCustomerName,
             phone: salePayload.customerPhone || '',
-            email: salePayload.customerEmail || '',
+            email: fallbackEmail,
             password: 'phys_' + Math.random().toString(36).substring(7), // dummy password for physical
             shopId: targetShopId
           });

@@ -684,28 +684,28 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#1E293B] border border-slate-700/80 rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] text-white">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-slate-100 border border-slate-300 rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] text-slate-900">
 
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#2D5A27] via-[#24491F] to-[#1B3817] flex items-center justify-between border-b border-white/10">
+        {/* Header (Clean Gray & White Theme) */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-100 via-gray-50 to-slate-100 flex items-center justify-between border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-400/30">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <div className="p-2 bg-emerald-100 rounded-xl border border-emerald-300">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black uppercase tracking-wider text-white">Walk-in Sale Bill</h2>
-                <span className="px-2 py-0.5 bg-amber-400/20 text-amber-300 font-mono font-black text-xs rounded-md border border-amber-400/40">
+                <h2 className="text-base font-black uppercase tracking-wider text-slate-900">Walk-in Sale Bill</h2>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-mono font-black text-xs rounded-md border border-amber-300">
                   #{serialNo}
                 </span>
               </div>
-              <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">{invoiceDisplay} • Completed</p>
+              <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">{invoiceDisplay} • Completed</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-2 text-slate-500 hover:text-slate-900 rounded-full bg-slate-200/80 hover:bg-slate-300 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -714,61 +714,61 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
         {/* Bill Printable Area */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 print:p-0 print:bg-white print:text-black">
           {/* Shop & Customer details */}
-          <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex justify-between items-start border-b border-slate-700/50 pb-2.5">
+          <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-3.5 space-y-2.5">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-2.5">
               <div>
-                <h3 className="font-black text-sm text-white uppercase italic">{shopName}</h3>
-                {shopAddress && <p className="text-[10.5px] text-slate-400 font-medium">{shopAddress}</p>}
-                {shopPhone && <p className="text-[10.5px] text-emerald-400 font-bold">{shopPhone}</p>}
+                <h3 className="font-black text-sm text-slate-900 uppercase italic">{shopName}</h3>
+                {shopAddress && <p className="text-[10.5px] text-slate-500 font-medium">{shopAddress}</p>}
+                {shopPhone && <p className="text-[10.5px] text-emerald-700 font-bold">{shopPhone}</p>}
               </div>
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5 mb-1">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 mr-2">Invoice: #{serialNo}</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-500 mr-2">Invoice: #{serialNo}</span>
                   {Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0) ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-950 text-amber-300 border border-amber-600 shadow-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300 shadow-sm">
                       ⚡ PARTIAL / CREDIT
                     </span>
                   ) : bill.paymentMethod === 'CREDIT' || Number(bill.dueAmount) >= totalAmount || bill.isCredit ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-rose-950 text-rose-300 border border-rose-700 shadow-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-rose-100 text-rose-800 border border-rose-300 shadow-sm">
                       📋 CREDIT
                     </span>
                   ) : bill.paymentMethod === 'BANK_TRANSFER' || bill.paymentMethod === 'ONLINE' || bill.paymentMethod === 'BANK' || Number(bill.bankPaid) > 0 ? (
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-blue-950 text-blue-300 border border-blue-700 shadow-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-800 border border-blue-300 shadow-sm">
                       🏦 BANK TRANSFER
                     </span>
                   ) : (
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-950 text-emerald-400 border border-emerald-700 shadow-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
                       💵 CASH PAID
                     </span>
                   )}
                 </div>
-                <p className="text-[9px] text-slate-400">{saleDate}</p>
+                <p className="text-[9px] text-slate-500">{saleDate}</p>
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-2 text-xs flex justify-between items-center text-amber-300 font-mono">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Branch Bank ({branchBank.bank}):</span>
-              <span className="font-bold bg-black/50 px-2 py-0.5 rounded border border-amber-500/30">{branchBank.accountNo}</span>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs flex justify-between items-center text-slate-800 font-mono">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Branch Bank ({branchBank.bank}):</span>
+              <span className="font-bold bg-white px-2 py-0.5 rounded border border-slate-300 text-slate-900 shadow-sm">{branchBank.accountNo}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Customer Name</span>
-                <span className="font-bold text-white uppercase">{customerName}</span>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Customer Name</span>
+                <span className="font-bold text-slate-900 uppercase">{customerName}</span>
               </div>
               {customerPhone && (
                 <div>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">WhatsApp / Phone</span>
-                  <span className="font-bold text-emerald-300">{customerPhone}</span>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">WhatsApp / Phone</span>
+                  <span className="font-bold text-emerald-700">{customerPhone}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Purchased Items List */}
-          <div className="border border-slate-700/60 rounded-2xl overflow-hidden bg-slate-900/40">
+          <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/80 text-[10px] font-black text-slate-300 uppercase tracking-wider border-b border-slate-700">
+              <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="p-2.5">Item</th>
                   <th className="p-2.5 text-center">Qty</th>
@@ -776,36 +776,36 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                   <th className="p-2.5 text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-medium">
+              <tbody className="divide-y divide-slate-100 font-medium">
                 {items.map((item, idx) => {
                   const d = getItemBreakdownDetails(item);
                   return (
-                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3">
                         <div className="space-y-1.5">
-                          <p className="font-black text-white text-xs tracking-wide uppercase">{d.rawName}</p>
+                          <p className="font-black text-slate-900 text-xs tracking-wide uppercase">{d.rawName}</p>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-black">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-black">
                               <span>📦</span> {d.petis}
                             </span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-black">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 text-[10px] font-black">
                               <span>🍱</span> {d.trays}
                             </span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-black">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black">
                               <span>🥚</span> {d.eggs}
                             </span>
                           </div>
                         </div>
                       </td>
                       <td className="p-3 text-center align-middle">
-                        <span className="px-2 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 font-mono font-black text-xs">
+                        <span className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 font-mono font-black text-xs">
                           {item.quantity}
                         </span>
                       </td>
-                      <td className="p-3 text-right align-middle text-slate-300 font-mono text-xs">
+                      <td className="p-3 text-right align-middle text-slate-600 font-mono text-xs">
                         {currency} {(item.price || 0).toLocaleString()}
                       </td>
-                      <td className="p-3 text-right align-middle font-mono font-black text-white text-sm">
+                      <td className="p-3 text-right align-middle font-mono font-black text-slate-900 text-sm">
                         {currency} {((item.quantity || 1) * (item.price || 0)).toLocaleString()}
                       </td>
                     </tr>
@@ -813,14 +813,14 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                 })}
               </tbody>
             </table>
-            <div className="p-3.5 bg-slate-800/60 border-t border-slate-700 space-y-2">
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2">
               {discountAmount > 0 && (
                 <>
-                  <div className="flex justify-between items-center text-xs text-slate-400">
+                  <div className="flex justify-between items-center text-xs text-slate-500">
                     <span className="font-bold uppercase tracking-wider text-[11px]">Subtotal:</span>
-                    <span className="font-black text-slate-200">{currency} {subtotalAmount.toLocaleString()}</span>
+                    <span className="font-black text-slate-800">{currency} {subtotalAmount.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-amber-400">
+                  <div className="flex justify-between items-center text-xs text-amber-700">
                     <span className="font-bold uppercase tracking-wider text-[11px] flex items-center gap-1">
                       <span>🏷️</span> Discount:
                     </span>
@@ -829,18 +829,18 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                 </>
               )}
               <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-slate-300 uppercase tracking-widest">
+                <span className="text-xs font-black text-slate-800 uppercase tracking-widest">
                   {discountAmount > 0 ? 'Net Final Amount' : 'Grand Total Amount'}
                 </span>
-                <span className="text-xl font-black text-emerald-400">{currency} {totalAmount.toLocaleString()}</span>
+                <span className="text-xl font-black text-emerald-700">{currency} {totalAmount.toLocaleString()}</span>
               </div>
               {Number(bill.dueAmount) > 0 && (Number(bill.cashPaid) > 0 || Number(bill.bankPaid) > 0) && (
-                <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-700/60 bg-slate-900/60 p-2 rounded-xl">
-                  <span className="text-slate-300 font-bold uppercase text-[10px]">
-                    💵 Paid ({Number(bill.bankPaid) > 0 ? 'Bank' : 'Cash'}): <strong className="text-emerald-400 font-black">{currency} {(Number(bill.cashPaid) || Number(bill.bankPaid) || 0).toLocaleString()}</strong>
+                <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 bg-white p-2 rounded-xl border shadow-sm">
+                  <span className="text-slate-600 font-bold uppercase text-[10px]">
+                    💵 Paid ({Number(bill.bankPaid) > 0 ? 'Bank' : 'Cash'}): <strong className="text-emerald-700 font-black">{currency} {(Number(bill.cashPaid) || Number(bill.bankPaid) || 0).toLocaleString()}</strong>
                   </span>
-                  <span className="text-rose-400 font-bold uppercase text-[10px]">
-                    ⚠️ Credit Due: <strong className="text-rose-400 font-black">{currency} {(Number(bill.dueAmount) || 0).toLocaleString()}</strong>
+                  <span className="text-rose-700 font-bold uppercase text-[10px]">
+                    ⚠️ Credit Due: <strong className="text-rose-700 font-black">{currency} {(Number(bill.dueAmount) || 0).toLocaleString()}</strong>
                   </span>
                 </div>
               )}
@@ -849,20 +849,20 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
         </div>
 
         {/* Footer Actions (3 Buttons: Excel, WhatsApp PDF, Print) */}
-        <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-700/80 grid grid-cols-3 gap-2">
+        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 grid grid-cols-3 gap-2">
           {/* 1. Excel Download */}
           <button
             onClick={handleDownloadExcel}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10.5px] uppercase tracking-wider rounded-xl border border-slate-600 transition-all shadow cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[10.5px] uppercase tracking-wider rounded-xl border border-slate-300 transition-all shadow-sm cursor-pointer active:scale-95"
             title="Export Excel (.csv)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" /> Save Excel
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Save Excel
           </button>
 
           {/* 2. WhatsApp Direct PDF Share */}
           <button
             onClick={handleWhatsAppShare}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl border border-[#1ebe57] transition-all shadow-lg cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl border border-[#1ebe57] transition-all shadow-md cursor-pointer active:scale-95"
             title="Send PDF directly to WhatsApp"
           >
             <Share2 className="w-3.5 h-3.5 text-white" /> WhatsApp
@@ -871,7 +871,7 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
           {/* 3. Print Receipt */}
           <button
             onClick={handlePrint}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl border-t border-emerald-400/30 border-b-2 border-emerald-900 transition-all shadow-lg cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-[10.5px] uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer active:scale-95"
             title="Print Clean Bill Receipt"
           >
             <Printer className="w-3.5 h-3.5" /> Print Bill
@@ -880,29 +880,29 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
 
         {/* WhatsApp Share Options Prompt Modal */}
         {showWhatsAppPrompt && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-slate-900 border-2 border-emerald-500 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl text-white">
-              <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white border-2 border-emerald-500 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl text-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-[#25D366]/20 border border-[#25D366] flex items-center justify-center text-[#25D366]">
                     <Share2 className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black uppercase text-white">Send PDF Bill on WhatsApp</h3>
-                    <p className="text-[10px] text-emerald-400 font-bold">Official Invoice #{serialNo}</p>
+                    <h3 className="text-sm font-black uppercase text-slate-900">Send PDF Bill on WhatsApp</h3>
+                    <p className="text-[10px] text-emerald-700 font-bold">Official Invoice #{serialNo}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowWhatsAppPrompt(false)}
-                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10.5px] font-black uppercase text-slate-300 tracking-wider block">
+                <label className="text-[10.5px] font-black uppercase text-slate-700 tracking-wider block">
                   Customer WhatsApp Number
                 </label>
                 <div className="flex gap-2">
@@ -911,24 +911,24 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                     placeholder="e.g. 03069578493"
                     value={targetPhone}
                     onChange={e => setTargetPhone(e.target.value)}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-emerald-500 font-mono"
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 outline-none focus:border-emerald-500 font-mono"
                   />
                   <button
                     type="button"
                     onClick={handleDirectSharePDFFile}
-                    className="px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-xs uppercase rounded-xl tracking-wider transition-all cursor-pointer shadow-lg active:scale-95 flex items-center gap-1.5"
+                    className="px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebe57] text-white font-black text-xs uppercase rounded-xl tracking-wider transition-all cursor-pointer shadow-md active:scale-95 flex items-center gap-1.5"
                   >
                     <Share2 className="w-3.5 h-3.5" /> Send PDF
                   </button>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-800 space-y-2">
+              <div className="pt-2 border-t border-slate-100 space-y-2">
                 {/* Primary: Send PDF Bill directly */}
                 <button
                   type="button"
                   onClick={handleDirectSharePDFFile}
-                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                  className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
                 >
                   <Share2 className="w-4 h-4" />
                   <span>Send PDF Bill</span>
@@ -939,14 +939,14 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
                   <button
                     type="button"
                     onClick={downloadPDF}
-                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    className="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 text-emerald-700 hover:text-emerald-800 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
                     <span>📄 Save PDF</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSendViaWhatsAppWeb(targetPhone)}
-                    className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    className="py-2.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
                     <span>💻 WhatsApp Web</span>
                   </button>

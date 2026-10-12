@@ -73,19 +73,19 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
           handleLinkClick();
           if (onClick) onClick(e);
         }}
-        className={`flex items-center group px-3.5 py-2 mx-3 rounded-xl text-[13.5px] font-bold tracking-wide transition-all duration-300 ease-out ${active
-          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t border-t-amber-200 border-b-4 border-b-amber-800 shadow-[0_8px_22px_rgba(245,158,11,0.6)] translate-x-1"
-          : "text-white hover:text-zinc-950 hover:bg-gradient-to-r hover:from-amber-400 hover:to-amber-500 border-t border-t-transparent hover:border-t-amber-200 border-b-4 border-b-transparent hover:border-b-amber-800 hover:shadow-[0_8px_22px_rgba(245,158,11,0.6)] hover:translate-x-1.5 hover:scale-105"
+        className={`flex items-center group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out cursor-pointer ${active
+          ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+          : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
           } ${isCollapsed ? 'justify-center mx-auto w-10 h-10 px-0' : 'gap-3'}`}
         title={isCollapsed ? label : undefined}
       >
         <div className="relative flex items-center justify-center">
-          <Icon className={`w-4 h-4 transition-colors duration-300 ${active ? "text-zinc-950" : "text-white group-hover:text-zinc-950"}`} />
+          <Icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${active ? "text-zinc-950" : "text-emerald-300 group-hover:text-zinc-950"}`} />
           {alert && (
             <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#111827] ${alert === 'low' ? 'bg-amber-400' : 'bg-red-500'}`}></div>
           )}
         </div>
-        <span className={`flex-1 whitespace-nowrap tracking-wide text-white ${isCollapsed ? 'hidden' : ''}`}>{label}</span>
+        <span className={`flex-1 whitespace-nowrap tracking-wide font-black ${active ? 'text-zinc-950' : 'text-white group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'} ${isCollapsed ? 'hidden' : ''}`}>{label}</span>
       </Link>
     );
   };
@@ -101,22 +101,24 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
       )}
 
       <aside
-        className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#071306] via-[#152F12] to-[#0A1A08] text-white backdrop-blur-xl transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0,2,1)] transform-gpu will-change-transform border-r-4 border-r-blue-500 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(37,99,235,0.9),_10px_0_30px_rgba(59,130,246,0.85),_4px_0_15px_rgba(147,197,253,0.7)] ${isCollapsed ? 'w-16' : 'w-56'
+        className={`absolute md:relative top-0 h-full flex flex-col bg-gradient-to-b from-[#15803d] via-[#16a34a] to-[#166534] text-white backdrop-blur-xl transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0,2,1)] transform-gpu will-change-transform border-r-4 border-r-emerald-500/40 z-[100] md:z-20 overflow-hidden shadow-[18px_0_50px_rgba(22,101,52,0.4),_10px_0_30px_rgba(34,197,94,0.3)] ${isCollapsed ? 'w-16' : 'w-56'
           } ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
 
-        {/* User Profile */}
-        <div className={`mx-3 mt-3 mb-3 rounded-xl flex items-center ${isCollapsed ? 'justify-center mx-auto w-10 h-10' : 'px-3 py-2 gap-3'} transition-all duration-300 border border-white/10 bg-white/5 backdrop-blur-sm shadow-inner`}>
+        {/* User Profile - 3D Shape */}
+        <div className={`mx-3 mt-3 mb-3 rounded-2xl flex items-center ${isCollapsed ? 'justify-center mx-auto w-10 h-10' : 'px-3 py-2.5 gap-3'} bg-gradient-to-b from-[#186337] to-[#0e3f21] border-t-2 border-t-white/40 border-x border-x-emerald-500/40 border-b-4 border-b-[#072513] shadow-[0_6px_14px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-300`}>
           <div className="relative shrink-0">
-            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#111827] rounded-full shadow-sm"></div>
-            <UserCircle2 className="w-7 h-7 text-emerald-300" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#072513] rounded-full shadow-md animate-pulse"></div>
+            <div className="p-1 rounded-xl bg-black/25 border border-white/20 shadow-inner">
+              <UserCircle2 className="w-6 h-6 text-emerald-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
+            </div>
           </div>
           {!isCollapsed && (
             <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-              <span className="text-xs font-black italic text-white truncate leading-tight" title={user?.fullName || user?.username || 'User'}>
+              <span className="text-xs font-black text-white truncate leading-tight drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]" title={user?.fullName || user?.username || 'User'}>
                 {user?.fullName || user?.username || 'System User'}
               </span>
-              <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mt-0.5 truncate">
+              <span className="text-[9px] font-black text-amber-300 uppercase tracking-widest mt-0.5 truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] bg-black/35 px-1.5 py-0.5 rounded-md w-fit border border-amber-400/30">
                 {user?.role?.replace('_', ' ') || "Staff"}
               </span>
             </div>
