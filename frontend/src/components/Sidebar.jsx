@@ -26,7 +26,8 @@ import {
   Building2,
   Package,
   Search,
-  Truck
+  Truck,
+  Receipt
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import companyLogo from '../image/logo.png';
@@ -151,6 +152,14 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
                 <>
                   <NavItem to="/vendors" icon={Building2} label="Vendors (Ledger)" />
                   <NavItem to="/vendor-directory" icon={Building2} label="Vendor Profiles (Add/Remove)" />
+                </>
+              )}
+
+              {/* Customer & Vendor Payment Ledgers */}
+              {!isSuperAdmin() && (
+                <>
+                  <NavItem to="/customer-payment-ledger" icon={Users} label="Customer Payment Ledger" />
+                  <NavItem to="/vendor-payment-ledger" icon={Truck} label="Vendor Payment Ledger" />
                 </>
               )}
 

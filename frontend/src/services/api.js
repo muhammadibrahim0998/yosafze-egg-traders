@@ -242,6 +242,11 @@ export const uploadImages = async (files) => {
 };
 
 // --- SALES API ---
+export const getPaymentLedger = async (shopId) => {
+  const response = await api.get('/sales/payment-ledger', { params: shopId ? { shopId } : {} });
+  return response.data;
+};
+
 export const getSales = async (shopId) => {
   const response = await api.get('/sales', { params: shopId ? { shopId } : {} });
   return response.data;

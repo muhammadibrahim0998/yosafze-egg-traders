@@ -27,6 +27,9 @@ import { LoginView } from "./components/auth/LoginView";
 import { SettingsView } from "./pages/SettingsView";
 import { HelpView } from "./pages/HelpView";
 import { VendorDirectory } from "./pages/VendorDirectory";
+import { PaymentLedger } from "./pages/PaymentLedger";
+import { CustomerPaymentLedger } from "./pages/CustomerPaymentLedger";
+import { VendorPaymentLedger } from "./pages/VendorPaymentLedger";
 
 
 import { useProducts } from "./contexts/ProductContext";
@@ -352,6 +355,12 @@ export default function App() {
                 <Route path="/purchases" element={isShopAdmin() ? <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/vendors" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/vendor-directory" element={(isShopAdmin() || isSuperAdmin()) ? <VendorDirectory /> : <Navigate to="/" />} />
+                <Route path="/customer-payment-ledger" element={!isSuperAdmin() ? <CustomerPaymentLedger /> : <Navigate to="/" />} />
+                <Route path="/vendor-payment-ledger" element={!isSuperAdmin() ? <VendorPaymentLedger /> : <Navigate to="/" />} />
+                <Route path="/customer-ledger" element={<Navigate to="/customer-payment-ledger" replace />} />
+                <Route path="/vendor-ledger" element={<Navigate to="/vendor-payment-ledger" replace />} />
+                <Route path="/payment-ledger" element={!isSuperAdmin() ? <PaymentLedger /> : <Navigate to="/" />} />
+                <Route path="/payment-list" element={<Navigate to="/customer-payment-ledger" replace />} />
                 <Route path="/suppliers" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
                 <Route path="/shop/:id" element={<ShopAdminDashboard />} />

@@ -3,6 +3,7 @@ import Expense from '../models/Expense.js';
 import Purchase from '../models/Purchase.js';
 import PurchaseCredit from '../models/PurchaseCredit.js';
 import Vendor from '../models/Vendor.js';
+import VendorPaymentLedger from '../models/VendorPaymentLedger.js';
 import pool from '../config/mysql.js';
 import { BRANCH_TABLE_PREFIXES, ALL_BRANCH_PREFIXES } from '../models/dbHelper.js';
 import { logSystemUpdate } from '../utils/updateHelper.js';
@@ -305,6 +306,30 @@ const updateItem = async (req, res) => {
       console.error('[updateItem] purchases sync error:', pSyncErr.message);
     }
 
+    // Also sync to dynamic VendorPaymentLedger branch table
+    try {
+      const vplUp = {};
+      if (updateData.supplierName !== undefined) vplUp.supplierName = updateData.supplierName;
+      if (updateData.supplierPhone !== undefined) vplUp.supplierPhone = updateData.supplierPhone;
+      if (updateData.name !== undefined) vplUp.productName = updateData.name;
+      if (updateData.category !== undefined) vplUp.category = updateData.category;
+      if (updateData.petiQuantity !== undefined) vplUp.petisPurchased = Number(updateData.petiQuantity) || 0;
+      if (updateData.totalPurchaseCost !== undefined) vplUp.totalCost = Number(updateData.totalPurchaseCost);
+      if (updateData.amountPaidToSupplier !== undefined) vplUp.amountPaid = Number(updateData.amountPaidToSupplier);
+      if (updateData.cashPaidToSupplier !== undefined) vplUp.cashPaid = Number(updateData.cashPaidToSupplier);
+      if (updateData.bankPaidToSupplier !== undefined) vplUp.bankPaid = Number(updateData.bankPaidToSupplier);
+      if (updateData.dueAmountToSupplier !== undefined) {
+        vplUp.dueAmount = Number(updateData.dueAmountToSupplier);
+        vplUp.status = vplUp.dueAmount === 0 ? 'PAID' : 'PARTIAL';
+      }
+      if (Object.keys(vplUp).length > 0) {
+        await VendorPaymentLedger.findByIdAndUpdate(`vpl-${id}`, vplUp);
+        await VendorPaymentLedger.findOneAndUpdate({ purchaseId: String(id) }, vplUp);
+      }
+    } catch (vplSyncErr) {
+      console.warn('VendorPaymentLedger sync warning:', vplSyncErr.message);
+    }
+
     res.json(updatedItem);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -336,6 +361,13 @@ const deleteItem = async (req, res) => {
     } catch (pErr) {
       console.error('[deleteItem] purchases delete error:', pErr.message);
     }
+
+    // Also delete from VendorPaymentLedger branch table
+    try {
+      await VendorPaymentLedger.findByIdAndDelete(id);
+      await VendorPaymentLedger.findByIdAndDelete(`vpl-${id}`);
+      await VendorPaymentLedger.deleteMany({ purchaseId: String(id) });
+    } catch (_) {}
 
     try {
       await pool.query('DELETE FROM damaged_products WHERE itemId = ?', [id]);
@@ -375,6 +407,13 @@ const deletePurchaseCredit = async (req, res) => {
     try {
       await Item.findByIdAndDelete(creditId);
       await pool.query('DELETE FROM items WHERE id = ?', [creditId]);
+    } catch (_) {}
+
+    // Also delete from VendorPaymentLedger branch table
+    try {
+      await VendorPaymentLedger.findByIdAndDelete(creditId);
+      await VendorPaymentLedger.findByIdAndDelete(`vpl-${creditId}`);
+      await VendorPaymentLedger.deleteMany({ purchaseId: String(creditId) });
     } catch (_) {}
 
     res.json({ success: true, message: 'Purchase credit record deleted successfully from database', deletedId: creditId });

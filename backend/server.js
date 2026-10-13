@@ -8,6 +8,7 @@ import { createServer } from 'http';
 import compression from 'compression';
 import { testMySQLConnection } from './config/mysql.js';
 import { seedDatabase } from './seed.js';
+import { initPaymentLedgerTables } from './scripts/create_payment_ledger_tables.js';
 
 // Import Routes
 import itemsRoutes from './routes/items.js';
@@ -126,6 +127,7 @@ const PORT = process.env.PORT || 5000;
 // Connect to MySQL Database & Seed Defaults
 await testMySQLConnection();
 await seedDatabase();
+await initPaymentLedgerTables();
 
 const server = createServer(app);
 

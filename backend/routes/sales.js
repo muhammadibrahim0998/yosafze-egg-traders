@@ -3,9 +3,12 @@ const router = express.Router();
 import Sale from '../models/Sale.js';
 import Order from '../models/Order.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
+import Purchase from '../models/Purchase.js';
 import CashSession from '../models/CashSession.js';
 import Customer from '../models/Customer.js';
 import CustomerCredit from '../models/CustomerCredit.js';
+import CustomerPaymentLedger from '../models/CustomerPaymentLedger.js';
+import VendorPaymentLedger from '../models/VendorPaymentLedger.js';
 import { generateInvoice } from '../utils/generateInvoice.js';
 import path from 'path';
 import fs from 'fs';
@@ -55,6 +58,336 @@ router.get('/all', authenticate, async (req, res) => {
     res.json(sales);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Payment Ledger & Financial Flow Endpoint (Dynamic for Branches & Super Admin) ──
+router.get('/payment-ledger', authenticate, async (req, res) => {
+  try {
+    const rawShopId = req.query.shopId || (req.user?.role !== 'super_admin' ? (req.user?.shopId?._id || req.user?.shopId) : null);
+    let targetShopId = null;
+    if (rawShopId && rawShopId !== 'ALL' && rawShopId !== 'all') {
+      targetShopId = await resolveShopId(rawShopId) || rawShopId;
+    }
+
+    const filter = targetShopId ? { shopId: targetShopId } : {};
+
+    // 1. Fetch Sales from dynamic CustomerPaymentLedger branch table
+    let salesList = [];
+    try {
+      const custLedgerRows = await CustomerPaymentLedger.find(filter).sort({ date: -1, createdAt: -1 });
+      if (custLedgerRows && custLedgerRows.length > 0) {
+        salesList = custLedgerRows.map(c => {
+          const total = Number(c.totalAmount) || 0;
+          const cash = Number(c.cashPaid) || 0;
+          const bank = Number(c.bankPaid) || 0;
+          const due = Number(c.dueAmount) || 0;
+          const pMethod = String(c.paymentMethod || 'CASH').toUpperCase();
+          return {
+            id: c.id,
+            shopId: c.shopId,
+            saleId: c.saleId,
+            date: c.date || c.createdAt,
+            invoiceNumber: c.invoiceNumber || `INV-${String(c.saleId || c.id).slice(-5)}`,
+            customerName: c.customerName || (due > 0 ? 'Credit Customer' : 'Walk-in Customer'),
+            customerPhone: c.customerPhone || '',
+            customerEmail: '',
+            totalAmount: total,
+            cashPaid: cash,
+            bankPaid: bank,
+            dueAmount: due,
+            paymentMethod: pMethod,
+            petisBought: Number(c.petisBought) || 0,
+            eggsBought: Math.round(Number(c.eggsBought) || 0),
+            itemsDescription: c.itemsDescription || 'Eggs Stock',
+            category: c.category || 'Eggs',
+            status: c.status || (due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT'))
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('CustomerPaymentLedger fetch warning:', e.message);
+    }
+
+    // Fallback to Sale.find if branch table is empty
+    if (salesList.length === 0) {
+      const rawSales = await Sale.find(filter).sort({ saleDate: -1, createdAt: -1 });
+      salesList = (rawSales || [])
+        .filter(s => s && s.status !== 'cancelled')
+        .map(s => {
+          const total = Number(s.totalAmount) || 0;
+          let cash = Number(s.cashPaid) || 0;
+          let bank = Number(s.bankPaid) || 0;
+          let due = Number(s.dueAmount) || 0;
+          const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+
+          if (cash === 0 && bank === 0 && due === 0) {
+            if (pMethod === 'CASH') cash = total;
+            else if (pMethod.includes('BANK') || pMethod.includes('ONLINE') || pMethod.includes('EASYPAISA')) bank = total;
+            else if (pMethod.includes('CREDIT') || pMethod.includes('DUE')) due = total;
+            else cash = total;
+          }
+
+          let totalPetis = 0;
+          let totalEggs = 0;
+          let itemsDescriptions = [];
+
+          if (Array.isArray(s.items)) {
+            s.items.forEach(it => {
+              const qty = Number(it.quantity) || 1;
+              const uType = it.unit || it.unitType || 'peti';
+              let petiCount = 0;
+              let eggCount = 0;
+
+              if (uType === 'peti') {
+                petiCount = qty;
+                eggCount = qty * 360;
+              } else if (uType === 'tray') {
+                petiCount = qty / 12;
+                eggCount = qty * 30;
+              } else {
+                petiCount = qty / 360;
+                eggCount = qty;
+              }
+
+              if (Number(it.petiQuantity) > 0) petiCount = Number(it.petiQuantity);
+              if (Number(it.totalEggs) > 0) eggCount = Number(it.totalEggs);
+
+              totalPetis += petiCount;
+              totalEggs += eggCount;
+              itemsDescriptions.push(`${it.name || it.rawProductName || 'Eggs'} (${qty} ${uType})`);
+            });
+          }
+
+          return {
+            id: s._id || s.id,
+            shopId: s.shopId,
+            date: s.saleDate || s.createdAt,
+            invoiceNumber: s.invoiceNumber || `INV-${String(s.serialNumber || s.id).slice(-5)}`,
+            customerName: s.customerName || (due > 0 ? 'Credit Customer' : 'Walk-in Customer'),
+            customerPhone: s.customerPhone || '',
+            customerEmail: s.customerEmail || '',
+            totalAmount: total,
+            cashPaid: cash,
+            bankPaid: bank,
+            dueAmount: due,
+            paymentMethod: pMethod,
+            petisBought: totalPetis > 0 ? Number(totalPetis.toFixed(2)) : 0,
+            eggsBought: Math.round(totalEggs),
+            itemsDescription: itemsDescriptions.join(', ') || 'Eggs Stock',
+            category: (Array.isArray(s.items) && s.items[0]?.category) || s.category || 'Eggs',
+            status: due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT')
+          };
+        });
+    }
+
+    // 2. Fetch Purchases from dynamic VendorPaymentLedger branch table
+    let purchasesList = [];
+    try {
+      const vndLedgerRows = await VendorPaymentLedger.find(filter).sort({ date: -1, createdAt: -1 });
+      if (vndLedgerRows && vndLedgerRows.length > 0) {
+        purchasesList = vndLedgerRows.map(p => {
+          const totalCost = Number(p.totalCost) || 0;
+          const paidAmt = Number(p.amountPaid) || 0;
+          const cashAmt = Number(p.cashPaid) || 0;
+          const bankAmt = Number(p.bankPaid) || 0;
+          const dueAmt = Number(p.dueAmount) || 0;
+          return {
+            id: p.id,
+            shopId: p.shopId,
+            purchaseId: p.purchaseId,
+            date: p.date || p.createdAt,
+            supplierName: p.supplierName || 'Farm Vendor',
+            supplierPhone: p.supplierPhone || '',
+            supplierLocation: p.supplierLocation || '',
+            productName: p.productName || 'Eggs Stock',
+            category: p.category || 'Eggs',
+            petisPurchased: Number(p.petisPurchased) || 0,
+            eggQuantity: Number(p.eggQuantity) || 0,
+            unitType: p.unitType || 'peti',
+            buyCost: Number(p.buyCost) || 0,
+            totalCost: Math.round(totalCost),
+            amountPaid: Math.round(paidAmt),
+            cashPaid: Math.round(cashAmt),
+            bankPaid: Math.round(bankAmt),
+            dueAmount: Math.round(dueAmt),
+            paymentMethod: p.paymentMethod || (dueAmt > 0 ? 'Credit' : 'Cash'),
+            status: p.status || (dueAmt === 0 ? 'PAID' : (paidAmt > 0 ? 'PARTIAL' : 'CREDIT'))
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('VendorPaymentLedger fetch warning:', e.message);
+    }
+
+    // Fallback to Purchase.find and Item.find if branch table is empty
+    if (purchasesList.length === 0) {
+      const [rawPurchases, rawItems] = await Promise.all([
+        Purchase.find(filter).sort({ purchaseDate: -1, createdAt: -1 }),
+        Item.find(filter).sort({ createdAt: -1 })
+      ]);
+
+      const itemMap = new Map();
+      (rawItems || []).forEach(it => {
+        const itId = it.id || it._id;
+        if (itId) itemMap.set(String(itId), it);
+      });
+
+      const seenItemIds = new Set();
+
+      (rawPurchases || []).forEach(p => {
+        const pId = p.id || p._id;
+        const itId = p.itemId ? String(p.itemId) : null;
+        if (itId) seenItemIds.add(itId);
+
+        const matchingItem = itId ? itemMap.get(itId) : null;
+
+        const totalCost = Number(p.totalCost) || (Number(matchingItem?.totalPurchaseCost) || 0);
+        let dueAmt = Number(p.dueAmount);
+        if (isNaN(dueAmt) || dueAmt < 0) {
+          dueAmt = matchingItem?.dueAmountToSupplier !== undefined ? Number(matchingItem.dueAmountToSupplier) : 0;
+        }
+
+        let paidAmt = Number(p.amountPaid);
+        if (isNaN(paidAmt) || paidAmt < 0) {
+          paidAmt = Math.max(0, totalCost - dueAmt);
+        }
+
+        let cashAmt = Number(matchingItem?.cashPaidToSupplier) || 0;
+        let bankAmt = Number(matchingItem?.bankPaidToSupplier) || 0;
+
+        const pType = String(p.paymentType || matchingItem?.paymentMethod || 'Cash').toLowerCase();
+
+        if (cashAmt === 0 && bankAmt === 0 && paidAmt > 0) {
+          if (pType.includes('bank') || pType.includes('online') || pType.includes('transfer') || pType.includes('easy')) {
+            bankAmt = paidAmt;
+          } else if (pType.includes('split')) {
+            cashAmt = Math.floor(paidAmt / 2);
+            bankAmt = paidAmt - cashAmt;
+          } else {
+            cashAmt = paidAmt;
+          }
+        }
+
+        const petiQty = Number(p.petiQuantity) > 0
+          ? Number(p.petiQuantity)
+          : (matchingItem?.petiQuantity > 0 ? Number(matchingItem.petiQuantity) : (Number(p.eggQuantity) > 0 ? Number((p.eggQuantity / 360).toFixed(2)) : 0));
+
+        purchasesList.push({
+          id: pId,
+          shopId: p.shopId,
+          date: p.purchaseDate || p.createdAt,
+          supplierName: p.supplierName || matchingItem?.supplierName || 'Farm Vendor',
+          supplierPhone: p.supplierPhone || matchingItem?.supplierPhone || '',
+          supplierLocation: p.supplierLocation || matchingItem?.supplierLocation || '',
+          productName: p.productName || matchingItem?.name || 'Eggs Stock',
+          category: p.category || matchingItem?.category || 'Eggs',
+          petisPurchased: Number(petiQty) || 0,
+          eggQuantity: Number(p.eggQuantity) || 0,
+          unitType: p.unitType || 'peti',
+          buyCost: Number(p.buyCost) || Number(matchingItem?.costPrice) || 0,
+          totalCost: Math.round(totalCost),
+          amountPaid: Math.round(paidAmt),
+          cashPaid: Math.round(cashAmt),
+          bankPaid: Math.round(bankAmt),
+          dueAmount: Math.round(dueAmt),
+          paymentMethod: p.paymentType || matchingItem?.paymentMethod || (dueAmt > 0 ? 'Credit' : 'Cash'),
+          status: dueAmt === 0 ? 'PAID' : (paidAmt > 0 ? 'PARTIAL' : 'CREDIT')
+        });
+      });
+
+      // Also include any items that weren't captured in purchases table
+      (rawItems || []).forEach(it => {
+        const itId = String(it.id || it._id);
+        if (!seenItemIds.has(itId) && (Number(it.totalPurchaseCost) > 0 || Number(it.petiQuantity) > 0 || Number(it.stock) > 0)) {
+          const totalCost = Number(it.totalPurchaseCost) || (Number(it.petiQuantity || 0) * Number(it.costPrice || 0));
+          const dueAmt = Number(it.dueAmountToSupplier) || 0;
+          const paidAmt = Number(it.amountPaidToSupplier) || Math.max(0, totalCost - dueAmt);
+          let cashAmt = Number(it.cashPaidToSupplier) || 0;
+          let bankAmt = Number(it.bankPaidToSupplier) || 0;
+          const pMethod = String(it.paymentMethod || 'Cash').toLowerCase();
+
+          if (cashAmt === 0 && bankAmt === 0 && paidAmt > 0) {
+            if (pMethod.includes('bank') || pMethod.includes('online')) bankAmt = paidAmt;
+            else cashAmt = paidAmt;
+          }
+
+          purchasesList.push({
+            id: `item-${itId}`,
+            shopId: it.shopId,
+            date: it.createdAt,
+            supplierName: it.supplierName || 'Farm Vendor',
+            supplierPhone: it.supplierPhone || '',
+            supplierLocation: it.supplierLocation || '',
+            productName: it.name || 'Eggs Stock',
+            category: it.category || 'Eggs',
+            petisPurchased: Number(it.petiQuantity) || (Number(it.stock) > 0 ? Number((it.stock / 360).toFixed(2)) : 0),
+            eggQuantity: Number(it.eggQuantity) || Number(it.stock) || 0,
+            unitType: it.unitType || 'peti',
+            buyCost: Number(it.costPrice) || 0,
+            totalCost: Math.round(totalCost),
+            amountPaid: Math.round(paidAmt),
+            cashPaid: Math.round(cashAmt),
+            bankPaid: Math.round(bankAmt),
+            dueAmount: Math.round(dueAmt),
+            paymentMethod: it.paymentMethod || (dueAmt > 0 ? 'Credit' : 'Cash'),
+            status: dueAmt === 0 ? 'PAID' : (paidAmt > 0 ? 'PARTIAL' : 'CREDIT')
+          });
+        }
+      });
+    }
+
+    purchasesList.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+    // 3. Compute High-Level Totals
+    const customerTotalRevenue = salesList.reduce((acc, s) => acc + s.totalAmount, 0);
+    const totalCashReceived = salesList.reduce((acc, s) => acc + s.cashPaid, 0);
+    const totalBankReceived = salesList.reduce((acc, s) => acc + s.bankPaid, 0);
+    const customerCreditDueTotal = salesList.reduce((acc, s) => acc + s.dueAmount, 0);
+    const totalCustomerPetisSold = salesList.reduce((acc, s) => acc + s.petisBought, 0);
+    const totalPaymentsCollected = totalCashReceived + totalBankReceived;
+
+    const supplierTotalCost = purchasesList.reduce((acc, p) => acc + p.totalCost, 0);
+    const supplierCashPaid = purchasesList.reduce((acc, p) => acc + p.cashPaid, 0);
+    const supplierBankPaid = purchasesList.reduce((acc, p) => acc + p.bankPaid, 0);
+    const supplierCreditDueTotal = purchasesList.reduce((acc, p) => acc + p.dueAmount, 0);
+    const totalSupplierPetisBought = purchasesList.reduce((acc, p) => acc + p.petisPurchased, 0);
+    const totalSupplierPaid = supplierCashPaid + supplierBankPaid;
+
+    const netCashFlow = totalCashReceived - supplierCashPaid;
+    const netBankFlow = totalBankReceived - supplierBankPaid;
+    const netTotalFlow = totalPaymentsCollected - totalSupplierPaid;
+
+    res.json({
+      success: true,
+      shopId: targetShopId,
+      summary: {
+        totalPaymentsCollected,
+        totalCashReceived,
+        totalBankReceived,
+        customerCreditDueTotal,
+        customerTotalRevenue,
+        totalCustomerPetisSold,
+        salesCount: salesList.length,
+
+        supplierTotalCost,
+        supplierCashPaid,
+        supplierBankPaid,
+        supplierCreditDueTotal,
+        totalSupplierPaid,
+        totalSupplierPetisBought,
+        purchasesCount: purchasesList.length,
+
+        netCashFlow,
+        netBankFlow,
+        netTotalFlow
+      },
+      sales: salesList,
+      purchases: purchasesList
+    });
+  } catch (err) {
+    console.error('[payment-ledger API error]:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -453,6 +786,10 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
   try {
     const targetId = req.params.id;
     let sale = await Sale.findById(targetId);
+    if (!sale && String(targetId).startsWith('cpl-')) {
+      const rawId = String(targetId).replace('cpl-', '');
+      sale = await Sale.findById(rawId);
+    }
     if (!sale) {
       sale = await Sale.findOne({ invoiceNumber: targetId });
     }
@@ -518,6 +855,27 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
 
     const updatedSale = await Sale.findByIdAndUpdate(sale.id, updateData, { new: true });
 
+    // Sync with CustomerPaymentLedger branch table
+    try {
+      const cplId = String(targetId).startsWith('cpl-') ? targetId : `cpl-${sale.id}`;
+      const cplUp = {};
+      if (customerName !== undefined) cplUp.customerName = customerName;
+      if (customerPhone !== undefined) cplUp.customerPhone = customerPhone;
+      if (totalAmount !== undefined) cplUp.totalAmount = Number(totalAmount);
+      if (cashPaid !== undefined) cplUp.cashPaid = Number(cashPaid);
+      if (bankPaid !== undefined) cplUp.bankPaid = Number(bankPaid);
+      if (dueAmount !== undefined) cplUp.dueAmount = Number(dueAmount);
+      if (paymentMethod !== undefined) cplUp.paymentMethod = paymentMethod;
+      if (req.body.category !== undefined) cplUp.category = req.body.category;
+      const calcDue = cplUp.dueAmount !== undefined ? cplUp.dueAmount : Number(sale.dueAmount || 0);
+      cplUp.status = calcDue === 0 ? 'PAID' : 'PARTIAL';
+
+      await CustomerPaymentLedger.findByIdAndUpdate(cplId, cplUp);
+      await CustomerPaymentLedger.findOneAndUpdate({ saleId: String(sale.id) }, cplUp);
+    } catch (cplErr) {
+      console.warn('CustomerPaymentLedger sync warning:', cplErr.message);
+    }
+
     // Sync linked Order if exists
     if (sale.orderId) {
       try {
@@ -561,6 +919,10 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
     }
 
     let sale = await Sale.findById(targetId);
+    if (!sale && String(targetId).startsWith('cpl-')) {
+      const rawId = String(targetId).replace('cpl-', '');
+      sale = await Sale.findById(rawId);
+    }
     if (!sale) {
       sale = await Sale.findOne({ invoiceNumber: targetId });
     }
@@ -628,6 +990,17 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
       }
     }
 
+    // Also delete from CustomerPaymentLedger branch table
+    try {
+      await CustomerPaymentLedger.findByIdAndDelete(targetId);
+      if (sale) {
+        await CustomerPaymentLedger.findByIdAndDelete(`cpl-${sale.id}`);
+        await CustomerPaymentLedger.deleteMany({ saleId: String(sale.id) });
+      }
+    } catch (cplDelErr) {
+      console.warn('CustomerPaymentLedger delete warning:', cplDelErr.message);
+    }
+
     // Also check Order collection directly
     try {
       await Order.findByIdAndDelete(targetId);
@@ -636,6 +1009,47 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
     res.json({ success: true, message: 'Sale and associated records permanently deleted from database' });
   } catch (err) {
     console.error('Delete sale error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Dedicated Customer & Vendor Payment Ledger update/delete routes
+router.put('/customer-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await CustomerPaymentLedger.findByIdAndUpdate(id, req.body, { new: true });
+    res.json({ success: true, ledger: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete('/customer-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await CustomerPaymentLedger.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Deleted from customer payment ledger' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put('/vendor-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await VendorPaymentLedger.findByIdAndUpdate(id, req.body, { new: true });
+    res.json({ success: true, ledger: updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete('/vendor-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await VendorPaymentLedger.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Deleted from vendor payment ledger' });
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });

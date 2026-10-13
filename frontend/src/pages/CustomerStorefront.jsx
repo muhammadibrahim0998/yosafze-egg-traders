@@ -26,6 +26,9 @@ import WalkInBillModal from '../components/WalkInBillModal.jsx';
 import { OrdersManagement } from '../components/OrdersManagement.jsx';
 import { PurchasesManagement } from '../components/PurchasesManagement.jsx';
 import { VendorsManagement } from './VendorsManagement.jsx';
+import { PaymentLedger } from './PaymentLedger.jsx';
+import { CustomerPaymentLedger } from './CustomerPaymentLedger.jsx';
+import { VendorPaymentLedger } from './VendorPaymentLedger.jsx';
 import { CreditManagement } from '../components/CreditManagement.jsx';
 import { FuelReportManagement } from '../components/FuelReportManagement.jsx';
 import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSummaryCard.jsx';
@@ -6723,6 +6726,28 @@ function StoreContent({ shopId }) {
                   </button>
 
                   <button
+                    onClick={() => { setActiveView('customer-payment-ledger'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-payment-ledger'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      }`}
+                  >
+                    <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-payment-ledger' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'customer-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Payment Ledger</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setActiveView('vendor-payment-ledger'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendor-payment-ledger'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      }`}
+                  >
+                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendor Payment Ledger</span>
+                  </button>
+
+                  <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
@@ -7216,6 +7241,27 @@ function StoreContent({ shopId }) {
               {/* ─── VENDORS & SUPPLIERS VIEW FOR SHOP ADMIN ─── */}
               {activeView === 'vendors' && isAdminUser && (
                 <VendorsManagement shopId={shopId} />
+              )}
+
+              {/* ─── CUSTOMER PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
+              {activeView === 'customer-payment-ledger' && isAdminUser && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <CustomerPaymentLedger shopId={shopId} />
+                </div>
+              )}
+
+              {/* ─── VENDOR PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
+              {activeView === 'vendor-payment-ledger' && isAdminUser && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <VendorPaymentLedger shopId={shopId} />
+                </div>
+              )}
+
+              {/* ─── FALLBACK PAYMENT LEDGER VIEW ─── */}
+              {activeView === 'payment-ledger' && isAdminUser && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <CustomerPaymentLedger shopId={shopId} />
+                </div>
               )}
 
               {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}
