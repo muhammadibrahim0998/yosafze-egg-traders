@@ -154,56 +154,92 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
   const supplierLedgerList = useMemo(() => {
     let list = [];
 
-    if (ledgerApiData.purchases && ledgerApiData.purchases.length > 0) {
-      list = ledgerApiData.purchases.map(p => ({
-        id: p.id,
-        date: p.date,
-        supplierName: p.supplierName || 'Farm Vendor',
-        supplierPhone: p.supplierPhone || '',
-        supplierLocation: p.supplierLocation || '',
-        productName: p.productName || 'Eggs Stock',
-        category: p.category || 'Eggs',
-        petisPurchased: Number(p.petisPurchased) || 0,
-        totalCost: Math.round(Number(p.totalCost) || 0),
-        amountPaid: Math.round(Number(p.amountPaid) || 0),
-        cashPaid: Math.round(Number(p.cashPaid) || 0),
-        bankPaid: Math.round(Number(p.bankPaid) || 0),
-        dueAmount: Math.round(Number(p.dueAmount) || 0),
-        paymentMethod: p.paymentMethod || (Number(p.dueAmount) > 0 ? 'Credit' : 'Cash'),
-        status: Number(p.dueAmount) === 0 ? 'PAID' : (Number(p.amountPaid) > 0 ? 'PARTIAL' : 'UNPAID')
-      }));
-    } else if (purchaseCredits && purchaseCredits.length > 0) {
-      list = purchaseCredits.map(p => {
-        const cost = Number(p.totalAmount || p.totalCost || p.purchasePrice || 0);
-        const paid = Number(p.paidAmount || p.amountPaid || 0);
-        const due = Number(p.dueAmount || p.remainingAmount || Math.max(0, cost - paid));
-        const method = String(p.paymentMethod || 'Cash').toUpperCase();
-        let cash = 0;
-        let bank = 0;
+    const processItem = (p) => {
+      const cost = Math.round(Number(p.totalCost || p.totalAmount || p.purchasePrice || 0));
+      const due = Math.round(Number(p.dueAmount || p.remainingAmount || 0));
+      let paid = Math.round(Number(p.amountPaid || p.paidAmount || 0));
+      if (paid === 0 && cost > 0 && due < cost) {
+        paid = cost - due;
+      }
+      let cash = Math.round(Number(p.cashPaid) || 0);
+      let bank = Math.round(Number(p.bankPaid) || 0);
 
-        if (paid > 0) {
-          if (method.includes('BANK') || method.includes('ONLINE')) bank = paid;
-          else cash = paid;
+      const rawMethod = String(p.paymentMethod || p.paymentType || '').toUpperCase().trim();
+
+      // If cash and bank are 0 but paid > 0, assign based on payment method
+      if (cash === 0 && bank === 0 && paid > 0) {
+        if (rawMethod.includes('BANK') || rawMethod.includes('ONLINE') || rawMethod.includes('TRANSFER') || rawMethod.includes('EASYPAISA')) {
+          bank = paid;
+        } else if (rawMethod.includes('SPLIT')) {
+          cash = Math.floor(paid / 2);
+          bank = paid - cash;
+        } else {
+          cash = paid;
         }
+      }
 
-        return {
-          id: p._id || p.id,
-          date: p.purchaseDate || p.createdAt || p.date,
-          supplierName: p.supplierName || p.vendorName || 'Farm Vendor',
-          supplierPhone: p.supplierPhone || p.vendorPhone || '',
-          supplierLocation: p.supplierLocation || '',
-          productName: p.productName || p.rawProductName || 'Eggs Stock',
-          category: p.category || 'Eggs',
-          petisPurchased: Number(p.petisPurchased || p.quantity || 0),
-          totalCost: cost,
-          amountPaid: paid,
-          cashPaid: cash,
-          bankPaid: bank,
-          dueAmount: due,
-          paymentMethod: method,
-          status: due === 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'UNPAID')
-        };
-      });
+      // Standardized display payment method: CASH, BANK, CREDIT, or SPLIT
+      let displayMethod = 'CASH';
+      if (due > 0 && paid === 0) {
+        displayMethod = 'CREDIT';
+      } else if (cash > 0 && bank > 0) {
+        displayMethod = 'SPLIT';
+      } else if (bank > 0 && cash === 0) {
+        displayMethod = 'BANK';
+      } else if (cash > 0 && bank === 0) {
+        displayMethod = 'CASH';
+      } else if (rawMethod.includes('BANK') || rawMethod.includes('ONLINE')) {
+        displayMethod = 'BANK';
+      } else if (rawMethod.includes('CREDIT')) {
+        displayMethod = 'CREDIT';
+      } else {
+        displayMethod = 'CASH';
+      }
+
+      // Peti, Tray, Egg breakdown
+      const rawPetis = Number(p.petisPurchased || p.petiQuantity || 0);
+      const rawTrays = Number(p.trayQuantity || p.traysCount || p.trays || 0);
+      const rawEggs = Number(p.eggQuantity || p.totalEggsCount || p.quantity || 0);
+
+      let totalEggs = 0;
+      if (rawEggs > 0 && rawEggs >= (rawPetis * 360 + rawTrays * 30)) {
+        totalEggs = rawEggs;
+      } else if (rawPetis > 0 || rawTrays > 0 || rawEggs > 0) {
+        totalEggs = (rawPetis * 360) + (rawTrays * 30) + (rawEggs > 0 && rawEggs < 30 ? rawEggs : 0);
+        if (totalEggs === 0 && rawEggs > 0) totalEggs = rawEggs;
+      }
+
+      const petisCount = rawPetis > 0 ? rawPetis : Math.floor(totalEggs / 360);
+      const traysCount = rawTrays > 0 ? rawTrays : Math.floor((totalEggs > 0 ? totalEggs : (petisCount * 360)) / 30);
+      const finalEggsCount = totalEggs > 0 ? totalEggs : (petisCount * 360);
+
+      return {
+        id: p._id || p.id,
+        date: p.date || p.purchaseDate || p.createdAt,
+        supplierName: p.supplierName || p.vendorName || 'Farm Vendor',
+        supplierPhone: p.supplierPhone || p.vendorPhone || '',
+        supplierLocation: p.supplierLocation || '',
+        productName: p.productName || p.rawProductName || 'Eggs Stock',
+        category: p.category || 'Eggs',
+        petisPurchased: petisCount,
+        petisCount: petisCount,
+        traysCount: traysCount,
+        totalEggsCount: finalEggsCount,
+        eggQuantity: finalEggsCount,
+        totalCost: cost,
+        amountPaid: paid,
+        cashPaid: cash,
+        bankPaid: bank,
+        dueAmount: due,
+        paymentMethod: displayMethod,
+        status: due === 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'UNPAID')
+      };
+    };
+
+    if (ledgerApiData.purchases && ledgerApiData.purchases.length > 0) {
+      list = ledgerApiData.purchases.map(processItem);
+    } else if (purchaseCredits && purchaseCredits.length > 0) {
+      list = purchaseCredits.map(processItem);
     }
 
     return list
@@ -220,10 +256,10 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
       })
       .filter(item => {
         if (paymentMethodFilter === 'ALL') return true;
-        if (paymentMethodFilter === 'CASH') return item.cashPaid > 0 && item.bankPaid === 0 && item.dueAmount === 0;
-        if (paymentMethodFilter === 'BANK') return item.bankPaid > 0 && item.cashPaid === 0 && item.dueAmount === 0;
-        if (paymentMethodFilter === 'SPLIT') return (item.cashPaid > 0 && item.bankPaid > 0) || (item.dueAmount > 0 && (item.cashPaid > 0 || item.bankPaid > 0));
-        if (paymentMethodFilter === 'CREDIT') return item.dueAmount > 0;
+        if (paymentMethodFilter === 'CASH') return item.paymentMethod === 'CASH' || (item.cashPaid > 0 && item.bankPaid === 0 && item.dueAmount === 0);
+        if (paymentMethodFilter === 'BANK') return item.paymentMethod === 'BANK' || (item.bankPaid > 0 && item.cashPaid === 0 && item.dueAmount === 0);
+        if (paymentMethodFilter === 'SPLIT') return item.paymentMethod === 'SPLIT' || (item.cashPaid > 0 && item.bankPaid > 0);
+        if (paymentMethodFilter === 'CREDIT') return item.paymentMethod === 'CREDIT' || item.dueAmount > 0;
         return true;
       })
       .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
@@ -394,6 +430,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
       s.productName,
       new Date(s.date).toLocaleDateString(),
       `${s.petisPurchased} P`,
+      s.paymentMethod || 'CASH',
       `Rs. ${fmt(s.cashPaid)}`,
       `Rs. ${fmt(s.bankPaid)}`,
       `Rs. ${fmt(s.dueAmount)}`,
@@ -403,13 +440,14 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
 
     autoTable(doc, {
       startY: 28,
-      head: [['Vendor', 'Phone', 'Category', 'Product', 'Date', 'Petis', 'Cash Paid', 'Bank Paid', 'Credit Remaining', 'Total Cost (Rs)', 'Status']],
+      head: [['Vendor', 'Phone', 'Category', 'Product', 'Date', 'Petis', 'Method', 'Cash Paid', 'Bank Paid', 'Credit Remaining', 'Total Cost (Rs)', 'Status']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [234, 88, 12] },
       foot: [[
         'Total', '', '', '', '',
         `${stats.totalPetisPurchased.toFixed(1)} P`,
+        '',
         `Rs. ${fmt(stats.supplierCashPaid)}`,
         `Rs. ${fmt(stats.supplierBankPaid)}`,
         `Rs. ${fmt(stats.supplierCreditDueTotal)}`,
@@ -698,8 +736,9 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                   <th className="py-2.5 px-2.5 whitespace-nowrap">Date</th>
                   <th className="py-2.5 px-2.5 whitespace-nowrap">Vendor / Supplier</th>
                   <th className="py-2.5 px-2 whitespace-nowrap">Category</th>
-                  <th className="py-2.5 px-2.5">Product</th>
+                  <th className="py-2.5 px-2.5">Product (Peti • Tray • Egg)</th>
                   <th className="py-2.5 px-2 text-center whitespace-nowrap">Petis</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Method</th>
                   <th className="py-2.5 px-2 text-right whitespace-nowrap">Cash Paid</th>
                   <th className="py-2.5 px-2 text-right whitespace-nowrap">Bank Paid</th>
                   <th className="py-2.5 px-2 text-right whitespace-nowrap">Credit Due</th>
@@ -711,7 +750,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <tbody className="divide-y divide-zinc-100 font-bold text-zinc-700">
                 {supplierLedgerList.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-10 text-center text-zinc-400">
+                    <td colSpan={12} className="py-10 text-center text-zinc-400">
                       <Truck className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
                       <p className="text-xs uppercase font-black">No vendor purchase records match your filter</p>
                     </td>
@@ -734,11 +773,66 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           {txn.category || 'Eggs'}
                         </span>
                       </td>
-                      <td className="py-2 px-2.5 max-w-[140px] truncate font-semibold text-zinc-700 text-[10.5px]" title={txn.productName}>
-                        {txn.productName}
+                      <td className="py-2 px-2.5">
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                          <span className="font-black text-zinc-900 text-[11px] truncate max-w-[90px]" title={txn.productName}>
+                            {txn.productName}
+                          </span>
+                          {/* Compact Simple 3-Box strip for Peti • Tray • Egg */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.petisCount > 0 ? txn.petisCount : (txn.petisPurchased > 0 ? txn.petisPurchased : '0')}
+                              </span>
+                            </div>
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.traysCount > 0 ? txn.traysCount : '0'}
+                              </span>
+                            </div>
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[38px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.totalEggsCount > 0 ? txn.totalEggsCount.toLocaleString('en-PK') : (txn.eggQuantity > 0 ? txn.eggQuantity.toLocaleString('en-PK') : '0')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-2 px-2 text-center whitespace-nowrap font-black text-orange-800">
-                        {txn.petisPurchased > 0 ? `${txn.petisPurchased} P` : '-'}
+                        <div className="font-black text-orange-800 text-[11px]">
+                          {txn.petisPurchased > 0 ? `${txn.petisPurchased} P` : (txn.petisCount > 0 ? `${txn.petisCount} P` : '-')}
+                        </div>
+                        {txn.totalEggsCount > 0 && (
+                          <div className="text-[8px] font-bold text-zinc-400">
+                            {txn.totalEggsCount.toLocaleString('en-PK')} Eggs
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                        {txn.paymentMethod === 'BANK' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200">
+                            <Building2 className="w-2.5 h-2.5 text-blue-600" />
+                            Bank
+                          </span>
+                        ) : txn.paymentMethod === 'CREDIT' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            <CreditCard className="w-2.5 h-2.5 text-amber-600" />
+                            Credit
+                          </span>
+                        ) : txn.paymentMethod === 'SPLIT' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-50 text-purple-800 border border-purple-200">
+                            <CreditCard className="w-2.5 h-2.5 text-purple-600" />
+                            Split
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <Banknote className="w-2.5 h-2.5 text-emerald-600" />
+                            Cash
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-2 text-right whitespace-nowrap font-black text-emerald-700">
                         {txn.cashPaid > 0 ? `Rs. ${fmt(txn.cashPaid)}` : <span className="text-zinc-300">-</span>}
@@ -871,8 +965,9 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                             <tr>
                               <th className="py-2 px-3">Date</th>
                               <th className="py-2 px-3">Category</th>
-                              <th className="py-2 px-3">Product Supplied</th>
+                              <th className="py-2 px-3">Product (Peti • Tray • Egg)</th>
                               <th className="py-2 px-3 text-center">Petis</th>
+                              <th className="py-2 px-3 text-center">Method</th>
                               <th className="py-2 px-3 text-right">Cash Paid</th>
                               <th className="py-2 px-3 text-right">Bank Paid</th>
                               <th className="py-2 px-3 text-right">Credit Due</th>
@@ -893,10 +988,59 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 font-black text-zinc-900">
-                                  {b.productName}
+                                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                    <span className="truncate max-w-[90px]" title={b.productName}>{b.productName}</span>
+                                    {/* Compact 3-box strip for Peti • Tray • Egg */}
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[28px]">
+                                        <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
+                                        <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                          {b.petisCount > 0 ? b.petisCount : (b.petisPurchased > 0 ? b.petisPurchased : '0')}
+                                        </span>
+                                      </div>
+                                      <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[28px]">
+                                        <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
+                                        <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                          {b.traysCount > 0 ? b.traysCount : '0'}
+                                        </span>
+                                      </div>
+                                      <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[34px]">
+                                        <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
+                                        <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                          {b.totalEggsCount > 0 ? b.totalEggsCount.toLocaleString('en-PK') : (b.eggQuantity > 0 ? b.eggQuantity.toLocaleString('en-PK') : '0')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </td>
                                 <td className="py-2 px-3 text-center font-black text-orange-800">
-                                  {b.petisPurchased > 0 ? `${b.petisPurchased} P` : '-'}
+                                  <div>{b.petisPurchased > 0 ? `${b.petisPurchased} P` : (b.petisCount > 0 ? `${b.petisCount} P` : '-')}</div>
+                                  {b.totalEggsCount > 0 && (
+                                    <div className="text-[8px] font-bold text-zinc-400">{b.totalEggsCount.toLocaleString('en-PK')} Eggs</div>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-center whitespace-nowrap">
+                                  {b.paymentMethod === 'BANK' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-50 text-blue-800 border border-blue-200">
+                                      <Building2 className="w-2.5 h-2.5 text-blue-600" />
+                                      Bank
+                                    </span>
+                                  ) : b.paymentMethod === 'CREDIT' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                                      <CreditCard className="w-2.5 h-2.5 text-amber-600" />
+                                      Credit
+                                    </span>
+                                  ) : b.paymentMethod === 'SPLIT' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-purple-50 text-purple-800 border border-purple-200">
+                                      <CreditCard className="w-2.5 h-2.5 text-purple-600" />
+                                      Split
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      <Banknote className="w-2.5 h-2.5 text-emerald-600" />
+                                      Cash
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-2 px-3 text-right text-emerald-700 font-black">
                                   {b.cashPaid > 0 ? `Rs. ${fmt(b.cashPaid)}` : '-'}

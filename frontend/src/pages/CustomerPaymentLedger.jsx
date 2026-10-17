@@ -26,7 +26,8 @@ import {
   Sparkles,
   Pencil,
   Trash2,
-  Tag
+  Tag,
+  MoreVertical
 } from 'lucide-react';
 import api, { getPaymentLedger, getCustomerCredits, updateSale, deleteSale } from '../services/api';
 import { useProducts } from '../contexts/ProductContext';
@@ -64,6 +65,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   });
   const [deletingSale, setDeletingSale] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [activeTxnMenuId, setActiveTxnMenuId] = useState(null);
 
   const activeShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null);
 
@@ -151,7 +153,8 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   };
 
   // 1. Process Customer Sales Ledger List
-  const customerLedgerList = useMemo(() => {
+  // 1. Process Raw Customer Sales Ledger List (Filtered by Date Range)
+  const allDateFilteredSales = useMemo(() => {
     const rawList = (ledgerApiData.sales && ledgerApiData.sales.length > 0)
       ? ledgerApiData.sales
       : (sales || []);
@@ -181,6 +184,9 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
 
         let totalPetisBought = Number(s.petisBought) || 0;
         let totalEggsBought = Number(s.eggsBought) || 0;
+        let totalPetisCount = 0;
+        let totalTraysCount = 0;
+        let totalLooseEggsCount = 0;
         let itemsSummary = [];
         let determinedCategory = s.category || itemsList[0]?.category || '';
 
@@ -188,29 +194,39 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           itemsSummary = [];
           itemsList.forEach(it => {
             const qty = Number(it.quantity) || 1;
-            const uType = it.unitLabel || it.unit || it.unitType || 'peti';
+            const uType = (it.unitLabel || it.unit || it.unitType || '').toLowerCase();
+            const itemName = (it.rawProductName || it.name || '').toLowerCase();
+
             let petiCount = 0;
             let eggCount = 0;
 
-            if (uType === 'peti') {
+            if (uType.includes('peti') || itemName.includes('peti')) {
               petiCount = qty;
               eggCount = qty * 360;
-            } else if (uType === 'tray') {
+              totalPetisCount += qty;
+            } else if (uType.includes('tray') || itemName.includes('tray')) {
               petiCount = qty / 12;
               eggCount = qty * 30;
+              totalTraysCount += qty;
             } else {
               petiCount = qty / 360;
               eggCount = qty;
+              totalLooseEggsCount += qty;
             }
 
             if (Number(it.petiQuantity) > 0) petiCount = Number(it.petiQuantity);
             if (Number(it.totalEggs) > 0) eggCount = Number(it.totalEggs);
 
-            if (totalPetisBought === 0) totalPetisBought += petiCount;
-            if (totalEggsBought === 0) totalEggsBought += eggCount;
-            itemsSummary.push(`${it.rawProductName || it.name || 'Eggs'} (${qty} ${uType})`);
+            totalPetisBought += petiCount;
+            totalEggsBought += eggCount;
+            itemsSummary.push(`${it.rawProductName || it.name || 'Eggs'} (${qty} ${it.unitLabel || it.unit || 'units'})`);
             if (!determinedCategory && it.category) determinedCategory = it.category;
           });
+        } else {
+          totalPetisCount = totalPetisBought;
+          if (totalEggsBought === 0 && totalPetisBought > 0) {
+            totalEggsBought = totalPetisBought * 360;
+          }
         }
 
         const finalItemsDesc = itemsSummary.length > 0
@@ -233,14 +249,43 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           bankPaid: bank,
           dueAmount: due,
           paymentMethod: pMethod,
-          petisBought: totalPetisBought > 0 ? Number(totalPetisBought.toFixed(2)) : 0,
-          eggsBought: Math.round(totalEggsBought),
+          petisBought: totalPetisBought > 0 ? Number(totalPetisBought.toFixed(2)) : (totalPetisCount > 0 ? totalPetisCount : 0),
+          petisCount: totalPetisCount,
+          traysCount: totalTraysCount,
+          eggsCount: totalLooseEggsCount,
+          eggsBought: Math.round(totalEggsBought > 0 ? totalEggsBought : (totalPetisCount * 360 + totalTraysCount * 30 + totalLooseEggsCount)),
+          totalEggsCount: Math.round(totalEggsBought > 0 ? totalEggsBought : (totalPetisCount * 360 + totalTraysCount * 30 + totalLooseEggsCount)),
           itemsDescription: finalItemsDesc,
           items: itemsList,
           isCredit: due > 0 || pMethod.includes('CREDIT')
         };
       })
       .filter(item => isInDateRange(item.date))
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [ledgerApiData.sales, sales, startDate, endDate]);
+
+  // 2. Stats calculation (Computed from all date-filtered records so top 4 cards always retain accurate totals)
+  const stats = useMemo(() => {
+    const customerTotalRevenue = allDateFilteredSales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const totalCashReceived = allDateFilteredSales.reduce((sum, s) => sum + s.cashPaid, 0);
+    const totalBankReceived = allDateFilteredSales.reduce((sum, s) => sum + s.bankPaid, 0);
+    const customerCreditDueTotal = allDateFilteredSales.reduce((sum, s) => sum + s.dueAmount, 0);
+    const totalPetisSold = allDateFilteredSales.reduce((sum, s) => sum + s.petisBought, 0);
+    const totalInvoices = allDateFilteredSales.length;
+
+    return {
+      customerTotalRevenue,
+      totalCashReceived,
+      totalBankReceived,
+      customerCreditDueTotal,
+      totalPetisSold,
+      totalInvoices
+    };
+  }, [allDateFilteredSales]);
+
+  // 3. Filtered Customer Sales Ledger List (Filtered by Search Term & Clickable Payment Filter)
+  const customerLedgerList = useMemo(() => {
+    return allDateFilteredSales
       .filter(item => {
         if (!searchTerm) return true;
         const q = searchTerm.toLowerCase();
@@ -254,16 +299,15 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
       })
       .filter(item => {
         if (paymentMethodFilter === 'ALL') return true;
-        if (paymentMethodFilter === 'CASH') return item.cashPaid > 0 && item.bankPaid === 0 && item.dueAmount === 0;
-        if (paymentMethodFilter === 'BANK') return item.bankPaid > 0 && item.cashPaid === 0 && item.dueAmount === 0;
+        if (paymentMethodFilter === 'CASH') return item.cashPaid > 0 || String(item.paymentMethod).toUpperCase() === 'CASH';
+        if (paymentMethodFilter === 'BANK') return item.bankPaid > 0 || String(item.paymentMethod).toUpperCase().includes('BANK') || String(item.paymentMethod).toUpperCase().includes('ONLINE') || String(item.paymentMethod).toUpperCase().includes('EASYPAISA');
         if (paymentMethodFilter === 'SPLIT') return (item.cashPaid > 0 && item.bankPaid > 0) || (item.dueAmount > 0 && (item.cashPaid > 0 || item.bankPaid > 0));
-        if (paymentMethodFilter === 'CREDIT') return item.dueAmount > 0;
+        if (paymentMethodFilter === 'CREDIT') return item.dueAmount > 0 || item.isCredit || String(item.paymentMethod).toUpperCase().includes('CREDIT') || String(item.paymentMethod).toUpperCase().includes('DUE');
         return true;
-      })
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [ledgerApiData.sales, sales, startDate, endDate, searchTerm, paymentMethodFilter]);
+      });
+  }, [allDateFilteredSales, searchTerm, paymentMethodFilter]);
 
-  // 2. Grouped Customer Ledger
+  // 4. Grouped Customer Ledger
   const groupedCustomerLedger = useMemo(() => {
     const map = {};
     customerLedgerList.forEach(item => {
@@ -277,6 +321,8 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           bankPaid: 0,
           creditDue: 0,
           totalPetis: 0,
+          totalTrays: 0,
+          totalEggsCount: 0,
           transactions: []
         };
       }
@@ -284,29 +330,12 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
       map[key].cashPaid += item.cashPaid;
       map[key].bankPaid += item.bankPaid;
       map[key].creditDue += item.dueAmount;
-      map[key].totalPetis += item.petisBought;
+      map[key].totalPetis += (item.petisCount || item.petisBought || 0);
+      map[key].totalTrays += (item.traysCount || 0);
+      map[key].totalEggsCount += (item.totalEggsCount || item.eggsBought || 0);
       map[key].transactions.push(item);
     });
     return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [customerLedgerList]);
-
-  // 3. Stats calculation
-  const stats = useMemo(() => {
-    const customerTotalRevenue = customerLedgerList.reduce((sum, s) => sum + s.totalAmount, 0);
-    const totalCashReceived = customerLedgerList.reduce((sum, s) => sum + s.cashPaid, 0);
-    const totalBankReceived = customerLedgerList.reduce((sum, s) => sum + s.bankPaid, 0);
-    const customerCreditDueTotal = customerLedgerList.reduce((sum, s) => sum + s.dueAmount, 0);
-    const totalPetisSold = customerLedgerList.reduce((sum, s) => sum + s.petisBought, 0);
-    const totalInvoices = customerLedgerList.length;
-
-    return {
-      customerTotalRevenue,
-      totalCashReceived,
-      totalBankReceived,
-      customerCreditDueTotal,
-      totalPetisSold,
-      totalInvoices
-    };
   }, [customerLedgerList]);
 
   const toggleCustomer = (custName) => {
@@ -396,6 +425,107 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
     }
   };
 
+  // Print Single Transaction Invoice
+  const handlePrintSingleTransaction = (txn) => {
+    if (!txn) return;
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print invoice');
+      return;
+    }
+    const itemsHtml = Array.isArray(txn.items) && txn.items.length > 0
+      ? txn.items.map((it, idx) => `
+          <tr>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+            <td style="padding: 6px; border: 1px solid #ddd;">${it.rawProductName || it.name || 'Eggs'}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${it.quantity || 1} ${it.unitLabel || it.unit || ''}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">Rs. ${Number(it.price || it.unitPrice || 0).toLocaleString('en-PK')}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">Rs. ${Number((it.price || it.unitPrice || 0) * (it.quantity || 1)).toLocaleString('en-PK')}</td>
+          </tr>
+        `).join('')
+      : `
+          <tr>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">1</td>
+            <td style="padding: 6px; border: 1px solid #ddd;">${txn.itemsDescription || 'Eggs'}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${txn.petisBought > 0 ? txn.petisBought + ' Petis' : '1'}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">Rs. ${Number(txn.totalAmount || 0).toLocaleString('en-PK')}</td>
+            <td style="padding: 6px; border: 1px solid #ddd; text-align: right;">Rs. ${Number(txn.totalAmount || 0).toLocaleString('en-PK')}</td>
+          </tr>
+        `;
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice - ${txn.invoiceNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #111; max-width: 600px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 15px; }
+            .header h2 { margin: 0; color: #065f46; font-size: 22px; text-transform: uppercase; }
+            .header p { margin: 4px 0 0; font-size: 11px; color: #6b7280; }
+            .meta-table, .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
+            .meta-table td { padding: 4px 0; }
+            .items-table th { background: #f3f4f6; padding: 6px; border: 1px solid #ddd; text-align: left; }
+            .totals { margin-top: 10px; border-top: 2px dashed #9ca3af; padding-top: 10px; font-size: 13px; }
+            .total-row { display: flex; justify-content: space-between; padding: 3px 0; }
+            .footer { text-align: center; margin-top: 25px; font-size: 10px; color: #9ca3af; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>YOSAFZE EGG TRADERS</h2>
+            <p>Customer Sales & Payment Invoice</p>
+          </div>
+          <table class="meta-table">
+            <tr>
+              <td><strong>Invoice #:</strong> ${txn.invoiceNumber}</td>
+              <td style="text-align: right;"><strong>Date:</strong> ${new Date(txn.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+            </tr>
+            <tr>
+              <td><strong>Customer:</strong> ${txn.customerName}</td>
+              <td style="text-align: right;"><strong>Phone:</strong> ${txn.customerPhone || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td><strong>Category:</strong> ${txn.category || 'Eggs'}</td>
+              <td style="text-align: right;"><strong>Payment:</strong> ${txn.paymentMethod || 'CASH'}</td>
+            </tr>
+          </table>
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 30px; text-align: center;">#</th>
+                <th>Product / Description</th>
+                <th style="text-align: center;">Quantity</th>
+                <th style="text-align: right;">Rate</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div class="total-row"><span>Gross Total:</span><strong>Rs. ${Number(txn.totalAmount || 0).toLocaleString('en-PK')}</strong></div>
+            <div class="total-row" style="color: #047857;"><span>Cash Paid:</span><strong>Rs. ${Number(txn.cashPaid || 0).toLocaleString('en-PK')}</strong></div>
+            <div class="total-row" style="color: #1d4ed8;"><span>Bank Paid:</span><strong>Rs. ${Number(txn.bankPaid || 0).toLocaleString('en-PK')}</strong></div>
+            ${txn.dueAmount > 0 ? `<div class="total-row" style="color: #b45309;"><span>Credit Due:</span><strong>Rs. ${Number(txn.dueAmount || 0).toLocaleString('en-PK')}</strong></div>` : ''}
+            <div class="total-row" style="font-size: 15px; font-weight: bold; border-top: 1px solid #ddd; margin-top: 5px; padding-top: 5px;">
+              <span>Payment Status:</span>
+              <span>${txn.dueAmount === 0 ? 'PAID' : (txn.cashPaid > 0 || txn.bankPaid > 0 ? 'PARTIAL' : 'CREDIT')}</span>
+            </div>
+          </div>
+          <div class="footer">
+            <p>Thank you for your business! • Computer Generated Invoice</p>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
   // PDF Export
   const handleExportPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -442,6 +572,144 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Print Summary Report for Cash, Bank, Credit or Total
+  const handlePrintSummaryReport = (reportType) => {
+    let filteredTxns = [];
+    let title = '';
+    let themeColor = '#059669';
+    let summaryText = '';
+    let totalMainAmount = 0;
+
+    if (reportType === 'CASH') {
+      filteredTxns = customerLedgerList.filter(t => Number(t.cashPaid || 0) > 0);
+      title = 'CUSTOMER CASH INFLOW REPORT';
+      themeColor = '#059669';
+      totalMainAmount = stats.totalCashReceived;
+      summaryText = `Total Cash Collected: Rs. ${Number(totalMainAmount).toLocaleString('en-PK')}`;
+    } else if (reportType === 'BANK') {
+      filteredTxns = customerLedgerList.filter(t => Number(t.bankPaid || 0) > 0);
+      title = 'CUSTOMER BANK / ONLINE TRANSFERS REPORT';
+      themeColor = '#2563eb';
+      totalMainAmount = stats.totalBankReceived;
+      summaryText = `Total Bank Received: Rs. ${Number(totalMainAmount).toLocaleString('en-PK')}`;
+    } else if (reportType === 'CREDIT') {
+      filteredTxns = customerLedgerList.filter(t => Number(t.dueAmount || 0) > 0);
+      title = 'CUSTOMER OUTSTANDING CREDIT / DUE REPORT';
+      themeColor = '#d97706';
+      totalMainAmount = stats.customerCreditDueTotal;
+      summaryText = `Total Credit Due: Rs. ${Number(totalMainAmount).toLocaleString('en-PK')}`;
+    } else {
+      filteredTxns = [...customerLedgerList];
+      title = 'CUSTOMER TOTAL REVENUE & SALES REPORT';
+      themeColor = '#0d9488';
+      totalMainAmount = stats.customerTotalRevenue;
+      summaryText = `Total Combined Revenue: Rs. ${Number(totalMainAmount).toLocaleString('en-PK')}`;
+    }
+
+    if (filteredTxns.length === 0) {
+      toast.info(`No ${reportType.toLowerCase()} records found to print.`);
+      return;
+    }
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      toast.error('Pop-up blocked. Please allow pop-ups to print the report.');
+      return;
+    }
+
+    let rowsHtml = filteredTxns.map((t, idx) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 6px 8px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 6px 8px; text-align: center;">${new Date(t.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: bold;">${t.invoiceNumber}</td>
+        <td style="padding: 6px 8px; font-weight: bold;">${t.customerName}${t.customerPhone ? `<br><small style="color: #6b7280; font-weight: normal;">${t.customerPhone}</small>` : ''}</td>
+        <td style="padding: 6px 8px; text-align: center;"><span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">${t.category || 'Eggs'}</span></td>
+        <td style="padding: 6px 8px; font-size: 11px;">${t.itemsDescription || (Array.isArray(t.items) ? t.items.map(it => (it.rawProductName || it.name) + ' x' + it.quantity).join(', ') : '-')}</td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #065f46;">${t.petisBought > 0 ? t.petisBought + ' P' : '-'}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: #047857;">${Number(t.cashPaid || 0) > 0 ? 'Rs. ' + Number(t.cashPaid).toLocaleString('en-PK') : '-'}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: #1d4ed8;">${Number(t.bankPaid || 0) > 0 ? 'Rs. ' + Number(t.bankPaid).toLocaleString('en-PK') : '-'}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: #b45309;">${Number(t.dueAmount || 0) > 0 ? 'Rs. ' + Number(t.dueAmount).toLocaleString('en-PK') : '-'}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: bold;">Rs. ${Number(t.totalAmount || 0).toLocaleString('en-PK')}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 25px; color: #111827; }
+            .header { text-align: center; border-bottom: 3px solid ${themeColor}; padding-bottom: 12px; margin-bottom: 15px; }
+            .header h1 { margin: 0; color: ${themeColor}; font-size: 24px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header h3 { margin: 4px 0 0; font-size: 14px; color: #374151; }
+            .header p { margin: 4px 0 0; font-size: 11px; color: #6b7280; }
+            .summary-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+            .summary-title { font-size: 14px; font-weight: bold; color: ${themeColor}; }
+            .summary-stats { font-size: 12px; color: #4b5563; }
+            table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+            th { background: #f3f4f6; padding: 8px; border: 1px solid #d1d5db; text-transform: uppercase; font-size: 10px; font-weight: 800; color: #374151; }
+            td { border: 1px solid #e5e7eb; }
+            tfoot tr td { background: #f3f4f6; font-weight: 900; font-size: 12px; border-top: 2px solid ${themeColor}; padding: 8px; }
+            .footer { text-align: center; margin-top: 25px; font-size: 10px; color: #9ca3af; border-top: 1px dashed #d1d5db; padding-top: 8px; }
+            @media print {
+              body { padding: 10px; }
+              @page { size: landscape; margin: 10mm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>YOSAFZE EGG TRADERS</h1>
+            <h3>${title}</h3>
+            <p>Generated: ${new Date().toLocaleString('en-PK')} | Date Filter: ${startDate || 'All'} to ${endDate || 'Present'}</p>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">${summaryText}</div>
+            <div class="summary-stats">Total Records: <strong>${filteredTxns.length}</strong> | Petis Sold: <strong>${filteredTxns.reduce((acc, t) => acc + (t.petisBought || t.petisCount || 0), 0)} P</strong></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th>Date</th>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Category</th>
+                <th>Products</th>
+                <th>Petis</th>
+                <th style="text-align: right;">Cash Paid</th>
+                <th style="text-align: right;">Bank Paid</th>
+                <th style="text-align: right;">Credit Due</th>
+                <th style="text-align: right;">Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="6" style="text-align: right;">TOTAL SUMMARY:</td>
+                <td style="text-align: center; color: #065f46;">${filteredTxns.reduce((acc, t) => acc + (t.petisBought || t.petisCount || 0), 0)} P</td>
+                <td style="text-align: right; color: #047857;">Rs. ${Number(filteredTxns.reduce((acc, t) => acc + Number(t.cashPaid || 0), 0)).toLocaleString('en-PK')}</td>
+                <td style="text-align: right; color: #1d4ed8;">Rs. ${Number(filteredTxns.reduce((acc, t) => acc + Number(t.bankPaid || 0), 0)).toLocaleString('en-PK')}</td>
+                <td style="text-align: right; color: #b45309;">Rs. ${Number(filteredTxns.reduce((acc, t) => acc + Number(t.dueAmount || 0), 0)).toLocaleString('en-PK')}</td>
+                <td style="text-align: right;">Rs. ${Number(filteredTxns.reduce((acc, t) => acc + Number(t.totalAmount || 0), 0)).toLocaleString('en-PK')}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div class="footer">
+            <p>Yosafze Egg Traders • Financial & Sales Management System • Computer Generated Report</p>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   return (
@@ -503,10 +771,13 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* 4 Requested KPI Cards: Cash -> Bank -> Credit -> Total */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-emerald-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white border-b border-emerald-600">
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* 4 Clickable KPI Cards: Cash -> Bank -> Credit -> Total (Compact & Close) */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-3.5 py-2 bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 text-white rounded-xl shadow-xs">
           <div className="flex items-center gap-2">
-            <Users className="w-3.5 h-3.5 text-emerald-200" />
+            <Users className="w-3.5 h-3.5 text-emerald-300" />
             <span className="text-[11px] font-black uppercase tracking-widest">👥 Customer Payment Summary</span>
           </div>
           <span className="text-[10px] font-bold text-emerald-100">
@@ -514,121 +785,237 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-zinc-100">
+        <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           
-          {/* 1. Cash */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-emerald-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">💵 Cash</span>
-              <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
-                <Banknote className="w-3.5 h-3.5" />
+          {/* 1. Cash Card */}
+          <div
+            onClick={() => setPaymentMethodFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH')}
+            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+              paymentMethodFilter === 'CASH'
+                ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-400/40 shadow-sm'
+                : 'bg-white border-emerald-200/90 hover:border-emerald-400 hover:shadow-xs'
+            }`}
+            title="Click to view Cash Inflow transactions & ledger"
+          >
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1 truncate">
+                💵 Cash Inflow
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintSummaryReport('CASH');
+                  }}
+                  className="p-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                  title="Print Total Cash Record"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                </button>
+                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                  paymentMethodFilter === 'CASH'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                }`}>
+                  <Banknote className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">Rs. {fmt(stats.totalCashReceived)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Cash Inflow</p>
+            <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight leading-tight">
+              Rs. {fmt(stats.totalCashReceived)}
+            </div>
+            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
           </div>
 
-          {/* 2. Bank */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-blue-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">🏦 Bank</span>
-              <div className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
-                <Building2 className="w-3.5 h-3.5" />
+          {/* 2. Bank Card */}
+          <div
+            onClick={() => setPaymentMethodFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK')}
+            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+              paymentMethodFilter === 'BANK'
+                ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-400/40 shadow-sm'
+                : 'bg-white border-blue-200/90 hover:border-blue-400 hover:shadow-xs'
+            }`}
+            title="Click to view Bank / Online transactions & ledger"
+          >
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1 truncate">
+                🏦 Bank / Online
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintSummaryReport('BANK');
+                  }}
+                  className="p-1 rounded-md border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                  title="Print Total Bank Record"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                </button>
+                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                  paymentMethodFilter === 'BANK'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : 'bg-blue-50 text-blue-600 border-blue-200'
+                }`}>
+                  <Building2 className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
-            <div className="text-lg sm:text-xl font-black text-blue-700 tracking-tight">Rs. {fmt(stats.totalBankReceived)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Bank / Online</p>
+            <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight leading-tight">
+              Rs. {fmt(stats.totalBankReceived)}
+            </div>
+            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
           </div>
 
-          {/* 3. Credit */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-amber-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">📋 Credit</span>
-              <div className="p-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-200">
-                <CreditCard className="w-3.5 h-3.5" />
+          {/* 3. Credit Card */}
+          <div
+            onClick={() => setPaymentMethodFilter(prev => prev === 'CREDIT' ? 'ALL' : 'CREDIT')}
+            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+              paymentMethodFilter === 'CREDIT'
+                ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-400/40 shadow-sm'
+                : 'bg-white border-amber-200/90 hover:border-amber-400 hover:shadow-xs'
+            }`}
+            title="Click to view Credit / Receivable Due ledger"
+          >
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1 truncate">
+                📋 Credit (Due)
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintSummaryReport('CREDIT');
+                  }}
+                  className="p-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 hover:text-amber-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                  title="Print Total Credit Record"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                </button>
+                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                  paymentMethodFilter === 'CREDIT'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                    : 'bg-amber-50 text-amber-600 border-amber-200'
+                }`}>
+                  <CreditCard className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
-            <div className="text-lg sm:text-xl font-black text-amber-600 tracking-tight">Rs. {fmt(stats.customerCreditDueTotal)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Receivable Due</p>
+            <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight leading-tight">
+              Rs. {fmt(stats.customerCreditDueTotal)}
+            </div>
+            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
           </div>
 
-          {/* 4. Total */}
-          <div className="p-3.5 sm:p-4 space-y-1 bg-emerald-50/20 hover:bg-emerald-100/30 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-600">💰 Total</span>
-              <div className="p-1 rounded-lg bg-emerald-100 text-emerald-700 border border-emerald-300">
-                <Wallet className="w-3.5 h-3.5" />
+          {/* 4. Total Card */}
+          <div
+            onClick={() => setPaymentMethodFilter('ALL')}
+            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+              paymentMethodFilter === 'ALL'
+                ? 'bg-teal-50/90 border-teal-600 ring-2 ring-teal-500/40 shadow-sm'
+                : 'bg-white border-teal-200/90 hover:border-teal-400 hover:shadow-xs'
+            }`}
+            title="Click to view Total Gross Revenue transactions & ledger"
+          >
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 flex items-center gap-1 truncate">
+                💰 Total Revenue
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrintSummaryReport('TOTAL');
+                  }}
+                  className="p-1 rounded-md border border-teal-300 bg-white hover:bg-teal-100 text-teal-700 hover:text-teal-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                  title="Print Total Revenue Record"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                </button>
+                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                  paymentMethodFilter === 'ALL'
+                    ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
+                    : 'bg-teal-50 text-teal-700 border-teal-200'
+                }`}>
+                  <Wallet className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-900 tracking-tight">Rs. {fmt(stats.customerTotalRevenue)}</div>
-            <p className="text-[9px] font-bold text-zinc-500 uppercase">Total Revenue</p>
+            <div className="text-base sm:text-lg font-black text-teal-950 tracking-tight leading-tight">
+              Rs. {fmt(stats.customerTotalRevenue)}
+            </div>
+            <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
           </div>
 
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────── */}
-      {/* Filter and Date Calendar Range Bar */}
+      {/* Filter and Date Calendar Range Bar (Smart & Compact) */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="bg-white border border-gray-200 rounded-xl p-2 sm:p-2.5 shadow-xs space-y-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           
           {/* Sub-View Switcher */}
-          <div className="flex items-center gap-1 p-1 bg-zinc-100 rounded-xl w-fit">
+          <div className="flex items-center gap-1 p-0.5 bg-zinc-100 rounded-lg w-fit">
             <button
               onClick={() => setViewMode('transactions')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 viewMode === 'transactions'
                   ? 'bg-white text-emerald-700 shadow-xs border border-zinc-200'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3 h-3" />
               <span>Invoices ({customerLedgerList.length})</span>
             </button>
 
             <button
               onClick={() => setViewMode('customerwise')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                 viewMode === 'customerwise'
                   ? 'bg-white text-emerald-700 shadow-xs border border-zinc-200'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-3 h-3" />
               <span>Customer-wise ({groupedCustomerLedger.length})</span>
             </button>
           </div>
 
           {/* Calendar Date Picker: Start Date & End Date */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 rounded-xl px-2.5 py-1">
-              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-0.5">
+              <Calendar className="w-3 h-3 text-emerald-600 shrink-0" />
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black uppercase text-zinc-400">From:</span>
+                <span className="text-[9.5px] font-black uppercase text-zinc-400">From:</span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-zinc-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-[11px] font-bold text-zinc-800 focus:outline-none cursor-pointer"
                   title="Start Date"
                 />
               </div>
-              <ArrowRight className="w-3 h-3 text-zinc-300" />
+              <ArrowRight className="w-2.5 h-2.5 text-zinc-300" />
               <div className="flex items-center gap-1">
-                <span className="text-[10px] font-black uppercase text-zinc-400">To:</span>
+                <span className="text-[9.5px] font-black uppercase text-zinc-400">To:</span>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-zinc-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-[11px] font-bold text-zinc-800 focus:outline-none cursor-pointer"
                   title="End Date"
                 />
               </div>
               {(startDate || endDate) && (
                 <button
                   onClick={() => applyPreset('all')}
-                  className="ml-1 p-0.5 hover:bg-zinc-200 rounded text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                  className="ml-0.5 p-0.5 hover:bg-zinc-200 rounded text-zinc-400 hover:text-zinc-700 cursor-pointer"
                   title="Clear Dates"
                 >
                   <X className="w-3 h-3" />
@@ -640,19 +1027,19 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => applyPreset('today')}
-                className="px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-zinc-100 hover:bg-emerald-50 hover:text-emerald-700 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
+                className="px-2 py-1 rounded-md text-[9.5px] font-black uppercase bg-zinc-100 hover:bg-emerald-50 hover:text-emerald-700 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
               >
                 Today
               </button>
               <button
                 onClick={() => applyPreset('month')}
-                className="px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-zinc-100 hover:bg-emerald-50 hover:text-emerald-700 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
+                className="px-2 py-1 rounded-md text-[9.5px] font-black uppercase bg-zinc-100 hover:bg-emerald-50 hover:text-emerald-700 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
               >
                 Month
               </button>
               <button
                 onClick={() => applyPreset('all')}
-                className="px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-zinc-100 hover:bg-zinc-200 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
+                className="px-2 py-1 rounded-md text-[9.5px] font-black uppercase bg-zinc-100 hover:bg-zinc-200 text-zinc-600 border border-zinc-200 cursor-pointer transition-colors"
               >
                 All
               </button>
@@ -660,31 +1047,31 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           </div>
         </div>
 
-        {/* Search & Method Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2 border-t border-zinc-100">
-          <div className="relative md:col-span-2">
-            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Search & Method Filters (Compact) */}
+        <div className="flex items-center gap-2 pt-1.5 border-t border-zinc-100 flex-wrap max-w-2xl">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-3 h-3 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search customer name, phone, invoice #, products, category..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-xs font-bold transition-all"
+              placeholder="Search customer, phone, inv #..."
+              className="w-full pl-7 pr-2.5 py-1 rounded-md border border-zinc-200 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-[11px] font-bold transition-all"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          <div className="flex items-center gap-1 shrink-0">
+            <Filter className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
             <select
               value={paymentMethodFilter}
               onChange={(e) => setPaymentMethodFilter(e.target.value)}
-              className="w-full px-2.5 py-2 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-xs font-bold transition-all cursor-pointer"
+              className="px-2 py-1 rounded-md border border-zinc-200 bg-zinc-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-[11px] font-bold transition-all cursor-pointer"
             >
               <option value="ALL">All Payment Types</option>
               <option value="CASH">Cash Only</option>
-              <option value="BANK">Bank / Online Only</option>
+              <option value="BANK">Bank / Online</option>
               <option value="SPLIT">Split (Cash + Bank)</option>
-              <option value="CREDIT">Credit Only (Pending Due)</option>
+              <option value="CREDIT">Credit Only (Due)</option>
             </select>
           </div>
         </div>
@@ -694,140 +1081,224 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
       {/* VIEW 1: Compact Full-Width Transactions Table with Category & Actions */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {viewMode === 'transactions' && (
-        <div className="bg-white border border-zinc-200 rounded-2xl shadow-xs overflow-hidden w-full">
-          <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+        <div className="bg-white border border-gray-300 rounded-xl shadow-xs overflow-hidden w-full">
+          <div className="px-3.5 py-2.5 border-b border-gray-300 flex items-center justify-between bg-gray-50/70">
             <div>
               <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-zinc-900">
                 Customer Sales &amp; Payment Transactions
               </h2>
-              <p className="text-[10px] font-bold text-zinc-400 uppercase">
+              <p className="text-[9.5px] font-bold text-zinc-400 uppercase">
                 Every sale invoice with products, category, cash, bank, credit &amp; actions
               </p>
             </div>
-            <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
+            <span className="text-[10.5px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
               {customerLedgerList.length} Records
             </span>
           </div>
 
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-[11px] border-collapse">
-              <thead className="bg-zinc-100/80 border-b border-zinc-200 text-zinc-600 uppercase text-[9.5px] font-black tracking-wider">
+          <div className="overflow-x-auto w-full pb-2">
+            <table className="w-full text-left text-xs border-collapse border border-gray-300">
+              <thead className="bg-gray-100 border-b border-gray-300 text-zinc-900 uppercase text-[10px] font-black tracking-wider">
                 <tr>
-                  <th className="py-2.5 px-2.5 whitespace-nowrap">Date</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap">Invoice #</th>
-                  <th className="py-2.5 px-2.5 whitespace-nowrap">Customer</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap">Category</th>
-                  <th className="py-2.5 px-2.5">Products / Description</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Petis</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Cash Paid</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Bank Paid</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Credit Due</th>
-                  <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Total</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Status</th>
-                  <th className="py-2.5 px-2.5 text-center whitespace-nowrap">Actions</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Date</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Invoice #</th>
+                  <th className="py-2.5 px-2.5 text-left whitespace-nowrap border border-gray-300">Customer</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Category</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Products (Peti • Tray • Egg)</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Peti • Egg</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Cash Paid</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Bank Paid</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Credit Due</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Total</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Status</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 font-bold text-zinc-700">
+              <tbody className="font-bold text-zinc-800">
                 {customerLedgerList.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-10 text-center text-zinc-400">
-                      <Users className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
+                    <td colSpan={12} className="py-8 text-center text-zinc-400 border border-gray-300">
+                      <Users className="w-6 h-6 mx-auto mb-1 opacity-30" />
                       <p className="text-xs uppercase font-black">No customer transactions match your filter</p>
                     </td>
                   </tr>
                 ) : (
-                  customerLedgerList.map((txn) => (
-                    <tr key={txn.id} className="hover:bg-emerald-50/20 transition-colors">
-                      <td className="py-2 px-2.5 whitespace-nowrap text-zinc-500 text-[10.5px]">
+                  customerLedgerList.map((txn, idx) => {
+                    const isNearBottom = idx >= customerLedgerList.length - 2 && customerLedgerList.length > 2;
+                    return (
+                    <tr key={txn.id} className="hover:bg-gray-50/80 border-b border-gray-300 transition-colors">
+                      <td className="py-2 px-2 text-center whitespace-nowrap font-black text-zinc-900 text-[11px] border border-gray-300">
                         {new Date(txn.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
-                      <td className="py-2 px-2 whitespace-nowrap font-black text-zinc-900 text-[11px]">
+                      <td className="py-2 px-2 text-center whitespace-nowrap font-black text-zinc-950 text-xs border border-gray-300">
                         {txn.invoiceNumber}
                       </td>
-                      <td className="py-2 px-2.5 max-w-[120px]">
-                        <div className="font-black text-zinc-900 truncate" title={txn.customerName}>{txn.customerName}</div>
+                      <td className="py-2 px-2.5 max-w-[125px] border border-gray-300">
+                        <div className="font-black text-zinc-950 text-xs truncate" title={txn.customerName}>{txn.customerName}</div>
                         {txn.customerPhone && (
-                          <div className="text-[9.5px] text-zinc-400 font-semibold truncate">{txn.customerPhone}</div>
+                          <div className="text-[9.5px] text-zinc-500 font-bold truncate">{txn.customerPhone}</div>
                         )}
                       </td>
-                      <td className="py-2 px-2 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
                           <Tag className="w-2.5 h-2.5" />
                           {txn.category || 'Eggs'}
                         </span>
                       </td>
-                      <td className="py-2 px-2.5 max-w-[220px]">
-                        {Array.isArray(txn.items) && txn.items.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {txn.items.map((it, iIdx) => (
-                              <span
-                                key={iIdx}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200"
-                                title={`${it.name || it.rawProductName} (Qty: ${it.quantity} ${it.unitLabel || it.unit || ''})`}
-                              >
-                                <span className="truncate max-w-[110px]">{it.rawProductName || it.name}</span>
-                                <span className="font-black text-emerald-800 bg-emerald-100/90 px-1 rounded text-[8.5px]">
-                                  x{it.quantity} {it.unitLabel || it.unit || ''}
+                      <td className="py-2 px-2 max-w-[215px] border border-gray-300">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap whitespace-nowrap">
+                          {Array.isArray(txn.items) && txn.items.length > 0 ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              {txn.items.map((it, iIdx) => (
+                                <span
+                                  key={iIdx}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black bg-gray-100 text-gray-900 border border-gray-300"
+                                  title={`${it.name || it.rawProductName} (Qty: ${it.quantity} ${it.unitLabel || it.unit || ''})`}
+                                >
+                                  <span className="truncate max-w-[65px] font-black">{it.rawProductName || it.name}</span>
+                                  <span className="font-black px-1 rounded text-[7.5px] bg-gray-300 text-gray-950">
+                                    x{it.quantity}
+                                  </span>
                                 </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] font-black text-zinc-800 truncate">{txn.itemsDescription}</div>
+                          )}
+
+                          {/* Compact Simple 3-Box strip for Peti • Tray • Egg on the same line */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.petisCount > 0 ? txn.petisCount : (txn.petisBought > 0 ? txn.petisBought : '0')}
                               </span>
-                            ))}
+                            </div>
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.traysCount > 0 ? txn.traysCount : '0'}
+                              </span>
+                            </div>
+                            <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[38px]">
+                              <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
+                              <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
+                                {txn.totalEggsCount > 0 ? txn.totalEggsCount.toLocaleString('en-PK') : (txn.eggsBought > 0 ? txn.eggsBought.toLocaleString('en-PK') : '0')}
+                              </span>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-zinc-700 font-bold text-[10.5px]" title={txn.itemsDescription}>
-                            {txn.itemsDescription}
-                          </span>
-                        )}
+                        </div>
                       </td>
-                      <td className="py-2 px-2 text-center whitespace-nowrap font-black text-emerald-800">
-                        {txn.petisBought > 0 ? `${txn.petisBought} P` : '-'}
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
+                        <div className="font-black text-emerald-800 text-[11px]">
+                          {txn.petisBought > 0 ? `${txn.petisBought} Petis` : `${txn.petisCount || 0} Petis`}
+                        </div>
+                        <div className="text-[8.5px] font-bold text-zinc-500">
+                          {txn.totalEggsCount > 0 ? `${txn.totalEggsCount.toLocaleString('en-PK')} Eggs` : ''}
+                        </div>
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-emerald-700">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-emerald-800 text-[11px] border border-gray-300">
                         {txn.cashPaid > 0 ? `Rs. ${fmt(txn.cashPaid)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-blue-700">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-blue-800 text-[11px] border border-gray-300">
                         {txn.bankPaid > 0 ? `Rs. ${fmt(txn.bankPaid)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-amber-600">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-amber-700 text-[11px] border border-gray-300">
                         {txn.dueAmount > 0 ? `Rs. ${fmt(txn.dueAmount)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2.5 text-right whitespace-nowrap font-black text-zinc-900">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-zinc-950 text-xs border border-gray-300">
                         Rs. {fmt(txn.totalAmount)}
                       </td>
-                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
                         {txn.dueAmount === 0 ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300">
                             Paid
                           </span>
                         ) : txn.cashPaid > 0 || txn.bankPaid > 0 ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-300">
                             Partial
                           </span>
                         ) : (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
                             Credit
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300 relative">
+                        <div className="relative inline-block text-left">
                           <button
-                            onClick={() => handleOpenEdit(txn)}
-                            className="p-1 rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
-                            title="Edit Invoice"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTxnMenuId(activeTxnMenuId === txn.id ? null : txn.id);
+                            }}
+                            className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shadow-xs ${
+                              activeTxnMenuId === txn.id
+                                ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
+                                : 'bg-white hover:bg-gray-100 text-gray-800 border-gray-300'
+                            }`}
+                            title="Actions"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            <MoreVertical className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => setDeletingSale(txn)}
-                            className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                            title="Delete Invoice"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+
+                          {activeTxnMenuId === txn.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveTxnMenuId(null);
+                                }}
+                              />
+                              <div
+                                className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-1' : 'top-full mt-1'} w-40 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-50 text-left animate-in fade-in zoom-in-95 duration-100`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="px-3 py-1 text-[8.5px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-0.5">
+                                  Actions
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTxnMenuId(null);
+                                    handlePrintSingleTransaction(txn);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                >
+                                  <Printer className="w-3 h-3 text-blue-600 shrink-0" />
+                                  <span>Print Invoice</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTxnMenuId(null);
+                                    handleOpenEdit(txn);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                >
+                                  <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>Edit Invoice</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTxnMenuId(null);
+                                    setDeletingSale(txn);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
+                                  <span>Delete Sale</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -906,88 +1377,162 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                         Purchased Products &amp; Invoice Breakdown
                       </h4>
 
-                      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-                        <table className="w-full text-left text-[11px]">
-                          <thead className="bg-zinc-100/70 border-b border-zinc-200 text-zinc-600 text-[9.5px] font-black uppercase">
+                      <div className="overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-xs">
+                        <table className="w-full text-left text-xs border-collapse border border-gray-300">
+                          <thead className="bg-gray-100 border-b border-gray-300 text-zinc-900 text-[10px] font-black uppercase tracking-wider">
                             <tr>
-                              <th className="py-2 px-3">Date</th>
-                              <th className="py-2 px-3">Invoice #</th>
-                              <th className="py-2 px-3">Category</th>
-                              <th className="py-2 px-3">Product Details</th>
-                              <th className="py-2 px-3 text-center">Petis</th>
-                              <th className="py-2 px-3 text-right">Cash</th>
-                              <th className="py-2 px-3 text-right">Bank</th>
-                              <th className="py-2 px-3 text-right">Credit Due</th>
-                              <th className="py-2 px-3 text-right">Total</th>
-                              <th className="py-2 px-3 text-center">Actions</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Date</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Invoice #</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Category</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Product Details</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Petis</th>
+                              <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Cash</th>
+                              <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Bank</th>
+                              <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Credit Due</th>
+                              <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Total</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-zinc-100 font-bold text-zinc-700">
-                            {cust.transactions.map(t => (
-                              <tr key={t.id} className="hover:bg-zinc-50">
-                                <td className="py-2 px-3 whitespace-nowrap text-zinc-500 text-[10.5px]">
+                          <tbody className="font-bold text-zinc-800">
+                            {cust.transactions.map((t, tIdx) => {
+                              const isNearBottomSub = tIdx >= cust.transactions.length - 2 && cust.transactions.length > 2;
+                              const menuId = `custwise-${t.id}`;
+                              return (
+                              <tr key={t.id} className="hover:bg-gray-50/80 border-b border-gray-300 transition-colors">
+                                <td className="py-2 px-2 text-center whitespace-nowrap font-black text-zinc-900 text-[11px] border border-gray-300">
                                   {new Date(t.date).toLocaleDateString('en-PK')}
                                 </td>
-                                <td className="py-2 px-3 font-black text-zinc-900 whitespace-nowrap">
+                                <td className="py-2 px-2 text-center font-black text-zinc-950 whitespace-nowrap text-xs border border-gray-300">
                                   {t.invoiceNumber}
                                 </td>
-                                <td className="py-2 px-3 whitespace-nowrap">
-                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
                                     {t.category || 'Eggs'}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3 text-zinc-600 text-[10.5px]">
+                                <td className="py-2 px-2 max-w-[215px] text-zinc-800 text-[11px] border border-gray-300">
                                   {Array.isArray(t.items) && t.items.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1">
-                                      {t.items.map((it, iIdx) => (
-                                        <span
-                                          key={iIdx}
-                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                        >
-                                          <span>{it.rawProductName || it.name}</span>
-                                          <span className="font-black text-emerald-900 bg-emerald-100/90 px-1 rounded text-[8px]">x{it.quantity} {it.unitLabel || it.unit || ''}</span>
-                                        </span>
-                                      ))}
+                                    <div className="w-full flex flex-col items-center justify-center text-center">
+                                      <div className="flex flex-wrap items-center justify-center gap-1 mb-1">
+                                        {t.items.map((it, iIdx) => (
+                                          <span
+                                            key={iIdx}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-black bg-emerald-50 text-emerald-900 border border-emerald-200"
+                                          >
+                                            <span className="truncate max-w-[70px]">{it.rawProductName || it.name}</span>
+                                            <span className="font-black text-emerald-950 bg-emerald-200 px-1 rounded text-[7.5px]">x{it.quantity}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-0.5 text-center w-full max-w-[130px] mx-auto">
+                                        <div className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
+                                          <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">{t.petisCount > 0 ? t.petisCount : (t.petisBought > 0 ? t.petisBought : '0')}</span>
+                                        </div>
+                                        <div className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
+                                          <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">{t.traysCount > 0 ? t.traysCount : '0'}</span>
+                                        </div>
+                                        <div className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
+                                          <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">{t.totalEggsCount > 0 ? t.totalEggsCount.toLocaleString('en-PK') : (t.eggsBought > 0 ? t.eggsBought.toLocaleString('en-PK') : '0')}</span>
+                                        </div>
+                                      </div>
                                     </div>
                                   ) : (
-                                    <span>{t.itemsDescription}</span>
+                                    <span className="font-black">{t.itemsDescription}</span>
                                   )}
                                 </td>
-                                <td className="py-2 px-3 text-center font-black text-emerald-800">
+                                <td className="py-2 px-2 text-center font-black text-emerald-800 text-[11px] border border-gray-300">
                                   {t.petisBought > 0 ? `${t.petisBought} P` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-emerald-700 font-black">
+                                <td className="py-2 px-2 text-right text-emerald-800 font-black text-[11px] border border-gray-300">
                                   {t.cashPaid > 0 ? `Rs. ${fmt(t.cashPaid)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-blue-700 font-black">
+                                <td className="py-2 px-2 text-right text-blue-800 font-black text-[11px] border border-gray-300">
                                   {t.bankPaid > 0 ? `Rs. ${fmt(t.bankPaid)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-amber-600 font-black">
+                                <td className="py-2 px-2 text-right text-amber-700 font-black text-[11px] border border-gray-300">
                                   {t.dueAmount > 0 ? `Rs. ${fmt(t.dueAmount)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right font-black text-zinc-900">
+                                <td className="py-2 px-2 text-right font-black text-zinc-950 text-xs border border-gray-300">
                                   Rs. {fmt(t.totalAmount)}
                                 </td>
-                                <td className="py-2 px-3 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1">
+                                <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300 relative">
+                                  <div className="relative inline-block text-left">
                                     <button
-                                      onClick={() => handleOpenEdit(t)}
-                                      className="p-1 rounded text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
-                                      title="Edit"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveTxnMenuId(activeTxnMenuId === menuId ? null : menuId);
+                                      }}
+                                      className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shadow-xs ${
+                                        activeTxnMenuId === menuId
+                                          ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
+                                          : 'bg-white hover:bg-gray-100 text-gray-800 border-gray-300'
+                                      }`}
+                                      title="Actions"
                                     >
-                                      <Pencil className="w-3 h-3" />
+                                      <MoreVertical className="w-3.5 h-3.5" />
                                     </button>
-                                    <button
-                                      onClick={() => setDeletingSale(t)}
-                                      className="p-1 rounded text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
+
+                                    {activeTxnMenuId === menuId && (
+                                      <>
+                                        <div
+                                          className="fixed inset-0 z-40"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveTxnMenuId(null);
+                                          }}
+                                        />
+                                        <div
+                                          className={`absolute right-0 ${isNearBottomSub ? 'bottom-full mb-1' : 'top-full mt-1'} w-40 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-50 text-left animate-in fade-in zoom-in-95 duration-100`}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <div className="px-3 py-1 text-[8.5px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-0.5">
+                                            Actions
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActiveTxnMenuId(null);
+                                              handlePrintSingleTransaction(t);
+                                            }}
+                                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                          >
+                                            <Printer className="w-3 h-3 text-blue-600 shrink-0" />
+                                            <span>Print Invoice</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActiveTxnMenuId(null);
+                                              handleOpenEdit(t);
+                                            }}
+                                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                          >
+                                            <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
+                                            <span>Edit Invoice</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActiveTxnMenuId(null);
+                                              setDeletingSale(t);
+                                            }}
+                                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
+                                            <span>Delete Invoice</span>
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

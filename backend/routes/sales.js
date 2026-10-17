@@ -215,10 +215,26 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
       if (vndLedgerRows && vndLedgerRows.length > 0) {
         purchasesList = vndLedgerRows.map(p => {
           const totalCost = Number(p.totalCost) || 0;
-          const paidAmt = Number(p.amountPaid) || 0;
-          const cashAmt = Number(p.cashPaid) || 0;
-          const bankAmt = Number(p.bankPaid) || 0;
           const dueAmt = Number(p.dueAmount) || 0;
+          let paidAmt = Number(p.amountPaid) || 0;
+          if (paidAmt === 0 && totalCost > 0 && dueAmt < totalCost) {
+            paidAmt = totalCost - dueAmt;
+          }
+          let cashAmt = Number(p.cashPaid) || 0;
+          let bankAmt = Number(p.bankPaid) || 0;
+          const pMethod = String(p.paymentMethod || (dueAmt > 0 && paidAmt === 0 ? 'Credit' : 'Cash')).toUpperCase();
+
+          if (cashAmt === 0 && bankAmt === 0 && paidAmt > 0) {
+            if (pMethod.includes('BANK') || pMethod.includes('ONLINE') || pMethod.includes('TRANSFER') || pMethod.includes('EASYPAISA')) {
+              bankAmt = paidAmt;
+            } else if (pMethod.includes('SPLIT')) {
+              cashAmt = Math.floor(paidAmt / 2);
+              bankAmt = paidAmt - cashAmt;
+            } else {
+              cashAmt = paidAmt;
+            }
+          }
+
           return {
             id: p.id,
             shopId: p.shopId,
@@ -238,7 +254,7 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             cashPaid: Math.round(cashAmt),
             bankPaid: Math.round(bankAmt),
             dueAmount: Math.round(dueAmt),
-            paymentMethod: p.paymentMethod || (dueAmt > 0 ? 'Credit' : 'Cash'),
+            paymentMethod: pMethod,
             status: p.status || (dueAmt === 0 ? 'PAID' : (paidAmt > 0 ? 'PARTIAL' : 'CREDIT'))
           };
         });
@@ -846,9 +862,10 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
     const oldCashPaid = Number(sale.cashPaid) || 0;
 
     // Adjust stock differences if items are edited
-    if (Array.isArray(items) && Array.isArray(sale.items)) {
+    const oldSaleItems = Array.isArray(sale.items) ? sale.items : (typeof sale.items === 'string' ? JSON.parse(sale.items || '[]') : []);
+    if (Array.isArray(items) && Array.isArray(oldSaleItems)) {
       for (const newItem of items) {
-        const oldItem = sale.items.find(i => String(i.productId || i.id || i._id) === String(newItem.productId || newItem.id || newItem._id));
+        const oldItem = oldSaleItems.find(i => String(i.productId || i.id || i._id) === String(newItem.productId || newItem.id || newItem._id));
         if (oldItem) {
           const qtyDifference = (Number(newItem.quantity) || 1) - (Number(oldItem.quantity) || 1);
           if (qtyDifference !== 0) {
@@ -882,6 +899,29 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
 
     const updatedSale = await Sale.findByIdAndUpdate(sale.id, updateData, { new: true });
 
+    // Sync Customer table if customerId exists or matches email/phone
+    if (sale.customerId || customerEmail || customerPhone) {
+      try {
+        const custUpdate = {};
+        if (customerName) custUpdate.fullName = customerName;
+        if (customerPhone) custUpdate.phone = customerPhone;
+        if (customerEmail && customerEmail !== 'physical store pos') custUpdate.email = customerEmail;
+        if (Object.keys(custUpdate).length > 0) {
+          if (sale.customerId) {
+            await Customer.findByIdAndUpdate(sale.customerId, custUpdate);
+          }
+          if (customerEmail && customerEmail !== 'physical store pos') {
+            await Customer.updateMany({ email: customerEmail.toLowerCase() }, { $set: custUpdate });
+          }
+          if (customerPhone && customerPhone.length >= 7) {
+            await Customer.updateMany({ phone: customerPhone }, { $set: custUpdate });
+          }
+        }
+      } catch (custErr) {
+        console.warn('Customer table sync warning:', custErr.message);
+      }
+    }
+
     // Sync with CustomerPaymentLedger branch table
     try {
       const cplId = String(targetId).startsWith('cpl-') ? targetId : `cpl-${sale.id}`;
@@ -896,6 +936,29 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
       if (req.body.category !== undefined) cplUp.category = req.body.category;
       const calcDue = cplUp.dueAmount !== undefined ? cplUp.dueAmount : Number(sale.dueAmount || 0);
       cplUp.status = calcDue === 0 ? 'PAID' : 'PARTIAL';
+
+      if (Array.isArray(items) && items.length > 0) {
+        let petis = 0;
+        let eggs = 0;
+        const descParts = [];
+        items.forEach(it => {
+          const qty = Number(it.quantity) || 1;
+          const u = (it.unitLabel || it.unit || '').toLowerCase();
+          const n = (it.rawProductName || it.name || '').toLowerCase();
+          if (u.includes('peti') || n.includes('peti')) {
+            petis += qty;
+            eggs += qty * 360;
+          } else if (u.includes('tray') || n.includes('tray')) {
+            eggs += qty * 30;
+          } else {
+            eggs += Number(it.totalEggs) > 0 ? Number(it.totalEggs) : qty;
+          }
+          descParts.push(`${it.rawProductName || it.name || 'Eggs'} (x${qty})`);
+        });
+        cplUp.petisBought = petis;
+        cplUp.eggsBought = eggs;
+        cplUp.itemsDescription = descParts.join(', ');
+      }
 
       await CustomerPaymentLedger.findByIdAndUpdate(cplId, cplUp);
       await CustomerPaymentLedger.findOneAndUpdate({ saleId: String(sale.id) }, cplUp);
@@ -1231,6 +1294,14 @@ router.put('/update-customer-info', async (req, res) => {
         { $or: queryOr },
         { $set: updateFields }
       );
+      try {
+        await CustomerPaymentLedger.updateMany(
+          { $or: queryOr },
+          { $set: updateFields }
+        );
+      } catch (cplErr) {
+        console.warn('CustomerPaymentLedger update warning:', cplErr.message);
+      }
     }
 
     res.json({ success: true, message: 'Customer details updated successfully across sales' });

@@ -106,15 +106,14 @@ function CustomerAuthView({ shopInfo }) {
 
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-100 select-none z-50 text-slate-900">
-      
+
       {/* Background Animated Egg Pictures (Z-0) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {EGG_BACKGROUND_IMAGES.map((imgUrl, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
-              idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
-            } transition-transform duration-[3000ms]`}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+              } transition-transform duration-[3000ms]`}
             style={{ backgroundImage: `url("${imgUrl}")` }}
           />
         ))}
@@ -124,7 +123,7 @@ function CustomerAuthView({ shopInfo }) {
 
       {/* Centered Clean Compact Card (Z-10) */}
       <div className="relative z-10 w-full max-w-[360px] animate-in zoom-in-95 duration-500 my-auto py-1">
-        
+
         {/* Top Back Navigation Buttons (Store Selector & Super Admin) */}
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <button
@@ -133,7 +132,7 @@ function CustomerAuthView({ shopInfo }) {
               try {
                 localStorage.removeItem('yosafze_selected_shop_id');
                 sessionStorage.removeItem('yosafze_selected_shop_id');
-              } catch (e) {}
+              } catch (e) { }
               navigate('/shop');
             }}
             className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-slate-800 hover:text-emerald-700 uppercase tracking-widest bg-white/95 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200 backdrop-blur-md transition-all shadow-sm cursor-pointer active:scale-95"
@@ -177,18 +176,16 @@ function CustomerAuthView({ shopInfo }) {
             <button
               type="button"
               onClick={() => { setMode('register'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${
-                mode === 'register' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
-              }`}
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${mode === 'register' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
+                }`}
             >
               1. Register
             </button>
             <button
               type="button"
               onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${
-                mode === 'login' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
-              }`}
+              className={`flex-1 py-1.5 rounded-lg font-black text-[9.5px] uppercase tracking-wider transition-all cursor-pointer ${mode === 'login' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
+                }`}
             >
               2. Sign In
             </button>
@@ -299,11 +296,10 @@ function CustomerAuthView({ shopInfo }) {
               key={dotIdx}
               type="button"
               onClick={() => setCurrentEggIndex(dotIdx)}
-              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                dotIdx === currentEggIndex
-                  ? 'w-6 bg-emerald-600 shadow-sm shadow-emerald-600/50'
-                  : 'w-1.5 bg-slate-400/50 hover:bg-slate-600/70'
-              }`}
+              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === currentEggIndex
+                ? 'w-6 bg-emerald-600 shadow-sm shadow-emerald-600/50'
+                : 'w-1.5 bg-slate-400/50 hover:bg-slate-600/70'
+                }`}
               title={`Egg Picture #${dotIdx + 1}`}
             />
           ))}
@@ -504,7 +500,7 @@ function StoreContent({ shopId }) {
   } catch (e) { }
 
   const userRole = (user?.role || savedRole || customer?.role || '').toLowerCase();
-  
+
   // When a regular customer is active:
   const isCustomerAccount = Boolean(customer && (customer.role === 'customer' || !customer.role)) && !user;
 
@@ -646,11 +642,10 @@ function StoreContent({ shopId }) {
   const renderCalendarFilter = (variant = 'dark') => {
     const isDark = variant === 'dark';
     return (
-      <div className={`flex items-center flex-wrap gap-1.5 p-1 rounded-xl border transition-all ${
-        isDark 
-          ? 'bg-slate-900/95 border-slate-700/80 shadow-md text-white' 
-          : 'bg-white border-slate-200/90 shadow-sm text-slate-800'
-      }`}>
+      <div className={`flex items-center flex-wrap gap-1.5 p-1 rounded-xl border transition-all ${isDark
+        ? 'bg-slate-900/95 border-slate-700/80 shadow-md text-white'
+        : 'bg-white border-slate-200/90 shadow-sm text-slate-800'
+        }`}>
         <div className="flex items-center gap-1">
           <Calendar className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
           <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -660,11 +655,10 @@ function StoreContent({ shopId }) {
             type="date"
             value={reportStartDate}
             onChange={(e) => setReportStartDate(e.target.value)}
-            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${
-              isDark 
-                ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500' 
-                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-            }`}
+            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${isDark
+              ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500'
+              : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              }`}
           />
         </div>
 
@@ -676,11 +670,10 @@ function StoreContent({ shopId }) {
             type="date"
             value={reportEndDate}
             onChange={(e) => setReportEndDate(e.target.value)}
-            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${
-              isDark 
-                ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500' 
-                : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-            }`}
+            className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${isDark
+              ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500'
+              : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              }`}
           />
         </div>
 
@@ -696,11 +689,10 @@ function StoreContent({ shopId }) {
         {(appliedStartDate || appliedEndDate || reportStartDate || reportEndDate) && (
           <button
             onClick={handleClearDateFilter}
-            className={`px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0 ${
-              isDark 
-                ? 'bg-rose-950/50 text-rose-300 hover:bg-rose-900/60 border border-rose-700/50' 
-                : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-            }`}
+            className={`px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0 ${isDark
+              ? 'bg-rose-950/50 text-rose-300 hover:bg-rose-900/60 border border-rose-700/50'
+              : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              }`}
             title="Clear date filter and show all"
           >
             <X className="w-3.5 h-3.5" />
@@ -799,7 +791,12 @@ function StoreContent({ shopId }) {
     const pad = (n) => String(n).padStart(2, '0');
     const localDateTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-    const itemsList = Array.isArray(sale.items) ? JSON.parse(JSON.stringify(sale.items)) : [];
+    let itemsList = [];
+    if (Array.isArray(sale.items)) {
+      itemsList = JSON.parse(JSON.stringify(sale.items));
+    } else if (typeof sale.items === 'string') {
+      try { itemsList = JSON.parse(sale.items); } catch (e) { itemsList = []; }
+    }
     const tot = Number(sale.totalAmount) || 0;
     const cPaid = sale.cashPaid !== undefined ? Number(sale.cashPaid) : (pMethod === 'CASH' ? tot : 0);
     const bPaid = sale.bankPaid !== undefined ? Number(sale.bankPaid) : (pMethod.includes('BANK') || pMethod.includes('ONLINE') ? tot : 0);
@@ -808,8 +805,8 @@ function StoreContent({ shopId }) {
     setEditingSale(sale);
     setEditSaleFormData({
       invoiceNumber: sale.invoiceNumber || (sale.serialNumber ? `#${sale.serialNumber}` : ''),
-      customerName: sale.customerName || '',
-      customerPhone: sale.customerPhone || '',
+      customerName: sale.customerName || sale.name || sale.fullName || '',
+      customerPhone: sale.customerPhone || sale.phone || '',
       customerEmail: sale.customerEmail || sale.email || '',
       paymentMethod: pMethod,
       totalAmount: tot,
@@ -827,6 +824,17 @@ function StoreContent({ shopId }) {
       const newItems = [...prev.items];
       const item = { ...newItems[idx] };
       item.quantity = qty;
+      const unit = (item.unitLabel || item.unit || '').toLowerCase();
+      if (unit.includes('peti')) {
+        item.totalEggs = qty * 360;
+      } else if (unit.includes('tray')) {
+        item.totalEggs = qty * 30;
+      } else {
+        item.totalEggs = qty;
+      }
+      if (item.rawProductName) {
+        item.name = `${item.rawProductName} (x${qty})`;
+      }
       const price = Number(item.price || item.unitPrice || (item.subtotal && item.quantity ? item.subtotal / item.quantity : 0));
       item.subtotal = price * qty;
       newItems[idx] = item;
@@ -872,7 +880,7 @@ function StoreContent({ shopId }) {
     if (e) e.preventDefault();
     if (!editingSale) return;
 
-    const saleId = editingSale._id || editingSale.id || editingSale.orderId;
+    const saleId = editingSale._id || editingSale.id || editingSale.orderId || editingSale.saleId;
     if (!saleId) return;
 
     setIsSavingSaleEdit(true);
@@ -888,6 +896,7 @@ function StoreContent({ shopId }) {
       }, 0);
 
       const payload = {
+        invoiceNumber: editSaleFormData.invoiceNumber,
         customerName: editSaleFormData.customerName.trim(),
         customerPhone: editSaleFormData.customerPhone.trim(),
         customerEmail: editSaleFormData.customerEmail.trim(),
@@ -912,17 +921,61 @@ function StoreContent({ shopId }) {
       });
 
       if (res.ok) {
-        toast.success('Sale record updated successfully in database!');
+        const savedData = await res.json().catch(() => ({}));
+        const updatedRecord = savedData.sale || savedData;
+        
+        toast.success('✅ Sale record updated successfully!');
         setEditingSale(null);
-        setShopSalesList(prev => prev.map(s => {
-          if (String(s._id || s.id || s.orderId) === String(saleId)) {
-            return { ...s, ...payload };
+
+        // 1. Immediately update shopSalesList in state
+        setShopSalesList(prev => (prev || []).map(s => {
+          const match = String(s._id || s.id || s.orderId || '') === String(saleId) ||
+            (s.invoiceNumber && payload.invoiceNumber && s.invoiceNumber === payload.invoiceNumber);
+          if (match) {
+            return {
+              ...s,
+              ...payload,
+              ...(updatedRecord && typeof updatedRecord === 'object' ? updatedRecord : {})
+            };
           }
           return s;
         }));
-        if (typeof fetchShopSales === 'function') fetchShopSales();
-        if (typeof fetchRegisteredCustomers === 'function') fetchRegisteredCustomers();
-        if (typeof fetchDashboardStats === 'function') fetchDashboardStats();
+
+        // 2. Also update registered customer in state if name/phone/email changed
+        if (payload.customerName) {
+          setRegisteredCustomersList(prev => (prev || []).map(c => {
+            const match = (editingSale.customerId && String(c._id || c.id) === String(editingSale.customerId)) ||
+              (c.email && payload.customerEmail && c.email.toLowerCase() === payload.customerEmail.toLowerCase()) ||
+              (c.phone && payload.customerPhone && c.phone === payload.customerPhone);
+            if (match) {
+              return {
+                ...c,
+                fullName: payload.customerName,
+                name: payload.customerName,
+                phone: payload.customerPhone || c.phone,
+                email: payload.customerEmail || c.email
+              };
+            }
+            return c;
+          }));
+        }
+
+        // 3. Await fresh refetches from backend database
+        try {
+          const [freshSales, freshCust] = await Promise.all([
+            getSales(shopId).catch(() => null),
+            fetch(`/api/customers/all?shopId=${shopId}`).then(r => r.ok ? r.json() : null).catch(() => null)
+          ]);
+          if (Array.isArray(freshSales)) {
+            setShopSalesList(freshSales);
+          }
+          if (freshCust && Array.isArray(freshCust.customers)) {
+            setRegisteredCustomersList(freshCust.customers);
+          }
+          if (typeof fetchDashboardStats === 'function') fetchDashboardStats();
+        } catch (fetchErr) {
+          console.warn('Post-edit refetch warning:', fetchErr);
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.message || 'Failed to update sale record in database');
@@ -984,8 +1037,8 @@ function StoreContent({ shopId }) {
       totalAmount: cust.totalSpent || cust.totalCreditDue || 0
     };
 
-    const due = cust.totalCreditDue !== undefined && Number(cust.totalCreditDue) > 0 
-      ? Number(cust.totalCreditDue) 
+    const due = cust.totalCreditDue !== undefined && Number(cust.totalCreditDue) > 0
+      ? Number(cust.totalCreditDue)
       : (Number(targetSale.dueAmount) > 0 ? Number(targetSale.dueAmount) : Number(targetSale.totalAmount) || 0);
 
     setSettlingCreditSale(targetSale);
@@ -1137,7 +1190,7 @@ function StoreContent({ shopId }) {
       const authToken = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
       await fetch('/api/sales/update-customer-info', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
         },
@@ -1156,7 +1209,7 @@ function StoreContent({ shopId }) {
         const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
         const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
         const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
-        const isMatch = saleIds.includes(s._id) || 
+        const isMatch = saleIds.includes(s._id) ||
           (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) ||
           (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) ||
           (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName);
@@ -1193,7 +1246,7 @@ function StoreContent({ shopId }) {
             email: newEmail
           })
         });
-        setRegisteredCustomersList(prev => (prev || []).map(c => 
+        setRegisteredCustomersList(prev => (prev || []).map(c =>
           String(c._id) === String(registeredId)
             ? { ...c, fullName: newName, phone: newPhone, email: newEmail }
             : c
@@ -1222,55 +1275,113 @@ function StoreContent({ shopId }) {
     const oldEmail = (custGroup.customerEmail || custGroup.email || '').toLowerCase().trim();
     const oldName = name.toLowerCase().trim();
 
-    const matchingSales = (shopSalesList || []).filter(s => {
-      const sId = s._id;
-      if ((custGroup.invoices || []).some(inv => inv._id === sId)) return true;
+    // 1. Gather all sale / invoice IDs dynamically from custGroup.invoices AND shopSalesList
+    const allSaleIds = new Set();
+    (custGroup.invoices || []).forEach(inv => {
+      const id = inv._id || inv.id || inv.orderId || inv.saleId;
+      if (id) allSaleIds.add(String(id));
+    });
+
+    (shopSalesList || []).forEach(s => {
+      const sId = String(s._id || s.id || s.orderId || s.saleId || '');
       const cName = (s.customerName || s.name || s.fullName || '').toLowerCase().trim();
       const cEmail = (s.customerEmail || s.email || '').toLowerCase().trim();
       const cPhone = (s.customerPhone || s.phone || '').trim().replace(/\D/g, '');
-      if (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) return true;
-      if (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) return true;
-      if (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName) return true;
-      return false;
+      const isInvoiceMatch = (custGroup.invoices || []).some(inv => {
+        const iId = String(inv._id || inv.id || inv.orderId || inv.saleId || '');
+        return iId && iId === sId;
+      });
+      if (isInvoiceMatch) {
+        if (sId) allSaleIds.add(sId);
+      } else if (oldEmail && oldEmail !== 'physical store pos' && oldEmail !== '—' && cEmail === oldEmail) {
+        if (sId) allSaleIds.add(sId);
+      } else if (oldPhone && oldPhone.length >= 7 && cPhone === oldPhone) {
+        if (sId) allSaleIds.add(sId);
+      } else if (oldName && oldName !== 'walk-in' && oldName !== 'walk-in customer' && cName === oldName) {
+        if (sId) allSaleIds.add(sId);
+      }
     });
 
-    const saleIds = matchingSales.map(s => s._id).filter(Boolean);
+    const saleIds = Array.from(allSaleIds);
 
-    if (!window.confirm(`Are you sure you want to permanently delete all records for customer "${name}"?\n\nThis will permanently delete ${saleIds.length} ${saleIds.length === 1 ? 'bill' : 'bills'} and the customer account from the database.`)) {
+    const confirmMsg = saleIds.length > 0
+      ? `Are you sure you want to permanently delete all records for customer "${name}" from the database?\n\nThis will permanently delete ${saleIds.length} ${saleIds.length === 1 ? 'bill' : 'bills'} and the customer record. This cannot be undone.`
+      : `Are you sure you want to permanently delete customer account "${name}" from the database? This cannot be undone.`;
+
+    if (!window.confirm(confirmMsg)) {
       return;
     }
 
     try {
-      // 1. Delete all sales
+      const token = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : '',
+        'x-user-role': 'shop_admin'
+      };
+
+      // 1. Delete all sales permanently from MySQL database
       for (const sId of saleIds) {
         try {
-          await deleteSale(sId);
+          await fetch(`/api/sales/${sId}`, {
+            method: 'DELETE',
+            headers: authHeaders
+          });
         } catch (e) {
           console.error(`Error deleting sale ${sId}:`, e);
         }
       }
 
-      // 2. Delete online registered account
-      const onlineAccount = (registeredCustomersList || []).find(c => 
-        (custGroup._id && String(c._id) === String(custGroup._id)) ||
-        (oldEmail && c.email && c.email.toLowerCase() === oldEmail) ||
-        (oldPhone && c.phone && c.phone.replace(/\D/g, '') === oldPhone) ||
-        (oldName && c.fullName && c.fullName.toLowerCase() === oldName)
-      );
-      if (onlineAccount && onlineAccount._id) {
-        await fetch(`/api/customers/${onlineAccount._id}`, { method: 'DELETE' });
-        setRegisteredCustomersList(prev => (prev || []).filter(c => String(c._id) !== String(onlineAccount._id)));
+      // 2. Delete online registered account from database if exists
+      let onlineAccountId = null;
+      if (custGroup._id && !String(custGroup._id).startsWith('cust_grp_') && !String(custGroup._id).startsWith('phys_')) {
+        onlineAccountId = custGroup._id;
+      } else if (custGroup.id && !String(custGroup.id).startsWith('cust_grp_') && !String(custGroup.id).startsWith('phys_')) {
+        onlineAccountId = custGroup.id;
+      }
+      if (!onlineAccountId) {
+        const found = (registeredCustomersList || []).find(c =>
+          (custGroup._id && String(c._id) === String(custGroup._id)) ||
+          (oldEmail && c.email && c.email.toLowerCase() === oldEmail) ||
+          (oldPhone && c.phone && c.phone.replace(/\D/g, '') === oldPhone) ||
+          (oldName && c.fullName && c.fullName.toLowerCase() === oldName)
+        );
+        if (found && found._id) onlineAccountId = found._id;
       }
 
-      setShopSalesList(prev => (prev || []).filter(s => !saleIds.includes(s._id)));
-      toast.success(`✅ All records for "${name}" deleted successfully!`);
+      if (onlineAccountId) {
+        try {
+          await fetch(`/api/customers/${onlineAccountId}`, {
+            method: 'DELETE',
+            headers: authHeaders
+          });
+          setRegisteredCustomersList(prev => (prev || []).filter(c => String(c._id) !== String(onlineAccountId)));
+        } catch (delCustErr) {
+          console.error('Delete customer error:', delCustErr);
+        }
+      }
 
-      await fetchShopSales();
-      await fetchRegisteredCustomers();
-      await fetchDashboardStats();
+      // 3. Immediately update UI state
+      setShopSalesList(prev => (prev || []).filter(s => {
+        const id = String(s._id || s.id || s.orderId || '');
+        return !saleIds.includes(id);
+      }));
+      setAllShopOrders(prev => (prev || []).filter(o => {
+        const id = String(o._id || o.id || '');
+        return !saleIds.includes(id);
+      }));
+
+      toast.success(`✅ Records for "${name}" deleted permanently from database!`);
+
+      // 4. Refetch fresh data from database
+      await Promise.all([
+        typeof fetchShopSales === 'function' ? fetchShopSales() : Promise.resolve(),
+        typeof fetchRegisteredCustomers === 'function' ? fetchRegisteredCustomers() : Promise.resolve(),
+        typeof fetchDashboardStats === 'function' ? fetchDashboardStats() : Promise.resolve()
+      ]);
     } catch (err) {
       console.error('Delete customer group error:', err);
-      toast.error('Failed to delete customer records');
+      toast.error('Failed to delete customer records: ' + err.message);
     }
   };
 
@@ -1976,7 +2087,7 @@ function StoreContent({ shopId }) {
         return;
       }
 
-    let salesRows = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
+      let salesRows = combinedHistory.length > 0 ? combinedHistory.map((item, idx) => `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
         <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; vertical-align:middle;">${idx + 1}</td>
         <td style="padding:10px; border:1px solid #cbd5e1; vertical-align:middle; font-weight:600; color:#334155;">${new Date(item.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
@@ -1994,7 +2105,7 @@ function StoreContent({ shopId }) {
       </tr>
     `;
 
-    printWin.document.write(`
+      printWin.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
@@ -2118,14 +2229,14 @@ function StoreContent({ shopId }) {
         </body>
       </html>
     `);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => printWin.print(), 300);
-  } catch (err) {
-    console.error('Customer print error:', err);
-    toast.error('Failed to open print statement window');
-  }
-};
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => printWin.print(), 300);
+    } catch (err) {
+      console.error('Customer print error:', err);
+      toast.error('Failed to open print statement window');
+    }
+  };
 
   const handleDeleteCustomer = async (customerId, customerName) => {
     const targetCust = (unifiedCustomersList || []).find(c => c._id === customerId) || { _id: customerId, fullName: customerName };
@@ -2419,8 +2530,8 @@ function StoreContent({ shopId }) {
       const isCreditSale = dueAmount > 0;
       const finalPaymentMethod = (cashPaid > 0 && bankPaid > 0) ? 'SPLIT' :
         (dueAmount > 0 && (cashPaid > 0 || bankPaid > 0)) ? 'PARTIAL' :
-        dueAmount === totalAmount ? 'CREDIT' :
-        bankPaid > 0 ? 'BANK_TRANSFER' : 'CASH';
+          dueAmount === totalAmount ? 'CREDIT' :
+            bankPaid > 0 ? 'BANK_TRANSFER' : 'CASH';
 
       const saleData = {
         shopId,
@@ -2514,17 +2625,17 @@ function StoreContent({ shopId }) {
       const finalImages = (productData.images && productData.images.length > 0)
         ? productData.images
         : ((Array.isArray(editModalProduct?.images) && editModalProduct.images.length > 0)
-            ? editModalProduct.images
-            : (editModalProduct?.image ? [editModalProduct.image] : ['/egg2.png']));
+          ? editModalProduct.images
+          : (editModalProduct?.image ? [editModalProduct.image] : ['/egg2.png']));
       const payload = { ...productData, images: finalImages };
       const role = user?.role || 'shop_admin';
       const res = await updateItem(prodId, payload, '', role);
       const updatedItem = res?.item || res?.data || res || { ...editModalProduct, ...payload };
 
       // Instantly update items in state
-      setItems(prev => (prev || []).map(p => 
-        String(p._id || p.id) === String(prodId) 
-          ? { ...p, ...payload, ...(updatedItem._id || updatedItem.id ? updatedItem : {}) } 
+      setItems(prev => (prev || []).map(p =>
+        String(p._id || p.id) === String(prodId)
+          ? { ...p, ...payload, ...(updatedItem._id || updatedItem.id ? updatedItem : {}) }
           : p
       ));
 
@@ -2890,13 +3001,13 @@ function StoreContent({ shopId }) {
           if (rawName && !targetGroup.aliasNames.includes(rawName)) {
             targetGroup.aliasNames.push(rawName);
           }
-          if (isGenericName(targetGroup.customerName) && !isGenericName(rawName)) {
+          if (rawName && !isGenericName(rawName)) {
             targetGroup.customerName = rawName;
           }
-          if (!targetGroup.customerEmail && cleanEmail) {
+          if (cleanEmail) {
             targetGroup.customerEmail = cleanEmail;
           }
-          if ((!targetGroup.customerPhone || targetGroup.customerPhone === '—') && rawPhone) {
+          if (rawPhone && rawPhone !== '—') {
             targetGroup.customerPhone = rawPhone;
           }
           if (isOnline) targetGroup.isOnline = true;
@@ -2929,6 +3040,94 @@ function StoreContent({ shopId }) {
 
     return groups;
   }, [filteredSalesForReport, unifiedSalesList, unifiedCustomersList, salesReportSearchTerm]);
+
+  // ─── Filtered Customer-Wise Sales Report (Filtered by Payment Method & Timeframe) ───
+  const displayedCustomerWiseSalesReport = useMemo(() => {
+    if (!customerWiseSalesReport) return [];
+
+    const isCashSale = (s) => {
+      const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+      const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+      const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+      return pMethod === 'CASH' || (Number(s.cashPaid) > 0 && !isBank && !isCredit) || (Number(s.cashPaid) > 0);
+    };
+
+    const isBankSale = (s) => {
+      const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+      return pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
+    };
+
+    const isCreditSale = (s) => {
+      const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+      return pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
+    };
+
+    const isOnlineSale = (s) => {
+      return Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
+    };
+
+    if (salesReportPaymentFilter === 'ALL') {
+      if (reportTimeframe === 'DAY' || appliedStartDate || appliedEndDate) {
+        return customerWiseSalesReport.filter(g => g.invoices && g.invoices.length > 0);
+      }
+      return customerWiseSalesReport;
+    }
+
+    const results = [];
+    customerWiseSalesReport.forEach(custGroup => {
+      let relevantInvoices = [];
+
+      if (salesReportPaymentFilter === 'CASH') {
+        relevantInvoices = (custGroup.invoices || []).filter(isCashSale);
+        if (relevantInvoices.length === 0 && Number(custGroup.totalCash) <= 0) return;
+      } else if (salesReportPaymentFilter === 'BANK') {
+        relevantInvoices = (custGroup.invoices || []).filter(isBankSale);
+        if (relevantInvoices.length === 0 && Number(custGroup.totalBank) <= 0) return;
+      } else if (salesReportPaymentFilter === 'CREDIT') {
+        relevantInvoices = (custGroup.invoices || []).filter(isCreditSale);
+        if (relevantInvoices.length === 0 && Number(custGroup.totalDue) <= 0) return;
+      } else if (salesReportPaymentFilter === 'ONLINE') {
+        relevantInvoices = (custGroup.invoices || []).filter(isOnlineSale);
+        if (relevantInvoices.length === 0 && !custGroup.isOnline) return;
+      }
+
+      const cashTotal = relevantInvoices.reduce((sum, s) => {
+        const c = Number(s.cashPaid);
+        if (c > 0) return sum + c;
+        if (isCashSale(s)) return sum + (Number(s.totalAmount) || 0);
+        return sum;
+      }, 0);
+
+      const bankTotal = relevantInvoices.reduce((sum, s) => {
+        const b = Number(s.bankPaid);
+        if (b > 0) return sum + b;
+        if (isBankSale(s)) return sum + (Number(s.totalAmount) || 0);
+        return sum;
+      }, 0);
+
+      const dueTotal = relevantInvoices.reduce((sum, s) => {
+        const d = Number(s.dueAmount);
+        if (d > 0) return sum + d;
+        if (isCreditSale(s)) return sum + (Number(s.totalAmount) || 0);
+        return sum;
+      }, 0);
+
+      const spentTotal = relevantInvoices.length > 0
+        ? relevantInvoices.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0)
+        : (salesReportPaymentFilter === 'CASH' ? custGroup.totalCash : salesReportPaymentFilter === 'BANK' ? custGroup.totalBank : salesReportPaymentFilter === 'CREDIT' ? custGroup.totalDue : custGroup.totalSpent);
+
+      results.push({
+        ...custGroup,
+        invoices: relevantInvoices.length > 0 ? relevantInvoices : custGroup.invoices,
+        totalCash: cashTotal > 0 ? cashTotal : custGroup.totalCash,
+        totalBank: bankTotal > 0 ? bankTotal : custGroup.totalBank,
+        totalDue: dueTotal > 0 ? dueTotal : custGroup.totalDue,
+        totalSpent: spentTotal
+      });
+    });
+
+    return results;
+  }, [customerWiseSalesReport, salesReportPaymentFilter, reportTimeframe, appliedStartDate, appliedEndDate]);
 
   const getCustomerIdentityGroupKey = (s) => {
     if (!s) return null;
@@ -4116,8 +4315,8 @@ function StoreContent({ shopId }) {
       return;
     }
 
-    const selectedProduct = (items || []).find(i => 
-      String(i._id) === String(damagedFormData.productId) || 
+    const selectedProduct = (items || []).find(i =>
+      String(i._id) === String(damagedFormData.productId) ||
       (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
     );
 
@@ -6167,15 +6366,15 @@ function StoreContent({ shopId }) {
       if (res.ok && data) {
         if (data.shop) {
           setShop(data.shop);
-          try { localStorage.setItem(`nexflow_cached_shop_${shopId}`, JSON.stringify(data.shop)); } catch (e) {}
+          try { localStorage.setItem(`nexflow_cached_shop_${shopId}`, JSON.stringify(data.shop)); } catch (e) { }
         }
         if (Array.isArray(data.items)) {
           setItems(data.items);
-          try { localStorage.setItem(`nexflow_cached_catalog_${shopId}`, JSON.stringify(data.items)); } catch (e) {}
+          try { localStorage.setItem(`nexflow_cached_catalog_${shopId}`, JSON.stringify(data.items)); } catch (e) { }
         }
         if (Array.isArray(data.categories)) {
           setCategories(data.categories);
-          try { localStorage.setItem(`nexflow_cached_categories_${shopId}`, JSON.stringify(data.categories)); } catch (e) {}
+          try { localStorage.setItem(`nexflow_cached_categories_${shopId}`, JSON.stringify(data.categories)); } catch (e) { }
         }
 
         // Compute stats from catalog items
@@ -6284,7 +6483,7 @@ function StoreContent({ shopId }) {
           try {
             const local = localStorage.getItem(`nexflow_damaged_${shopId}`);
             currentDmgList = local ? JSON.parse(local) : [];
-          } catch(e) {}
+          } catch (e) { }
         }
         let totalDamagedEggs = 0;
         (currentDmgList || []).forEach(x => {
@@ -6637,11 +6836,11 @@ function StoreContent({ shopId }) {
                           className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 transition-colors text-left border-b border-slate-700/50 last:border-0"
                         >
                           {item.images?.[0] ? (
-                            <img 
-                              src={getImageUrl(item.images[0])} 
-                              alt={item.name} 
+                            <img
+                              src={getImageUrl(item.images[0])}
+                              alt={item.name}
                               onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
-                              className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700" 
+                              className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700"
                             />
                           ) : (
                             <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center shrink-0">
@@ -7143,7 +7342,7 @@ function StoreContent({ shopId }) {
 
                         {/* ─── 6 FINAL RESULT CARDS IN EXACT SEQUENCE (GRAY & WHITE THEME) ─── */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 relative z-10">
-                          
+
                           {/* 1. TOTAL SALE (NET AFTER MINUSING FUEL EXPENSE) */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
@@ -7170,7 +7369,7 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* 2. TOTAL FUEL EXPENSE (FROM FUEL REPORT PAGE) */}
-                          <div 
+                          <div
                             onClick={() => setActiveView('report-fuel')}
                             className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
                             title="Click to view Vehicle Fuel Management"
@@ -7437,10 +7636,10 @@ function StoreContent({ shopId }) {
                               >
                                 <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                                   {item.images?.[0] ? (
-                                    <img 
-                                      src={getImageUrl(item.images[0])} 
-                                      onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }} 
-                                      className="w-full h-full object-cover" 
+                                    <img
+                                      src={getImageUrl(item.images[0])}
+                                      onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
+                                      className="w-full h-full object-cover"
                                       alt=""
                                     />
                                   ) : (
@@ -7941,9 +8140,8 @@ function StoreContent({ shopId }) {
                                             className="p-2.5 bg-gray-50 hover:bg-emerald-50 border border-gray-200 hover:border-emerald-400 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2 group"
                                           >
                                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-xs ${
-                                                isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
-                                              }`}>
+                                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-xs ${isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
+                                                }`}>
                                                 {cName.charAt(0).toUpperCase()}
                                               </div>
                                               <div className="min-w-0 flex-1">
@@ -7951,9 +8149,8 @@ function StoreContent({ shopId }) {
                                                   <span className="font-black text-xs text-gray-900 group-hover:text-emerald-800 truncate">
                                                     {cName}
                                                   </span>
-                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
-                                                    isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
-                                                  }`}>
+                                                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${isOnline ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-800'
+                                                    }`}>
                                                     {isOnline ? 'Online Account' : 'Walk-in'}
                                                   </span>
                                                 </div>
@@ -8698,11 +8895,10 @@ function StoreContent({ shopId }) {
                     <div className="flex items-center bg-gray-100 p-1 rounded-2xl gap-1.5 overflow-x-auto">
                       <button
                         onClick={() => setCustomerFilterTab('ALL')}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                          customerFilterTab === 'ALL'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${customerFilterTab === 'ALL'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                          }`}
                       >
                         <Users className="w-3.5 h-3.5" />
                         <span>All Customers ({unifiedCustomersList.length})</span>
@@ -8710,22 +8906,20 @@ function StoreContent({ shopId }) {
 
                       <button
                         onClick={() => setCustomerFilterTab('ONLINE')}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                          customerFilterTab === 'ONLINE'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${customerFilterTab === 'ONLINE'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                          }`}
                       >
                         <span>🌐 Online Accounts ({unifiedCustomersList.filter(c => c.isOnline).length})</span>
                       </button>
 
                       <button
                         onClick={() => setCustomerFilterTab('PHYSICAL')}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                          customerFilterTab === 'PHYSICAL'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${customerFilterTab === 'PHYSICAL'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                          }`}
                       >
                         <span>🏬 Physical / Walk-in ({unifiedCustomersList.filter(c => !c.isOnline).length})</span>
                       </button>
@@ -8791,9 +8985,8 @@ function StoreContent({ shopId }) {
                                 {/* Card Top: Serial, Avatar, Name, ID & Delete */}
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-black text-sm shrink-0 ${
-                                      cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    }`}>
+                                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-black text-sm shrink-0 ${cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      }`}>
                                       {(cust.fullName || 'C')[0].toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
@@ -8809,9 +9002,8 @@ function StoreContent({ shopId }) {
                                         <span className="text-[9px] font-black text-indigo-600 uppercase tracking-wider block">
                                           {uniqueId}
                                         </span>
-                                        <span className={`px-2 py-0.2 rounded-full text-[8.5px] font-black uppercase ${
-                                          cust.isOnline ? 'bg-indigo-100 text-indigo-800' : 'bg-teal-100 text-teal-800'
-                                        }`}>
+                                        <span className={`px-2 py-0.2 rounded-full text-[8.5px] font-black uppercase ${cust.isOnline ? 'bg-indigo-100 text-indigo-800' : 'bg-teal-100 text-teal-800'
+                                          }`}>
                                           {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
                                         </span>
                                       </div>
@@ -8854,15 +9046,12 @@ function StoreContent({ shopId }) {
                                       {currency} {totalSpent.toLocaleString('en-PK')}
                                     </span>
                                   </div>
-                                  <div className={`border rounded-xl p-2 text-center ${
-                                    totalCreditDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-gray-50/80 border-gray-200'
-                                  }`}>
-                                    <span className={`text-[8.5px] font-bold uppercase block ${
-                                      totalCreditDue > 0 ? 'text-rose-800' : 'text-gray-500'
-                                    }`}>Credit Due</span>
-                                    <span className={`text-xs font-black block mt-0.5 ${
-                                      totalCreditDue > 0 ? 'text-rose-600 font-black' : 'text-gray-600'
+                                  <div className={`border rounded-xl p-2 text-center ${totalCreditDue > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-gray-50/80 border-gray-200'
                                     }`}>
+                                    <span className={`text-[8.5px] font-bold uppercase block ${totalCreditDue > 0 ? 'text-rose-800' : 'text-gray-500'
+                                      }`}>Credit Due</span>
+                                    <span className={`text-xs font-black block mt-0.5 ${totalCreditDue > 0 ? 'text-rose-600 font-black' : 'text-gray-600'
+                                      }`}>
                                       {currency} {totalCreditDue.toLocaleString('en-PK')}
                                     </span>
                                     {totalCreditDue > 0 && (
@@ -8968,19 +9157,17 @@ function StoreContent({ shopId }) {
                                     </td>
                                     <td className="p-3 align-middle">
                                       <div className="flex items-center gap-2.5">
-                                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${
-                                          cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        }`}>
+                                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${cust.isOnline ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          }`}>
                                           {(cust.fullName || 'C')[0].toUpperCase()}
                                         </div>
                                         <div className="min-w-0">
                                           <span className="block font-black text-gray-900 uppercase text-xs truncate max-w-[170px]">{cust.fullName}</span>
                                           <div className="flex items-center gap-1.5 mt-0.5">
-                                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
-                                              cust.isOnline
-                                                ? 'bg-indigo-100 text-indigo-800'
-                                                : 'bg-emerald-100 text-emerald-800'
-                                            }`}>
+                                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${cust.isOnline
+                                              ? 'bg-indigo-100 text-indigo-800'
+                                              : 'bg-emerald-100 text-emerald-800'
+                                              }`}>
                                               {cust.accountType || (cust.isOnline ? 'Online' : 'Physical')}
                                             </span>
                                             <span className="text-[8.5px] font-black text-indigo-600 uppercase tracking-widest font-mono">
@@ -9197,12 +9384,20 @@ function StoreContent({ shopId }) {
                   {/* Top 5 Dynamic Stat Cards (Yellow, Dark Green, Blue, Indigo Today Sales, Total Sales) */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     {/* Card 1: Yellow - 💵 Cash Sales (In Drawer) */}
-                    <div className="bg-white border-2 border-amber-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div
+                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH')}
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
+                        salesReportPaymentFilter === 'CASH'
+                          ? 'border-amber-500 ring-4 ring-amber-400/50 shadow-lg scale-[1.02] bg-amber-50/40'
+                          : 'border-amber-400/80 hover:shadow-md hover:border-amber-500 hover:scale-[1.01]'
+                      }`}
+                      title="Click to view Cash Sales details & customers"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1">
                           💵 Cash Sales (In Drawer)
                         </span>
-                        <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
+                        <div className={`p-1.5 rounded-lg transition-colors ${salesReportPaymentFilter === 'CASH' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-100 text-amber-700'}`}>
                           <DollarSign className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -9215,12 +9410,20 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Card 2: Dark Forest Green - 🏦 Bank / Online Sales */}
-                    <div className="bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 border-[#1E4D1A] text-white rounded-2xl p-4 shadow-md flex flex-col justify-between hover:shadow-lg transition-shadow">
+                    <div
+                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK')}
+                      className={`bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 text-white rounded-2xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
+                        salesReportPaymentFilter === 'BANK'
+                          ? 'border-emerald-400 ring-4 ring-emerald-400/50 shadow-xl scale-[1.02]'
+                          : 'border-[#1E4D1A] hover:shadow-lg hover:border-emerald-500 hover:scale-[1.01]'
+                      }`}
+                      title="Click to view Bank / Online Sales details & customers"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-emerald-300 uppercase tracking-widest flex items-center gap-1">
                           🏦 Bank / Online Sales
                         </span>
-                        <div className="p-1.5 bg-[#152F12] rounded-lg text-emerald-300 border border-[#2E6F28]/50">
+                        <div className={`p-1.5 rounded-lg transition-colors border ${salesReportPaymentFilter === 'BANK' ? 'bg-emerald-500 text-white border-emerald-300 shadow-xs' : 'bg-[#152F12] text-emerald-300 border-[#2E6F28]/50'}`}>
                           <Building2 className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -9233,12 +9436,20 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Card 3: Blue - 📋 Credit Sales */}
-                    <div className="bg-white border-2 border-blue-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div
+                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'CREDIT' ? 'ALL' : 'CREDIT')}
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
+                        salesReportPaymentFilter === 'CREDIT'
+                          ? 'border-blue-500 ring-4 ring-blue-400/50 shadow-lg scale-[1.02] bg-blue-50/40'
+                          : 'border-blue-400/80 hover:shadow-md hover:border-blue-500 hover:scale-[1.01]'
+                      }`}
+                      title="Click to view Credit details & outstanding customers"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-blue-800 uppercase tracking-widest flex items-center gap-1">
                           📋 Credit (Due)
                         </span>
-                        <div className="p-1.5 bg-blue-100 rounded-lg text-blue-700">
+                        <div className={`p-1.5 rounded-lg transition-colors ${salesReportPaymentFilter === 'CREDIT' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-100 text-blue-700'}`}>
                           <FileText className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -9251,12 +9462,29 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Card 4: Indigo / Purple - 📅 Today Sales (beside Credit Due) */}
-                    <div className="bg-white border-2 border-indigo-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div
+                      onClick={() => {
+                        if (reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL') {
+                          setReportTimeframe('ALL');
+                        } else {
+                          setReportTimeframe('DAY');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                          setSalesReportPaymentFilter('ALL');
+                        }
+                      }}
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
+                        reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL'
+                          ? 'border-indigo-500 ring-4 ring-indigo-400/50 shadow-lg scale-[1.02] bg-indigo-50/40'
+                          : 'border-indigo-400/80 hover:shadow-md hover:border-indigo-500 hover:scale-[1.01]'
+                      }`}
+                      title="Click to view Today's Sales & customers"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-indigo-800 uppercase tracking-widest flex items-center gap-1">
                           📅 Today Sales
                         </span>
-                        <div className="p-1.5 bg-indigo-100 rounded-lg text-indigo-700">
+                        <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-100 text-indigo-700'}`}>
                           <Calendar className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -9269,12 +9497,25 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Card 5: Green - Total Gross Sales (Right Side) */}
-                    <div className="bg-white border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div
+                      onClick={() => {
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setSalesReportPaymentFilter('ALL');
+                      }}
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
+                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                          ? 'border-emerald-500 ring-4 ring-emerald-500/50 shadow-lg scale-[1.02] bg-emerald-50/40'
+                          : 'border-emerald-400/80 hover:shadow-md hover:border-emerald-500 hover:scale-[1.01]'
+                      }`}
+                      title="Click to view Total Gross Sales & all customers"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-emerald-800 uppercase tracking-widest">
                           {(appliedStartDate || appliedEndDate) ? `${getActivePeriodLabel()} Sales` : (reportTimeframe === 'DAY' ? 'Today Total Sales' : reportTimeframe === 'MONTH' ? 'Month Total Sales' : reportTimeframe === 'YEAR' ? 'Year Total Sales' : 'Total Gross Sales')}
                         </span>
-                        <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700">
+                        <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-700'}`}>
                           <Receipt className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -9304,11 +9545,10 @@ function StoreContent({ shopId }) {
                         <button
                           type="button"
                           onClick={() => setSalesReportViewMode('ALL_INVOICES')}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                            salesReportViewMode === 'ALL_INVOICES'
-                              ? 'bg-emerald-700 text-white shadow-md'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${salesReportViewMode === 'ALL_INVOICES'
+                            ? 'bg-emerald-700 text-white shadow-md'
+                            : 'text-gray-600 hover:text-gray-900'
+                            }`}
                         >
                           <Receipt className="w-3.5 h-3.5" />
                           <span>All Invoices ({filteredSalesForReport.length})</span>
@@ -9316,14 +9556,13 @@ function StoreContent({ shopId }) {
                         <button
                           type="button"
                           onClick={() => setSalesReportViewMode('GROUPED_CUSTOMERS')}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                            salesReportViewMode === 'GROUPED_CUSTOMERS'
-                              ? 'bg-indigo-700 text-white shadow-md'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${salesReportViewMode === 'GROUPED_CUSTOMERS'
+                            ? 'bg-indigo-700 text-white shadow-md'
+                            : 'text-gray-600 hover:text-gray-900'
+                            }`}
                         >
                           <Users className="w-3.5 h-3.5" />
-                          <span>Customer-Wise Grouped ({customerWiseSalesReport.length})</span>
+                          <span>Customer-Wise Grouped ({displayedCustomerWiseSalesReport.length})</span>
                         </button>
                       </div>
                     </div>
@@ -9334,31 +9573,28 @@ function StoreContent({ shopId }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setSalesReportPaymentFilter('ALL')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-2 ${
-                            salesReportPaymentFilter === 'ALL'
-                              ? 'bg-emerald-700 text-white border-emerald-800 shadow-md'
-                              : 'bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-300'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-2 ${salesReportPaymentFilter === 'ALL'
+                            ? 'bg-emerald-700 text-white border-emerald-800 shadow-md'
+                            : 'bg-white text-emerald-800 hover:bg-emerald-50 border-emerald-300'
+                            }`}
                         >
                           All ({filteredSalesForReport.length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('CASH')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${
-                            salesReportPaymentFilter === 'CASH'
-                              ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-400/30'
-                              : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-400'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${salesReportPaymentFilter === 'CASH'
+                            ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-400/30'
+                            : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-400'
+                            }`}
                         >
                           💵 Cash ({filteredSalesForReport.filter(s => s.paymentMethod === 'CASH' || (Number(s.cashPaid) > 0 && !s.isCredit && s.paymentMethod !== 'CREDIT')).length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('BANK')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${
-                            salesReportPaymentFilter === 'BANK'
-                              ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-md ring-2 ring-emerald-500/30'
-                              : 'bg-[#152F12]/10 text-emerald-950 hover:bg-[#152F12]/20 border-[#2E6F28]/60'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${salesReportPaymentFilter === 'BANK'
+                            ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-md ring-2 ring-emerald-500/30'
+                            : 'bg-[#152F12]/10 text-emerald-950 hover:bg-[#152F12]/20 border-[#2E6F28]/60'
+                            }`}
                         >
                           <span className={salesReportPaymentFilter === 'BANK' ? 'text-emerald-200' : 'text-emerald-950'}>
                             🏦 Bank ({filteredSalesForReport.filter(s => s.paymentMethod === 'BANK_TRANSFER' || s.paymentMethod === 'ONLINE' || s.paymentMethod === 'BANK' || (Number(s.bankPaid) > 0)).length})
@@ -9366,21 +9602,19 @@ function StoreContent({ shopId }) {
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('CREDIT')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${
-                            salesReportPaymentFilter === 'CREDIT'
-                              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/30'
-                              : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border-blue-400'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${salesReportPaymentFilter === 'CREDIT'
+                            ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400/30'
+                            : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border-blue-400'
+                            }`}
                         >
                           📋 Credit ({filteredSalesForReport.filter(s => s.paymentMethod === 'CREDIT' || Number(s.dueAmount) > 0 || s.isCredit).length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('ONLINE')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${
-                            salesReportPaymentFilter === 'ONLINE'
-                              ? 'bg-teal-600 text-white border-teal-700 shadow-md ring-2 ring-teal-400/30'
-                              : 'bg-teal-50 text-teal-900 hover:bg-teal-100 border-teal-300'
-                          }`}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer border-2 ${salesReportPaymentFilter === 'ONLINE'
+                            ? 'bg-teal-600 text-white border-teal-700 shadow-md ring-2 ring-teal-400/30'
+                            : 'bg-teal-50 text-teal-900 hover:bg-teal-100 border-teal-300'
+                            }`}
                         >
                           🌐 Online Orders ({filteredSalesForReport.filter(s => s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId).length})
                         </button>
@@ -9414,12 +9648,12 @@ function StoreContent({ shopId }) {
                       <div className="space-y-4">
                         {/* Mobile Cards for Customer Groups */}
                         <div className="block md:hidden space-y-3">
-                          {customerWiseSalesReport.length === 0 ? (
+                          {displayedCustomerWiseSalesReport.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 font-bold text-xs uppercase tracking-wider">
-                              No customer sales records found.
+                              No customer sales records found matching the selected filter.
                             </div>
                           ) : (
-                            customerWiseSalesReport.map((custGroup, idx) => {
+                            displayedCustomerWiseSalesReport.map((custGroup, idx) => {
                               const isExpanded = expandedCustomerSalesId === custGroup.id;
                               return (
                                 <div key={custGroup.id || idx} className="bg-white border-2 border-indigo-150 rounded-2xl p-4 shadow-sm space-y-3">
@@ -9467,29 +9701,75 @@ function StoreContent({ shopId }) {
                                     )}
                                     {(() => {
                                       const customerItems = [];
+                                      let totalPetis = 0;
+                                      let totalTrays = 0;
+                                      let totalLooseEggs = 0;
+                                      let totalEggsCount = 0;
+
                                       (custGroup.invoices || []).forEach(inv => {
                                         (inv.items || []).forEach(it => {
                                           const itemName = it.rawProductName || it.name || it.title || 'Product';
                                           const qty = Number(it.quantity) || 1;
-                                          const unit = it.unitLabel || it.unit || '';
-                                          const existing = customerItems.find(x => x.name === itemName && x.unit === unit);
+                                          const unit = (it.unitLabel || it.unit || '').trim();
+                                          const existing = customerItems.find(x => x.name === itemName && x.unit.toLowerCase() === unit.toLowerCase());
                                           if (existing) {
                                             existing.quantity += qty;
                                           } else {
                                             customerItems.push({ name: itemName, quantity: qty, unit });
                                           }
+
+                                          const u = unit.toLowerCase();
+                                          const n = itemName.toLowerCase();
+                                          if (u.includes('peti') || (!u && n.includes('peti'))) {
+                                            totalPetis += qty;
+                                            totalEggsCount += qty * 360;
+                                          } else if (u.includes('tray') || (!u && n.includes('tray'))) {
+                                            totalTrays += qty;
+                                            totalEggsCount += qty * 30;
+                                          } else if (u.includes('egg') || u.includes('piece') || (!u && n.includes('egg'))) {
+                                            totalLooseEggs += qty;
+                                            totalEggsCount += qty;
+                                          } else {
+                                            if (it.totalEggs) totalEggsCount += Number(it.totalEggs) || 0;
+                                            else totalEggsCount += qty;
+                                          }
                                         });
                                       });
                                       if (customerItems.length === 0) return null;
                                       return (
-                                        <div className="flex items-start justify-between text-[11px]">
-                                          <span className="text-gray-400 font-bold uppercase text-[9.5px]">Items Bought:</span>
-                                          <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
-                                            {customerItems.map((it, itIdx) => (
-                                              <span key={itIdx} className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                                {it.name} (x{it.quantity} {it.unit})
+                                        <div className="space-y-1.5 pt-1 border-t border-gray-150">
+                                          <div className="flex items-start justify-between text-[11px]">
+                                            <span className="text-gray-400 font-bold uppercase text-[9.5px]">Items Bought:</span>
+                                            <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
+                                              {customerItems.map((it, itIdx) => {
+                                                const u = String(it.unit || '').toLowerCase();
+                                                const isPeti = u.includes('peti');
+                                                const isTray = u.includes('tray');
+                                                return (
+                                                  <span key={itIdx} className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold border ${
+                                                    isPeti ? 'bg-amber-50 text-amber-900 border-amber-200' : isTray ? 'bg-blue-50 text-blue-900 border-blue-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                                  }`}>
+                                                    {it.name} (x{it.quantity} {it.unit})
+                                                  </span>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                          <div className="grid grid-cols-3 gap-1 pt-1 text-center">
+                                            <div className="px-1.5 py-0.5 bg-gray-50 border border-gray-300 rounded-md">
+                                              <span className="text-[7.5px] font-black text-gray-500 uppercase block">Peti</span>
+                                              <span className="text-[10px] font-black text-gray-900">{totalPetis > 0 ? `${totalPetis} P` : '0 P'}</span>
+                                            </div>
+                                            <div className="px-1.5 py-0.5 bg-gray-50 border border-gray-300 rounded-md">
+                                              <span className="text-[7.5px] font-black text-gray-500 uppercase block">Tray</span>
+                                              <span className="text-[10px] font-black text-gray-900">{totalTrays > 0 ? `${totalTrays} T` : '0 T'}</span>
+                                            </div>
+                                            <div className="px-1.5 py-0.5 bg-gray-50 border border-gray-300 rounded-md">
+                                              <span className="text-[7.5px] font-black text-gray-500 uppercase block">Egg</span>
+                                              <span className="text-[10px] font-black text-gray-900">
+                                                {totalLooseEggs > 0 ? `${totalLooseEggs} E` : (totalEggsCount > 0 ? totalEggsCount.toLocaleString('en-PK') : '0')}
                                               </span>
-                                            ))}
+                                            </div>
                                           </div>
                                         </div>
                                       );
@@ -9531,11 +9811,10 @@ function StoreContent({ shopId }) {
                                         e.stopPropagation();
                                         setExpandedCustomerSalesId(isExpanded ? null : custGroup.id);
                                       }}
-                                      className={`flex-1 py-1.5 px-2 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                                        isExpanded
-                                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
-                                      }`}
+                                      className={`flex-1 py-1.5 px-2 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${isExpanded
+                                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                                        }`}
                                       title={isExpanded ? "Close Bills" : `View Invoices (${custGroup.invoices.length})`}
                                     >
                                       {isExpanded ? (
@@ -9554,11 +9833,10 @@ function StoreContent({ shopId }) {
                                           e.stopPropagation();
                                           setActiveCustGroupMenuId(activeCustGroupMenuId === custGroup.id ? null : custGroup.id);
                                         }}
-                                        className={`py-1.5 px-2.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center transition-all cursor-pointer shadow-xs border ${
-                                          activeCustGroupMenuId === custGroup.id
-                                            ? 'bg-emerald-600 text-white border-emerald-700'
-                                            : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
-                                        }`}
+                                        className={`py-1.5 px-2.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center justify-center transition-all cursor-pointer shadow-xs border ${activeCustGroupMenuId === custGroup.id
+                                          ? 'bg-emerald-600 text-white border-emerald-700'
+                                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                                          }`}
                                         title="Customer Statement Actions (Print, PDF, WhatsApp, Excel)"
                                       >
                                         <MoreVertical className="w-3.5 h-3.5" />
@@ -9738,36 +10016,36 @@ function StoreContent({ shopId }) {
                         </div>
 
                         {/* Desktop Table for Customer Groups */}
-                        <div className="hidden md:block overflow-x-auto">
-                          <table className="w-full text-left text-xs text-gray-800">
-                            <thead className="bg-gray-100 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-200">
+                        <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-xs">
+                          <table className="w-full text-left text-xs text-gray-800 border-collapse border border-gray-300">
+                            <thead className="bg-gray-100/90 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-300">
                               <tr>
-                                <th className="p-2.5 text-center w-10">#</th>
-                                <th className="p-2.5 w-[22%]">Customer &amp; Email ID</th>
-                                <th className="p-2.5 text-center w-[11%]">Contact Phone</th>
-                                <th className="p-2.5 text-center w-[9%]">Invoices / Bills</th>
-                                <th className="p-2.5 w-[20%]">Items Purchased</th>
-                                <th className="p-2.5 text-center w-[12%]">Payment Breakdown</th>
-                                <th className="p-2.5 text-center w-[9%]">Credit Due</th>
-                                <th className="p-2.5 text-right w-[10%]">Total Purchases</th>
-                                <th className="p-2.5 text-center w-[90px] whitespace-nowrap">Actions</th>
+                                <th className="py-2 px-2 text-center w-10 border border-gray-300">#</th>
+                                <th className="py-2 px-2.5 text-left w-[20%] border border-gray-300">Customer &amp; Email ID</th>
+                                <th className="py-2 px-2 text-center w-[11%] border border-gray-300">Contact Phone</th>
+                                <th className="py-2 px-2 text-center w-[8%] border border-gray-300">Invoices / Bills</th>
+                                <th className="py-2 px-2.5 text-center w-[23%] border border-gray-300">Items (Peti • Tray • Egg)</th>
+                                <th className="py-2 px-2 text-center w-[12%] border border-gray-300">Payment Breakdown</th>
+                                <th className="py-2 px-2 text-center w-[9%] border border-gray-300">Credit Due</th>
+                                <th className="py-2 px-2.5 text-right w-[10%] border border-gray-300">Total Purchases</th>
+                                <th className="py-2 px-2 text-center w-[85px] whitespace-nowrap border border-gray-300">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {customerWiseSalesReport.length === 0 ? (
+                            <tbody className="divide-y divide-gray-300">
+                              {displayedCustomerWiseSalesReport.length === 0 ? (
                                 <tr>
-                                  <td colSpan="9" className="p-8 text-center text-gray-400 font-bold">
-                                    No customer sales records found.
+                                  <td colSpan="9" className="p-8 text-center text-gray-400 font-bold border border-gray-300">
+                                    No customer sales records found matching the selected filter.
                                   </td>
                                 </tr>
                               ) : (
-                                customerWiseSalesReport.map((custGroup, idx) => {
+                                displayedCustomerWiseSalesReport.map((custGroup, idx) => {
                                   const isExpanded = expandedCustomerSalesId === custGroup.id;
                                   return (
                                     <React.Fragment key={custGroup.id || idx}>
-                                      <tr className={`hover:bg-blue-50/40 transition-colors ${isExpanded ? 'bg-blue-50/60' : ''}`}>
-                                        <td className="p-2.5 text-center font-bold text-gray-400 align-middle">{idx + 1}</td>
-                                        <td className="p-2.5 align-middle">
+                                      <tr className={`hover:bg-gray-50/70 transition-colors border-b border-gray-300 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
+                                        <td className="py-1.5 px-2 text-center font-bold text-gray-400 align-middle border border-gray-300">{idx + 1}</td>
+                                        <td className="py-1.5 px-2.5 align-middle border border-gray-300">
                                           <div className="flex items-center gap-2">
                                             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-[11px] flex items-center justify-center shadow-xs shrink-0">
                                               {(custGroup.customerName || 'C').charAt(0).toUpperCase()}
@@ -9798,55 +10076,95 @@ function StoreContent({ shopId }) {
                                             </div>
                                           </div>
                                         </td>
-                                        <td className="p-2.5 text-center text-[10.5px] font-bold text-teal-700 align-middle">
+                                        <td className="py-1.5 px-2 text-center text-[10.5px] font-bold text-teal-700 align-middle border border-gray-300">
                                           {custGroup.customerPhone ? `📞 ${custGroup.customerPhone}` : '—'}
                                         </td>
-                                        <td className="p-2.5 text-center align-middle">
+                                        <td className="py-1.5 px-2 text-center align-middle border border-gray-300">
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200">
                                             <Receipt className="w-2.5 h-2.5" />
                                             <span>{custGroup.invoices.length} {custGroup.invoices.length === 1 ? 'Bill' : 'Bills'}</span>
                                           </span>
                                         </td>
-                                        <td className="p-2.5 align-middle">
+                                        <td className="py-1.5 px-2.5 align-middle border border-gray-300">
                                           {(() => {
                                             const customerItems = [];
+                                            let totalPetis = 0;
+                                            let totalTrays = 0;
+                                            let totalLooseEggs = 0;
+                                            let totalEggsCount = 0;
+
                                             (custGroup.invoices || []).forEach(inv => {
                                               (inv.items || []).forEach(it => {
                                                 const itemName = it.rawProductName || it.name || it.title || 'Product';
                                                 const qty = Number(it.quantity) || 1;
-                                                const unit = it.unitLabel || it.unit || '';
-                                                const existing = customerItems.find(x => x.name === itemName && x.unit === unit);
+                                                const unit = (it.unitLabel || it.unit || '').trim();
+                                                const existing = customerItems.find(x => x.name === itemName && x.unit.toLowerCase() === unit.toLowerCase());
                                                 if (existing) {
                                                   existing.quantity += qty;
                                                 } else {
                                                   customerItems.push({ name: itemName, quantity: qty, unit });
                                                 }
+
+                                                const u = unit.toLowerCase();
+                                                const n = itemName.toLowerCase();
+                                                if (u.includes('peti') || (!u && n.includes('peti'))) {
+                                                  totalPetis += qty;
+                                                  totalEggsCount += qty * 360;
+                                                } else if (u.includes('tray') || (!u && n.includes('tray'))) {
+                                                  totalTrays += qty;
+                                                  totalEggsCount += qty * 30;
+                                                } else if (u.includes('egg') || u.includes('piece') || (!u && n.includes('egg'))) {
+                                                  totalLooseEggs += qty;
+                                                  totalEggsCount += qty;
+                                                } else {
+                                                  if (it.totalEggs) totalEggsCount += Number(it.totalEggs) || 0;
+                                                  else totalEggsCount += qty;
+                                                }
                                               });
                                             });
 
                                             if (customerItems.length === 0) {
-                                              return <span className="text-gray-400 italic text-[10px]">No items recorded</span>;
+                                              return <div className="text-center text-gray-400 italic text-[10.5px]">No items recorded</div>;
                                             }
 
                                             return (
-                                              <div className="flex flex-wrap gap-1 max-w-[220px]">
-                                                {customerItems.map((it, itIdx) => (
-                                                  <span
-                                                    key={itIdx}
-                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                                    title={`${it.name} (Qty: ${it.quantity} ${it.unit})`}
-                                                  >
-                                                    <span className="truncate max-w-[120px]">{it.name}</span>
-                                                    <span className="font-black text-emerald-900 bg-emerald-100/90 px-1 rounded text-[8.5px]">
-                                                      x{it.quantity} {it.unit ? `${it.unit}` : ''}
+                                              <div className="flex items-center justify-center gap-1.5 flex-nowrap whitespace-nowrap">
+                                                {/* Product Pills - Simple Neutral */}
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  {customerItems.map((it, itIdx) => (
+                                                    <span
+                                                      key={itIdx}
+                                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold bg-gray-50 text-gray-800 border border-gray-300"
+                                                      title={`${it.name} (Qty: ${it.quantity} ${it.unit})`}
+                                                    >
+                                                      <span className="truncate max-w-[70px] font-bold">{it.name}</span>
+                                                      <span className="font-black px-0.5 rounded text-[7px] bg-gray-200 text-gray-900">
+                                                        x{it.quantity} {it.unit || ''}
+                                                      </span>
                                                     </span>
-                                                  </span>
-                                                ))}
+                                                  ))}
+                                                </div>
+
+                                                {/* Compact Simple 3-Box strip for Peti • Tray • Egg on the same line */}
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[34px]">
+                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Peti</span>
+                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalPetis > 0 ? totalPetis : '0'}</span>
+                                                  </div>
+                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[34px]">
+                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Tray</span>
+                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalTrays > 0 ? totalTrays : '0'}</span>
+                                                  </div>
+                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[42px]">
+                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Egg</span>
+                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalEggsCount > 0 ? totalEggsCount.toLocaleString('en-PK') : '0'}</span>
+                                                  </div>
+                                                </div>
                                               </div>
                                             );
                                           })()}
                                         </td>
-                                        <td className="p-2.5 text-center text-[10px] font-bold space-y-0.5 align-middle">
+                                        <td className="py-1.5 px-2 text-center text-[10px] font-bold space-y-0.5 align-middle border border-gray-300">
                                           {custGroup.totalCash > 0 && (
                                             <div className="text-emerald-700">💵 Cash: {currency} {custGroup.totalCash.toLocaleString('en-PK')}</div>
                                           )}
@@ -9857,10 +10175,10 @@ function StoreContent({ shopId }) {
                                             <div className="text-gray-400">—</div>
                                           )}
                                         </td>
-                                        <td className="p-2.5 text-center align-middle">
+                                        <td className="py-1.5 px-2 text-center align-middle border border-gray-300">
                                           {custGroup.totalDue > 0 ? (
                                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
                                                 <FileText className="w-2.5 h-2.5" /> Due: {currency} {custGroup.totalDue.toLocaleString('en-PK')}
                                               </span>
                                               <button
@@ -9873,7 +10191,7 @@ function StoreContent({ shopId }) {
                                                     handleOpenCustomerCredit(custGroup);
                                                   }
                                                 }}
-                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
                                                 title="Pay Customer Credit"
                                               >
                                                 <CreditCard className="w-2.5 h-2.5" />
@@ -9881,15 +10199,15 @@ function StoreContent({ shopId }) {
                                               </button>
                                             </div>
                                           ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
                                               ✓ Paid
                                             </span>
                                           )}
                                         </td>
-                                        <td className="p-2.5 text-right font-black text-emerald-700 text-xs align-middle">
+                                        <td className="py-1.5 px-2.5 text-right font-black text-emerald-700 text-xs align-middle border border-gray-300">
                                           {currency} {custGroup.totalSpent.toLocaleString('en-PK')}
                                         </td>
-                                        <td className="p-2.5 text-center align-middle whitespace-nowrap">
+                                        <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap border border-gray-300">
                                           <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                                             <button
                                               type="button"
@@ -9898,11 +10216,10 @@ function StoreContent({ shopId }) {
                                                 e.stopPropagation();
                                                 setExpandedCustomerSalesId(isExpanded ? null : custGroup.id);
                                               }}
-                                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
-                                                isExpanded
-                                                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
-                                              }`}
+                                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${isExpanded
+                                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                }`}
                                               title={isExpanded ? "Close Bills" : `View Invoices (${custGroup.invoices.length})`}
                                             >
                                               {isExpanded ? (
@@ -9920,11 +10237,10 @@ function StoreContent({ shopId }) {
                                                   e.stopPropagation();
                                                   setActiveCustGroupMenuId(activeCustGroupMenuId === custGroup.id ? null : custGroup.id);
                                                 }}
-                                                className={`w-7 h-7 rounded-lg border transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 ${
-                                                  activeCustGroupMenuId === custGroup.id
-                                                    ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
-                                                    : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
-                                                }`}
+                                                className={`w-7 h-7 rounded-lg border transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 ${activeCustGroupMenuId === custGroup.id
+                                                  ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
+                                                  : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                                                  }`}
                                                 title="Customer Statement Actions (Print, PDF, WhatsApp, Excel)"
                                               >
                                                 <MoreVertical className="w-3.5 h-3.5" />
@@ -9961,6 +10277,18 @@ function StoreContent({ shopId }) {
                                                         <span>Edit Invoice / Bill</span>
                                                       </button>
                                                     )}
+
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        handleOpenEditCustomerGroup(custGroup);
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                                    >
+                                                      <Edit className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                                      <span>Edit Customer Info</span>
+                                                    </button>
 
                                                     {custGroup.totalDue > 0 && (
                                                       <button
@@ -10025,7 +10353,22 @@ function StoreContent({ shopId }) {
                                                       <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
                                                       <span>Generate Excel</span>
                                                     </button>
-                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        setActiveCustGroupMenuId(null);
+                                                        if (custGroup.invoices && custGroup.invoices.length === 1) {
+                                                          handleDeleteSale(custGroup.invoices[0]._id || custGroup.invoices[0].id || custGroup.invoices[0].orderId);
+                                                        } else {
+                                                          handleDeleteCustomerGroup(custGroup);
+                                                        }
+                                                      }}
+                                                      className="w-full px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer border-t border-rose-100 mt-1 pt-2"
+                                                    >
+                                                      <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                                      <span>Delete Customer / Bills</span>
+                                                    </button>
+                                                  </div>
                                                 </>
                                               )}
                                             </div>
@@ -10160,16 +10503,30 @@ function StoreContent({ shopId }) {
                                 })
                               )}
                             </tbody>
-                            {customerWiseSalesReport.length > 0 && (
-                              <tfoot className="bg-gray-50 border-t border-gray-200 font-black text-xs">
+                            {displayedCustomerWiseSalesReport.length > 0 && (
+                              <tfoot className="bg-gray-50 border-t border-gray-300 font-black text-xs">
                                 <tr>
-                                  <td colSpan="7" className="p-2.5 text-right text-gray-800 uppercase text-[11px]">
-                                    Total Combined Sales ({customerWiseSalesReport.length} Customers):
+                                  <td colSpan="7" className="p-2 text-right text-gray-800 uppercase text-[10.5px] border border-gray-300">
+                                    {salesReportPaymentFilter === 'CASH'
+                                      ? `Total Cash Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
+                                      : salesReportPaymentFilter === 'BANK'
+                                      ? `Total Bank Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
+                                      : salesReportPaymentFilter === 'CREDIT'
+                                      ? `Total Credit Due (${displayedCustomerWiseSalesReport.length} Customers):`
+                                      : `Total Combined Sales (${displayedCustomerWiseSalesReport.length} Customers):`}
                                   </td>
-                                  <td className="p-2.5 text-right text-emerald-700 text-xs font-black">
-                                    {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                                  <td className="p-2 text-right text-emerald-700 text-xs font-black border border-gray-300">
+                                    {currency} {Number(
+                                      salesReportPaymentFilter === 'CASH'
+                                        ? salesReportStats.cashSales
+                                        : salesReportPaymentFilter === 'BANK'
+                                        ? salesReportStats.bankSales
+                                        : salesReportPaymentFilter === 'CREDIT'
+                                        ? salesReportStats.creditSales
+                                        : salesReportStats.totalRevenue
+                                    ).toLocaleString('en-PK')}
                                   </td>
-                                  <td></td>
+                                  <td className="p-2 border border-gray-300"></td>
                                 </tr>
                               </tfoot>
                             )}
@@ -10213,7 +10570,7 @@ function StoreContent({ shopId }) {
                                 const phone = s.customerPhone || '';
                                 const total = Number(s.totalAmount) || 0;
                                 const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
-                                
+
                                 const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
                                 const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
                                 const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
@@ -10413,7 +10770,7 @@ function StoreContent({ shopId }) {
                                     const phone = s.customerPhone || '';
                                     const total = Number(s.totalAmount) || 0;
                                     const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
-                                    
+
                                     const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
                                     const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
                                     const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
@@ -10447,7 +10804,7 @@ function StoreContent({ shopId }) {
                                           )}
                                           {phone && <div className="text-[10px] text-teal-700 font-bold">📞 {phone}</div>}
                                           {isOnline && <span className="text-[9px] text-teal-700 font-bold block">Logged-in User</span>}
-                                          
+
                                           {/* Customer Purchase Count / History Quick Action */}
                                           <div className="mt-1">
                                             <button
@@ -10456,11 +10813,10 @@ function StoreContent({ shopId }) {
                                                 setSalesReportViewMode('GROUPED_CUSTOMERS');
                                                 setExpandedCustomerSalesId(gKey);
                                               }}
-                                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs border ${
-                                                purchaseCount > 1
-                                                  ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-300 ring-1 ring-indigo-200'
-                                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
-                                              }`}
+                                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs border ${purchaseCount > 1
+                                                ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-300 ring-1 ring-indigo-200'
+                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                                                }`}
                                               title="Click to view all invoices/orders of this customer"
                                             >
                                               <Users className="w-2.5 h-2.5 text-indigo-600" />
@@ -10572,10 +10928,24 @@ function StoreContent({ shopId }) {
                                 <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-black text-xs">
                                   <tr>
                                     <td colSpan="6" className="p-3 text-right text-gray-600 uppercase">
-                                      Total Gross Sales:
+                                      {salesReportPaymentFilter === 'CASH'
+                                        ? `Total Cash Sales (${displayedSalesReportList.length} Invoices):`
+                                        : salesReportPaymentFilter === 'BANK'
+                                        ? `Total Bank Sales (${displayedSalesReportList.length} Invoices):`
+                                        : salesReportPaymentFilter === 'CREDIT'
+                                        ? `Total Credit Sales (${displayedSalesReportList.length} Invoices):`
+                                        : `Total Gross Sales (${displayedSalesReportList.length} Invoices):`}
                                     </td>
                                     <td className="p-3 text-right text-emerald-700 text-sm">
-                                      {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                                      {currency} {Number(
+                                        salesReportPaymentFilter === 'CASH'
+                                          ? salesReportStats.cashSales
+                                          : salesReportPaymentFilter === 'BANK'
+                                          ? salesReportStats.bankSales
+                                          : salesReportPaymentFilter === 'CREDIT'
+                                          ? salesReportStats.creditSales
+                                          : salesReportStats.totalRevenue
+                                      ).toLocaleString('en-PK')}
                                     </td>
                                     <td></td>
                                   </tr>
@@ -11231,23 +11601,23 @@ function StoreContent({ shopId }) {
 
                     const timeframeCashExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeCashExp :
                       reportTimeframe === 'DAY' ? dynamicExpenseStats.todayCashExp :
-                      reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthCashExp :
-                      reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearCashExp : dynamicExpenseStats.totalCashExp;
+                        reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthCashExp :
+                          reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearCashExp : dynamicExpenseStats.totalCashExp;
 
                     const timeframeBankExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeBankExp :
                       reportTimeframe === 'DAY' ? dynamicExpenseStats.todayBankExp :
-                      reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthBankExp :
-                      reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearBankExp : dynamicExpenseStats.totalBankExp;
+                        reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthBankExp :
+                          reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearBankExp : dynamicExpenseStats.totalBankExp;
 
                     const timeframeTotalExp = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeExp :
                       reportTimeframe === 'DAY' ? dynamicExpenseStats.todayExp :
-                      reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthExp :
-                      reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearExp : dynamicExpenseStats.totalExp;
+                        reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthExp :
+                          reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearExp : dynamicExpenseStats.totalExp;
 
                     const timeframeDamaged = (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeDamaged :
                       reportTimeframe === 'DAY' ? dynamicExpenseStats.todayDamaged :
-                      reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthDamaged :
-                      reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearDamaged : dynamicExpenseStats.totalDamaged;
+                        reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthDamaged :
+                          reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearDamaged : dynamicExpenseStats.totalDamaged;
 
                     const netCashRemaining = timeframeCashSales - timeframeCashExp;
                     const netBankRemaining = timeframeBankSales - timeframeBankExp;
@@ -11342,10 +11712,10 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-slate-900 tracking-tight">
                           {currency} {(
                             (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeTotalLoss :
-                            reportTimeframe === 'DAY' ? dynamicExpenseStats.todayTotalLoss :
-                            reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
-                            reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
-                            dynamicExpenseStats.grandTotalLoss
+                              reportTimeframe === 'DAY' ? dynamicExpenseStats.todayTotalLoss :
+                                reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
+                                  reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
+                                    dynamicExpenseStats.grandTotalLoss
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -11416,11 +11786,10 @@ function StoreContent({ shopId }) {
                               {/* All Expenses Tab */}
                               <button
                                 onClick={() => setExpensePaymentFilter('ALL')}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${
-                                  expensePaymentFilter === 'ALL'
-                                    ? 'bg-rose-700 text-white border-rose-800 shadow-md'
-                                    : 'bg-white text-rose-800 hover:bg-rose-50 border-rose-300'
-                                }`}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${expensePaymentFilter === 'ALL'
+                                  ? 'bg-rose-700 text-white border-rose-800 shadow-md'
+                                  : 'bg-white text-rose-800 hover:bg-rose-50 border-rose-300'
+                                  }`}
                               >
                                 <span>All Expenses</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${expensePaymentFilter === 'ALL' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-800'}`}>
@@ -11431,11 +11800,10 @@ function StoreContent({ shopId }) {
                               {/* Cash Tab - Yellow */}
                               <button
                                 onClick={() => setExpensePaymentFilter('CASH')}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${
-                                  expensePaymentFilter === 'CASH'
-                                    ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-400/30'
-                                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-400'
-                                }`}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${expensePaymentFilter === 'CASH'
+                                  ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-400/30'
+                                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-400'
+                                  }`}
                               >
                                 <span>💵 Paid from Cash</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${expensePaymentFilter === 'CASH' ? 'bg-amber-950 text-amber-300' : 'bg-amber-200 text-amber-950'}`}>
@@ -11446,11 +11814,10 @@ function StoreContent({ shopId }) {
                               {/* Bank Tab - Dark Green */}
                               <button
                                 onClick={() => setExpensePaymentFilter('BANK')}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${
-                                  expensePaymentFilter === 'BANK'
-                                    ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-md ring-2 ring-emerald-500/30'
-                                    : 'bg-[#152F12]/10 text-emerald-950 hover:bg-[#152F12]/20 border-[#2E6F28]/60'
-                                }`}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${expensePaymentFilter === 'BANK'
+                                  ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-md ring-2 ring-emerald-500/30'
+                                  : 'bg-[#152F12]/10 text-emerald-950 hover:bg-[#152F12]/20 border-[#2E6F28]/60'
+                                  }`}
                               >
                                 <span className={expensePaymentFilter === 'BANK' ? 'text-emerald-200' : 'text-emerald-950'}>
                                   🏦 Paid from Bank
@@ -11844,10 +12211,10 @@ function StoreContent({ shopId }) {
                         <h4 className="text-3xl font-black text-amber-600 tracking-tight">
                           {currency} {(
                             (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
-                            reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
-                            reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
-                            reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
-                            (dynamicExpenseStats.totalDamaged || 0)
+                              reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
+                                reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                                  reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                                    (dynamicExpenseStats.totalDamaged || 0)
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -11881,7 +12248,7 @@ function StoreContent({ shopId }) {
 
                     <div className="space-y-3">
                       <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Damaged Stock Period Statement</h4>
-                      
+
                       {/* Mobile Card for Period Statement */}
                       <div className="block md:hidden bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-700 space-y-2">
                         <div className="flex items-center justify-between">
@@ -11891,9 +12258,9 @@ function StoreContent({ shopId }) {
                           <span className="px-2 py-0.5 rounded-full font-black text-[9px] uppercase bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
                             {appliedStartDate || appliedEndDate ? 'DATE FILTER' : (
                               reportTimeframe === 'DAY' ? 'Today Only' :
-                              reportTimeframe === 'MONTH' ? 'Monthly Only' :
-                              reportTimeframe === 'YEAR' ? 'Yearly Only' :
-                              'All-Time'
+                                reportTimeframe === 'MONTH' ? 'Monthly Only' :
+                                  reportTimeframe === 'YEAR' ? 'Yearly Only' :
+                                    'All-Time'
                             )}
                           </span>
                         </div>
@@ -11902,10 +12269,10 @@ function StoreContent({ shopId }) {
                           <span className="text-lg font-black text-amber-300">
                             {currency} {(
                               (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
-                              reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
-                              reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
-                              reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
-                              (dynamicExpenseStats.totalDamaged || 0)
+                                reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
+                                  reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                                    reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                                      (dynamicExpenseStats.totalDamaged || 0)
                             ).toLocaleString('en-PK')}
                           </span>
                         </div>
@@ -12003,154 +12370,154 @@ function StoreContent({ shopId }) {
                               {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
                               <div className="block md:hidden space-y-3">
                                 {filteredDamagedForTable.map((dmg, idx) => (
-                              <div key={`mob_dmg_${dmg._id || idx}`} className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
-                                {/* Card Top: Serial, Product Name, Reason & Total Loss */}
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-black">
-                                        #{idx + 1}
-                                      </span>
-                                      <span className="font-black text-slate-900 text-sm tracking-tight">
-                                        {dmg.productName}
-                                      </span>
-                                    </div>
-                                    <div className="mt-1">
-                                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8.5px] font-black uppercase tracking-wider border border-amber-200">
-                                        {dmg.reason || 'Egg Breakage'}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="text-right">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Loss</span>
-                                    <span className="text-base font-black text-amber-700 block mt-0.5">
-                                      {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Damaged Qty Badges */}
-                                <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 space-y-1.5 text-xs">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Damaged Qty:</span>
-                                    {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
-                                      <div className="flex flex-wrap items-center gap-1 text-[10px]">
-                                        {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black">{dmg.petiQuantity} Petis</span>}
-                                        {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black">{dmg.trayQuantity} Trays</span>}
-                                        {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black">{dmg.eggQuantity} Eggs</span>}
-                                      </div>
-                                    ) : (
-                                      <span className="font-bold text-slate-800">{dmg.quantity || dmg.deductedEggs || 0} Units</span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Unit Price:</span>
-                                    <span className="font-bold text-slate-700">
-                                      {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-400 font-bold uppercase text-[9.5px]">Date:</span>
-                                    <span className="font-semibold text-slate-600">
-                                      {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </span>
-                                  </div>
-
-                                  {(dmg.notes || dmg.reportedBy) && (
-                                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
-                                      <span className="text-slate-400 font-bold uppercase text-[9.5px]">Reported By:</span>
-                                      <span className="font-medium text-slate-600 truncate max-w-[170px]">{dmg.notes || dmg.reportedBy || 'Shop Admin'}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center justify-end pt-2 border-t border-slate-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteDamaged(dmg._id)}
-                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
-                                    title="Delete Entry"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Delete</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
-                          <div className="hidden md:block overflow-x-auto rounded-2xl border border-zinc-200">
-                            <table className="w-full text-left text-xs text-zinc-800">
-                              <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
-                                <tr>
-                                  <th className="p-3.5">Date &amp; Time</th>
-                                  <th className="p-3.5">Product Name</th>
-                                  <th className="p-3.5">Reason / Cause</th>
-                                  <th className="p-3.5 text-center">Damaged Qty</th>
-                                  <th className="p-3.5">Unit Price</th>
-                                  <th className="p-3.5">Total Loss (RS)</th>
-                                  <th className="p-3.5">Logged By / Notes</th>
-                                  <th className="p-3.5 text-center">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-zinc-200">
-                                {filteredDamagedForTable.map(dmg => (
-                                  <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-3.5 font-bold text-slate-500">
-                                      {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </td>
-                                    <td className="p-3.5 font-black text-slate-900">
-                                      {dmg.productName}
-                                    </td>
-                                    <td className="p-3.5">
-                                      <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                        {dmg.reason || 'Egg Breakage'}
-                                      </span>
-                                    </td>
-                                    <td className="p-3.5 text-center font-black text-slate-900">
-                                      {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
-                                        <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
-                                          {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
-                                          {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
-                                          {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                  <div key={`mob_dmg_${dmg._id || idx}`} className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all space-y-3">
+                                    {/* Card Top: Serial, Product Name, Reason & Total Loss */}
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-black">
+                                            #{idx + 1}
+                                          </span>
+                                          <span className="font-black text-slate-900 text-sm tracking-tight">
+                                            {dmg.productName}
+                                          </span>
                                         </div>
-                                      ) : (
-                                        <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                        <div className="mt-1">
+                                          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8.5px] font-black uppercase tracking-wider border border-amber-200">
+                                            {dmg.reason || 'Egg Breakage'}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Loss</span>
+                                        <span className="text-base font-black text-amber-700 block mt-0.5">
+                                          {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Damaged Qty Badges */}
+                                    <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 space-y-1.5 text-xs">
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9.5px]">Damaged Qty:</span>
+                                        {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
+                                          <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                            {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black">{dmg.petiQuantity} Petis</span>}
+                                            {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black">{dmg.trayQuantity} Trays</span>}
+                                            {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                          </div>
+                                        ) : (
+                                          <span className="font-bold text-slate-800">{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9.5px]">Unit Price:</span>
+                                        <span className="font-bold text-slate-700">
+                                          {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9.5px]">Date:</span>
+                                        <span className="font-semibold text-slate-600">
+                                          {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </span>
+                                      </div>
+
+                                      {(dmg.notes || dmg.reportedBy) && (
+                                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                                          <span className="text-slate-400 font-bold uppercase text-[9.5px]">Reported By:</span>
+                                          <span className="font-medium text-slate-600 truncate max-w-[170px]">{dmg.notes || dmg.reportedBy || 'Shop Admin'}</span>
+                                        </div>
                                       )}
-                                    </td>
-                                    <td className="p-3.5 font-bold text-slate-600">
-                                      {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
-                                    </td>
-                                    <td className="p-3.5 font-black text-amber-700 text-sm">
-                                      {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
-                                    </td>
-                                    <td className="p-3.5 text-slate-500 text-[11px]">
-                                      {dmg.notes || dmg.reportedBy || 'Shop Admin'}
-                                    </td>
-                                    <td className="p-3.5 text-center">
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center justify-end pt-2 border-t border-slate-100">
                                       <button
+                                        type="button"
                                         onClick={() => handleDeleteDamaged(dmg._id)}
-                                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer"
+                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
                                         title="Delete Entry"
                                       >
-                                        Delete
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Delete</span>
                                       </button>
-                                    </td>
-                                  </tr>
+                                    </div>
+                                  </div>
                                 ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
+                              </div>
+
+                              {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
+                              <div className="hidden md:block overflow-x-auto rounded-2xl border border-zinc-200">
+                                <table className="w-full text-left text-xs text-zinc-800">
+                                  <thead className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-zinc-200">
+                                    <tr>
+                                      <th className="p-3.5">Date &amp; Time</th>
+                                      <th className="p-3.5">Product Name</th>
+                                      <th className="p-3.5">Reason / Cause</th>
+                                      <th className="p-3.5 text-center">Damaged Qty</th>
+                                      <th className="p-3.5">Unit Price</th>
+                                      <th className="p-3.5">Total Loss (RS)</th>
+                                      <th className="p-3.5">Logged By / Notes</th>
+                                      <th className="p-3.5 text-center">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-zinc-200">
+                                    {filteredDamagedForTable.map(dmg => (
+                                      <tr key={dmg._id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-3.5 font-bold text-slate-500">
+                                          {new Date(dmg.damageDate || dmg.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="p-3.5 font-black text-slate-900">
+                                          {dmg.productName}
+                                        </td>
+                                        <td className="p-3.5">
+                                          <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                            {dmg.reason || 'Egg Breakage'}
+                                          </span>
+                                        </td>
+                                        <td className="p-3.5 text-center font-black text-slate-900">
+                                          {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
+                                            <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
+                                              {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
+                                              {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
+                                              {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                            </div>
+                                          ) : (
+                                            <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
+                                          )}
+                                        </td>
+                                        <td className="p-3.5 font-bold text-slate-600">
+                                          {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="p-3.5 font-black text-amber-700 text-sm">
+                                          {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="p-3.5 text-slate-500 text-[11px]">
+                                          {dmg.notes || dmg.reportedBy || 'Shop Admin'}
+                                        </td>
+                                        <td className="p-3.5 text-center">
+                                          <button
+                                            onClick={() => handleDeleteDamaged(dmg._id)}
+                                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer"
+                                            title="Delete Entry"
+                                          >
+                                            Delete
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                   </div>
                 </div>
@@ -12208,17 +12575,17 @@ function StoreContent({ shopId }) {
             {/* Image Header */}
             <div className="aspect-[16/10] overflow-hidden relative bg-slate-100 group">
               {selectedItem.images?.[0] ? (
-                <img 
-                  src={getImageUrl(selectedItem.images[0])} 
-                  alt={selectedItem.name} 
+                <img
+                  src={getImageUrl(selectedItem.images[0])}
+                  alt={selectedItem.name}
                   onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               ) : (
-                <img 
-                  src="/egg2.png" 
-                  alt={selectedItem.name} 
-                  className="w-full h-full object-contain p-4" 
+                <img
+                  src="/egg2.png"
+                  alt={selectedItem.name}
+                  className="w-full h-full object-contain p-4"
                 />
               )}
 
@@ -12658,9 +13025,8 @@ function StoreContent({ shopId }) {
                   return (
                     <div
                       key={item._id || item.id}
-                      className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3 ${
-                        isCurrentRestocking ? 'border-amber-400 ring-2 ring-amber-200' : 'border-zinc-200 hover:border-rose-300'
-                      }`}
+                      className={`bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3 ${isCurrentRestocking ? 'border-amber-400 ring-2 ring-amber-200' : 'border-zinc-200 hover:border-rose-300'
+                        }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
@@ -12815,11 +13181,10 @@ function StoreContent({ shopId }) {
                   <button
                     type="button"
                     onClick={() => setExpenseFormData(prev => ({ ...prev, paymentMethod: 'CASH', paymentSource: 'CASH' }))}
-                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${
-                      expenseFormData.paymentMethod !== 'BANK'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-md ring-2 ring-emerald-400/20'
-                        : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
-                    }`}
+                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${expenseFormData.paymentMethod !== 'BANK'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-md ring-2 ring-emerald-400/20'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
+                      }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <DollarSign className={`w-4 h-4 ${expenseFormData.paymentMethod !== 'BANK' ? 'text-emerald-700' : 'text-zinc-400'}`} />
@@ -12834,11 +13199,10 @@ function StoreContent({ shopId }) {
                   <button
                     type="button"
                     onClick={() => setExpenseFormData(prev => ({ ...prev, paymentMethod: 'BANK', paymentSource: 'BANK' }))}
-                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${
-                      expenseFormData.paymentMethod === 'BANK'
-                        ? 'bg-[#152F12] border-[#2E6F28] text-white shadow-md ring-2 ring-emerald-500/30'
-                        : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
-                    }`}
+                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${expenseFormData.paymentMethod === 'BANK'
+                      ? 'bg-[#152F12] border-[#2E6F28] text-white shadow-md ring-2 ring-emerald-500/30'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
+                      }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <Building2 className={`w-4 h-4 ${expenseFormData.paymentMethod === 'BANK' ? 'text-amber-300' : 'text-zinc-400'}`} />
@@ -12915,8 +13279,8 @@ function StoreContent({ shopId }) {
             </div>
 
             {(() => {
-              const selectedProduct = (items || []).find(i => 
-                String(i._id) === String(damagedFormData.productId) || 
+              const selectedProduct = (items || []).find(i =>
+                String(i._id) === String(damagedFormData.productId) ||
                 (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
               );
 
@@ -12964,8 +13328,8 @@ function StoreContent({ shopId }) {
 
                           let defaultPrice = sBasePrice;
                           if (sUnit === 'peti') {
-                            defaultPrice = (damagedFormData.unitType === 'egg') 
-                              ? Math.round((sBasePrice / sEPerP) * 10) / 10 
+                            defaultPrice = (damagedFormData.unitType === 'egg')
+                              ? Math.round((sBasePrice / sEPerP) * 10) / 10
                               : (damagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 10) / 10 : sBasePrice);
                           }
 
@@ -13226,11 +13590,10 @@ function StoreContent({ shopId }) {
                   <button
                     type="button"
                     onClick={() => setSettleMethod('CASH')}
-                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
-                      settleMethod === 'CASH'
-                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
-                        : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
+                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${settleMethod === 'CASH'
+                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
+                      : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
                   >
                     <DollarSign className="w-3.5 h-3.5" /> Cash Drawer
                   </button>
@@ -13238,11 +13601,10 @@ function StoreContent({ shopId }) {
                   <button
                     type="button"
                     onClick={() => setSettleMethod('BANK')}
-                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
-                      settleMethod === 'BANK'
-                        ? 'bg-amber-600 border-amber-400 text-white shadow-md'
-                        : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
-                    }`}
+                    className={`py-2 px-2.5 rounded-xl border flex items-center justify-center gap-1.5 font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer ${settleMethod === 'BANK'
+                      ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                      : 'bg-[#181b22] border-slate-700 text-slate-300 hover:bg-slate-800'
+                      }`}
                   >
                     <Building2 className="w-3.5 h-3.5" /> Bank Account
                   </button>
@@ -13704,15 +14066,14 @@ function ShopsList() {
 
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-emerald-500/30 overflow-y-auto bg-slate-950 select-none z-50 text-white">
-      
+
       {/* Background Animated Egg Pictures (Z-0) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {EGG_BACKGROUND_IMAGES.map((imgUrl, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
-              idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
-            } transition-transform duration-[3000ms]`}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${idx === currentEggIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+              } transition-transform duration-[3000ms]`}
             style={{ backgroundImage: `url("${imgUrl}")` }}
           />
         ))}
@@ -13815,11 +14176,10 @@ function ShopsList() {
               key={dotIdx}
               type="button"
               onClick={() => setCurrentEggIndex(dotIdx)}
-              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                dotIdx === currentEggIndex
-                  ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
-                  : 'w-1.5 bg-white/40 hover:bg-white/70'
-              }`}
+              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${dotIdx === currentEggIndex
+                ? 'w-6 bg-emerald-400 shadow-md shadow-emerald-400/50'
+                : 'w-1.5 bg-white/40 hover:bg-white/70'
+                }`}
               title={`Egg Picture #${dotIdx + 1}`}
             />
           ))}
