@@ -5,6 +5,7 @@ import Shop from '../models/Shop.js';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
+import pool from '../config/mysql.js';
 
 const DEFAULT_EGG_PRODUCTS = [
   { name: 'loman brown',       category: 'loman brown',       price: 25, stock: 500, costPrice: 20 },
@@ -32,6 +33,115 @@ const DEFAULT_EGG_PRODUCTS = [
 
 const router = express.Router();
 
+// Synchronize all bank accounts directly into MySQL columns & shop_banks table
+const syncShopBanksToDatabase = async (shopId, banksList) => {
+  try {
+    if (!shopId) return;
+    const list = Array.isArray(banksList) ? banksList.filter(b => b && (b.bankName || b.bankAccountNumber || b.bankAccountTitle)) : [];
+
+    // 1. Sync shop_banks table
+    await pool.query('DELETE FROM shop_banks WHERE shopId = ?', [shopId]);
+    for (const b of list) {
+      await pool.query(
+        'INSERT INTO shop_banks (shopId, bankName, bankAccountNumber, bankAccountTitle) VALUES (?, ?, ?, ?)',
+        [shopId, b.bankName || '', b.bankAccountNumber || '', b.bankAccountTitle || '']
+      );
+    }
+
+    // 2. Prepare multi-bank combined strings and indexed columns
+    const combinedNames = list.map(b => b.bankName).filter(Boolean).join(' | ');
+    const combinedAccounts = list.map(b => b.bankAccountNumber).filter(Boolean).join(' | ');
+    const combinedTitles = list.map(b => b.bankAccountTitle).filter(Boolean).join(' | ');
+
+    const b1 = list[0] || {};
+    const b2 = list[1] || {};
+    const b3 = list[2] || {};
+    const jsonStr = JSON.stringify(list);
+
+    // Update shops table columns
+    await pool.query(`
+      UPDATE shops SET 
+        bankName = ?,
+        bankAccountNumber = ?,
+        bankAccountTitle = ?,
+        bankName2 = ?,
+        bankAccountNumber2 = ?,
+        bankAccountTitle2 = ?,
+        bankName3 = ?,
+        bankAccountNumber3 = ?,
+        bankAccountTitle3 = ?,
+        banksJson = ?
+      WHERE id = ?
+    `, [
+      combinedNames || b1.bankName || '',
+      combinedAccounts || b1.bankAccountNumber || '',
+      combinedTitles || b1.bankAccountTitle || '',
+      b2.bankName || null,
+      b2.bankAccountNumber || null,
+      b2.bankAccountTitle || null,
+      b3.bankName || null,
+      b3.bankAccountNumber || null,
+      b3.bankAccountTitle || null,
+      jsonStr,
+      shopId
+    ]);
+
+    // Update settings table columns
+    await pool.query(`
+      UPDATE settings SET 
+        bankName = ?,
+        bankAccountNumber = ?,
+        bankAccountTitle = ?,
+        bankName2 = ?,
+        bankAccountNumber2 = ?,
+        bankAccountTitle2 = ?,
+        bankName3 = ?,
+        bankAccountNumber3 = ?,
+        bankAccountTitle3 = ?,
+        banksJson = ?
+      WHERE shopId = ?
+    `, [
+      combinedNames || b1.bankName || '',
+      combinedAccounts || b1.bankAccountNumber || '',
+      combinedTitles || b1.bankAccountTitle || '',
+      b2.bankName || null,
+      b2.bankAccountNumber || null,
+      b2.bankAccountTitle || null,
+      b3.bankName || null,
+      b3.bankAccountNumber || null,
+      b3.bankAccountTitle || null,
+      jsonStr,
+      shopId
+    ]);
+  } catch (err) {
+    console.error('Error syncing shop_banks to database:', err);
+  }
+};
+
+
+// Helper to extract and normalize banks array
+const normalizeBanks = (rawBanks, fallback = {}) => {
+  let list = [];
+  if (Array.isArray(rawBanks)) {
+    list = rawBanks.filter(b => b && typeof b === 'object' && (b.bankName || b.bankAccountNumber || b.bankAccountTitle));
+  } else if (typeof rawBanks === 'string') {
+    try {
+      const parsed = JSON.parse(rawBanks);
+      if (Array.isArray(parsed)) {
+        list = parsed.filter(b => b && typeof b === 'object' && (b.bankName || b.bankAccountNumber || b.bankAccountTitle));
+      }
+    } catch (_) {}
+  }
+  if (list.length === 0 && (fallback.bankName || fallback.bankAccountNumber)) {
+    list = [{
+      bankName: fallback.bankName || '',
+      bankAccountNumber: fallback.bankAccountNumber || '',
+      bankAccountTitle: fallback.bankAccountTitle || ''
+    }];
+  }
+  return list;
+};
+
 // Get all active shops (Public / Storefront)
 router.get('/public', async (req, res) => {
   try {
@@ -45,8 +155,18 @@ router.get('/public', async (req, res) => {
           raw.bankAccountNumber = raw.bankAccountNumber || st.bankAccountNumber || '';
           raw.bankAccountTitle = raw.bankAccountTitle || st.bankAccountTitle || '';
           raw.easypaisaNumber = raw.easypaisaNumber || st.easypaisaNumber || '';
+          if ((!raw.banksJson || raw.banksJson.length === 0) && st.banksJson) {
+            raw.banksJson = st.banksJson;
+          }
         }
       } catch (e) {}
+      raw.banks = normalizeBanks(raw.banksJson || raw.banks, raw);
+      raw.banksJson = raw.banks;
+      if (raw.banks.length > 0) {
+        raw.bankName = raw.banks[0].bankName || raw.bankName || '';
+        raw.bankAccountNumber = raw.banks[0].bankAccountNumber || raw.bankAccountNumber || '';
+        raw.bankAccountTitle = raw.banks[0].bankAccountTitle || raw.bankAccountTitle || '';
+      }
       return raw;
     }));
     res.json(enriched);
@@ -68,8 +188,18 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
           raw.bankAccountNumber = raw.bankAccountNumber || st.bankAccountNumber || '';
           raw.bankAccountTitle = raw.bankAccountTitle || st.bankAccountTitle || '';
           raw.easypaisaNumber = raw.easypaisaNumber || st.easypaisaNumber || '';
+          if ((!raw.banksJson || raw.banksJson.length === 0) && st.banksJson) {
+            raw.banksJson = st.banksJson;
+          }
         }
       } catch (e) {}
+      raw.banks = normalizeBanks(raw.banksJson || raw.banks, raw);
+      raw.banksJson = raw.banks;
+      if (raw.banks.length > 0) {
+        raw.bankName = raw.banks[0].bankName || raw.bankName || '';
+        raw.bankAccountNumber = raw.banks[0].bankAccountNumber || raw.bankAccountNumber || '';
+        raw.bankAccountTitle = raw.banks[0].bankAccountTitle || raw.bankAccountTitle || '';
+      }
       return raw;
     }));
     res.json(enrichedShops);
@@ -81,7 +211,10 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
 // Create shop (Super Admin only)
 router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res) => {
   try {
-    const { name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, logoUrl, easypaisaNumber, bankName, bankAccountNumber, bankAccountTitle } = req.body;
+    const { 
+      name, address, contactNumber, adminUsername, adminPassword, adminFullName, adminEmail, adminPhone, 
+      logoUrl, easypaisaNumber, bankName, bankAccountNumber, bankAccountTitle, banks 
+    } = req.body;
     
     // Check if username is taken
     if (adminUsername) {
@@ -91,15 +224,20 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       }
     }
 
+    const banksList = normalizeBanks(banks, { bankName, bankAccountNumber, bankAccountTitle });
+    const primaryBank = banksList[0] || {};
+
     const shop = await Shop.create({ 
       name, 
       address, 
       contactNumber, 
       logoUrl,
       easypaisaNumber: easypaisaNumber || '',
-      bankName: bankName || '',
-      bankAccountNumber: bankAccountNumber || '',
-      bankAccountTitle: bankAccountTitle || '',
+      bankName: primaryBank.bankName || bankName || '',
+      bankAccountNumber: primaryBank.bankAccountNumber || bankAccountNumber || '',
+      bankAccountTitle: primaryBank.bankAccountTitle || bankAccountTitle || '',
+      banks: banksList,
+      banksJson: banksList,
       ownerDetails: {
         fullName: adminFullName || 'Shop Admin',
         email: adminEmail || adminUsername || '',
@@ -115,9 +253,10 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       phone: contactNumber || '',
       easypaisaNumber: easypaisaNumber || '',
       easypaisaEnabled: easypaisaNumber ? true : false,
-      bankName: bankName || '',
-      bankAccountNumber: bankAccountNumber || '',
-      bankAccountTitle: bankAccountTitle || '',
+      bankName: primaryBank.bankName || bankName || '',
+      bankAccountNumber: primaryBank.bankAccountNumber || bankAccountNumber || '',
+      bankAccountTitle: primaryBank.bankAccountTitle || bankAccountTitle || '',
+      banksJson: banksList,
     });
 
     let adminUser = null;
@@ -132,16 +271,22 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
       });
     }
 
+    await syncShopBanksToDatabase(shop._id || shop.id, banksList);
+
     res.status(201).json({ shop, adminUser, settings });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
+
 // Update shop details
 router.put('/:id', authenticate, validateShop, async (req, res) => {
   try {
-    const { name, address, contactNumber, status, ownerEmail, easypaisaNumber, bankName, bankAccountNumber, bankAccountTitle } = req.body;
+    const { 
+      name, address, contactNumber, status, ownerEmail, easypaisaNumber, 
+      bankName, bankAccountNumber, bankAccountTitle, banks 
+    } = req.body;
     
     // Authorization Check: Super Admin OR the Shop's Admin
     const isSuperAdmin = req.user.role === 'super_admin';
@@ -159,9 +304,25 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
     shop.address = address;
     shop.contactNumber = contactNumber;
     if (easypaisaNumber !== undefined) shop.easypaisaNumber = easypaisaNumber;
-    if (bankName !== undefined) shop.bankName = bankName;
-    if (bankAccountNumber !== undefined) shop.bankAccountNumber = bankAccountNumber;
-    if (bankAccountTitle !== undefined) shop.bankAccountTitle = bankAccountTitle;
+
+    if (banks !== undefined) {
+      const banksList = normalizeBanks(banks, { bankName, bankAccountNumber, bankAccountTitle });
+      shop.banksJson = banksList;
+      shop.banks = banksList;
+      if (banksList.length > 0) {
+        shop.bankName = banksList[0].bankName || '';
+        shop.bankAccountNumber = banksList[0].bankAccountNumber || '';
+        shop.bankAccountTitle = banksList[0].bankAccountTitle || '';
+      } else {
+        shop.bankName = '';
+        shop.bankAccountNumber = '';
+        shop.bankAccountTitle = '';
+      }
+    } else {
+      if (bankName !== undefined) shop.bankName = bankName;
+      if (bankAccountNumber !== undefined) shop.bankAccountNumber = bankAccountNumber;
+      if (bankAccountTitle !== undefined) shop.bankAccountTitle = bankAccountTitle;
+    }
     
     if (isSuperAdmin && status) {
       shop.status = status;
@@ -196,12 +357,20 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
         shopSettings.easypaisaNumber = easypaisaNumber;
         shopSettings.easypaisaEnabled = !!easypaisaNumber;
       }
-      if (bankName !== undefined) shopSettings.bankName = bankName;
-      if (bankAccountNumber !== undefined) shopSettings.bankAccountNumber = bankAccountNumber;
-      if (bankAccountTitle !== undefined) shopSettings.bankAccountTitle = bankAccountTitle;
+      if (shop.banksJson !== undefined) {
+        shopSettings.banksJson = shop.banksJson;
+      }
+      if (shop.bankName !== undefined) shopSettings.bankName = shop.bankName;
+      if (shop.bankAccountNumber !== undefined) shopSettings.bankAccountNumber = shop.bankAccountNumber;
+      if (shop.bankAccountTitle !== undefined) shopSettings.bankAccountTitle = shop.bankAccountTitle;
       await shopSettings.save();
     } catch (sErr) {
       console.warn('Sync settings on shop update error:', sErr);
+    }
+
+    if (banks !== undefined) {
+      const banksList = normalizeBanks(banks, { bankName, bankAccountNumber, bankAccountTitle });
+      await syncShopBanksToDatabase(req.params.id, banksList);
     }
 
     res.json(shop);
@@ -209,6 +378,8 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
+
+
 
 // Delete shop (Super Admin only)
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {

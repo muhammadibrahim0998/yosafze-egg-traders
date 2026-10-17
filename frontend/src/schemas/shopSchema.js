@@ -29,4 +29,10 @@ export const shopSchema = z.object({
   bankName: z.string().optional().or(z.literal('')),
   bankAccountNumber: z.string().optional().or(z.literal('')),
   bankAccountTitle: z.string().optional().or(z.literal('')),
+  banks: z.array(z.object({
+    bankName: z.string().optional().or(z.literal('')),
+    bankAccountNumber: z.string().optional().or(z.literal('')),
+    bankAccountTitle: z.string().optional().or(z.literal(''))
+  })).optional()
 });
+

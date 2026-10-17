@@ -172,16 +172,23 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           else cash = total;
         }
 
+        let itemsList = [];
+        if (Array.isArray(s.items)) {
+          itemsList = s.items;
+        } else if (typeof s.items === 'string') {
+          try { itemsList = JSON.parse(s.items); } catch {}
+        }
+
         let totalPetisBought = Number(s.petisBought) || 0;
         let totalEggsBought = Number(s.eggsBought) || 0;
-        let itemsSummary = s.itemsDescription ? [s.itemsDescription] : [];
-        let determinedCategory = s.category || (Array.isArray(s.items) && s.items[0]?.category) || '';
+        let itemsSummary = [];
+        let determinedCategory = s.category || itemsList[0]?.category || '';
 
-        if (totalPetisBought === 0 && Array.isArray(s.items)) {
+        if (itemsList.length > 0) {
           itemsSummary = [];
-          s.items.forEach(it => {
+          itemsList.forEach(it => {
             const qty = Number(it.quantity) || 1;
-            const uType = it.unit || it.unitType || 'peti';
+            const uType = it.unitLabel || it.unit || it.unitType || 'peti';
             let petiCount = 0;
             let eggCount = 0;
 
@@ -199,12 +206,16 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             if (Number(it.petiQuantity) > 0) petiCount = Number(it.petiQuantity);
             if (Number(it.totalEggs) > 0) eggCount = Number(it.totalEggs);
 
-            totalPetisBought += petiCount;
-            totalEggsBought += eggCount;
-            itemsSummary.push(`${it.name || it.rawProductName || 'Eggs'} (${qty} ${uType})`);
+            if (totalPetisBought === 0) totalPetisBought += petiCount;
+            if (totalEggsBought === 0) totalEggsBought += eggCount;
+            itemsSummary.push(`${it.rawProductName || it.name || 'Eggs'} (${qty} ${uType})`);
             if (!determinedCategory && it.category) determinedCategory = it.category;
           });
         }
+
+        const finalItemsDesc = itemsSummary.length > 0
+          ? itemsSummary.join(', ')
+          : (s.itemsDescription && s.itemsDescription !== 'Eggs Stock' ? s.itemsDescription : 'Eggs Stock');
 
         if (!determinedCategory) {
           determinedCategory = 'Eggs';
@@ -224,7 +235,8 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           paymentMethod: pMethod,
           petisBought: totalPetisBought > 0 ? Number(totalPetisBought.toFixed(2)) : 0,
           eggsBought: Math.round(totalEggsBought),
-          itemsDescription: itemsSummary.join(', ') || 'Eggs Stock',
+          itemsDescription: finalItemsDesc,
+          items: itemsList,
           isCredit: due > 0 || pMethod.includes('CREDIT')
         };
       })
@@ -744,8 +756,27 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                           {txn.category || 'Eggs'}
                         </span>
                       </td>
-                      <td className="py-2 px-2.5 max-w-[150px] truncate text-zinc-600 text-[10.5px]" title={txn.itemsDescription}>
-                        {txn.itemsDescription}
+                      <td className="py-2 px-2.5 max-w-[220px]">
+                        {Array.isArray(txn.items) && txn.items.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {txn.items.map((it, iIdx) => (
+                              <span
+                                key={iIdx}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200"
+                                title={`${it.name || it.rawProductName} (Qty: ${it.quantity} ${it.unitLabel || it.unit || ''})`}
+                              >
+                                <span className="truncate max-w-[110px]">{it.rawProductName || it.name}</span>
+                                <span className="font-black text-emerald-800 bg-emerald-100/90 px-1 rounded text-[8.5px]">
+                                  x{it.quantity} {it.unitLabel || it.unit || ''}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-zinc-700 font-bold text-[10.5px]" title={txn.itemsDescription}>
+                            {txn.itemsDescription}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-2 text-center whitespace-nowrap font-black text-emerald-800">
                         {txn.petisBought > 0 ? `${txn.petisBought} P` : '-'}
@@ -906,7 +937,21 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 text-zinc-600 text-[10.5px]">
-                                  {t.itemsDescription}
+                                  {Array.isArray(t.items) && t.items.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {t.items.map((it, iIdx) => (
+                                        <span
+                                          key={iIdx}
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                        >
+                                          <span>{it.rawProductName || it.name}</span>
+                                          <span className="font-black text-emerald-900 bg-emerald-100/90 px-1 rounded text-[8px]">x{it.quantity} {it.unitLabel || it.unit || ''}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span>{t.itemsDescription}</span>
+                                  )}
                                 </td>
                                 <td className="py-2 px-3 text-center font-black text-emerald-800">
                                   {t.petisBought > 0 ? `${t.petisBought} P` : '-'}

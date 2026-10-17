@@ -75,7 +75,19 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
     // 1. Fetch Sales from dynamic CustomerPaymentLedger branch table
     let salesList = [];
     try {
-      const custLedgerRows = await CustomerPaymentLedger.find(filter).sort({ date: -1, createdAt: -1 });
+      const [custLedgerRows, rawSales] = await Promise.all([
+        CustomerPaymentLedger.find(filter).sort({ date: -1, createdAt: -1 }),
+        Sale.find(filter).sort({ saleDate: -1, createdAt: -1 })
+      ]);
+
+      const salesMap = new Map();
+      (rawSales || []).forEach(s => {
+        const sId = String(s.id || s._id || '');
+        const invNo = String(s.invoiceNumber || '').trim();
+        if (sId) salesMap.set(sId, s);
+        if (invNo) salesMap.set(invNo, s);
+      });
+
       if (custLedgerRows && custLedgerRows.length > 0) {
         salesList = custLedgerRows.map(c => {
           const total = Number(c.totalAmount) || 0;
@@ -83,6 +95,20 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
           const bank = Number(c.bankPaid) || 0;
           const due = Number(c.dueAmount) || 0;
           const pMethod = String(c.paymentMethod || 'CASH').toUpperCase();
+
+          const matchingSale = salesMap.get(String(c.saleId || '')) || salesMap.get(String(c.invoiceNumber || '').trim());
+          let items = [];
+          if (matchingSale && matchingSale.items) {
+            items = typeof matchingSale.items === 'string' ? JSON.parse(matchingSale.items) : matchingSale.items;
+          } else if (c.items) {
+            items = typeof c.items === 'string' ? JSON.parse(c.items) : c.items;
+          }
+
+          let itemsDesc = c.itemsDescription;
+          if ((!itemsDesc || itemsDesc === 'Eggs Stock') && items && items.length > 0) {
+            itemsDesc = items.map(i => `${i.rawProductName || i.name || 'Eggs'} (${i.quantity || 1} ${i.unitLabel || i.unit || 'x'})`).join(', ');
+          }
+
           return {
             id: c.id,
             shopId: c.shopId,
@@ -91,7 +117,7 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             invoiceNumber: c.invoiceNumber || `INV-${String(c.saleId || c.id).slice(-5)}`,
             customerName: c.customerName || (due > 0 ? 'Credit Customer' : 'Walk-in Customer'),
             customerPhone: c.customerPhone || '',
-            customerEmail: '',
+            customerEmail: matchingSale?.customerEmail || '',
             totalAmount: total,
             cashPaid: cash,
             bankPaid: bank,
@@ -99,8 +125,9 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             paymentMethod: pMethod,
             petisBought: Number(c.petisBought) || 0,
             eggsBought: Math.round(Number(c.eggsBought) || 0),
-            itemsDescription: c.itemsDescription || 'Eggs Stock',
-            category: c.category || 'Eggs',
+            itemsDescription: itemsDesc || 'Eggs Stock',
+            items: items || [],
+            category: c.category || (items[0]?.category) || 'Eggs',
             status: c.status || (due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT'))
           };
         });

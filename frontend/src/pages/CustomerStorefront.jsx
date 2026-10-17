@@ -4525,10 +4525,17 @@ function StoreContent({ shopId }) {
 
     const todaySales = activeData.filter(s => {
       const d = new Date(s.saleDate || s.createdAt || s.date || 0);
-      return !isNaN(d.getTime()) && (d.toISOString().split('T')[0] === todayStr || d.toDateString() === now.toDateString());
+      return !isNaN(d.getTime()) && (d.toISOString().split('T')[0] === todayStr || d.toDateString() === now.toDateString() || d.toLocaleDateString() === now.toLocaleDateString());
     });
     const todayRevenue = todaySales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) || dashStats.todaySales || 0;
     const todayOrders = todaySales.length || dashStats.todayOrdersCount || 0;
+    let todayEggs = 0;
+    todaySales.forEach(s => {
+      (s.items || []).forEach(i => {
+        todayEggs += Number(i.totalEggs || i.quantity || 0);
+      });
+    });
+    const todayPetis = (todayEggs / 360).toFixed(1);
 
     const monthSales = activeData.filter(s => {
       const d = new Date(s.saleDate || s.createdAt || s.date || 0);
@@ -4550,6 +4557,8 @@ function StoreContent({ shopId }) {
     return {
       todayRevenue,
       todayOrders,
+      todayEggs,
+      todayPetis,
       monthRevenue,
       monthOrders,
       yearRevenue,
@@ -9185,8 +9194,8 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* Top 4 Dynamic Stat Cards (Yellow, Dark Green, Blue, Total Sales on Right) */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Top 5 Dynamic Stat Cards (Yellow, Dark Green, Blue, Indigo Today Sales, Total Sales) */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     {/* Card 1: Yellow - 💵 Cash Sales (In Drawer) */}
                     <div className="bg-white border-2 border-amber-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-2">
@@ -9241,7 +9250,25 @@ function StoreContent({ shopId }) {
                       </span>
                     </div>
 
-                    {/* Card 4: Green - Total Gross Sales (Right Side) */}
+                    {/* Card 4: Indigo / Purple - 📅 Today Sales (beside Credit Due) */}
+                    <div className="bg-white border-2 border-indigo-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9.5px] font-black text-indigo-800 uppercase tracking-widest flex items-center gap-1">
+                          📅 Today Sales
+                        </span>
+                        <div className="p-1.5 bg-indigo-100 rounded-lg text-indigo-700">
+                          <Calendar className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-indigo-700">
+                        {currency} {Number(salesLiveBreakdown?.todayRevenue || 0).toLocaleString('en-PK')}
+                      </h4>
+                      <span className="text-[10px] font-black text-indigo-600 uppercase mt-1 block">
+                        {salesLiveBreakdown?.todayOrders || 0} Bills {Number(salesLiveBreakdown?.todayPetis || 0) > 0 ? `• ${salesLiveBreakdown.todayPetis} Petis` : '• Real-time Today'}
+                      </span>
+                    </div>
+
+                    {/* Card 5: Green - Total Gross Sales (Right Side) */}
                     <div className="bg-white border-2 border-emerald-400/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9.5px] font-black text-emerald-800 uppercase tracking-widest">
@@ -9438,6 +9465,35 @@ function StoreContent({ shopId }) {
                                         <span className="font-bold text-teal-700">📞 {custGroup.customerPhone}</span>
                                       </div>
                                     )}
+                                    {(() => {
+                                      const customerItems = [];
+                                      (custGroup.invoices || []).forEach(inv => {
+                                        (inv.items || []).forEach(it => {
+                                          const itemName = it.rawProductName || it.name || it.title || 'Product';
+                                          const qty = Number(it.quantity) || 1;
+                                          const unit = it.unitLabel || it.unit || '';
+                                          const existing = customerItems.find(x => x.name === itemName && x.unit === unit);
+                                          if (existing) {
+                                            existing.quantity += qty;
+                                          } else {
+                                            customerItems.push({ name: itemName, quantity: qty, unit });
+                                          }
+                                        });
+                                      });
+                                      if (customerItems.length === 0) return null;
+                                      return (
+                                        <div className="flex items-start justify-between text-[11px]">
+                                          <span className="text-gray-400 font-bold uppercase text-[9.5px]">Items Bought:</span>
+                                          <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
+                                            {customerItems.map((it, itIdx) => (
+                                              <span key={itIdx} className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                                {it.name} (x{it.quantity} {it.unit})
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                     <div className="flex items-center justify-between text-[11px]">
                                       <span className="text-gray-400 font-bold uppercase text-[9.5px]">Total Purchases:</span>
                                       <span className="font-black text-emerald-700">{currency} {Number(custGroup.totalSpent || 0).toLocaleString('en-PK')}</span>
@@ -9687,19 +9743,20 @@ function StoreContent({ shopId }) {
                             <thead className="bg-gray-100 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-200">
                               <tr>
                                 <th className="p-2.5 text-center w-10">#</th>
-                                <th className="p-2.5 w-[26%]">Customer &amp; Email ID</th>
-                                <th className="p-2.5 text-center w-[13%]">Contact Phone</th>
-                                <th className="p-2.5 text-center w-[11%]">Invoices / Bills</th>
-                                <th className="p-2.5 text-center w-[13%]">Payment Breakdown</th>
-                                <th className="p-2.5 text-center w-[11%]">Credit Due</th>
-                                <th className="p-2.5 text-right w-[12%]">Total Purchases</th>
-                                <th className="p-2.5 text-center w-[100px] whitespace-nowrap">Actions</th>
+                                <th className="p-2.5 w-[22%]">Customer &amp; Email ID</th>
+                                <th className="p-2.5 text-center w-[11%]">Contact Phone</th>
+                                <th className="p-2.5 text-center w-[9%]">Invoices / Bills</th>
+                                <th className="p-2.5 w-[20%]">Items Purchased</th>
+                                <th className="p-2.5 text-center w-[12%]">Payment Breakdown</th>
+                                <th className="p-2.5 text-center w-[9%]">Credit Due</th>
+                                <th className="p-2.5 text-right w-[10%]">Total Purchases</th>
+                                <th className="p-2.5 text-center w-[90px] whitespace-nowrap">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                               {customerWiseSalesReport.length === 0 ? (
                                 <tr>
-                                  <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
+                                  <td colSpan="9" className="p-8 text-center text-gray-400 font-bold">
                                     No customer sales records found.
                                   </td>
                                 </tr>
@@ -9749,6 +9806,45 @@ function StoreContent({ shopId }) {
                                             <Receipt className="w-2.5 h-2.5" />
                                             <span>{custGroup.invoices.length} {custGroup.invoices.length === 1 ? 'Bill' : 'Bills'}</span>
                                           </span>
+                                        </td>
+                                        <td className="p-2.5 align-middle">
+                                          {(() => {
+                                            const customerItems = [];
+                                            (custGroup.invoices || []).forEach(inv => {
+                                              (inv.items || []).forEach(it => {
+                                                const itemName = it.rawProductName || it.name || it.title || 'Product';
+                                                const qty = Number(it.quantity) || 1;
+                                                const unit = it.unitLabel || it.unit || '';
+                                                const existing = customerItems.find(x => x.name === itemName && x.unit === unit);
+                                                if (existing) {
+                                                  existing.quantity += qty;
+                                                } else {
+                                                  customerItems.push({ name: itemName, quantity: qty, unit });
+                                                }
+                                              });
+                                            });
+
+                                            if (customerItems.length === 0) {
+                                              return <span className="text-gray-400 italic text-[10px]">No items recorded</span>;
+                                            }
+
+                                            return (
+                                              <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                                {customerItems.map((it, itIdx) => (
+                                                  <span
+                                                    key={itIdx}
+                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                                    title={`${it.name} (Qty: ${it.quantity} ${it.unit})`}
+                                                  >
+                                                    <span className="truncate max-w-[120px]">{it.name}</span>
+                                                    <span className="font-black text-emerald-900 bg-emerald-100/90 px-1 rounded text-[8.5px]">
+                                                      x{it.quantity} {it.unit ? `${it.unit}` : ''}
+                                                    </span>
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            );
+                                          })()}
                                         </td>
                                         <td className="p-2.5 text-center text-[10px] font-bold space-y-0.5 align-middle">
                                           {custGroup.totalCash > 0 && (
@@ -9940,7 +10036,7 @@ function StoreContent({ shopId }) {
                                       {/* Sub-row Accordion for this Customer's Invoices */}
                                       {isExpanded && (
                                         <tr>
-                                          <td colSpan="8" className="p-3 bg-slate-50/80 border-y border-gray-200">
+                                          <td colSpan="9" className="p-3 bg-slate-50/80 border-y border-gray-200">
                                             <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-xs space-y-2.5">
                                               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                                                 <div className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-1.5">
@@ -10067,7 +10163,7 @@ function StoreContent({ shopId }) {
                             {customerWiseSalesReport.length > 0 && (
                               <tfoot className="bg-gray-50 border-t border-gray-200 font-black text-xs">
                                 <tr>
-                                  <td colSpan="6" className="p-2.5 text-right text-gray-800 uppercase text-[11px]">
+                                  <td colSpan="7" className="p-2.5 text-right text-gray-800 uppercase text-[11px]">
                                     Total Combined Sales ({customerWiseSalesReport.length} Customers):
                                   </td>
                                   <td className="p-2.5 text-right text-emerald-700 text-xs font-black">
@@ -13244,6 +13340,90 @@ function StoreContent({ shopId }) {
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
                   {isSettlingCredit ? 'Processing...' : settleMethod === 'BANK' ? 'Deposit into Bank' : 'Deposit into Cash'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Group Modal */}
+      {editingCustomerGroup && (
+        <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-gray-200 rounded-[2rem] max-w-md w-full p-6 text-gray-900 space-y-4 shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setEditingCustomerGroup(null)}
+              className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 hover:text-gray-900 transition-colors cursor-pointer border border-gray-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+              <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
+                <Edit className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-gray-900">Edit Customer Information</h3>
+                <p className="text-xs text-gray-500 font-medium">Update customer name, contact phone & email</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveEditCustomerGroup} className="space-y-4 pt-1">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                  Customer Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editCustomerFormData.name}
+                  onChange={(e) => setEditCustomerFormData({ ...editCustomerFormData, name: e.target.value })}
+                  placeholder="e.g. Bashir Khan"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-sm font-bold transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                  Contact Phone Number
+                </label>
+                <input
+                  type="text"
+                  value={editCustomerFormData.phone}
+                  onChange={(e) => setEditCustomerFormData({ ...editCustomerFormData, phone: e.target.value })}
+                  placeholder="e.g. 03001234567"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-sm font-bold transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editCustomerFormData.email}
+                  onChange={(e) => setEditCustomerFormData({ ...editCustomerFormData, email: e.target.value })}
+                  placeholder="e.g. customer@gmail.com"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:border-emerald-500 focus:outline-none text-sm font-bold transition-all"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCustomerGroup(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCustomerEdit}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-900/10 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingCustomerEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

@@ -50,13 +50,68 @@ export function SuperAdminDashboard() {
         easypaisaNumber: '',
         bankName: '',
         bankAccountNumber: '',
-        bankAccountTitle: ''
+        bankAccountTitle: '',
+        banks: []
     });
+    const [newShopBanks, setNewShopBanks] = useState([
+        { bankName: '', bankAccountNumber: '', bankAccountTitle: '' }
+    ]);
+
+    const handleAddNewShopBank = () => {
+        setNewShopBanks(prev => [...prev, { bankName: '', bankAccountNumber: '', bankAccountTitle: '' }]);
+    };
+
+    const handleRemoveNewShopBank = (index) => {
+        setNewShopBanks(prev => {
+            if (prev.length <= 1) {
+                return [{ bankName: '', bankAccountNumber: '', bankAccountTitle: '' }];
+            }
+            return prev.filter((_, i) => i !== index);
+        });
+    };
+
+    const handleNewShopBankChange = (index, field, value) => {
+        setNewShopBanks(prev => {
+            const next = [...prev];
+            next[index] = { ...next[index], [field]: value };
+            return next;
+        });
+    };
+
+    const handleAddEditBank = () => {
+        setEditData(prev => ({
+            ...prev,
+            banks: [...(prev.banks || []), { bankName: '', bankAccountNumber: '', bankAccountTitle: '' }]
+        }));
+    };
+
+    const handleRemoveEditBank = (index) => {
+        setEditData(prev => {
+            const current = prev.banks || [];
+            const next = current.filter((_, i) => i !== index);
+            return {
+                ...prev,
+                banks: next.length > 0 ? next : [{ bankName: '', bankAccountNumber: '', bankAccountTitle: '' }]
+            };
+        });
+    };
+
+    const handleEditBankChange = (index, field, value) => {
+        setEditData(prev => {
+            const current = [...(prev.banks || [])];
+            current[index] = { ...current[index], [field]: value };
+            return {
+                ...prev,
+                banks: current
+            };
+        });
+    };
     const [viewingShop, setViewingShop] = useState(null);
     const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: '' });
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAdminPassword, setShowAdminPassword] = useState(false);
     const { searchTerm } = useProducts();
+
 
     const [totalCustomers, setTotalCustomers] = useState(0);
     const [totalStockUnits, setTotalStockUnits] = useState(0);
@@ -247,9 +302,18 @@ export function SuperAdminDashboard() {
 
     const onAddShop = async (data) => {
         try {
-            await api.post('/shops', data);
+            const validBanks = newShopBanks.filter(b => (b.bankName && b.bankName.trim()) || (b.bankAccountNumber && b.bankAccountNumber.trim()) || (b.bankAccountTitle && b.bankAccountTitle.trim()));
+            const payload = {
+                ...data,
+                banks: validBanks,
+                bankName: validBanks[0]?.bankName || data.bankName || '',
+                bankAccountNumber: validBanks[0]?.bankAccountNumber || data.bankAccountNumber || '',
+                bankAccountTitle: validBanks[0]?.bankAccountTitle || data.bankAccountTitle || ''
+            };
+            await api.post('/shops', payload);
             toast.success('Shop created!');
             reset();
+            setNewShopBanks([{ bankName: '', bankAccountNumber: '', bankAccountTitle: '' }]);
             fetchShops();
         } catch (err) {
             const serverError = err.response?.data?.message || 'Failed to create shop';
@@ -283,7 +347,15 @@ export function SuperAdminDashboard() {
 
     const handleUpdateShop = async (id) => {
         try {
-            await api.put(`/shops/${id}`, editData);
+            const validBanks = (editData.banks || []).filter(b => (b.bankName && b.bankName.trim()) || (b.bankAccountNumber && b.bankAccountNumber.trim()) || (b.bankAccountTitle && b.bankAccountTitle.trim()));
+            const payload = {
+                ...editData,
+                banks: validBanks,
+                bankName: validBanks[0]?.bankName || '',
+                bankAccountNumber: validBanks[0]?.bankAccountNumber || '',
+                bankAccountTitle: validBanks[0]?.bankAccountTitle || ''
+            };
+            await api.put(`/shops/${id}`, payload);
             toast.success("Shop and Bank details updated successfully");
             setEditingShop(null);
             fetchShops();
@@ -295,6 +367,30 @@ export function SuperAdminDashboard() {
     const startEdit = (shop) => {
         setActiveTab('management'); // Switch to management tab if not there
         setEditingShop(shop._id || shop.id);
+        
+        let initialBanks = [];
+        if (Array.isArray(shop.banks) && shop.banks.length > 0) {
+            initialBanks = shop.banks.map(b => ({
+                bankName: b.bankName || '',
+                bankAccountNumber: b.bankAccountNumber || '',
+                bankAccountTitle: b.bankAccountTitle || ''
+            }));
+        } else if (Array.isArray(shop.banksJson) && shop.banksJson.length > 0) {
+            initialBanks = shop.banksJson.map(b => ({
+                bankName: b.bankName || '',
+                bankAccountNumber: b.bankAccountNumber || '',
+                bankAccountTitle: b.bankAccountTitle || ''
+            }));
+        } else if (shop.bankName || shop.bankAccountNumber) {
+            initialBanks = [{
+                bankName: shop.bankName || '',
+                bankAccountNumber: shop.bankAccountNumber || '',
+                bankAccountTitle: shop.bankAccountTitle || ''
+            }];
+        } else {
+            initialBanks = [{ bankName: '', bankAccountNumber: '', bankAccountTitle: '' }];
+        }
+
         setEditData({
             name: shop.name || '',
             address: shop.address || '',
@@ -304,7 +400,8 @@ export function SuperAdminDashboard() {
             easypaisaNumber: shop.easypaisaNumber || '',
             bankName: shop.bankName || '',
             bankAccountNumber: shop.bankAccountNumber || '',
-            bankAccountTitle: shop.bankAccountTitle || ''
+            bankAccountTitle: shop.bankAccountTitle || '',
+            banks: initialBanks
         });
         // Scroll to management section if needed - added a slight delay to ensure tab is rendered
         setTimeout(() => {
@@ -312,6 +409,7 @@ export function SuperAdminDashboard() {
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
     };
+
 
     if (loading) {
         return (
@@ -527,43 +625,93 @@ export function SuperAdminDashboard() {
 
                             {/* Bank Details Section */}
                             <div className="pt-4 border-t border-zinc-50 space-y-3">
-                                <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                                    <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                                    Bank Account Details
-                                </h3>
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Select Bank</label>
-                                    <select
-                                        {...register('bankName')}
-                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankName ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold outline-none focus:bg-white focus:border-blue-500/40 transition-all cursor-pointer`}
+                                <div className="flex items-center justify-between mb-1">
+                                    <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                                        Bank Account Details ({newShopBanks.length})
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddNewShopBank}
+                                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border border-blue-200 active:scale-95"
                                     >
-                                        <option value="">-- Choose Official Bank --</option>
-                                        {PAKISTANI_BANKS.map((b) => (
-                                            <option key={b} value={b}>{b}</option>
-                                        ))}
-                                        <option value="Other Bank">Other Bank / Custom</option>
-                                    </select>
-                                    {errors.bankName && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankName.message}</p>}
+                                        <Plus className="w-3 h-3" /> Add Bank
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Bank Account / IBAN Number</label>
-                                    <input
-                                        {...register('bankAccountNumber')}
-                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankAccountNumber ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold placeholder:text-zinc-300 outline-none focus:bg-white focus:border-blue-500/40 transition-all`}
-                                        placeholder="01020304050607 or IBAN"
-                                    />
-                                    {errors.bankAccountNumber && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankAccountNumber.message}</p>}
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 pl-1">Account Title / Beneficiary Name</label>
-                                    <input
-                                        {...register('bankAccountTitle')}
-                                        className={`w-full px-5 py-3 rounded-xl border ${errors.bankAccountTitle ? 'border-rose-500/50 bg-rose-50/50' : 'border-zinc-100 bg-zinc-50'} text-zinc-900 text-sm font-bold placeholder:text-zinc-300 outline-none focus:bg-white focus:border-blue-500/40 transition-all`}
-                                        placeholder="Account Title (e.g. Yousafzai Traders)"
-                                    />
-                                    {errors.bankAccountTitle && <p className="text-[9px] font-bold text-rose-500 mt-1 pl-1 uppercase tracking-tighter">{errors.bankAccountTitle.message}</p>}
+
+                                <div className="space-y-3">
+                                    {newShopBanks.map((bank, index) => (
+                                        <div key={index} className="p-3 bg-blue-50/20 rounded-2xl border border-blue-100/80 space-y-2.5 relative">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider">
+                                                    🏛️ Bank Account #{index + 1}
+                                                </span>
+                                                {newShopBanks.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveNewShopBank(index)}
+                                                        className="p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                                        title="Remove Bank"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1 pl-1">Select Bank</label>
+                                                <select
+                                                    value={PAKISTANI_BANKS.includes(bank.bankName) ? bank.bankName : (bank.bankName ? 'Other Bank' : '')}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        if (val === 'Other Bank') {
+                                                            handleNewShopBankChange(index, 'bankName', bank.bankName || 'Other Bank');
+                                                        } else {
+                                                            handleNewShopBankChange(index, 'bankName', val);
+                                                        }
+                                                    }}
+                                                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 bg-white text-zinc-900 text-xs font-bold outline-none focus:border-blue-500/40 transition-all cursor-pointer"
+                                                >
+                                                    <option value="">-- Choose Official Bank --</option>
+                                                    {PAKISTANI_BANKS.map((b) => (
+                                                        <option key={b} value={b}>{b}</option>
+                                                    ))}
+                                                    <option value="Other Bank">Other Bank / Custom</option>
+                                                </select>
+                                                {(!PAKISTANI_BANKS.includes(bank.bankName) && bank.bankName) && (
+                                                    <input
+                                                        value={bank.bankName === 'Other Bank' ? '' : bank.bankName}
+                                                        onChange={(e) => handleNewShopBankChange(index, 'bankName', e.target.value)}
+                                                        placeholder="Type Custom Bank Name"
+                                                        className="w-full mt-1.5 px-3.5 py-2 rounded-xl border border-blue-200 bg-white text-zinc-900 text-xs font-bold outline-none"
+                                                    />
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1 pl-1">Bank Account / IBAN</label>
+                                                <input
+                                                    value={bank.bankAccountNumber}
+                                                    onChange={(e) => handleNewShopBankChange(index, 'bankAccountNumber', e.target.value)}
+                                                    placeholder="01020304050607 or IBAN"
+                                                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 bg-white text-zinc-900 text-xs font-bold placeholder:text-zinc-300 outline-none focus:border-blue-500/40 transition-all"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1 pl-1">Account Title / Beneficiary</label>
+                                                <input
+                                                    value={bank.bankAccountTitle}
+                                                    onChange={(e) => handleNewShopBankChange(index, 'bankAccountTitle', e.target.value)}
+                                                    placeholder="Account Title (e.g. Yousafzai Traders)"
+                                                    className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 bg-white text-zinc-900 text-xs font-bold placeholder:text-zinc-300 outline-none focus:border-blue-500/40 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
+
 
                             <button
                                 type="submit"
@@ -613,45 +761,90 @@ export function SuperAdminDashboard() {
                                                     <label className="block text-[8.5px] font-black uppercase text-zinc-400 pl-1 mb-1">Address</label>
                                                     <input value={editData.address} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Address" />
                                                 </div>
-                                                <div className="pt-2 border-t border-zinc-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                                                    <div>
-                                                        <label className="block text-[8.5px] font-black uppercase text-emerald-600 pl-1 mb-1">EasyPaisa Number</label>
-                                                        <input value={editData.easypaisaNumber} onChange={(e) => setEditData({ ...editData, easypaisaNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="03001234567" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Bank Name</label>
-                                                        <select 
-                                                            value={PAKISTANI_BANKS.includes(editData.bankName) ? editData.bankName : (editData.bankName ? 'Other Bank' : '')} 
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                if (val === 'Other Bank') {
-                                                                    setEditData({ ...editData, bankName: editData.bankName || 'Other Bank' });
-                                                                } else {
-                                                                    setEditData({ ...editData, bankName: val });
-                                                                }
-                                                            }} 
-                                                            className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none cursor-pointer"
+                                                <div className="pt-2 border-t border-zinc-100 space-y-2.5">
+
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <div className="w-full sm:max-w-xs">
+                                                            <label className="block text-[8.5px] font-black uppercase text-emerald-600 pl-1 mb-1">EasyPaisa Number</label>
+                                                            <input value={editData.easypaisaNumber} onChange={(e) => setEditData({ ...editData, easypaisaNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="03001234567" />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddEditBank}
+                                                            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border border-blue-200 shadow-sm active:scale-95 self-start sm:self-end"
                                                         >
-                                                            <option value="">-- Choose Bank --</option>
-                                                            {PAKISTANI_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                                                            <option value="Other Bank">Other Bank</option>
-                                                        </select>
-                                                        {(!PAKISTANI_BANKS.includes(editData.bankName) && editData.bankName) && (
-                                                            <input 
-                                                                value={editData.bankName} 
-                                                                onChange={(e) => setEditData({ ...editData, bankName: e.target.value })} 
-                                                                className="w-full mt-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-xs font-bold outline-none" 
-                                                                placeholder="Type Custom Bank Name" 
-                                                            />
-                                                        )}
+                                                            <Plus className="w-3.5 h-3.5" /> Add Another Bank
+                                                        </button>
                                                     </div>
-                                                    <div>
-                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Bank Account / IBAN</label>
-                                                        <input value={editData.bankAccountNumber} onChange={(e) => setEditData({ ...editData, bankAccountNumber: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Account # or IBAN" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[8.5px] font-black uppercase text-blue-600 pl-1 mb-1">Account Title</label>
-                                                        <input value={editData.bankAccountTitle} onChange={(e) => setEditData({ ...editData, bankAccountTitle: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/30 text-zinc-900 text-xs font-bold focus:bg-white outline-none" placeholder="Beneficiary Title" />
+
+                                                    {/* Dynamic Banks List */}
+                                                    <div className="space-y-2.5">
+                                                        {(editData.banks || []).map((b, idx) => (
+                                                            <div key={idx} className="p-3 bg-blue-50/20 rounded-xl border border-blue-100 space-y-2 relative">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[8.5px] font-black text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                                                                        🏛️ Bank #{idx + 1}
+                                                                    </span>
+                                                                    {(editData.banks || []).length > 1 && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleRemoveEditBank(idx)}
+                                                                            className="p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                                                            title="Remove Bank"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                                    <div>
+                                                                        <label className="block text-[8px] font-black uppercase text-blue-600 pl-1 mb-0.5">Bank Name</label>
+                                                                        <select 
+                                                                            value={PAKISTANI_BANKS.includes(b.bankName) ? b.bankName : (b.bankName ? 'Other Bank' : '')} 
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                if (val === 'Other Bank') {
+                                                                                    handleEditBankChange(idx, 'bankName', b.bankName || 'Other Bank');
+                                                                                } else {
+                                                                                    handleEditBankChange(idx, 'bankName', val);
+                                                                                }
+                                                                            }} 
+                                                                            className="w-full px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-zinc-900 text-xs font-bold focus:bg-white outline-none cursor-pointer"
+                                                                        >
+                                                                            <option value="">-- Choose Bank --</option>
+                                                                            {PAKISTANI_BANKS.map(bankOpt => <option key={bankOpt} value={bankOpt}>{bankOpt}</option>)}
+                                                                            <option value="Other Bank">Other Bank</option>
+                                                                        </select>
+                                                                        {(!PAKISTANI_BANKS.includes(b.bankName) && b.bankName) && (
+                                                                            <input 
+                                                                                value={b.bankName === 'Other Bank' ? '' : b.bankName} 
+                                                                                onChange={(e) => handleEditBankChange(idx, 'bankName', e.target.value)} 
+                                                                                className="w-full mt-1 px-2.5 py-1 rounded-lg border border-blue-200 bg-white text-xs font-bold outline-none" 
+                                                                                placeholder="Type Custom Bank Name" 
+                                                                            />
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-[8px] font-black uppercase text-blue-600 pl-1 mb-0.5">Account / IBAN</label>
+                                                                        <input 
+                                                                            value={b.bankAccountNumber || ''} 
+                                                                            onChange={(e) => handleEditBankChange(idx, 'bankAccountNumber', e.target.value)} 
+                                                                            className="w-full px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-zinc-900 text-xs font-bold focus:bg-white outline-none" 
+                                                                            placeholder="Account # or IBAN" 
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-[8px] font-black uppercase text-blue-600 pl-1 mb-0.5">Account Title</label>
+                                                                        <input 
+                                                                            value={b.bankAccountTitle || ''} 
+                                                                            onChange={(e) => handleEditBankChange(idx, 'bankAccountTitle', e.target.value)} 
+                                                                            className="w-full px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-zinc-900 text-xs font-bold focus:bg-white outline-none" 
+                                                                            placeholder="Beneficiary Title" 
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             </div>
@@ -659,18 +852,25 @@ export function SuperAdminDashboard() {
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="font-bold text-zinc-900 text-sm uppercase tracking-tight truncate">{shop.name}</h3>
-                                                    {shop.bankName && (
-                                                        <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[9px] font-black uppercase">
-                                                            🏛️ {shop.bankName}
-                                                        </span>
-                                                    )}
+                                                    {(shop.banks && shop.banks.length > 0 ? shop.banks : (shop.bankName ? [{ bankName: shop.bankName }] : [])).map((b, bIdx) => (
+                                                        b.bankName ? (
+                                                            <span key={bIdx} className="px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[9px] font-black uppercase">
+                                                                🏛️ {b.bankName}
+                                                            </span>
+                                                        ) : null
+                                                    ))}
                                                 </div>
                                                 <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest mt-0.5 truncate">
-                                                    {shop.address || 'Global'} {shop.contactNumber && `• ${shop.contactNumber}`} {shop.bankAccountNumber && `• A/C: ${shop.bankAccountNumber}`}
+                                                    {shop.address || 'Global'} {shop.contactNumber && `• ${shop.contactNumber}`} 
+                                                    {(shop.banks && shop.banks.length > 0 ? shop.banks : [{ bankAccountNumber: shop.bankAccountNumber }])
+                                                        .filter(b => b.bankAccountNumber)
+                                                        .map(b => `• A/C: ${b.bankAccountNumber}`)
+                                                        .join(' ')}
                                                 </p>
                                             </div>
                                         )}
                                     </div>
+
                                     <div className="flex items-center gap-3 ml-auto md:ml-4 flex-shrink-0">
                                         {isEditing ? (
                                             <>
@@ -762,29 +962,43 @@ export function SuperAdminDashboard() {
 
                                     {/* Bank & Payment Accounts in Detail Modal */}
                                     <div className="pt-2 border-t border-zinc-100 space-y-2">
-                                        <h4 className="text-[9px] font-black text-blue-600 uppercase tracking-widest pl-1 flex items-center gap-1.5">
-                                            <Building2 className="w-3 h-3 text-blue-500" />
-                                            Bank & Payment Accounts
+                                        <h4 className="text-[9px] font-black text-blue-600 uppercase tracking-widest pl-1 flex items-center justify-between">
+                                            <span className="flex items-center gap-1.5">
+                                                <Building2 className="w-3 h-3 text-blue-500" />
+                                                Bank & Payment Accounts ({viewingShop.banks?.length || (viewingShop.bankName ? 1 : 0)})
+                                            </span>
                                         </h4>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
-                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Bank Name</p>
-                                                <p className="text-[11px] font-bold text-blue-900 truncate">{viewingShop.bankName || "Not Configured"}</p>
-                                            </div>
-                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
-                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Account Number / IBAN</p>
-                                                <p className="text-[11px] font-bold text-zinc-800 truncate font-mono">{viewingShop.bankAccountNumber || "Not Configured"}</p>
-                                            </div>
-                                            <div className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-0.5">
-                                                <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Account Title</p>
-                                                <p className="text-[11px] font-bold text-zinc-800 truncate">{viewingShop.bankAccountTitle || "Not Configured"}</p>
-                                            </div>
-                                            <div className="bg-emerald-50/40 p-2.5 rounded-xl border border-emerald-100 space-y-0.5">
-                                                <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">EasyPaisa Number</p>
-                                                <p className="text-[11px] font-bold text-emerald-800 truncate">{viewingShop.easypaisaNumber || "Not Configured"}</p>
-                                            </div>
+                                        <div className="bg-emerald-50/40 p-2.5 rounded-xl border border-emerald-100 space-y-0.5">
+                                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">EasyPaisa Number</p>
+                                            <p className="text-[11px] font-bold text-emerald-800 truncate font-mono">{viewingShop.easypaisaNumber || "Not Configured"}</p>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                            {(viewingShop.banks && viewingShop.banks.length > 0
+                                                ? viewingShop.banks
+                                                : (viewingShop.bankName ? [{ bankName: viewingShop.bankName, bankAccountNumber: viewingShop.bankAccountNumber, bankAccountTitle: viewingShop.bankAccountTitle }] : [])
+                                            ).map((b, idx) => (
+                                                <div key={idx} className="bg-blue-50/40 p-2.5 rounded-xl border border-blue-100 space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-blue-700 uppercase flex items-center gap-1">
+                                                            🏛️ Bank #{idx + 1}: {b.bankName || "Not Configured"}
+                                                        </span>
+                                                        {b.bankAccountTitle && (
+                                                            <span className="text-[9px] font-bold text-zinc-600 bg-white px-2 py-0.5 rounded border border-blue-100">
+                                                                {b.bankAccountTitle}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] font-bold text-zinc-800 truncate font-mono">
+                                                        A/C: {b.bankAccountNumber || "Not Configured"}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                            {(!viewingShop.banks || viewingShop.banks.length === 0) && !viewingShop.bankName && (
+                                                <p className="text-[10px] text-zinc-400 font-bold italic pl-1">No bank accounts configured.</p>
+                                            )}
                                         </div>
                                     </div>
+
 
                                     <button
                                         onClick={() => {

@@ -39,7 +39,14 @@ export const settingsSchema = z.object({
   bankName: z.string().optional().or(z.literal('')),
   bankAccountNumber: z.string().optional().or(z.literal('')),
   bankAccountTitle: z.string().optional().or(z.literal('')),
+  banks: z.array(z.object({
+    bankName: z.string().optional().or(z.literal('')),
+    bankAccountNumber: z.string().optional().or(z.literal('')),
+    bankAccountTitle: z.string().optional().or(z.literal(''))
+  })).optional(),
+  banksJson: z.any().optional(),
 });
+
 
 export const validateSettings = (req, res, next) => {
   try {
