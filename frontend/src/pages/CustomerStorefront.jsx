@@ -582,6 +582,8 @@ function StoreContent({ shopId }) {
     setAppliedEndDate(endVal);
     if (startVal || endVal) {
       setReportTimeframe('CUSTOM');
+    } else {
+      setReportTimeframe('ALL');
     }
   };
 
@@ -593,46 +595,110 @@ function StoreContent({ shopId }) {
     setReportTimeframe('ALL');
   };
 
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    // Replace space with 'T' for iOS Safari / WebKit compatibility (e.g. "2026-10-18 10:30:00" -> "2026-10-18T10:30:00")
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    // Fallback: match YYYY-MM-DD
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   const isDateInSelectedRange = (rawDate) => {
     if (!rawDate) return false;
-    const d = new Date(rawDate);
-    if (isNaN(d.getTime())) return false;
+    const d = parseSafeDate(rawDate);
+    if (!d) return false;
 
-    if (appliedStartDate || appliedEndDate) {
-      if (appliedStartDate) {
-        const s = new Date(appliedStartDate + 'T00:00:00');
-        if (d < s) return false;
+    // Support both applied filter and live input for instant dynamic responsiveness
+    const activeStart = appliedStartDate || reportStartDate;
+    const activeEnd = appliedEndDate || reportEndDate;
+
+    if (activeStart || activeEnd) {
+      const pad = (n) => String(n).padStart(2, '0');
+      const localYMD = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const utcYMD = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+      let startTs = null;
+      if (activeStart) {
+        const parts = activeStart.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+        }
       }
-      if (appliedEndDate) {
-        const e = new Date(appliedEndDate + 'T23:59:59.999');
-        if (d > e) return false;
+      let endTs = null;
+      if (activeEnd) {
+        const parts = activeEnd.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+        }
       }
+
+      const itemTs = d.getTime();
+
+      if (activeStart && activeEnd) {
+        const inStr = (localYMD >= activeStart && localYMD <= activeEnd) ||
+                      (utcYMD >= activeStart && utcYMD <= activeEnd);
+        const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+        return inStr || inTs;
+      }
+
+      if (activeStart) {
+        const inStr = localYMD >= activeStart || utcYMD >= activeStart;
+        const inTs = startTs !== null && itemTs >= startTs;
+        return inStr || inTs;
+      }
+
+      if (activeEnd) {
+        const inStr = localYMD <= activeEnd || utcYMD <= activeEnd;
+        const inTs = endTs !== null && itemTs <= endTs;
+        return inStr || inTs;
+      }
+
       return true;
     }
 
     if (reportTimeframe === 'DAY') {
       const now = new Date();
-      return d.toDateString() === now.toDateString() || d.toISOString().split('T')[0] === now.toISOString().split('T')[0];
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const itemLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      return itemLocal === todayLocal || d.toDateString() === now.toDateString();
     }
     if (reportTimeframe === 'MONTH') {
       const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) ||
+             (d.getUTCMonth() === now.getUTCMonth() && d.getUTCFullYear() === now.getUTCFullYear());
     }
     if (reportTimeframe === 'YEAR') {
       const now = new Date();
-      return d.getFullYear() === now.getFullYear();
+      return d.getFullYear() === now.getFullYear() || d.getUTCFullYear() === now.getUTCFullYear();
     }
 
     return true;
   };
 
   const getActivePeriodLabel = () => {
-    if (appliedStartDate && appliedEndDate) {
-      if (appliedStartDate === appliedEndDate) return `Date: ${appliedStartDate}`;
-      return `${appliedStartDate} to ${appliedEndDate}`;
+    const activeStart = appliedStartDate || reportStartDate;
+    const activeEnd = appliedEndDate || reportEndDate;
+    if (activeStart && activeEnd) {
+      if (activeStart === activeEnd) return `Date: ${activeStart}`;
+      return `${activeStart} to ${activeEnd}`;
     }
-    if (appliedStartDate) return `From ${appliedStartDate}`;
-    if (appliedEndDate) return `Up to ${appliedEndDate}`;
+    if (activeStart) return `From ${activeStart}`;
+    if (activeEnd) return `Up to ${activeEnd}`;
     if (reportTimeframe === 'DAY') return 'Today';
     if (reportTimeframe === 'MONTH') return 'This Month';
     if (reportTimeframe === 'YEAR') return 'This Year';
@@ -654,7 +720,11 @@ function StoreContent({ shopId }) {
           <input
             type="date"
             value={reportStartDate}
-            onChange={(e) => setReportStartDate(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setReportStartDate(val);
+              handleApplyDateFilter(val, reportEndDate);
+            }}
             className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${isDark
               ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500'
               : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -669,7 +739,11 @@ function StoreContent({ shopId }) {
           <input
             type="date"
             value={reportEndDate}
-            onChange={(e) => setReportEndDate(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setReportEndDate(val);
+              handleApplyDateFilter(reportStartDate, val);
+            }}
             className={`w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border transition-all cursor-pointer ${isDark
               ? 'bg-slate-800 border-slate-700 text-white focus:border-emerald-500'
               : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -700,7 +774,7 @@ function StoreContent({ shopId }) {
           </button>
         )}
 
-        {(appliedStartDate || appliedEndDate) && (
+        {(appliedStartDate || appliedEndDate || reportStartDate || reportEndDate) && (
           <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
             Active: {getActivePeriodLabel()}
           </span>
@@ -1592,27 +1666,6 @@ function StoreContent({ shopId }) {
     return [...onlineList, ...Array.from(physicalMap.values())];
   }, [registeredCustomersList, shopSalesList, allShopOrders]);
 
-  const filteredUnifiedCustomers = useMemo(() => {
-    return (unifiedCustomersList || []).filter(cust => {
-      if (appliedStartDate || appliedEndDate) {
-        const stats = getCustomerStats(cust);
-        const hasSaleInRange = (stats.matchingSales || []).some(s => isDateInSelectedRange(s.saleDate || s.createdAt));
-        const regInRange = isDateInSelectedRange(cust.createdAt);
-        if (!regInRange && !hasSaleInRange) return false;
-      }
-      if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
-      if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
-      if (customerSearch.trim()) {
-        const q = customerSearch.toLowerCase();
-        const matchName = (cust.fullName || '').toLowerCase().includes(q);
-        const matchPhone = (cust.phone || '').toLowerCase().includes(q);
-        const matchEmail = (cust.email || '').toLowerCase().includes(q);
-        if (!matchName && !matchPhone && !matchEmail) return false;
-      }
-      return true;
-    });
-  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate, shopSalesList]);
-
   const getCustomerStats = (cust) => {
     const custId = String(cust._id || '').toLowerCase();
     const isOnline = cust.isOnline === true;
@@ -1732,8 +1785,29 @@ function StoreContent({ shopId }) {
       }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    return { totalSpent, totalCreditDue, ordersCount, combinedHistory };
+    return { totalSpent, totalCreditDue, ordersCount, combinedHistory, matchingSales };
   };
+
+  const filteredUnifiedCustomers = useMemo(() => {
+    return (unifiedCustomersList || []).filter(cust => {
+      if (appliedStartDate || appliedEndDate) {
+        const stats = getCustomerStats(cust);
+        const hasSaleInRange = (stats.matchingSales || []).some(s => isDateInSelectedRange(s.saleDate || s.createdAt));
+        const regInRange = isDateInSelectedRange(cust.createdAt);
+        if (!regInRange && !hasSaleInRange) return false;
+      }
+      if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
+      if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
+      if (customerSearch.trim()) {
+        const q = customerSearch.toLowerCase();
+        const matchName = (cust.fullName || '').toLowerCase().includes(q);
+        const matchPhone = (cust.phone || '').toLowerCase().includes(q);
+        const matchEmail = (cust.email || '').toLowerCase().includes(q);
+        if (!matchName && !matchPhone && !matchEmail) return false;
+      }
+      return true;
+    });
+  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate, shopSalesList]);
 
   // ─── Directory Overall Cumulative Summary (All Customers Grand Total) ───
   const directorySummaryStats = useMemo(() => {
@@ -9688,6 +9762,12 @@ function StoreContent({ shopId }) {
                                   {/* Contact Details with Email clearly highlighted */}
                                   <div className="bg-gray-50 rounded-xl p-2.5 border border-gray-150 space-y-1.5 text-xs">
                                     <div className="flex items-center justify-between text-[11px]">
+                                      <span className="text-gray-400 font-bold uppercase text-[9.5px]">Date:</span>
+                                      <span className="font-bold text-gray-800">
+                                        {custGroup.lastPurchaseDate ? new Date(custGroup.lastPurchaseDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : (custGroup.invoices && custGroup.invoices[0] ? new Date(custGroup.invoices[0].saleDate || custGroup.invoices[0].createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px]">
                                       <span className="text-gray-400 font-bold uppercase text-[9.5px]">Unique Email:</span>
                                       <span className="font-bold text-indigo-700 truncate max-w-[190px]">
                                         {custGroup.customerEmail ? `✉️ ${custGroup.customerEmail}` : '—'}
@@ -10021,10 +10101,11 @@ function StoreContent({ shopId }) {
                             <thead className="bg-gray-100/90 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-300">
                               <tr>
                                 <th className="py-2 px-2 text-center w-10 border border-gray-300">#</th>
-                                <th className="py-2 px-2.5 text-left w-[20%] border border-gray-300">Customer &amp; Email ID</th>
-                                <th className="py-2 px-2 text-center w-[11%] border border-gray-300">Contact Phone</th>
+                                <th className="py-2 px-2 text-center w-[9%] whitespace-nowrap border border-gray-300">Date</th>
+                                <th className="py-2 px-2.5 text-left w-[18%] border border-gray-300">Customer &amp; Email ID</th>
+                                <th className="py-2 px-2 text-center w-[10%] border border-gray-300">Contact Phone</th>
                                 <th className="py-2 px-2 text-center w-[8%] border border-gray-300">Invoices / Bills</th>
-                                <th className="py-2 px-2.5 text-center w-[23%] border border-gray-300">Items (Peti • Tray • Egg)</th>
+                                <th className="py-2 px-2.5 text-center w-[21%] border border-gray-300">Items (Peti • Tray • Egg)</th>
                                 <th className="py-2 px-2 text-center w-[12%] border border-gray-300">Payment Breakdown</th>
                                 <th className="py-2 px-2 text-center w-[9%] border border-gray-300">Credit Due</th>
                                 <th className="py-2 px-2.5 text-right w-[10%] border border-gray-300">Total Purchases</th>
@@ -10034,17 +10115,21 @@ function StoreContent({ shopId }) {
                             <tbody className="divide-y divide-gray-300">
                               {displayedCustomerWiseSalesReport.length === 0 ? (
                                 <tr>
-                                  <td colSpan="9" className="p-8 text-center text-gray-400 font-bold border border-gray-300">
+                                  <td colSpan="10" className="p-8 text-center text-gray-400 font-bold border border-gray-300">
                                     No customer sales records found matching the selected filter.
                                   </td>
                                 </tr>
                               ) : (
                                 displayedCustomerWiseSalesReport.map((custGroup, idx) => {
                                   const isExpanded = expandedCustomerSalesId === custGroup.id;
+                                  const custDate = custGroup.lastPurchaseDate || (custGroup.invoices && custGroup.invoices[0] ? (custGroup.invoices[0].saleDate || custGroup.invoices[0].createdAt) : null);
                                   return (
                                     <React.Fragment key={custGroup.id || idx}>
                                       <tr className={`hover:bg-gray-50/70 transition-colors border-b border-gray-300 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
                                         <td className="py-1.5 px-2 text-center font-bold text-gray-400 align-middle border border-gray-300">{idx + 1}</td>
+                                        <td className="py-1.5 px-2 text-center whitespace-nowrap font-bold text-gray-800 text-[11px] align-middle border border-gray-300">
+                                          {custDate ? new Date(custDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                        </td>
                                         <td className="py-1.5 px-2.5 align-middle border border-gray-300">
                                           <div className="flex items-center gap-2">
                                             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-[11px] flex items-center justify-center shadow-xs shrink-0">
@@ -10379,7 +10464,7 @@ function StoreContent({ shopId }) {
                                       {/* Sub-row Accordion for this Customer's Invoices */}
                                       {isExpanded && (
                                         <tr>
-                                          <td colSpan="9" className="p-3 bg-slate-50/80 border-y border-gray-200">
+                                          <td colSpan="10" className="p-3 bg-slate-50/80 border-y border-gray-200">
                                             <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-xs space-y-2.5">
                                               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                                                 <div className="text-[11px] font-black text-gray-900 uppercase flex items-center gap-1.5">
@@ -10506,7 +10591,7 @@ function StoreContent({ shopId }) {
                             {displayedCustomerWiseSalesReport.length > 0 && (
                               <tfoot className="bg-gray-50 border-t border-gray-300 font-black text-xs">
                                 <tr>
-                                  <td colSpan="7" className="p-2 text-right text-gray-800 uppercase text-[10.5px] border border-gray-300">
+                                  <td colSpan="8" className="p-2 text-right text-gray-800 uppercase text-[10.5px] border border-gray-300">
                                     {salesReportPaymentFilter === 'CASH'
                                       ? `Total Cash Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
                                       : salesReportPaymentFilter === 'BANK'
@@ -11755,8 +11840,37 @@ function StoreContent({ shopId }) {
                         return isDateInSelectedRange(d);
                       });
 
+                      const isChalanRecord = (e) => {
+                        if (!e) return false;
+                        const cat = String(e.category || '').toLowerCase();
+                        const tit = String(e.title || '').toLowerCase();
+                        const not = String(e.notes || '').toLowerCase();
+                        return cat.includes('chalan') || cat.includes('fine') || tit.includes('chalan') || not.includes('chalan') || Boolean(e.vehicleNumber || e.chalanNumber);
+                      };
+
+                      const getChalanDetails = (e) => {
+                        let car = e.vehicleNumber || '';
+                        let driver = e.driverName || '';
+                        let slip = e.chalanNumber || '';
+                        const notes = String(e.notes || '');
+                        if (!car) {
+                          const m = notes.match(/Car:\s*([^|\]]+)/i);
+                          if (m) car = m[1].trim();
+                        }
+                        if (!driver) {
+                          const m = notes.match(/Driver:\s*([^|\]]+)/i);
+                          if (m) driver = m[1].trim();
+                        }
+                        if (!slip) {
+                          const m = notes.match(/Slip:\s*([^|\]]+)/i);
+                          if (m) slip = m[1].trim();
+                        }
+                        return { car, driver, slip };
+                      };
+
                       const cashExpCount = filteredExpForTable.filter(e => !String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).length;
                       const bankExpCount = filteredExpForTable.filter(e => String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).length;
+                      const chalanExpCount = filteredExpForTable.filter(isChalanRecord).length;
 
                       const displayedExpenses = filteredExpForTable.filter(exp => {
                         if (expensePaymentFilter === 'CASH') {
@@ -11764,6 +11878,9 @@ function StoreContent({ shopId }) {
                         }
                         if (expensePaymentFilter === 'BANK') {
                           return String(exp.paymentSource || exp.paymentMethod || '').toUpperCase().includes('BANK');
+                        }
+                        if (expensePaymentFilter === 'CHALAN') {
+                          return isChalanRecord(exp);
                         }
                         return true;
                       });
@@ -11814,16 +11931,30 @@ function StoreContent({ shopId }) {
                               {/* Bank Tab - Dark Green */}
                               <button
                                 onClick={() => setExpensePaymentFilter('BANK')}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border-2 ${expensePaymentFilter === 'BANK'
-                                  ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-md ring-2 ring-emerald-500/30'
+                                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 border ${expensePaymentFilter === 'BANK'
+                                  ? 'bg-gradient-to-r from-[#071306] via-[#152F12] to-[#0A1A08] text-white border-[#2E6F28] shadow-sm ring-1 ring-emerald-500/30'
                                   : 'bg-[#152F12]/10 text-emerald-950 hover:bg-[#152F12]/20 border-[#2E6F28]/60'
                                   }`}
                               >
                                 <span className={expensePaymentFilter === 'BANK' ? 'text-emerald-200' : 'text-emerald-950'}>
                                   🏦 Paid from Bank
                                 </span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${expensePaymentFilter === 'BANK' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-emerald-100 text-emerald-950'}`}>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${expensePaymentFilter === 'BANK' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-emerald-100 text-emerald-950'}`}>
                                   {bankExpCount}
+                                </span>
+                              </button>
+
+                              {/* Chalan Tab - Rose */}
+                              <button
+                                onClick={() => setExpensePaymentFilter('CHALAN')}
+                                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 border ${expensePaymentFilter === 'CHALAN'
+                                  ? 'bg-rose-600 text-white border-rose-700 shadow-sm ring-1 ring-rose-400/30'
+                                  : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border-rose-300'
+                                  }`}
+                              >
+                                <span>🚨 Police Chalan</span>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${expensePaymentFilter === 'CHALAN' ? 'bg-white/25 text-white' : 'bg-rose-200 text-rose-950'}`}>
+                                  {chalanExpCount}
                                 </span>
                               </button>
                             </div>
@@ -11859,22 +11990,46 @@ function StoreContent({ shopId }) {
                                             <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-black">
                                               #{idx + 1}
                                             </span>
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded text-[9.5px] font-black uppercase shadow-xs">
-                                              <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Shop ID: {exp.shopId || shopId}
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 text-slate-800 border border-gray-400 rounded-lg text-[9.5px] font-bold uppercase tracking-wider shadow-xs whitespace-nowrap">
+                                              <Building2 className="w-2.5 h-2.5 text-slate-500" /> Shop ID: {exp.shopId || shopId}
                                             </span>
                                             <span className="font-black text-slate-900 text-sm tracking-tight uppercase">
                                               {exp.title}
                                             </span>
+                                            {(() => {
+                                              const isCh = isChalanRecord(exp);
+                                              const chInfo = isCh ? getChalanDetails(exp) : null;
+                                              return isCh ? (
+                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap font-semibold text-[10px]">
+                                                  {chInfo.car && (
+                                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-800 border border-gray-400 rounded font-bold uppercase">
+                                                      🚗 Car: {chInfo.car}
+                                                    </span>
+                                                  )}
+                                                  {chInfo.driver && (
+                                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-gray-400 rounded">
+                                                      👤 Driver: {chInfo.driver}
+                                                    </span>
+                                                  )}
+                                                  {chInfo.slip && (
+                                                    <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-gray-400 rounded">
+                                                      📄 Slip #{chInfo.slip}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              ) : null;
+                                            })()}
                                           </div>
                                           <div className="mt-1">
-                                            <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                              exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                                exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                                                  exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                                                    exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border border-gray-400 whitespace-nowrap ${isChalanRecord(exp) ? 'bg-rose-50 text-rose-800' :
+                                              exp.category === 'Rent' ? 'bg-blue-50 text-blue-800' :
+                                                exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-800' :
+                                                  exp.category === 'Salaries' ? 'bg-purple-50 text-purple-800' :
+                                                    exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-800' :
+                                                      exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-800' :
+                                                        'bg-slate-50 text-slate-800'
                                               }`}>
-                                              {exp.category}
+                                              {isChalanRecord(exp) ? '🚨 Police Chalan' : (exp.category || 'Other')}
                                             </span>
                                           </div>
                                         </div>
@@ -11904,12 +12059,12 @@ function StoreContent({ shopId }) {
                                         <div className="flex items-center justify-between text-[11px]">
                                           <span className="text-slate-400 font-bold uppercase text-[9.5px]">Paid From:</span>
                                           {isBank ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#152F12]/15 text-emerald-950 border border-[#2E6F28]/40">
-                                              <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Bank Account
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-900 border border-gray-400 whitespace-nowrap">
+                                              <Building2 className="w-2.5 h-2.5 text-emerald-700" /> Bank Account
                                             </span>
                                           ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                              <DollarSign className="w-2.5 h-2.5 text-emerald-700" /> Cash Drawer
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-amber-50/80 text-amber-950 border border-gray-400 whitespace-nowrap">
+                                              <DollarSign className="w-2.5 h-2.5 text-amber-600" /> Cash Drawer
                                             </span>
                                           )}
                                         </div>
@@ -11971,76 +12126,96 @@ function StoreContent({ shopId }) {
                               </div>
 
                               {/* ─── DESKTOP TABLE VIEW (hidden md:block) ─── */}
-                              <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 min-h-[350px] pb-24">
-                                <table className="w-full text-left text-xs text-slate-800">
-                                  <thead className="bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-200">
-                                    <tr>
-                                      <th className="p-3.5 text-center">#</th>
-                                      <th className="p-3.5 text-center">Shop ID</th>
-                                      <th className="p-3.5">Expense Date</th>
-                                      <th className="p-3.5">Expense Title / Description</th>
-                                      <th className="p-3.5 text-center">Category</th>
-                                      <th className="p-3.5 text-center">Payment Status</th>
-                                      <th className="p-3.5">Amount (RS)</th>
-                                      <th className="p-3.5">Logged By / Notes</th>
-                                      <th className="p-3.5 text-center">Action</th>
+                              <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-xs min-h-[350px] pb-24">
+                                <table className="w-full text-left text-xs text-slate-800 border-collapse border border-gray-300">
+                                  <thead className="bg-slate-100 text-[10px] font-black text-slate-700 uppercase tracking-wider border-b border-gray-300">
+                                    <tr className="border-b border-gray-300">
+                                      <th className="p-3 text-center border border-gray-300">#</th>
+                                      <th className="p-3 text-center border border-gray-300">Shop ID</th>
+                                      <th className="p-3 border border-gray-300">Expense Date</th>
+                                      <th className="p-3 border border-gray-300">Expense Title / Description</th>
+                                      <th className="p-3 text-center border border-gray-300">Category</th>
+                                      <th className="p-3 text-center border border-gray-300">Payment Status</th>
+                                      <th className="p-3 border border-gray-300">Amount (RS)</th>
+                                      <th className="p-3 border border-gray-300">Logged By / Notes</th>
+                                      <th className="p-3 text-center border border-gray-300">Action</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-slate-100">
+                                  <tbody className="divide-y divide-gray-300">
                                     {displayedExpenses.map((exp, idx) => {
                                       const isNearBottom = idx >= Math.max(1, filteredExpForTable.length - 3);
                                       return (
-                                        <tr key={exp._id || exp.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                                          <td className="p-3.5 text-center font-bold text-slate-400">
+                                        <tr key={exp._id || exp.id || idx} className="hover:bg-slate-50/80 transition-colors border-b border-gray-300">
+                                          <td className="p-3 text-center font-bold text-slate-400 border border-gray-300">
                                             {idx + 1}
                                           </td>
-                                          <td className="p-3.5 text-center">
-                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-950 border border-emerald-300 shadow-xs">
-                                              <Building2 className="w-3 h-3 text-emerald-800" />
-                                              Shop ID: {exp.shopId || shopId}
+                                          <td className="p-3 text-center whitespace-nowrap border border-gray-300">
+                                            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider bg-slate-50 text-slate-800 border border-gray-400 shadow-xs whitespace-nowrap">
+                                              <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                                              <span>Shop ID: {exp.shopId || shopId}</span>
                                             </span>
                                           </td>
-                                          <td className="p-3.5 font-bold text-slate-600">
+                                          <td className="p-3 font-bold text-slate-600 whitespace-nowrap border border-gray-300">
                                             {new Date(exp.expenseDate || exp.createdAt).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                                           </td>
-                                          <td className="p-3.5 font-black text-slate-900 uppercase">
-                                            {exp.title}
+                                          <td className="p-3 font-black text-slate-900 uppercase border border-gray-300">
+                                            <div>{exp.title}</div>
+                                            {(() => {
+                                              const isCh = isChalanRecord(exp);
+                                              const chInfo = isCh ? getChalanDetails(exp) : null;
+                                              return isCh ? (
+                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap font-semibold text-[10px]">
+                                                  {chInfo.car && (
+                                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-800 border border-gray-400 rounded font-bold uppercase">
+                                                      🚗 Car: {chInfo.car}
+                                                    </span>
+                                                  )}
+                                                  {chInfo.driver && (
+                                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-gray-400 rounded">
+                                                      👤 Driver: {chInfo.driver}
+                                                    </span>
+                                                  )}
+                                                  {chInfo.slip && (
+                                                    <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-gray-400 rounded">
+                                                      📄 Slip #{chInfo.slip}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              ) : null;
+                                            })()}
                                           </td>
-                                          <td className="p-3.5 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${exp.category === 'Rent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                              exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                                exp.category === 'Salaries' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                                                  exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                                                    exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                                      'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          <td className="p-3 text-center whitespace-nowrap border border-gray-300">
+                                            <span className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider border border-gray-400 shadow-xs whitespace-nowrap ${isChalanRecord(exp) ? 'bg-rose-50 text-rose-800' :
+                                              exp.category === 'Rent' ? 'bg-blue-50 text-blue-800' :
+                                                exp.category === 'Utilities / Bills' ? 'bg-amber-50 text-amber-800' :
+                                                  exp.category === 'Salaries' ? 'bg-purple-50 text-purple-800' :
+                                                    exp.category === 'Egg Damage / Loss' ? 'bg-rose-50 text-rose-800' :
+                                                      exp.category === 'Transport & Freight' ? 'bg-indigo-50 text-indigo-800' :
+                                                        'bg-slate-50 text-slate-800'
                                               }`}>
-                                              {exp.category}
+                                              {isChalanRecord(exp) ? '🚨 Police Chalan' : (exp.category || 'Other')}
                                             </span>
                                           </td>
-                                          <td className="p-3.5 text-center">
+                                          <td className="p-3 text-center whitespace-nowrap border border-gray-300">
                                             {String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK') ? (
-                                              <div className="space-y-0.5">
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#152F12]/15 text-emerald-950 border border-[#2E6F28]/40">
-                                                  <Building2 className="w-2.5 h-2.5 text-emerald-800" /> Paid from Bank
-                                                </span>
-                                                <span className="block text-[8.5px] font-bold text-emerald-800">Bank Account Cut</span>
-                                              </div>
+                                              <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-900 border border-gray-400 shadow-xs whitespace-nowrap">
+                                                <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                                                <span>Paid from Bank</span>
+                                              </span>
                                             ) : (
-                                              <div className="space-y-0.5">
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                                  <DollarSign className="w-2.5 h-2.5 text-emerald-700" /> Paid from Cash
-                                                </span>
-                                                <span className="block text-[8.5px] font-bold text-emerald-700">Cash in Drawer Cut</span>
-                                              </div>
+                                              <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider bg-amber-50/80 text-amber-950 border border-gray-400 shadow-xs whitespace-nowrap">
+                                                <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                                                <span>Paid from Cash</span>
+                                              </span>
                                             )}
                                           </td>
-                                          <td className="p-3.5 font-black text-rose-600 text-sm">
+                                          <td className="p-3 font-black text-rose-600 text-sm whitespace-nowrap border border-gray-300">
                                             {currency} {(Number(exp.amount) || 0).toLocaleString('en-PK')}
                                           </td>
-                                          <td className="p-3.5 text-slate-500 text-[11px]">
+                                          <td className="p-3 text-slate-500 text-[11px] border border-gray-300">
                                             {exp.notes || exp.createdBy || 'Shop Admin'}
                                           </td>
-                                          <td className="p-3.5 text-center relative">
+                                          <td className="p-3 text-center relative border border-gray-300">
                                             <div className="relative inline-block text-left">
                                               <button
                                                 onClick={(e) => {
@@ -13106,11 +13281,11 @@ function StoreContent({ shopId }) {
 
       {/* ─── ADD MANUAL EXPENSE MODAL ─── */}
       {showAddExpenseModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div className="flex items-center gap-2 text-rose-600 font-black text-sm uppercase tracking-wider">
-                {editingExpenseId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-zinc-200 text-zinc-900 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto flex flex-col">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5 mb-2.5 shrink-0">
+              <div className="flex items-center gap-2 text-rose-600 font-black text-xs sm:text-sm uppercase tracking-wider">
+                {editingExpenseId ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 {editingExpenseId ? 'Edit Expense Entry' : 'Add New Manual Expense'}
               </div>
               <button
@@ -13118,45 +13293,59 @@ function StoreContent({ shopId }) {
                   setShowAddExpenseModal(false);
                   setEditingExpenseId(null);
                 }}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-rose-100 text-zinc-500 hover:text-rose-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+                className="w-7 h-7 rounded-full bg-zinc-100 hover:bg-rose-100 text-zinc-500 hover:text-rose-600 flex items-center justify-center font-bold text-xs transition-all cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveExpenseSubmit} className="space-y-4">
+            <form onSubmit={handleSaveExpenseSubmit} className="space-y-2.5">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Expense Title / Description *</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">
+                  {expenseFormData.category.includes('Chalan') ? 'Expense Title / Chalan Description *' : 'Expense Title / Description *'}
+                </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Shop Rent, Electricity Bill, Packaging Bags..."
+                  required={!expenseFormData.category.includes('Chalan')}
+                  placeholder={expenseFormData.category.includes('Chalan') ? "e.g. Police Chalan - LES-1234 (Ahmad Khan)..." : "e.g. Shop Rent, Electricity Bill, Packaging Bags..."}
                   value={expenseFormData.title}
                   onChange={e => setExpenseFormData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                  className="w-full px-3 py-1.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Category</label>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Category</label>
                   <select
                     value={expenseFormData.category}
-                    onChange={e => setExpenseFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      setExpenseFormData(prev => ({
+                        ...prev,
+                        category: newCat,
+                        title: (!prev.title || prev.title.startsWith('Police Chalan')) && newCat.includes('Chalan')
+                          ? `Police Chalan - ${prev.vehicleNumber || ''}`.trim()
+                          : prev.title
+                      }));
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
                   >
                     <option value="Rent">Shop Rent</option>
                     <option value="Utilities / Bills">Utilities / Bills</option>
                     <option value="Packaging & Bags">Packaging & Bags</option>
                     <option value="Transport & Freight">Transport & Freight</option>
                     <option value="Salaries">Worker Salaries</option>
+                    <option value="Police Chalan / Traffic Fine">🚨 Police Chalan / Traffic Fine</option>
                     <option value="Egg Damage / Loss">Egg Damage / Loss</option>
                     <option value="Other">Other Expenses</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Amount (RS) *</label>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">
+                    {expenseFormData.category.includes('Chalan') ? 'Chalan Amount (RS) *' : 'Amount (RS) *'}
+                  </label>
                   <input
                     type="number"
                     required
@@ -13164,10 +13353,79 @@ function StoreContent({ shopId }) {
                     placeholder="e.g. 5000"
                     value={expenseFormData.amount}
                     onChange={e => setExpenseFormData(prev => ({ ...prev, amount: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:border-rose-500"
+                    className="w-full px-3 py-1.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:border-rose-500"
                   />
                 </div>
               </div>
+
+              {/* Conditional Police Chalan / Traffic Fine Details */}
+              {expenseFormData.category.includes('Chalan') && (
+                <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-1.5 text-rose-700 text-[10px] font-black uppercase tracking-wider">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Police Chalan / Traffic Fine Details</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-600 block mb-0.5">
+                        Car / Vehicle No *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. LES-1234, PR-550..."
+                        value={expenseFormData.vehicleNumber || ''}
+                        onChange={e => {
+                          const vNo = e.target.value;
+                          setExpenseFormData(prev => ({
+                            ...prev,
+                            vehicleNumber: vNo,
+                            title: (!prev.title || prev.title.startsWith('Police Chalan'))
+                              ? `Police Chalan - ${vNo} ${prev.driverName ? `(${prev.driverName})` : ''}`.trim()
+                              : prev.title
+                          }));
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-rose-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-600 block mb-0.5">
+                        Driver Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Ahmad Khan..."
+                        value={expenseFormData.driverName || ''}
+                        onChange={e => {
+                          const dName = e.target.value;
+                          setExpenseFormData(prev => ({
+                            ...prev,
+                            driverName: dName,
+                            title: (!prev.title || prev.title.startsWith('Police Chalan'))
+                              ? `Police Chalan - ${prev.vehicleNumber || 'Vehicle'} (${dName})`.trim()
+                              : prev.title
+                          }));
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-rose-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-600 block mb-0.5">
+                      Chalan / Slip No (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. CH-8921 / Traffic Wardens..."
+                      value={expenseFormData.chalanNumber || ''}
+                      onChange={e => setExpenseFormData(prev => ({ ...prev, chalanNumber: e.target.value }))}
+                      className="w-full px-2.5 py-1 bg-white border border-rose-300/80 rounded-lg text-xs font-medium text-zinc-800 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600 block mb-1.5 flex items-center justify-between">
@@ -13176,21 +13434,21 @@ function StoreContent({ shopId }) {
                     {expenseFormData.paymentMethod === 'BANK' ? 'Deducted from Bank Account' : 'Deducted from Cash in Drawer'}
                   </span>
                 </label>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   {/* Option 1: Cash in Drawer */}
                   <button
                     type="button"
                     onClick={() => setExpenseFormData(prev => ({ ...prev, paymentMethod: 'CASH', paymentSource: 'CASH' }))}
-                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${expenseFormData.paymentMethod !== 'BANK'
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-md ring-2 ring-emerald-400/20'
+                    className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${expenseFormData.paymentMethod !== 'BANK'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs ring-2 ring-emerald-400/20'
                       : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
                       }`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <DollarSign className={`w-4 h-4 ${expenseFormData.paymentMethod !== 'BANK' ? 'text-emerald-700' : 'text-zinc-400'}`} />
-                      <span className="text-xs font-black uppercase tracking-wide">Paid from Cash</span>
+                    <div className="flex items-center gap-1">
+                      <DollarSign className={`w-3.5 h-3.5 ${expenseFormData.paymentMethod !== 'BANK' ? 'text-emerald-700' : 'text-zinc-400'}`} />
+                      <span className="text-[11px] font-black uppercase tracking-wide">Paid from Cash</span>
                     </div>
-                    <span className="text-[9px] font-bold text-emerald-700">
+                    <span className="text-[8.5px] font-bold text-emerald-700">
                       Cash in Drawer Cut
                     </span>
                   </button>
@@ -13199,18 +13457,18 @@ function StoreContent({ shopId }) {
                   <button
                     type="button"
                     onClick={() => setExpenseFormData(prev => ({ ...prev, paymentMethod: 'BANK', paymentSource: 'BANK' }))}
-                    className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-center ${expenseFormData.paymentMethod === 'BANK'
-                      ? 'bg-[#152F12] border-[#2E6F28] text-white shadow-md ring-2 ring-emerald-500/30'
+                    className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center ${expenseFormData.paymentMethod === 'BANK'
+                      ? 'bg-[#152F12] border-[#2E6F28] text-white shadow-xs ring-2 ring-emerald-500/30'
                       : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:border-zinc-300'
                       }`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <Building2 className={`w-4 h-4 ${expenseFormData.paymentMethod === 'BANK' ? 'text-amber-300' : 'text-zinc-400'}`} />
-                      <span className={`text-xs font-black uppercase tracking-wide ${expenseFormData.paymentMethod === 'BANK' ? 'text-white' : 'text-zinc-700'}`}>
+                    <div className="flex items-center gap-1">
+                      <Building2 className={`w-3.5 h-3.5 ${expenseFormData.paymentMethod === 'BANK' ? 'text-amber-300' : 'text-zinc-400'}`} />
+                      <span className={`text-[11px] font-black uppercase tracking-wide ${expenseFormData.paymentMethod === 'BANK' ? 'text-white' : 'text-zinc-700'}`}>
                         Paid from Bank
                       </span>
                     </div>
-                    <span className={`text-[9px] font-bold ${expenseFormData.paymentMethod === 'BANK' ? 'text-emerald-300' : 'text-zinc-500'}`}>
+                    <span className={`text-[8.5px] font-bold ${expenseFormData.paymentMethod === 'BANK' ? 'text-emerald-300' : 'text-zinc-500'}`}>
                       Bank Account Cut
                     </span>
                   </button>
@@ -13218,42 +13476,42 @@ function StoreContent({ shopId }) {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Expense Date</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Expense Date</label>
                 <input
                   type="date"
                   value={expenseFormData.expenseDate}
                   onChange={e => setExpenseFormData(prev => ({ ...prev, expenseDate: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
+                  className="w-full px-3 py-1.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-rose-500"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Notes / Remarks (Optional)</label>
                 <textarea
-                  rows="2"
+                  rows="1"
                   placeholder="Additional details..."
                   value={expenseFormData.notes}
                   onChange={e => setExpenseFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-rose-500"
+                  className="w-full px-3 py-1 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-rose-500"
                 ></textarea>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAddExpenseModal(false);
                     setEditingExpenseId(null);
                   }}
-                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                  className="px-3.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-rose-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
                 >
-                  {editingExpenseId ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {editingExpenseId ? <Edit className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                   {editingExpenseId ? 'Update Expense' : 'Save Expense'}
                 </button>
               </div>

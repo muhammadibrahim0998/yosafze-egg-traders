@@ -132,21 +132,72 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
   };
 
   // Date filter helper
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   const isInDateRange = (itemDate) => {
+    if (!startDate && !endDate) return true;
     if (!itemDate) return true;
-    const date = new Date(itemDate);
-    if (isNaN(date.getTime())) return true;
+    const date = parseSafeDate(itemDate);
+    if (!date) return true;
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const localYMD = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const utcYMD = `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+
+    let startTs = null;
+    if (startDate) {
+      const parts = startDate.split('-').map(Number);
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+        startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+      }
+    }
+    let endTs = null;
+    if (endDate) {
+      const parts = endDate.split('-').map(Number);
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+        endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+      }
+    }
+
+    const itemTs = date.getTime();
+
+    if (startDate && endDate) {
+      const inStr = (localYMD >= startDate && localYMD <= endDate) ||
+                    (utcYMD >= startDate && utcYMD <= endDate);
+      const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+      return inStr || inTs;
+    }
 
     if (startDate) {
-      const s = new Date(startDate);
-      s.setHours(0, 0, 0, 0);
-      if (date < s) return false;
+      const inStr = localYMD >= startDate || utcYMD >= startDate;
+      const inTs = startTs !== null && itemTs >= startTs;
+      return inStr || inTs;
     }
+
     if (endDate) {
-      const e = new Date(endDate);
-      e.setHours(23, 59, 59, 999);
-      if (date > e) return false;
+      const inStr = localYMD <= endDate || utcYMD <= endDate;
+      const inTs = endTs !== null && itemTs <= endTs;
+      return inStr || inTs;
     }
+
     return true;
   };
 
@@ -714,8 +765,8 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
       {/* VIEW 1: Compact Full-Width Purchases Table with Category & Actions */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {viewMode === 'transactions' && (
-        <div className="bg-white border border-zinc-200 rounded-2xl shadow-xs overflow-hidden w-full">
-          <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+        <div className="bg-white border border-gray-300 rounded-xl shadow-xs overflow-hidden w-full">
+          <div className="px-4 py-3 border-b border-gray-300 flex items-center justify-between bg-zinc-50/50">
             <div>
               <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-zinc-900">
                 Vendor Supply &amp; Purchase Bills
@@ -730,50 +781,50 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
           </div>
 
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-[11px] border-collapse">
-              <thead className="bg-zinc-100/80 border-b border-zinc-200 text-zinc-600 uppercase text-[9.5px] font-black tracking-wider">
-                <tr>
-                  <th className="py-2.5 px-2.5 whitespace-nowrap">Date</th>
-                  <th className="py-2.5 px-2.5 whitespace-nowrap">Vendor / Supplier</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap">Category</th>
-                  <th className="py-2.5 px-2.5">Product (Peti • Tray • Egg)</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Petis</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Method</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Cash Paid</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Bank Paid</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Credit Due</th>
-                  <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Total</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Status</th>
-                  <th className="py-2.5 px-2.5 text-center whitespace-nowrap">Actions</th>
+            <table className="w-full text-left text-[11px] border-collapse border border-gray-300">
+              <thead className="bg-zinc-100 border-b border-gray-300 text-zinc-700 uppercase text-[9.5px] font-black tracking-wider">
+                <tr className="border-b border-gray-300">
+                  <th className="py-2.5 px-2.5 whitespace-nowrap border border-gray-300">Date</th>
+                  <th className="py-2.5 px-2.5 whitespace-nowrap border border-gray-300">Vendor / Supplier</th>
+                  <th className="py-2.5 px-2 whitespace-nowrap border border-gray-300">Category</th>
+                  <th className="py-2.5 px-2.5 border border-gray-300">Product (Peti • Tray • Egg)</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Petis</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Method</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Cash Paid</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Bank Paid</th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap border border-gray-300">Credit Due</th>
+                  <th className="py-2.5 px-2.5 text-right whitespace-nowrap border border-gray-300">Total</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap border border-gray-300">Status</th>
+                  <th className="py-2.5 px-2.5 text-center whitespace-nowrap border border-gray-300">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 font-bold text-zinc-700">
+              <tbody className="divide-y divide-gray-300 font-bold text-zinc-700">
                 {supplierLedgerList.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-10 text-center text-zinc-400">
+                    <td colSpan={12} className="py-10 text-center text-zinc-400 border border-gray-300">
                       <Truck className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
                       <p className="text-xs uppercase font-black">No vendor purchase records match your filter</p>
                     </td>
                   </tr>
                 ) : (
                   supplierLedgerList.map((txn) => (
-                    <tr key={txn.id} className="hover:bg-orange-50/20 transition-colors">
-                      <td className="py-2 px-2.5 whitespace-nowrap text-zinc-500 text-[10.5px]">
+                    <tr key={txn.id} className="hover:bg-orange-50/20 transition-colors border-b border-gray-300">
+                      <td className="py-2 px-2.5 whitespace-nowrap text-zinc-500 text-[10.5px] border border-gray-300">
                         {new Date(txn.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
-                      <td className="py-2 px-2.5 max-w-[120px]">
+                      <td className="py-2 px-2.5 max-w-[120px] border border-gray-300">
                         <div className="font-black text-zinc-900 truncate" title={txn.supplierName}>{txn.supplierName}</div>
                         {txn.supplierPhone && (
                           <div className="text-[9.5px] text-zinc-400 font-semibold truncate">{txn.supplierPhone}</div>
                         )}
                       </td>
-                      <td className="py-2 px-2 whitespace-nowrap">
+                      <td className="py-2 px-2 whitespace-nowrap border border-gray-300">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-orange-50 text-orange-800 border border-orange-200">
                           <Tag className="w-2.5 h-2.5" />
                           {txn.category || 'Eggs'}
                         </span>
                       </td>
-                      <td className="py-2 px-2.5">
+                      <td className="py-2 px-2.5 border border-gray-300">
                         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                           <span className="font-black text-zinc-900 text-[11px] truncate max-w-[90px]" title={txn.productName}>
                             {txn.productName}
@@ -801,7 +852,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           </div>
                         </div>
                       </td>
-                      <td className="py-2 px-2 text-center whitespace-nowrap font-black text-orange-800">
+                      <td className="py-2 px-2 text-center whitespace-nowrap font-black text-orange-800 border border-gray-300">
                         <div className="font-black text-orange-800 text-[11px]">
                           {txn.petisPurchased > 0 ? `${txn.petisPurchased} P` : (txn.petisCount > 0 ? `${txn.petisCount} P` : '-')}
                         </div>
@@ -811,7 +862,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           </div>
                         )}
                       </td>
-                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
                         {txn.paymentMethod === 'BANK' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200">
                             <Building2 className="w-2.5 h-2.5 text-blue-600" />
@@ -834,19 +885,19 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-emerald-700">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-emerald-700 border border-gray-300">
                         {txn.cashPaid > 0 ? `Rs. ${fmt(txn.cashPaid)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-blue-700">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-blue-700 border border-gray-300">
                         {txn.bankPaid > 0 ? `Rs. ${fmt(txn.bankPaid)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-rose-600">
+                      <td className="py-2 px-2 text-right whitespace-nowrap font-black text-rose-600 border border-gray-300">
                         {txn.dueAmount > 0 ? `Rs. ${fmt(txn.dueAmount)}` : <span className="text-zinc-300">-</span>}
                       </td>
-                      <td className="py-2 px-2.5 text-right whitespace-nowrap font-black text-zinc-900">
+                      <td className="py-2 px-2.5 text-right whitespace-nowrap font-black text-zinc-900 border border-gray-300">
                         Rs. {fmt(txn.totalCost)}
                       </td>
-                      <td className="py-2 px-2 text-center whitespace-nowrap">
+                      <td className="py-2 px-2 text-center whitespace-nowrap border border-gray-300">
                         {txn.status === 'PAID' ? (
                           <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
                             Paid
@@ -861,7 +912,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           </span>
                         )}
                       </td>
-                      <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                      <td className="py-2 px-2.5 text-center whitespace-nowrap border border-gray-300">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => handleOpenEdit(txn)}
@@ -959,35 +1010,35 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                         Purchased Products &amp; Bill Breakdown
                       </h4>
 
-                      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-                        <table className="w-full text-left text-[11px]">
-                          <thead className="bg-zinc-100/70 border-b border-zinc-200 text-zinc-600 text-[9.5px] font-black uppercase">
-                            <tr>
-                              <th className="py-2 px-3">Date</th>
-                              <th className="py-2 px-3">Category</th>
-                              <th className="py-2 px-3">Product (Peti • Tray • Egg)</th>
-                              <th className="py-2 px-3 text-center">Petis</th>
-                              <th className="py-2 px-3 text-center">Method</th>
-                              <th className="py-2 px-3 text-right">Cash Paid</th>
-                              <th className="py-2 px-3 text-right">Bank Paid</th>
-                              <th className="py-2 px-3 text-right">Credit Due</th>
-                              <th className="py-2 px-3 text-right">Total Cost</th>
-                              <th className="py-2 px-3 text-center">Status</th>
-                              <th className="py-2 px-3 text-center">Actions</th>
+                      <div className="overflow-x-auto rounded-xl border border-gray-300 bg-white">
+                        <table className="w-full text-left text-[11px] border-collapse border border-gray-300">
+                          <thead className="bg-zinc-100 border-b border-gray-300 text-zinc-700 text-[9.5px] font-black uppercase">
+                            <tr className="border-b border-gray-300">
+                              <th className="py-2 px-3 border border-gray-300">Date</th>
+                              <th className="py-2 px-3 border border-gray-300">Category</th>
+                              <th className="py-2 px-3 border border-gray-300">Product (Peti • Tray • Egg)</th>
+                              <th className="py-2 px-3 text-center border border-gray-300">Petis</th>
+                              <th className="py-2 px-3 text-center border border-gray-300">Method</th>
+                              <th className="py-2 px-3 text-right border border-gray-300">Cash Paid</th>
+                              <th className="py-2 px-3 text-right border border-gray-300">Bank Paid</th>
+                              <th className="py-2 px-3 text-right border border-gray-300">Credit Due</th>
+                              <th className="py-2 px-3 text-right border border-gray-300">Total Cost</th>
+                              <th className="py-2 px-3 text-center border border-gray-300">Status</th>
+                              <th className="py-2 px-3 text-center border border-gray-300">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-zinc-100 font-bold text-zinc-700">
+                          <tbody className="divide-y divide-gray-300 font-bold text-zinc-700">
                             {vnd.bills.map(b => (
-                              <tr key={b.id} className="hover:bg-zinc-50">
-                                <td className="py-2 px-3 whitespace-nowrap text-zinc-500 text-[10.5px]">
+                              <tr key={b.id} className="hover:bg-zinc-50 border-b border-gray-300">
+                                <td className="py-2 px-3 whitespace-nowrap text-zinc-500 text-[10.5px] border border-gray-300">
                                   {new Date(b.date).toLocaleDateString('en-PK')}
                                 </td>
-                                <td className="py-2 px-3 whitespace-nowrap">
+                                <td className="py-2 px-3 whitespace-nowrap border border-gray-300">
                                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-orange-50 text-orange-700 border border-orange-200">
                                     {b.category || 'Eggs'}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3 font-black text-zinc-900">
+                                <td className="py-2 px-3 font-black text-zinc-900 border border-gray-300">
                                   <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                                     <span className="truncate max-w-[90px]" title={b.productName}>{b.productName}</span>
                                     {/* Compact 3-box strip for Peti • Tray • Egg */}
@@ -1013,13 +1064,13 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                     </div>
                                   </div>
                                 </td>
-                                <td className="py-2 px-3 text-center font-black text-orange-800">
+                                <td className="py-2 px-3 text-center font-black text-orange-800 border border-gray-300">
                                   <div>{b.petisPurchased > 0 ? `${b.petisPurchased} P` : (b.petisCount > 0 ? `${b.petisCount} P` : '-')}</div>
                                   {b.totalEggsCount > 0 && (
                                     <div className="text-[8px] font-bold text-zinc-400">{b.totalEggsCount.toLocaleString('en-PK')} Eggs</div>
                                   )}
                                 </td>
-                                <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <td className="py-2 px-3 text-center whitespace-nowrap border border-gray-300">
                                   {b.paymentMethod === 'BANK' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-50 text-blue-800 border border-blue-200">
                                       <Building2 className="w-2.5 h-2.5 text-blue-600" />
@@ -1042,19 +1093,19 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-2 px-3 text-right text-emerald-700 font-black">
+                                <td className="py-2 px-3 text-right text-emerald-700 font-black border border-gray-300">
                                   {b.cashPaid > 0 ? `Rs. ${fmt(b.cashPaid)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-blue-700 font-black">
+                                <td className="py-2 px-3 text-right text-blue-700 font-black border border-gray-300">
                                   {b.bankPaid > 0 ? `Rs. ${fmt(b.bankPaid)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right text-rose-600 font-black">
+                                <td className="py-2 px-3 text-right text-rose-600 font-black border border-gray-300">
                                   {b.dueAmount > 0 ? `Rs. ${fmt(b.dueAmount)}` : '-'}
                                 </td>
-                                <td className="py-2 px-3 text-right font-black text-zinc-900">
+                                <td className="py-2 px-3 text-right font-black text-zinc-900 border border-gray-300">
                                   Rs. {fmt(b.totalCost)}
                                 </td>
-                                <td className="py-2 px-3 text-center">
+                                <td className="py-2 px-3 text-center border border-gray-300">
                                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
                                     b.status === 'PAID'
                                       ? 'bg-emerald-100 text-emerald-800'
@@ -1065,7 +1116,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                     {b.status}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <td className="py-2 px-3 text-center whitespace-nowrap border border-gray-300">
                                   <div className="flex items-center justify-center gap-1">
                                     <button
                                       onClick={() => handleOpenEdit(b)}

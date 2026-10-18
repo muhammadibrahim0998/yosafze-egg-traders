@@ -37,7 +37,7 @@ const handleCreateExpense = async (req, res) => {
   try {
     const rawShopId = req.params.shopId || req.body.shopId || req.query.shopId || 1;
     const realShopId = await resolveShopId(rawShopId);
-    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy } = req.body;
+    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy, vehicleNumber, driverName, chalanNumber } = req.body;
 
     if (!title || amount === undefined || amount === null) {
       return res.status(400).json({ success: false, message: 'Title and amount are required' });
@@ -54,6 +54,9 @@ const handleCreateExpense = async (req, res) => {
       paymentSource: source,
       expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
       notes: notes || '',
+      vehicleNumber: vehicleNumber || null,
+      driverName: driverName || null,
+      chalanNumber: chalanNumber || null,
       createdBy: createdBy || 'Shop Admin'
     };
 
@@ -72,7 +75,7 @@ router.post('/shop/:shopId', handleCreateExpense);
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy, shopId } = req.body;
+    const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy, shopId, vehicleNumber, driverName, chalanNumber } = req.body;
     const updateData = {};
     if (shopId !== undefined) {
       const realShopId = await resolveShopId(shopId);
@@ -88,6 +91,9 @@ router.put('/:id', async (req, res) => {
     }
     if (expenseDate !== undefined) updateData.expenseDate = new Date(expenseDate);
     if (notes !== undefined) updateData.notes = notes;
+    if (vehicleNumber !== undefined) updateData.vehicleNumber = vehicleNumber;
+    if (driverName !== undefined) updateData.driverName = driverName;
+    if (chalanNumber !== undefined) updateData.chalanNumber = chalanNumber;
     if (createdBy !== undefined) updateData.createdBy = createdBy;
 
     const updated = await Expense.findByIdAndUpdate(id, updateData, { new: true });

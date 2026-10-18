@@ -398,21 +398,70 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
     return Array.from(set);
   }, [fuelRecords]);
 
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   // Filtered Records
   const filteredRecords = useMemo(() => {
     return fuelRecords.filter(r => {
-      // Date filter
-      if (appliedStartDate || appliedEndDate) {
-        const itemDate = new Date(r.expenseDate || r.createdAt || Date.now());
-        if (appliedStartDate) {
-          const s = new Date(appliedStartDate);
-          s.setHours(0, 0, 0, 0);
-          if (itemDate < s) return false;
+      // Date filter (supports both applied and dynamic input)
+      const activeStart = appliedStartDate || startDate;
+      const activeEnd = appliedEndDate || endDate;
+      if (activeStart || activeEnd) {
+        const itemDate = parseSafeDate(r.expenseDate || r.createdAt);
+        if (!itemDate) return false;
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const localYMD = `${itemDate.getFullYear()}-${pad(itemDate.getMonth() + 1)}-${pad(itemDate.getDate())}`;
+        const utcYMD = `${itemDate.getUTCFullYear()}-${pad(itemDate.getUTCMonth() + 1)}-${pad(itemDate.getUTCDate())}`;
+
+        let startTs = null;
+        if (activeStart) {
+          const parts = activeStart.split('-').map(Number);
+          if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+          }
         }
-        if (appliedEndDate) {
-          const e = new Date(appliedEndDate);
-          e.setHours(23, 59, 59, 999);
-          if (itemDate > e) return false;
+        let endTs = null;
+        if (activeEnd) {
+          const parts = activeEnd.split('-').map(Number);
+          if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+          }
+        }
+
+        const itemTs = itemDate.getTime();
+
+        if (activeStart && activeEnd) {
+          const inStr = (localYMD >= activeStart && localYMD <= activeEnd) ||
+                        (utcYMD >= activeStart && utcYMD <= activeEnd);
+          const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+          if (!inStr && !inTs) return false;
+        } else if (activeStart) {
+          const inStr = localYMD >= activeStart || utcYMD >= activeStart;
+          const inTs = startTs !== null && itemTs >= startTs;
+          if (!inStr && !inTs) return false;
+        } else if (activeEnd) {
+          const inStr = localYMD <= activeEnd || utcYMD <= activeEnd;
+          const inTs = endTs !== null && itemTs <= endTs;
+          if (!inStr && !inTs) return false;
         }
       }
 
@@ -904,7 +953,11 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStartDate(val);
+                setAppliedStartDate(val);
+              }}
               className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-sm"
             />
           </div>
@@ -914,7 +967,11 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEndDate(val);
+                setAppliedEndDate(val);
+              }}
               className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 transition-colors shadow-sm"
             />
           </div>

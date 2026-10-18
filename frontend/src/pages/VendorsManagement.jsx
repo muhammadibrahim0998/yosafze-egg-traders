@@ -53,18 +53,75 @@ export function VendorsManagement({ shopId: propShopId }) {
     setAppliedEndDate('');
   };
 
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   const isDateInSelectedRange = (rawDate) => {
     if (!rawDate) return false;
-    const d = new Date(rawDate);
-    if (isNaN(d.getTime())) return false;
-    if (appliedStartDate) {
-      const s = new Date(appliedStartDate + 'T00:00:00');
-      if (d < s) return false;
+    const d = parseSafeDate(rawDate);
+    if (!d) return false;
+
+    const activeStart = appliedStartDate || vendorStartDate;
+    const activeEnd = appliedEndDate || vendorEndDate;
+
+    if (activeStart || activeEnd) {
+      const pad = (n) => String(n).padStart(2, '0');
+      const localYMD = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const utcYMD = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+      let startTs = null;
+      if (activeStart) {
+        const parts = activeStart.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+        }
+      }
+      let endTs = null;
+      if (activeEnd) {
+        const parts = activeEnd.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+        }
+      }
+
+      const itemTs = d.getTime();
+
+      if (activeStart && activeEnd) {
+        const inStr = (localYMD >= activeStart && localYMD <= activeEnd) ||
+                      (utcYMD >= activeStart && utcYMD <= activeEnd);
+        const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+        return inStr || inTs;
+      }
+      if (activeStart) {
+        const inStr = localYMD >= activeStart || utcYMD >= activeStart;
+        const inTs = startTs !== null && itemTs >= startTs;
+        return inStr || inTs;
+      }
+      if (activeEnd) {
+        const inStr = localYMD <= activeEnd || utcYMD <= activeEnd;
+        const inTs = endTs !== null && itemTs <= endTs;
+        return inStr || inTs;
+      }
+      return true;
     }
-    if (appliedEndDate) {
-      const e = new Date(appliedEndDate + 'T23:59:59.999');
-      if (d > e) return false;
-    }
+
     return true;
   };
 
@@ -377,7 +434,11 @@ export function VendorsManagement({ shopId: propShopId }) {
             <input
               type="date"
               value={vendorStartDate}
-              onChange={(e) => setVendorStartDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setVendorStartDate(val);
+                handleApplyDateFilter(val, vendorEndDate);
+              }}
               className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-slate-300 bg-white text-slate-900 focus:border-teal-500 cursor-pointer"
             />
           </div>
@@ -386,7 +447,11 @@ export function VendorsManagement({ shopId: propShopId }) {
             <input
               type="date"
               value={vendorEndDate}
-              onChange={(e) => setVendorEndDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setVendorEndDate(val);
+                handleApplyDateFilter(vendorStartDate, val);
+              }}
               className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-slate-300 bg-white text-slate-900 focus:border-teal-500 cursor-pointer"
             />
           </div>

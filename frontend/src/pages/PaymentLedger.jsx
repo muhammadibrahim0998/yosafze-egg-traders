@@ -121,11 +121,31 @@ export function PaymentLedger({ shopId: propShopId }) {
   // Helper formatting currency
   const fmt = (num) => Number(num || 0).toLocaleString('en-PK');
 
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   // Date Range filter helper
   const isInDateRange = (itemDate) => {
     if (!itemDate) return true;
-    const date = new Date(itemDate);
-    if (isNaN(date.getTime())) return true;
+    const date = parseSafeDate(itemDate);
+    if (!date) return true;
 
     const now = new Date();
     if (dateFilter === 'ALL') return true;
@@ -151,11 +171,42 @@ export function PaymentLedger({ shopId: propShopId }) {
     }
 
     if (dateFilter === 'CUSTOM') {
-      if (startDate && new Date(startDate) > date) return false;
+      const pad = (n) => String(n).padStart(2, '0');
+      const localYMD = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      const utcYMD = `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+
+      let startTs = null;
+      if (startDate) {
+        const parts = startDate.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+        }
+      }
+      let endTs = null;
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        if (date > end) return false;
+        const parts = endDate.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+        }
+      }
+
+      const itemTs = date.getTime();
+
+      if (startDate && endDate) {
+        const inStr = (localYMD >= startDate && localYMD <= endDate) ||
+                      (utcYMD >= startDate && utcYMD <= endDate);
+        const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+        return inStr || inTs;
+      }
+      if (startDate) {
+        const inStr = localYMD >= startDate || utcYMD >= startDate;
+        const inTs = startTs !== null && itemTs >= startTs;
+        return inStr || inTs;
+      }
+      if (endDate) {
+        const inStr = localYMD <= endDate || utcYMD <= endDate;
+        const inTs = endTs !== null && itemTs <= endTs;
+        return inStr || inTs;
       }
       return true;
     }

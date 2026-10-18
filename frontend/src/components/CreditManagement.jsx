@@ -68,18 +68,75 @@ export function CreditManagement({
     setAppliedEndDate('');
   };
 
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+    const isoStr = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+    let d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+    const m = str.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) {
+      d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
   const isDateInSelectedRange = (rawDate) => {
     if (!rawDate) return false;
-    const d = new Date(rawDate);
-    if (isNaN(d.getTime())) return false;
-    if (appliedStartDate) {
-      const s = new Date(appliedStartDate + 'T00:00:00');
-      if (d < s) return false;
+    const d = parseSafeDate(rawDate);
+    if (!d) return false;
+
+    const activeStart = appliedStartDate || creditStartDate;
+    const activeEnd = appliedEndDate || creditEndDate;
+
+    if (activeStart || activeEnd) {
+      const pad = (n) => String(n).padStart(2, '0');
+      const localYMD = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const utcYMD = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+      let startTs = null;
+      if (activeStart) {
+        const parts = activeStart.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          startTs = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0).getTime();
+        }
+      }
+      let endTs = null;
+      if (activeEnd) {
+        const parts = activeEnd.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+          endTs = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999).getTime();
+        }
+      }
+
+      const itemTs = d.getTime();
+
+      if (activeStart && activeEnd) {
+        const inStr = (localYMD >= activeStart && localYMD <= activeEnd) ||
+                      (utcYMD >= activeStart && utcYMD <= activeEnd);
+        const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
+        return inStr || inTs;
+      }
+      if (activeStart) {
+        const inStr = localYMD >= activeStart || utcYMD >= activeStart;
+        const inTs = startTs !== null && itemTs >= startTs;
+        return inStr || inTs;
+      }
+      if (activeEnd) {
+        const inStr = localYMD <= activeEnd || utcYMD <= activeEnd;
+        const inTs = endTs !== null && itemTs <= endTs;
+        return inStr || inTs;
+      }
+      return true;
     }
-    if (appliedEndDate) {
-      const e = new Date(appliedEndDate + 'T23:59:59.999');
-      if (d > e) return false;
-    }
+
     return true;
   };
 
@@ -645,20 +702,20 @@ export function CreditManagement({
       </div>
 
       {/* ─── 2 Main Branches / Tab Selection Bar ─── */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-3 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center bg-zinc-100 p-1.5 rounded-2xl gap-2 w-full sm:w-auto">
+      <div className="bg-white border border-zinc-200 rounded-2xl p-2 sm:p-2.5 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+        <div className="flex items-center bg-zinc-100 p-1 rounded-xl gap-1.5 w-full sm:w-auto">
           {/* Branch 1: Purchase Credit */}
           <button
             onClick={() => { setActiveTab('purchases'); setSearchTerm(''); }}
-            className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl font-black text-xs sm:text-sm tracking-wide transition-all flex items-center justify-center gap-2.5 cursor-pointer ${
+            className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'purchases'
-                ? 'bg-amber-500 text-zinc-950 shadow-md scale-[1.02]'
+                ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'
                 : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/70'
             }`}
           >
-            <Truck className="w-4 h-4" />
+            <Truck className="w-3.5 h-3.5" />
             <span>1. Purchase Credit</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-black ${
               activeTab === 'purchases' ? 'bg-zinc-950 text-amber-400' : 'bg-zinc-200 text-zinc-700'
             }`}>
               {purchaseCreditList.filter(p => p.calculatedDue > 0).length}
@@ -668,15 +725,15 @@ export function CreditManagement({
           {/* Branch 2: Customer Credit */}
           <button
             onClick={() => { setActiveTab('customers'); setSearchTerm(''); }}
-            className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl font-black text-xs sm:text-sm tracking-wide transition-all flex items-center justify-center gap-2.5 cursor-pointer ${
+            className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'customers'
-                ? 'bg-amber-500 text-zinc-950 shadow-md scale-[1.02]'
+                ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'
                 : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/70'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-3.5 h-3.5" />
             <span>2. Customer Credit</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            <span className={`px-1.5 py-0.2 rounded-full text-[9.5px] font-black ${
               activeTab === 'customers' ? 'bg-zinc-950 text-amber-400' : 'bg-zinc-200 text-zinc-700'
             }`}>
               {customerCreditList.filter(c => c.calculatedDue > 0).length}
@@ -685,68 +742,76 @@ export function CreditManagement({
         </div>
 
         {/* Calendar Date Range Filter */}
-        <div className="flex items-center flex-wrap gap-1.5 p-1 rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm text-zinc-800 shrink-0">
+        <div className="flex items-center flex-wrap gap-1 p-0.5 sm:p-1 rounded-xl border border-zinc-200 bg-zinc-50 shadow-xs text-zinc-800 shrink-0">
           <div className="flex items-center gap-1 pl-1">
-            <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Start:</span>
+            <Calendar className="w-3 h-3 text-emerald-600 shrink-0" />
+            <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500">Start:</span>
             <input
               type="date"
               value={creditStartDate}
-              onChange={(e) => setCreditStartDate(e.target.value)}
-              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
+              onChange={(e) => {
+                const val = e.target.value;
+                setCreditStartDate(val);
+                handleApplyDateFilter(val, creditEndDate);
+              }}
+              className="w-[108px] sm:w-[114px] px-1.5 py-0.5 rounded-md text-[11px] font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
             />
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">End:</span>
+            <span className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500">End:</span>
             <input
               type="date"
               value={creditEndDate}
-              onChange={(e) => setCreditEndDate(e.target.value)}
-              className="w-[118px] sm:w-[126px] px-1.5 py-1 rounded-lg text-xs font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
+              onChange={(e) => {
+                const val = e.target.value;
+                setCreditEndDate(val);
+                handleApplyDateFilter(creditStartDate, val);
+              }}
+              className="w-[108px] sm:w-[114px] px-1.5 py-0.5 rounded-md text-[11px] font-bold outline-none border border-zinc-300 bg-white text-zinc-900 focus:border-emerald-500 cursor-pointer"
             />
           </div>
           <button
             onClick={() => handleApplyDateFilter()}
-            className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer shrink-0"
+            className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white rounded-md text-[11px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0"
             title="Filter credit records by date range"
           >
-            <Filter className="w-3.5 h-3.5" />
+            <Filter className="w-3 h-3" />
             <span>Filter</span>
           </button>
           {(appliedStartDate || appliedEndDate || creditStartDate || creditEndDate) && (
             <button
               onClick={handleClearDateFilter}
-              className="px-2 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0"
+              className="px-1.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer flex items-center gap-0.5 active:scale-95 shrink-0"
               title="Clear date filter"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
               <span>Clear</span>
             </button>
           )}
           {(appliedStartDate || appliedEndDate) && (
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-300 whitespace-nowrap">
+            <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-300 whitespace-nowrap">
               Active: {appliedStartDate && appliedEndDate ? `${appliedStartDate} to ${appliedEndDate}` : (appliedStartDate ? `From ${appliedStartDate}` : `Up to ${appliedEndDate}`)}
             </span>
           )}
         </div>
 
         {/* Filter / Search Bar */}
-        <div className="flex items-center gap-2 flex-1 sm:max-w-md">
+        <div className="flex items-center gap-2 flex-1 lg:max-w-xs xl:max-w-sm">
           <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder={activeTab === 'purchases' ? "Search item or supplier..." : "Search customer name or phone..."}
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs sm:text-sm font-semibold text-zinc-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-inner"
+              placeholder={activeTab === 'purchases' ? "Search item/supplier..." : "Search customer/phone..."}
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-8 pr-3 py-1.5 text-xs font-semibold text-zinc-900 outline-none focus:border-amber-500 focus:bg-white transition-all shadow-inner"
             />
             {searchTerm && (
               <button 
                 onClick={() => setSearchTerm('')} 
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
@@ -754,7 +819,7 @@ export function CreditManagement({
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="bg-zinc-50 border border-zinc-200 rounded-2xl px-3 py-2.5 text-xs font-bold text-zinc-700 outline-none focus:border-amber-500 cursor-pointer shadow-inner shrink-0"
+            className="bg-zinc-50 border border-zinc-200 rounded-xl px-2 py-1.5 text-xs font-bold text-zinc-700 outline-none focus:border-amber-500 cursor-pointer shadow-inner shrink-0"
           >
             <option value="ALL">All Status</option>
             <option value="UNPAID">Unpaid Only</option>
@@ -840,29 +905,29 @@ export function CreditManagement({
                               {item.status}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right">
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               {isDue ? (
                                 <button
                                   onClick={() => handleOpenSettleSupplier(item)}
-                                  className="px-3.5 py-1.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                  className="px-2.5 py-1 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white font-black rounded-lg text-[11px] transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1 whitespace-nowrap"
                                 >
-                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <CreditCard className="w-3 h-3 shrink-0" />
                                   <span>Pay Credit</span>
                                 </button>
                               ) : (
-                                <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Cleared
+                                <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1 whitespace-nowrap">
+                                  <CheckCircle2 className="w-3 h-3" /> Cleared
                                 </span>
                               )}
 
                               <button
                                 type="button"
                                 onClick={() => handleDeletePurchaseCredit(item)}
-                                className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer"
+                                className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer"
                                 title="Delete Record from Database"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           </td>
@@ -1018,18 +1083,18 @@ export function CreditManagement({
                               {sale.status}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right">
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             {isDue ? (
                               <button
                                 onClick={() => handleOpenSettleCustomer(sale)}
-                                className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-lg text-[11px] transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1 whitespace-nowrap"
                               >
-                                <DollarSign className="w-3.5 h-3.5" />
+                                <DollarSign className="w-3 h-3 shrink-0" />
                                 <span>Receive Payment</span>
                               </button>
                             ) : (
-                              <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Settled
+                              <span className="text-emerald-600 font-bold text-[11px] inline-flex items-center gap-1 whitespace-nowrap">
+                                <CheckCircle2 className="w-3 h-3" /> Settled
                               </span>
                             )}
                           </td>
