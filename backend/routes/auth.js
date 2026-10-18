@@ -1,5 +1,6 @@
 import express from "express";
 import User from "../models/User.js";
+import Shop from "../models/Shop.js";
 import { validateLogin } from "../validators/authValidator.js";
 
 const router = express.Router();
@@ -38,6 +39,10 @@ router.get("/me", authenticate, async (req, res) => {
     if (!user || !user._id) {
       return res.status(401).json({ success: false, message: "Not authenticated" });
     }
+    let shop = null;
+    if (user.shopId) {
+      shop = await Shop.findById(user.shopId);
+    }
     res.json({
       success: true,
       user: {
@@ -45,7 +50,9 @@ router.get("/me", authenticate, async (req, res) => {
         username: user.username,
         fullName: user.fullName,
         role: user.role,
-        shopId: user.shopId
+        shopId: user.shopId,
+        approvalStatus: shop?.approvalStatus || 'APPROVED',
+        allowedPages: shop?.allowedPages || []
       }
     });
   } catch (error) {
@@ -133,6 +140,11 @@ router.post("/login", validateLogin, async (req, res) => {
 
     console.log(`[Login] User: ${rawUsername} | HTTPS: ${isHttps(req)} | sameSite: ${isHttps(req) ? 'none' : 'lax'}`);
 
+    let shop = null;
+    if (user.shopId) {
+      shop = await Shop.findById(user.shopId);
+    }
+
     res.json({
       success: true,
       message: "Login successful",
@@ -142,7 +154,9 @@ router.post("/login", validateLogin, async (req, res) => {
         username: user.username,
         fullName: user.fullName,
         role: user.role,
-        shopId: user.shopId
+        shopId: user.shopId,
+        approvalStatus: shop?.approvalStatus || 'APPROVED',
+        allowedPages: shop?.allowedPages || []
       }
     });
   } catch (error) {

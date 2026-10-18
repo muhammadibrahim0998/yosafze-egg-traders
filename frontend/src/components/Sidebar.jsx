@@ -27,14 +27,15 @@ import {
   Package,
   Search,
   Truck,
-  Receipt
+  Receipt,
+  ShieldCheck
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import companyLogo from '../image/logo.png';
 
 export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSidebar }) {
   const { categories } = useProducts();
-  const { user, isSuperAdmin, isShopAdmin, logout } = useUser();
+  const { user, isSuperAdmin, isShopAdmin, isPageAllowed, logout } = useUser();
   const location = useLocation();
   const { theme, setTheme } = useTheme();
 
@@ -132,46 +133,51 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
 
           <div className="mb-2">
             <div className="space-y-0.5">
-              {/* Everyone but pure cashier sees Dashboard */}
-              {(isShopAdmin() || isSuperAdmin()) && (
+              {/* Dashboard */}
+              {(isSuperAdmin() || (isShopAdmin() && isPageAllowed('dashboard'))) && (
                 <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
               )}
 
-              {/* Cashiers only need POS/Store. Admins see everything */}
-              {!isSuperAdmin() && (
+              {/* All Products */}
+              {!isSuperAdmin() && isPageAllowed('store') && (
                 <NavItem to="/store" icon={Store} label="All Products" />
               )}
 
               {/* Only Shop Admin can view purchases */}
-              {isShopAdmin() && (
+              {isShopAdmin() && isPageAllowed('purchases') && (
                 <NavItem to="/purchases" icon={Truck} label="Purchases" />
               )}
 
               {/* Vendors / Suppliers Management (Shop Admin only) */}
-              {isShopAdmin() && (
-                <>
-                  <NavItem to="/vendors" icon={Building2} label="Vendors (Ledger)" />
-                  <NavItem to="/vendor-directory" icon={Building2} label="Vendor Profiles (Add/Remove)" />
-                </>
+              {isShopAdmin() && isPageAllowed('vendors') && (
+                <NavItem to="/vendors" icon={Building2} label="Vendors (Ledger)" />
+              )}
+              {isShopAdmin() && isPageAllowed('vendorDirectory') && (
+                <NavItem to="/vendor-directory" icon={Building2} label="Vendor Profiles (Add/Remove)" />
               )}
 
               {/* Customer & Vendor Payment Ledgers */}
-              {!isSuperAdmin() && (
-                <>
-                  <NavItem to="/customer-payment-ledger" icon={Users} label="Customer Payment Ledger" />
-                  <NavItem to="/vendor-payment-ledger" icon={Truck} label="Vendor Payment Ledger" />
-                </>
+              {!isSuperAdmin() && isPageAllowed('customerPaymentLedger') && (
+                <NavItem to="/customer-payment-ledger" icon={Users} label="Customer Payment Ledger" />
+              )}
+              {!isSuperAdmin() && isPageAllowed('vendorPaymentLedger') && (
+                <NavItem to="/vendor-payment-ledger" icon={Truck} label="Vendor Payment Ledger" />
               )}
 
               {/* Only Shop Admin & Super Admin can manage teams */}
-              {(isShopAdmin() || isSuperAdmin()) && (
+              {(isSuperAdmin() || (isShopAdmin() && isPageAllowed('team'))) && (
                 <NavItem to="/team" icon={Users} label="Team Management" />
+              )}
+
+              {/* Super Admin only: Role Permissions */}
+              {isSuperAdmin() && (
+                <NavItem to="/role-permissions" icon={ShieldCheck} label="Role Permissions" />
               )}
             </div>
           </div>
 
           {/* Categories Section */}
-          {!isSuperAdmin() && categories.filter(c => c !== "All").length > 0 && (
+          {!isSuperAdmin() && isPageAllowed('store') && categories.filter(c => c !== "All").length > 0 && (
             <div className="mb-2">
               {!isCollapsed && (
                 <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Categories</p>
@@ -205,7 +211,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
           )}
 
           {/* Health / Notifications like in image */}
-          {!isSuperAdmin() && (
+          {!isSuperAdmin() && isPageAllowed('store') && (
             <div className="mb-2">
               {!isCollapsed && (
                 <p className="px-5 text-[10px] font-black text-emerald-300/70 mb-1 tracking-widest uppercase">Notifications</p>
@@ -225,7 +231,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleSide
 
             <div className="space-y-0.5">
               <NavItem to="/help" icon={HelpCircle} label="Help" />
-              {(isShopAdmin() || isSuperAdmin()) && (
+              {(isSuperAdmin() || (isShopAdmin() && isPageAllowed('settings'))) && (
                 <NavItem to="/settings" icon={Settings} label="Settings" />
               )}
               <NavItem to="#" icon={LogOut} label="Logout" onClick={logout} />

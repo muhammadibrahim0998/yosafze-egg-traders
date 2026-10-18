@@ -100,8 +100,68 @@ export const UserProvider = ({ children }) => {
     return role === 'customer';
   };
 
+  const isPageAllowed = (pageKey) => {
+    if (!user) return false;
+    const role = (user.role || '').toLowerCase();
+    if (role === 'super_admin') return true;
+    if (user.approvalStatus === 'LOCKED') return false;
+
+    const mapping = {
+      'dashboard': 'dashboard',
+      'products': 'store',
+      'store': 'store',
+      'walkin': 'walkin',
+      'pos': 'walkin',
+      'orders': 'walkin',
+      'sales': 'sales',
+      'report-sales': 'sales',
+      'purchases': 'purchases',
+      'purchase-credits': 'purchases',
+      'vendors': 'vendors',
+      'suppliers': 'vendors',
+      'vendorDirectory': 'vendorDirectory',
+      'vendor-directory': 'vendorDirectory',
+      'customerPaymentLedger': 'customerPaymentLedger',
+      'customer-payment-ledger': 'customerPaymentLedger',
+      'registered-customers': 'customerPaymentLedger',
+      'customer-credits': 'customerPaymentLedger',
+      'payment-ledger': 'customerPaymentLedger',
+      'vendorPaymentLedger': 'vendorPaymentLedger',
+      'vendor-payment-ledger': 'vendorPaymentLedger',
+      'expenses': 'expenses',
+      'report-expenses': 'expenses',
+      'report-fuel': 'expenses',
+      'team': 'team',
+      'reports': 'reports',
+      'report-profit': 'reports',
+      'analytics-charts': 'reports',
+      'settings': 'settings'
+    };
+    const key = mapping[pageKey] || pageKey;
+
+    let allowed = user.allowedPages;
+    if ((!allowed || (Array.isArray(allowed) && allowed.length === 0)) && user.shopId) {
+      try {
+        const cached = localStorage.getItem(`nexflow_cached_shop_${user.shopId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.allowedPages)) {
+            allowed = parsed.allowedPages;
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+    if (typeof allowed === 'string') {
+      try { allowed = JSON.parse(allowed); } catch { allowed = []; }
+    }
+    if (!Array.isArray(allowed) || allowed.length === 0) return false;
+    return allowed.includes(key);
+  };
+
   return (
-    <UserContext.Provider value={{ user, login, logout, isSuperAdmin, isShopAdmin, isCustomer, loading }}>
+    <UserContext.Provider value={{ user, login, logout, isSuperAdmin, isShopAdmin, isCustomer, isPageAllowed, loading }}>
       {!loading && children}
     </UserContext.Provider>
   );
@@ -117,6 +177,7 @@ export const useUser = () => {
       isSuperAdmin: () => false,
       isShopAdmin: () => false,
       isCustomer: () => true,
+      isPageAllowed: () => false,
       loading: false
     };
   }

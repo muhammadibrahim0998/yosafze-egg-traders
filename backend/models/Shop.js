@@ -2,7 +2,7 @@ import { BaseModel } from './dbHelper.js';
 
 class ShopModel extends BaseModel {
   constructor() {
-    super('shops', 'id', ['banksJson']);
+    super('shops', 'id', ['banksJson', 'allowedPages']);
   }
 
   _parseRow(row) {
@@ -38,6 +38,18 @@ class ShopModel extends BaseModel {
 
     obj.banks = banks;
     obj.banksJson = banks;
+
+    let pages = [];
+    if (Array.isArray(obj.allowedPages)) {
+      pages = obj.allowedPages;
+    } else if (typeof obj.allowedPages === 'string') {
+      try {
+        pages = JSON.parse(obj.allowedPages);
+      } catch {
+        pages = [];
+      }
+    }
+    obj.allowedPages = pages;
 
     return obj;
   }

@@ -1,8 +1,27 @@
 import express from 'express';
 import Expense from '../models/Expense.js';
+import Shop from '../models/Shop.js';
 import { resolveShopId } from '../utils/shopResolver.js';
 
 const router = express.Router();
+
+const checkBranchExpenseApproval = async (req, actionType = 'edit') => {
+  const userRole = (req.headers['x-user-role'] || req.user?.role || '').toLowerCase();
+  if (userRole === 'super_admin') return true;
+  const rawShopId = req.headers['x-shop-id'] || req.body?.shopId || req.query?.shopId;
+  const sId = await resolveShopId(rawShopId);
+  if (!sId) return true;
+  try {
+    const targetShop = await Shop.findById(sId);
+    if (!targetShop) return true;
+    if (targetShop.approvalStatus === 'LOCKED') return false;
+    if (actionType === 'edit' && Number(targetShop.isEditApproved) === 0) return false;
+    if (actionType === 'delete' && Number(targetShop.isDeleteApproved) === 0) return false;
+    return true;
+  } catch (err) {
+    return true;
+  }
+};
 
 // GET all expenses (optionally filtered by shopId)
 router.get('/', async (req, res) => {
@@ -74,6 +93,10 @@ router.post('/shop/:shopId', handleCreateExpense);
 // PUT update an expense by ID
 router.put('/:id', async (req, res) => {
   try {
+    const canEdit = await checkBranchExpenseApproval(req, 'edit');
+    if (!canEdit) {
+      return res.status(403).json({ success: false, message: "🔒 Super Admin Approval Required: Edit actions are locked for this branch." });
+    }
     const { id } = req.params;
     const { title, category, amount, paymentMethod, paymentSource, expenseDate, notes, createdBy, shopId, vehicleNumber, driverName, chalanNumber } = req.body;
     const updateData = {};
@@ -106,6 +129,10 @@ router.put('/:id', async (req, res) => {
 // DELETE an expense by ID
 router.delete('/:id', async (req, res) => {
   try {
+    const canDelete = await checkBranchExpenseApproval(req, 'delete');
+    if (!canDelete) {
+      return res.status(403).json({ success: false, message: "🔒 Super Admin Approval Required: Delete actions are locked for this branch." });
+    }
     const { id } = req.params;
     await Expense.findByIdAndDelete(id);
     res.json({ success: true, message: 'Expense deleted successfully' });

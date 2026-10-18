@@ -37,7 +37,7 @@ router.get('/:shopId', async (req, res) => {
     const { search, category } = req.query;
 
     const resolvedId = await resolveShopId(shopId);
-    const shop = await Shop.findById(resolvedId).select('name address contactNumber status logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber');
+    const shop = await Shop.findById(resolvedId).select('name address contactNumber status logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber isEditApproved isDeleteApproved approvalStatus approvalNotes allowedPages');
     if (!shop || shop.status !== 'active') {
       return res.status(404).json({ message: 'Shop not found or inactive' });
     }
@@ -112,7 +112,12 @@ router.get('/:shopId', async (req, res) => {
         bankName: settings?.bankName || shop.bankName || '',
         bankAccountNumber: settings?.bankAccountNumber || shop.bankAccountNumber || '',
         bankAccountTitle: settings?.bankAccountTitle || shop.bankAccountTitle || '',
-        easypaisaNumber: settings?.easypaisaNumber || shop.easypaisaNumber || ''
+        easypaisaNumber: settings?.easypaisaNumber || shop.easypaisaNumber || '',
+        isEditApproved: shop.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
+        isDeleteApproved: shop.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
+        approvalStatus: shop.approvalStatus || 'APPROVED',
+        approvalNotes: shop.approvalNotes || '',
+        allowedPages: shop.allowedPages || []
       },
       items,
       categories
@@ -125,7 +130,7 @@ router.get('/:shopId', async (req, res) => {
 // GET /api/catalog  — list all active shops (for multi-shop entry)
 router.get('/', async (req, res) => {
   try {
-    const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber');
+    const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber isEditApproved isDeleteApproved approvalStatus approvalNotes allowedPages');
     res.json(shops);
   } catch (err) {
     res.status(500).json({ message: err.message });

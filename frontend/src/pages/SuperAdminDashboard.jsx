@@ -6,7 +6,8 @@ import api from '../services/api';
 import {
     Store, Plus, Building2, Edit2, Trash2, X, Check,
     LayoutDashboard, Users, Activity, Eye, EyeOff,
-    Package, ShoppingBag, DollarSign, TrendingUp, Calendar, BarChart3, Truck
+    Package, ShoppingBag, DollarSign, TrendingUp, Calendar, BarChart3, Truck,
+    ShieldCheck, ShieldAlert, Lock, Unlock, CheckCircle2, AlertTriangle, KeyRound
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProducts } from '../contexts/ProductContext';
@@ -35,7 +36,10 @@ const PAKISTANI_BANKS = [
 export function SuperAdminDashboard() {
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setTab] = useState(() => sessionStorage.getItem('superAdminTab') || 'overview');
+    const [activeTab, setTab] = useState(() => {
+        const saved = sessionStorage.getItem('superAdminTab');
+        return (saved && saved !== 'approvals') ? saved : 'overview';
+    });
   const setActiveTab = (tab) => {
     setTab(tab);
     sessionStorage.setItem('superAdminTab', tab);
@@ -107,6 +111,9 @@ export function SuperAdminDashboard() {
         });
     };
     const [viewingShop, setViewingShop] = useState(null);
+    const [selectedApprovalBranchId, setSelectedApprovalBranchId] = useState(null);
+    const [approvalUpdating, setApprovalUpdating] = useState(false);
+    const [approvalNotesState, setApprovalNotesState] = useState({});
     const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: '' });
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAdminPassword, setShowAdminPassword] = useState(false);
@@ -239,6 +246,34 @@ export function SuperAdminDashboard() {
             fetchGlobalStats();
         } catch (err) {
             toast.error('Failed to update status');
+        }
+    };
+
+    const handleUpdateBranchApproval = async (shopId, updatePayload) => {
+        setApprovalUpdating(true);
+        try {
+            const res = await api.patch(`/shops/${shopId}/approval`, updatePayload);
+            if (res.data?.success || res.status === 200) {
+                toast.success('Branch approval status updated successfully');
+                setShops(prev => prev.map(s => {
+                    if (String(s._id || s.id) === String(shopId)) {
+                        return {
+                            ...s,
+                            ...updatePayload,
+                            isEditApproved: updatePayload.isEditApproved !== undefined ? (updatePayload.isEditApproved ? 1 : 0) : s.isEditApproved,
+                            isDeleteApproved: updatePayload.isDeleteApproved !== undefined ? (updatePayload.isDeleteApproved ? 1 : 0) : s.isDeleteApproved,
+                            approvalStatus: updatePayload.approvalStatus || s.approvalStatus,
+                            approvalNotes: updatePayload.approvalNotes !== undefined ? updatePayload.approvalNotes : s.approvalNotes
+                        };
+                    }
+                    return s;
+                }));
+            }
+        } catch (err) {
+            console.error('Failed to update branch approval:', err);
+            toast.error(err.response?.data?.message || 'Failed to update branch approval');
+        } finally {
+            setApprovalUpdating(false);
         }
     };
 
@@ -886,6 +921,9 @@ export function SuperAdminDashboard() {
                                                     <button onClick={() => window.open(`/shop/${shop._id}`, '_blank')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Open Store Portal">
                                                         <Store className="w-3.5 h-3.5" /> Open Portal
                                                     </button>
+                                                    <button onClick={() => { setSelectedApprovalBranchId(shop._id || shop.id); setActiveTab('approvals'); }} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Branch Approvals">
+                                                        <ShieldCheck className="w-3.5 h-3.5" /> Approvals
+                                                    </button>
                                                     <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="View Details"><Eye className="w-4 h-4" /></button>
                                                     <button onClick={() => startEdit(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
                                                     <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>
@@ -1015,7 +1053,7 @@ export function SuperAdminDashboard() {
                         </div>
                     )}
                 </div>
-            ) : (
+            ) : activeTab === 'orders' ? (
                 /* EasyPaisa Receipts & Orders Tab Content */
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-card p-6 rounded-3xl border border-[var(--color-border-subtle)] shadow-xl">
@@ -1124,7 +1162,7 @@ export function SuperAdminDashboard() {
                         </div>
                     )}
                 </div>
-            )}
+            ) : null}
 
 
 

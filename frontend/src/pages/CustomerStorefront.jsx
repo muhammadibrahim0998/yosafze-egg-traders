@@ -358,10 +358,12 @@ function CartDrawer({ currency }) {
               <p className="text-slate-500 text-xs mt-1">Add items from the catalog to place an order</p>
             </div>
           ) : cart.map((item, idx) => {
-            const currentUnit = item.unit || 'egg';
+            const itemId = item.itemId || item.productId || item._id || item.id;
+            const currentUnit = String(item.unit || 'egg').toLowerCase();
+            const itemQty = Math.max(1, Number(item.quantity) || 1);
             return (
               <div
-                key={`${item.itemId}_${currentUnit}_${idx}`}
+                key={`${itemId}_${currentUnit}_${idx}`}
                 className="group/cart flex flex-col gap-3 bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/90 hover:border-slate-700 rounded-2xl p-3.5 sm:p-4 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-3">
@@ -382,22 +384,25 @@ function CartDrawer({ currency }) {
                   </div>
                   <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 shadow-inner">
                     <button
-                      onClick={() => updateCartItem(item.itemId, item.quantity - 1, currentUnit)}
+                      type="button"
+                      onClick={() => updateCartItem(itemId, itemQty - 1, currentUnit)}
                       className="w-7 h-7 flex items-center justify-center bg-slate-700/60 hover:bg-slate-600 text-slate-200 hover:text-white rounded-lg transition-all active:scale-90 cursor-pointer"
                       title="Decrease quantity"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <span className="text-white font-black text-xs w-6 text-center select-none">{item.quantity}</span>
+                    <span className="text-white font-black text-xs w-6 text-center select-none">{itemQty}</span>
                     <button
-                      onClick={() => updateCartItem(item.itemId, item.quantity + 1, currentUnit)}
+                      type="button"
+                      onClick={() => updateCartItem(itemId, itemQty + 1, currentUnit)}
                       className="w-7 h-7 flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all active:scale-90 cursor-pointer shadow-sm border-t border-t-emerald-300/40 border-b-2 border-b-emerald-900"
                       title="Increase quantity"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={() => removeFromCart(item.itemId, currentUnit)}
+                      type="button"
+                      onClick={() => removeFromCart(itemId, currentUnit)}
                       className="w-7 h-7 flex items-center justify-center bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition-all ml-0.5 active:scale-90 cursor-pointer border border-rose-500/20"
                       title="Remove item"
                     >
@@ -412,7 +417,7 @@ function CartDrawer({ currency }) {
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'peti')}
+                      onClick={() => updateCartItemUnit(itemId, currentUnit, 'peti')}
                       className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'peti'
                         ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
                         : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
@@ -422,7 +427,7 @@ function CartDrawer({ currency }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'tray')}
+                      onClick={() => updateCartItemUnit(itemId, currentUnit, 'tray')}
                       className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'tray'
                         ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
                         : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
@@ -432,7 +437,7 @@ function CartDrawer({ currency }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateCartItemUnit(item.itemId, currentUnit, 'egg')}
+                      onClick={() => updateCartItemUnit(itemId, currentUnit, 'egg')}
                       className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${currentUnit === 'egg'
                         ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-md border-t border-t-amber-200 border-b-2 border-b-amber-800 scale-105'
                         : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 hover:text-white'
@@ -511,6 +516,7 @@ function StoreContent({ shopId }) {
   );
 
   const canBuy = !isAdminUser;
+  const isSuperAdminUser = Boolean(isSuperAdmin?.()) || userRole === 'super_admin';
   const [shop, setShop] = useState(() => {
     try {
       const cached = localStorage.getItem(`nexflow_cached_shop_${shopId}`);
@@ -519,6 +525,62 @@ function StoreContent({ shopId }) {
       return null;
     }
   });
+
+  const isBranchLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isEditApproved) === 0 || Number(shop?.isDeleteApproved) === 0);
+  const isEditLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isEditApproved) === 0);
+  const isDeleteLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isDeleteApproved) === 0);
+
+  const shopAllowedPages = useMemo(() => {
+    let list = shop?.allowedPages;
+    if (list === undefined || list === null) {
+      list = user?.allowedPages;
+    }
+    if (typeof list === 'string') {
+      try { list = JSON.parse(list); } catch { list = []; }
+    }
+    return Array.isArray(list) ? list : [];
+  }, [shop?.allowedPages, user?.allowedPages]);
+
+  const isActionAllowed = (actionKey) => {
+    if (shop?.approvalStatus === 'LOCKED' || user?.approvalStatus === 'LOCKED') return false;
+    if (!shopAllowedPages || shopAllowedPages.length === 0) return false;
+    const mapping = {
+      'dashboard': 'dashboard',
+      'products': 'store',
+      'store': 'store',
+      'walkin': 'walkin',
+      'pos': 'walkin',
+      'orders': 'walkin',
+      'report-sales': 'sales',
+      'sales': 'sales',
+      'purchases': 'purchases',
+      'purchase-credits': 'purchases',
+      'vendors': 'vendors',
+      'vendor-directory': 'vendorDirectory',
+      'vendorDirectory': 'vendorDirectory',
+      'registered-customers': 'customerPaymentLedger',
+      'customer-payment-ledger': 'customerPaymentLedger',
+      'customer-credits': 'customerPaymentLedger',
+      'payment-ledger': 'customerPaymentLedger',
+      'vendor-payment-ledger': 'vendorPaymentLedger',
+      'vendorPaymentLedger': 'vendorPaymentLedger',
+      'report-expenses': 'expenses',
+      'report-fuel': 'expenses',
+      'expenses': 'expenses',
+      'report-profit': 'reports',
+      'analytics-charts': 'reports',
+      'reports': 'reports',
+      'damaged-products': 'store',
+      'team': 'team',
+      'settings': 'settings'
+    };
+    const key = mapping[actionKey] || actionKey;
+    return shopAllowedPages.includes(key);
+  };
+
+  const isViewAllowed = (viewKey) => {
+    return isActionAllowed(viewKey);
+  };
   const [items, setItems] = useState(() => {
     try {
       const cached = localStorage.getItem(`nexflow_cached_catalog_${shopId}`);
@@ -549,6 +611,7 @@ function StoreContent({ shopId }) {
   const [orderOpen, setOrderOpen] = useState(false);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [customerSelectedUnits, setCustomerSelectedUnits] = useState({});
+  const [customerSelectedQuantities, setCustomerSelectedQuantities] = useState({});
   const [activeView, setActiveView] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -568,6 +631,53 @@ function StoreContent({ shopId }) {
       }
     } catch (e) { }
   }, [activeView]);
+
+  // Auto-switch to first allowed page if activeView is locked by Super Admin
+  useEffect(() => {
+    if (!isAdminUser) return;
+    if (shopAllowedPages && shopAllowedPages.length > 0) {
+      if (!isActionAllowed(activeView)) {
+        const ALL_VALID_VIEWS = [
+          'dashboard',
+          'products',
+          'walkin',
+          'orders',
+          'purchases',
+          'vendors',
+          'customer-payment-ledger',
+          'vendor-payment-ledger',
+          'registered-customers',
+          'report-sales',
+          'customer-credits',
+          'purchase-credits',
+          'report-profit',
+          'report-expenses',
+          'damaged-products',
+          'report-fuel',
+          'analytics-charts'
+        ];
+        const PAGE_KEY_TO_VIEW = {
+          'dashboard': 'dashboard',
+          'store': 'products',
+          'walkin': 'walkin',
+          'sales': 'report-sales',
+          'purchases': 'purchases',
+          'vendors': 'vendors',
+          'customerPaymentLedger': 'customer-payment-ledger',
+          'vendorPaymentLedger': 'vendor-payment-ledger',
+          'expenses': 'report-expenses',
+          'reports': 'report-profit',
+          'vendorDirectory': 'vendors'
+        };
+        const firstAllowed = ALL_VALID_VIEWS.find(v => isActionAllowed(v)) 
+          || PAGE_KEY_TO_VIEW[shopAllowedPages[0]] 
+          || 'dashboard';
+        if (firstAllowed && firstAllowed !== activeView) {
+          setActiveView(firstAllowed);
+        }
+      }
+    }
+  }, [shopAllowedPages, activeView, isAdminUser]);
 
   const [dateFromFilter, setDateFromFilter] = useState('2026-08-01');
   const [dateToFilter, setDateToFilter] = useState(new Date().toISOString().split('T')[0]);
@@ -860,6 +970,11 @@ function StoreContent({ shopId }) {
 
   const handleOpenEditSale = (sale) => {
     if (!sale) return;
+    if (isEditLocked) {
+      toast.error("🔒 Super Admin Approval Required: Editing bills/sales is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Editing bills/sales is currently locked for this branch.");
+      return;
+    }
     const pMethod = String(sale.paymentMethod || 'CASH').toUpperCase();
     const d = sale.saleDate || sale.createdAt ? new Date(sale.saleDate || sale.createdAt) : new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -1344,6 +1459,11 @@ function StoreContent({ shopId }) {
     setActiveCustGroupMenuId(null);
     setActiveCustMenuId(null);
     if (!custGroup) return;
+    if (isDeleteLocked) {
+      toast.error("🔒 Super Admin Approval Required: Deleting customers is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Deleting customers is currently locked for this branch.");
+      return;
+    }
     const name = custGroup.customerName || custGroup.fullName || 'Customer';
     const oldPhone = (custGroup.customerPhone || custGroup.phone || '').replace(/\D/g, '');
     const oldEmail = (custGroup.customerEmail || custGroup.email || '').toLowerCase().trim();
@@ -1493,6 +1613,11 @@ function StoreContent({ shopId }) {
 
   const handleDeleteSale = async (saleId) => {
     if (!saleId) return;
+    if (isDeleteLocked) {
+      toast.error("🔒 Super Admin Approval Required: Deleting bills/sales is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Deleting bills/sales is currently locked for this branch.");
+      return;
+    }
     if (!window.confirm('Are you sure you want to permanently delete this sale record from the database? This cannot be undone.')) {
       return;
     }
@@ -2350,6 +2475,11 @@ function StoreContent({ shopId }) {
   };
 
   const addToWalkInCart = (product, unit = 'tray') => {
+    if (!isActionAllowed('walkin')) {
+      alert('Walk-In Billing is locked by Super Admin for this branch. Checkbox approval is required.');
+      toast.error('Walk-In Billing is locked by Super Admin for this branch.');
+      return;
+    }
     if ((product.stock || 0) <= 0) {
       alert('Product is out of stock!');
       return;
@@ -2370,17 +2500,21 @@ function StoreContent({ shopId }) {
     setTimeout(() => setAddedMsg(''), 2000);
   };
 
-  const handleAddToCart = async (product, unit = 'egg') => {
+  const handleAddToCart = async (product, unit, quantity) => {
     const stock = Number(product.stock) || 0;
     const minStock = Number(product.minStock) || 5;
     if (stock <= 0 || stock <= minStock || stock <= 5) {
       alert(`Cannot add to cart: ${product.name} is low on stock (${stock} remaining).`);
       return;
     }
-    const unitPrice = getProductUnitPrice(product, unit);
+    const targetUnit = String(unit || customerSelectedUnits[product._id] || (product.unitType || 'egg')).toLowerCase();
+    const targetQty = Math.max(1, Number(quantity || customerSelectedQuantities[product._id] || 1));
+    const unitPrice = getProductUnitPrice(product, targetUnit);
     try {
-      await addToCart(product, 1, unit, unitPrice);
-      setAddedMsg(`Added 1 ${unit.toUpperCase()} of ${product.name} (${currency} ${unitPrice.toLocaleString()}) to cart!`);
+      await addToCart(product, targetQty, targetUnit, unitPrice);
+      const msg = `✅ Added ${targetQty} ${targetUnit.toUpperCase()} of ${product.name} (${currency} ${(unitPrice * targetQty).toLocaleString()}) to cart!`;
+      setAddedMsg(msg);
+      try { toast.success(msg); } catch (_) {}
       setTimeout(() => setAddedMsg(''), 2500);
     } catch (err) {
       alert(err.message || 'Failed to add item to cart');
@@ -2388,6 +2522,7 @@ function StoreContent({ shopId }) {
   };
 
   const updateWalkInUnit = (productId, currentUnit, newUnit) => {
+    if (!isActionAllowed('walkin')) return;
     setWalkInCart(prev =>
       prev.map(item => {
         if (item.product._id === productId && (item.selectedUnit || 'tray') === currentUnit) {
@@ -2422,6 +2557,7 @@ function StoreContent({ shopId }) {
   };
 
   const updateWalkInQty = (productId, unit, delta) => {
+    if (!isActionAllowed('walkin')) return;
     setWalkInCart(prev =>
       prev.map(item => {
         if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
@@ -2435,6 +2571,7 @@ function StoreContent({ shopId }) {
   };
 
   const setWalkInDirectQty = (productId, unit, directVal) => {
+    if (!isActionAllowed('walkin')) return;
     if (directVal === '') {
       setWalkInCart(prev =>
         prev.map(item => {
@@ -2460,6 +2597,7 @@ function StoreContent({ shopId }) {
   };
 
   const setWalkInDirectPrice = (productId, unit, directVal) => {
+    if (!isActionAllowed('walkin')) return;
     if (directVal === '') {
       setWalkInCart(prev =>
         prev.map(item => {
@@ -2485,6 +2623,7 @@ function StoreContent({ shopId }) {
   };
 
   const removeFromWalkInCart = (productId, unit) => {
+    if (!isActionAllowed('walkin')) return;
     setWalkInCart(prev => prev.filter(item => !(item.product._id === productId && (item.selectedUnit || 'tray') === unit)));
   };
 
@@ -2505,6 +2644,11 @@ function StoreContent({ shopId }) {
 
 
   const handleCompleteWalkInSale = async () => {
+    if (!isActionAllowed('walkin')) {
+      alert('Walk-In Billing is locked by Super Admin for this branch. Cannot generate bill.');
+      toast.error('Walk-In Billing is locked by Super Admin for this branch.');
+      return;
+    }
     if (walkInCart.length === 0) {
       alert('Walk-in cart is empty!');
       return;
@@ -3974,6 +4118,11 @@ function StoreContent({ shopId }) {
   }, [shopId]);
 
   const handleEditExpense = (exp) => {
+    if (isEditLocked) {
+      toast.error("🔒 Super Admin Approval Required: Editing expenses is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Editing expenses is currently locked for this branch.");
+      return;
+    }
     setEditingExpenseId(exp._id);
     const pSource = String(exp.paymentSource || exp.paymentMethod || 'CASH').toUpperCase().includes('BANK') ? 'BANK' : 'CASH';
     setExpenseFormData({
@@ -4332,6 +4481,11 @@ function StoreContent({ shopId }) {
 
   const handleDeleteExpense = async (id) => {
     setActiveExpenseMenuId(null);
+    if (isDeleteLocked) {
+      toast.error("🔒 Super Admin Approval Required: Deleting expenses is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Deleting expenses is currently locked for this branch.");
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
     try {
       await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
@@ -6785,6 +6939,16 @@ function StoreContent({ shopId }) {
 
   useEffect(() => { fetchCatalog(); }, [shopId, search, activeCategory]);
   useEffect(() => {
+    // Keep permissions and branch status live across tabs
+    const handleFocus = () => { fetchCatalog(); };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(fetchCatalog, 12000);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [shopId]);
+  useEffect(() => {
     fetchExpenses();
     fetchFuelExpenses();
     fetchDamagedProducts();
@@ -7023,6 +7187,7 @@ function StoreContent({ shopId }) {
           <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide py-1 space-y-3">
 
             {/* Dashboard Link - for Admin and Customer */}
+            {(isCustomerAccount || isActionAllowed('dashboard')) && (
             <div>
               <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">
                 {isAdminUser ? 'Overview' : 'Customer Overview'}
@@ -7060,12 +7225,14 @@ function StoreContent({ shopId }) {
                 )}
               </div>
             </div>
+            )}
 
             {/* Shop Admin POS & Sales Section */}
-            {isAdminUser && (
+            {isAdminUser && (isActionAllowed('walkin') || isActionAllowed('purchases') || isActionAllowed('vendors') || isActionAllowed('customerPaymentLedger') || isActionAllowed('vendorPaymentLedger') || isActionAllowed('sales') || isActionAllowed('reports') || isActionAllowed('expenses') || isActionAllowed('store')) && (
               <div>
                 <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">POS Billing & Sales</p>
                 <div className="space-y-1.5">
+                  {isActionAllowed('walkin') && (
                   <button
                     onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'walkin'
@@ -7076,7 +7243,9 @@ function StoreContent({ shopId }) {
                     <Receipt className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'walkin' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'walkin' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>POS Bill Sale</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('walkin') && (
                   <button
                     onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'orders'
@@ -7087,7 +7256,9 @@ function StoreContent({ shopId }) {
                     <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'orders' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'orders' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>EasyPaisa & Orders</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('purchases') && (
                   <button
                     onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchases'
@@ -7098,7 +7269,9 @@ function StoreContent({ shopId }) {
                     <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchases' ? 'text-zinc-950' : 'text-teal-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'purchases' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchases & Restocks</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('vendors') && (
                   <button
                     onClick={() => { setActiveView('vendors'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendors'
@@ -7109,7 +7282,9 @@ function StoreContent({ shopId }) {
                     <Building2 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendors' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'vendors' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendors</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('customerPaymentLedger') && (
                   <button
                     onClick={() => { setActiveView('customer-payment-ledger'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-payment-ledger'
@@ -7120,7 +7295,9 @@ function StoreContent({ shopId }) {
                     <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-payment-ledger' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'customer-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Payment Ledger</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('vendorPaymentLedger') && (
                   <button
                     onClick={() => { setActiveView('vendor-payment-ledger'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendor-payment-ledger'
@@ -7131,7 +7308,9 @@ function StoreContent({ shopId }) {
                     <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendor Payment Ledger</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('customerPaymentLedger') && (
                   <button
                     onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
@@ -7142,7 +7321,9 @@ function StoreContent({ shopId }) {
                     <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'registered-customers' ? 'text-zinc-950' : 'text-indigo-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'registered-customers' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Registered Customers</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('sales') && (
                   <button
                     onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-sales'
@@ -7153,7 +7334,9 @@ function StoreContent({ shopId }) {
                     <TrendingUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-sales' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'report-sales' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Sales Report</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('customerPaymentLedger') && (
                   <button
                     onClick={() => { setActiveView('customer-credits'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-credits'
@@ -7164,7 +7347,9 @@ function StoreContent({ shopId }) {
                     <CreditCard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-credits' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'customer-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Credit</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('purchases') && (
                   <button
                     onClick={() => { setActiveView('purchase-credits'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchase-credits'
@@ -7175,7 +7360,9 @@ function StoreContent({ shopId }) {
                     <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchase-credits' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'purchase-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchase Credits</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('reports') && (
                   <button
                     onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-profit'
@@ -7186,7 +7373,9 @@ function StoreContent({ shopId }) {
                     <DollarSign className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-profit' ? 'text-zinc-950' : 'text-green-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'report-profit' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Profit Report</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('expenses') && (
                   <button
                     onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-expenses'
@@ -7197,7 +7386,9 @@ function StoreContent({ shopId }) {
                     <FileText className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-expenses' ? 'text-zinc-950' : 'text-rose-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'report-expenses' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Expenses Report</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('store') && (
                   <button
                     onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'damaged-products'
@@ -7208,7 +7399,9 @@ function StoreContent({ shopId }) {
                     <PackageX className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'damaged-products' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'damaged-products' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Damaged Stock</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('expenses') && (
                   <button
                     onClick={() => { setActiveView('report-fuel'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-fuel'
@@ -7219,7 +7412,9 @@ function StoreContent({ shopId }) {
                     <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-fuel' ? 'text-zinc-950' : 'text-cyan-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'report-fuel' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Fuel & Vehicle</span>
                   </button>
+                  )}
 
+                  {isActionAllowed('reports') && (
                   <button
                     onClick={() => { setActiveView('analytics-charts'); setIsMobileOpen(false); }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'analytics-charts'
@@ -7230,11 +7425,13 @@ function StoreContent({ shopId }) {
                     <BarChart3 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'analytics-charts' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
                     <span className={`truncate ${activeView === 'analytics-charts' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Charts & Graphs</span>
                   </button>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Products Section */}
+            {(isCustomerAccount || isActionAllowed('store')) && (
             <div>
               <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Catalog</p>
               <div className="space-y-1.5">
@@ -7250,9 +7447,10 @@ function StoreContent({ shopId }) {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Categories */}
-            {categories.filter(c => c !== 'All').length > 0 && (
+            {(isCustomerAccount || isActionAllowed('store')) && categories.filter(c => c !== 'All').length > 0 && (
               <div>
                 <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Categories</p>
                 <div className="space-y-1.5">
@@ -7298,6 +7496,35 @@ function StoreContent({ shopId }) {
           <main id="main-store-content" className="flex-1 w-full overflow-y-auto p-3 sm:p-4 lg:p-6 scroll-smooth bg-slate-100 text-zinc-900">
             <div className="max-w-7xl mx-auto space-y-3">
 
+              {/* ─── Super Admin Approval Restriction Banner ─── */}
+              {isBranchLocked && isAdminUser && (
+                <div className="p-4 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/40 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md animate-in fade-in duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-black text-lg shadow-sm">
+                      🔒
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-xs uppercase tracking-wide text-amber-950">
+                          Branch Modifications Locked
+                        </span>
+                        <span className="bg-rose-100 text-rose-800 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300">
+                          Awaiting Super Admin Approval
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-900 font-bold mt-0.5">
+                        د سوپراډمین له خوا د دې شاخ ایډیټ او ډیلیټ بند (Locked) دی. ریکارډونه یوازې لیدلی شئ، د تغیر یا حذف لپاره سوپراډمین تایید (Approval) ته اړتیا ده.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[9.5px] font-black uppercase tracking-wider text-rose-800 bg-rose-100 border border-rose-300 px-3 py-1.5 rounded-xl shadow-xs">
+                      🔒 Edit &amp; Delete Disabled
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* ─── Header Banner (visible only on Dashboard & Products) ─── */}
               {(activeView === 'dashboard' || activeView === 'products') && (
                 <div className="relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-sm flex items-center justify-between gap-4 overflow-hidden w-full bg-white border-zinc-200 text-zinc-900">
@@ -7332,25 +7559,29 @@ function StoreContent({ shopId }) {
                     <div className="flex items-center gap-2 ml-auto flex-wrap">
                       {/* View Switcher Tabs */}
                       <div className="flex items-center p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
-                        <button
-                          onClick={() => setActiveView('dashboard')}
-                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : 'text-zinc-600 hover:text-zinc-950'
-                            }`}
-                        >
-                          <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
-                        </button>
-                        <button
-                          onClick={() => setActiveView('products')}
-                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : 'text-zinc-600 hover:text-zinc-950'
-                            }`}
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5" /> Products
-                        </button>
-                        {isAdminUser && (
+                        {(isCustomerAccount || isActionAllowed('dashboard')) && (
+                          <button
+                            onClick={() => setActiveView('dashboard')}
+                            className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
+                              ? 'bg-zinc-900 text-white shadow-md'
+                              : 'text-zinc-600 hover:text-zinc-950'
+                              }`}
+                          >
+                            <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                          </button>
+                        )}
+                        {(isCustomerAccount || isActionAllowed('store')) && (
+                          <button
+                            onClick={() => setActiveView('products')}
+                            className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
+                              ? 'bg-zinc-900 text-white shadow-md'
+                              : 'text-zinc-600 hover:text-zinc-950'
+                              }`}
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" /> Products
+                          </button>
+                        )}
+                        {isAdminUser && isActionAllowed('vendors') && (
                           <button
                             onClick={() => setActiveView('vendors')}
                             className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'vendors'
@@ -7363,7 +7594,7 @@ function StoreContent({ shopId }) {
                         )}
                       </div>
 
-                      {isAdminUser && (
+                      {isAdminUser && isActionAllowed('store') && !isEditLocked && (
                         <button
                           onClick={() => setAddProductModal(true)}
                           className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-md border-b-2 border-amber-800 cursor-pointer"
@@ -7377,8 +7608,28 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
+              {/* ─── PAGE-LEVEL ACCESS RESTRICTION BANNER ─── */}
+              {isAdminUser && !isViewAllowed(activeView) && (
+                <div className="p-8 my-6 bg-white border-2 border-rose-300 rounded-3xl text-center space-y-4 shadow-xl animate-in fade-in">
+                  <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-black uppercase text-zinc-900 tracking-tight">
+                      Page Access Restricted by Super Admin
+                    </h3>
+                    <p className="text-xs font-bold text-zinc-500 max-w-md mx-auto">
+                      This page is currently locked by the Super Admin for this branch. The Shop Admin cannot view, edit, delete, or perform operations here.
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 border border-rose-200 rounded-full text-[10px] font-black text-rose-700 uppercase tracking-wider">
+                    🔒 Awaiting Super Admin Checkbox Approval
+                  </div>
+                </div>
+              )}
+
               {/* ─── DASHBOARD VIEW ─── */}
-              {activeView === 'dashboard' && (
+              {activeView === 'dashboard' && isViewAllowed('dashboard') && (
                 <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                   {/* ─── SHOP ADMIN DASHBOARD (CLEAN THEME) ─── */}
@@ -7638,33 +7889,33 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── VENDORS & SUPPLIERS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'vendors' && isAdminUser && (
+              {activeView === 'vendors' && isAdminUser && isViewAllowed('vendors') && (
                 <VendorsManagement shopId={shopId} />
               )}
 
               {/* ─── CUSTOMER PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
-              {activeView === 'customer-payment-ledger' && isAdminUser && (
+              {activeView === 'customer-payment-ledger' && isAdminUser && isViewAllowed('customer-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <CustomerPaymentLedger shopId={shopId} />
                 </div>
               )}
 
               {/* ─── VENDOR PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
-              {activeView === 'vendor-payment-ledger' && isAdminUser && (
+              {activeView === 'vendor-payment-ledger' && isAdminUser && isViewAllowed('vendor-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <VendorPaymentLedger shopId={shopId} />
                 </div>
               )}
 
               {/* ─── FALLBACK PAYMENT LEDGER VIEW ─── */}
-              {activeView === 'payment-ledger' && isAdminUser && (
+              {activeView === 'payment-ledger' && isAdminUser && isViewAllowed('customer-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <CustomerPaymentLedger shopId={shopId} />
                 </div>
               )}
 
               {/* ─── PURCHASES & RESTOCKS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'purchases' && isAdminUser && (
+              {activeView === 'purchases' && isAdminUser && isViewAllowed('purchases') && (
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
                   <PurchasesManagement
                     products={items}
@@ -7682,8 +7933,26 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── PRODUCTS VIEW ─── */}
-              {activeView === 'products' && (
+              {activeView === 'products' && (isCustomerAccount || isViewAllowed('products')) && (
                 <>
+                  {/* Read-Only Notice when Products/Store permission is not allowed */}
+                  {isAdminUser && !isActionAllowed('store') && (
+                    <div className="w-full bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 flex items-center justify-between text-amber-900 shadow-sm animate-in fade-in">
+                      <div className="flex items-center gap-2.5">
+                        <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-wider text-amber-900">Read-Only View: Products Catalog is Locked</p>
+                          <p className="text-[11px] font-bold text-amber-700 mt-0.5">
+                            Super Admin has not enabled product management permissions for this branch. You can view items and prices in read-only mode.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2.5 py-1 rounded-full shrink-0">
+                        View-Only
+                      </span>
+                    </div>
+                  )}
+
                   {/* Mobile Search Bar */}
                   <div className="relative w-full sm:hidden z-30">
                     <input
@@ -7754,7 +8023,7 @@ function StoreContent({ shopId }) {
                       </button>
                     ))}
                     {/* Add Product button for ShopAdmin — inside category bar */}
-                    {isAdminUser && (
+                    {isAdminUser && isActionAllowed('store') && (
                       <button
                         onClick={() => setAddProductModal(true)}
                         className="ml-auto whitespace-nowrap flex items-center gap-1.5 px-4 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-sm transition-all shrink-0 cursor-pointer active:scale-95"
@@ -7865,7 +8134,7 @@ function StoreContent({ shopId }) {
                                       <Lock className="w-3.5 h-3.5 text-red-100" />
                                       <span>Sold Out (Locked)</span>
                                     </button>
-                                  ) : itemLowStock ? (
+                                  ) : (itemLowStock && isActionAllowed('purchases') && isActionAllowed('store') && !isEditLocked) ? (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleStartRestock(item); setLowStockModalOpen(true); }}
                                       className="w-full py-2.5 px-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-md border border-red-400 active:scale-95 transition-all cursor-pointer animate-pulse"
@@ -7874,7 +8143,7 @@ function StoreContent({ shopId }) {
                                       <AlertTriangle className="w-3.5 h-3.5 text-white" />
                                       <span>Low Stock (Restock)</span>
                                     </button>
-                                  ) : (
+                                  ) : (isActionAllowed('store') && isActionAllowed('walkin')) ? (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); addToWalkInCart(item); }}
                                       className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm hover:shadow-md active:scale-95 transition-all cursor-pointer"
@@ -7883,35 +8152,48 @@ function StoreContent({ shopId }) {
                                       <Receipt className="w-3.5 h-3.5" />
                                       <span>+ Add to Bill</span>
                                     </button>
+                                  ) : null}
+                                  {(isActionAllowed('store') && !isEditLocked && !isDeleteLocked) ? (
+                                    <div className="grid grid-cols-3 gap-2 w-full">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                        className="py-2 px-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        title="View Product Details"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 text-cyan-600" />
+                                        <span>View</span>
+                                      </button>
+
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
+                                        className="py-2 px-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-blue-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        title="Edit Product"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        <span>Edit</span>
+                                      </button>
+
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
+                                        className="py-2 px-1.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        title="Delete Product"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Delete</span>
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="w-full">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                        className="w-full py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        title="View Product Details (Read-Only Mode)"
+                                      >
+                                        <Eye className="w-3.5 h-3.5 text-cyan-600" />
+                                        <span>View Details (Read-Only)</span>
+                                      </button>
+                                    </div>
                                   )}
-                                  <div className="grid grid-cols-3 gap-2 w-full">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                      className="py-2 px-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
-                                      title="View Product Details"
-                                    >
-                                      <Eye className="w-3.5 h-3.5 text-cyan-600" />
-                                      <span>View</span>
-                                    </button>
-
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
-                                      className="py-2 px-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-blue-200 shadow-xs active:scale-95 transition-all cursor-pointer"
-                                      title="Edit Product"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                      <span>Edit</span>
-                                    </button>
-
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
-                                      className="py-2 px-1.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-xs active:scale-95 transition-all cursor-pointer"
-                                      title="Delete Product"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      <span>Delete</span>
-                                    </button>
-                                  </div>
                                 </div>
                               ) : canBuy ? (
                                 itemOutOfStock ? (
@@ -7933,7 +8215,11 @@ function StoreContent({ shopId }) {
                                   </div>
                                 ) : (
                                   <button
-                                    onClick={() => handleAddToCart(item)}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddToCart(item);
+                                    }}
                                     className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
                                   >
                                     <Plus className="w-4 h-4 text-emerald-100" />
@@ -7951,8 +8237,28 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── WALK-IN POS & BILLING VIEW ─── */}
-              {activeView === 'walkin' && isAdminUser && (
+              {activeView === 'walkin' && isAdminUser && isViewAllowed('walkin') && (
                 <div className="space-y-4">
+                  {/* Lock Warning Banner when Walk-In billing is not approved */}
+                  {!isActionAllowed('walkin') && (
+                    <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center justify-between gap-3 text-rose-900 shadow-sm animate-in fade-in">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
+                          <Lock className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-wider text-rose-950 flex items-center gap-2">
+                            <span>Read-Only View: Walk-In Billing is Locked by Super Admin</span>
+                            <span className="px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 text-[9px] font-black uppercase">Approval Required</span>
+                          </div>
+                          <p className="text-[11px] font-bold text-rose-700 mt-0.5">
+                            Super Admin has not ticked the Walk-In Billing checkbox for this branch. You can view product rates and live inventory, but creating bills and completing sales are locked.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Top Banner - white/gray */}
                   <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-wrap">
                     <div>
@@ -8038,10 +8344,14 @@ function StoreContent({ shopId }) {
                               <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-gray-100">
                                 <button
                                   type="button"
-                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'peti')}
-                                  disabled={product.stock <= 0}
-                                  className="py-1 px-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
-                                  title={`Add 1 Peti (${currency} ${petiPrice})`}
+                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'peti')}
+                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                    !isActionAllowed('walkin')
+                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                  }`}
+                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Peti (${currency} ${petiPrice})`}
                                 >
                                   <span>📦 Peti</span>
                                   <span className="text-[8px] font-extrabold text-amber-900">{currency}{petiPrice}</span>
@@ -8049,10 +8359,14 @@ function StoreContent({ shopId }) {
 
                                 <button
                                   type="button"
-                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'tray')}
-                                  disabled={product.stock <= 0}
-                                  className="py-1 px-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
-                                  title={`Add 1 Tray (${currency} ${trayPrice})`}
+                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'tray')}
+                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                    !isActionAllowed('walkin')
+                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                  }`}
+                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Tray (${currency} ${trayPrice})`}
                                 >
                                   <span>🍱 Tray</span>
                                   <span className="text-[8px] font-extrabold text-emerald-900">{currency}{trayPrice}</span>
@@ -8060,10 +8374,14 @@ function StoreContent({ shopId }) {
 
                                 <button
                                   type="button"
-                                  onClick={() => product.stock > 0 && addToWalkInCart(product, 'egg')}
-                                  disabled={product.stock <= 0}
-                                  className="py-1 px-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 disabled:opacity-40"
-                                  title={`Add 1 Egg (${currency} ${eggPrice})`}
+                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'egg')}
+                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                    !isActionAllowed('walkin')
+                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                      : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                  }`}
+                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Egg (${currency} ${eggPrice})`}
                                 >
                                   <span>🥚 Egg</span>
                                   <span className="text-[8px] font-extrabold text-blue-900">{currency}{eggPrice}</span>
@@ -8096,6 +8414,17 @@ function StoreContent({ shopId }) {
                         </div>
 
                         <div className="p-4 space-y-4 flex-1">
+                          {!isActionAllowed('walkin') && (
+                            <div className="bg-rose-50 border-2 border-rose-300 rounded-xl p-3 flex items-start gap-2.5 text-rose-900 shadow-sm animate-in fade-in">
+                              <Lock className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-rose-800">Billing Locked by Super Admin</p>
+                                <p className="text-[11px] font-bold text-rose-700 leading-tight mt-0.5">
+                                  You are in View-Only mode. Bill generation and cart addition are disabled until Super Admin approves this permission.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           {/* Customer Details */}
                           <div className="space-y-2 relative">
                             <div className="flex items-center justify-between">
@@ -8119,38 +8448,44 @@ function StoreContent({ shopId }) {
                               <input
                                 type="text"
                                 placeholder="Customer Name (e.g. Ahmad Khan)"
+                                disabled={!isActionAllowed('walkin')}
                                 value={walkInCustomerName}
-                                onFocus={() => setShowCustomerSuggestions(true)}
+                                onFocus={() => isActionAllowed('walkin') && setShowCustomerSuggestions(true)}
                                 onChange={e => {
+                                  if (!isActionAllowed('walkin')) return;
                                   setWalkInCustomerName(e.target.value);
                                   setShowCustomerSuggestions(true);
                                 }}
-                                className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                                className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none transition-all ${!isActionAllowed('walkin') ? 'opacity-60 cursor-not-allowed bg-gray-100' : 'focus:border-emerald-500 focus:bg-white'}`}
                               />
                             </div>
 
                             <input
                               type="tel"
                               placeholder="WhatsApp / Phone (03XXXXXXXXX)"
+                              disabled={!isActionAllowed('walkin')}
                               value={walkInCustomerPhone}
-                              onFocus={() => setShowCustomerSuggestions(true)}
+                              onFocus={() => isActionAllowed('walkin') && setShowCustomerSuggestions(true)}
                               onChange={e => {
+                                if (!isActionAllowed('walkin')) return;
                                 setWalkInCustomerPhone(e.target.value);
                                 setShowCustomerSuggestions(true);
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white font-mono transition-all"
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none font-mono transition-all ${!isActionAllowed('walkin') ? 'opacity-60 cursor-not-allowed bg-gray-100' : 'focus:border-emerald-500 focus:bg-white'}`}
                             />
 
                             <input
                               type="email"
                               placeholder="Customer Email (e.g. customer@gmail.com)"
+                              disabled={!isActionAllowed('walkin')}
                               value={walkInCustomerEmail}
-                              onFocus={() => setShowCustomerSuggestions(true)}
+                              onFocus={() => isActionAllowed('walkin') && setShowCustomerSuggestions(true)}
                               onChange={e => {
+                                if (!isActionAllowed('walkin')) return;
                                 setWalkInCustomerEmail(e.target.value);
                                 setShowCustomerSuggestions(true);
                               }}
-                              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                              className={`w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 outline-none transition-all ${!isActionAllowed('walkin') ? 'opacity-60 cursor-not-allowed bg-gray-100' : 'focus:border-emerald-500 focus:bg-white'}`}
                             />
 
                             {/* Customer Suggestions Dropdown */}
@@ -8330,11 +8665,13 @@ function StoreContent({ shopId }) {
                                   {/* 1. Cash */}
                                   <button
                                     type="button"
+                                    disabled={!isActionAllowed('walkin')}
                                     onClick={() => {
+                                      if (!isActionAllowed('walkin')) return;
                                       setWalkInPaymentMethod('CASH');
                                       setWalkInPaidAmount('');
                                     }}
-                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'CASH'
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${!isActionAllowed('walkin') ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer'} ${walkInPaymentMethod === 'CASH'
                                       ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-400 scale-[1.02]'
                                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                                       }`}
@@ -8346,11 +8683,13 @@ function StoreContent({ shopId }) {
                                   {/* 2. Bank / Online */}
                                   <button
                                     type="button"
+                                    disabled={!isActionAllowed('walkin')}
                                     onClick={() => {
+                                      if (!isActionAllowed('walkin')) return;
                                       setWalkInPaymentMethod('BANK_TRANSFER');
                                       setWalkInPaidAmount('');
                                     }}
-                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'BANK_TRANSFER'
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${!isActionAllowed('walkin') ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer'} ${walkInPaymentMethod === 'BANK_TRANSFER'
                                       ? 'bg-amber-500 text-white shadow-md border-2 border-amber-400 scale-[1.02]'
                                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                                       }`}
@@ -8362,13 +8701,15 @@ function StoreContent({ shopId }) {
                                   {/* 3. Split / Partial */}
                                   <button
                                     type="button"
+                                    disabled={!isActionAllowed('walkin')}
                                     onClick={() => {
+                                      if (!isActionAllowed('walkin')) return;
                                       setWalkInPaymentMethod('PARTIAL');
                                       if (!walkInPaidAmount && walkInTotal > 0) {
                                         setWalkInPaidAmount(Math.round(walkInTotal / 2));
                                       }
                                     }}
-                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'PARTIAL'
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${!isActionAllowed('walkin') ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer'} ${walkInPaymentMethod === 'PARTIAL'
                                       ? 'bg-indigo-600 text-white shadow-md border-2 border-indigo-400 scale-[1.02]'
                                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                                       }`}
@@ -8380,11 +8721,13 @@ function StoreContent({ shopId }) {
                                   {/* 4. Credit */}
                                   <button
                                     type="button"
+                                    disabled={!isActionAllowed('walkin')}
                                     onClick={() => {
+                                      if (!isActionAllowed('walkin')) return;
                                       setWalkInPaymentMethod('CREDIT');
                                       setWalkInPaidAmount('0');
                                     }}
-                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${walkInPaymentMethod === 'CREDIT'
+                                    className={`py-2 px-1 rounded-xl text-[10.5px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${!isActionAllowed('walkin') ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer'} ${walkInPaymentMethod === 'CREDIT'
                                       ? 'bg-rose-600 text-white shadow-md border-2 border-rose-400 scale-[1.02]'
                                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                                       }`}
@@ -8816,8 +9159,10 @@ function StoreContent({ shopId }) {
                                         type="number"
                                         min="0"
                                         max={rawTotal}
+                                        disabled={!isActionAllowed('walkin')}
                                         value={walkInDiscount}
                                         onChange={(e) => {
+                                          if (!isActionAllowed('walkin')) return;
                                           const val = e.target.value;
                                           if (val === '') {
                                             setWalkInDiscount('');
@@ -8827,7 +9172,7 @@ function StoreContent({ shopId }) {
                                           }
                                         }}
                                         placeholder="0"
-                                        className="w-full bg-amber-50/40 border border-amber-300 focus:border-amber-500 rounded-lg pl-9 pr-2.5 py-1.5 text-xs font-black text-amber-900 outline-none transition-all text-right shadow-inner"
+                                        className={`w-full bg-amber-50/40 border border-amber-300 focus:border-amber-500 rounded-lg pl-9 pr-2.5 py-1.5 text-xs font-black text-amber-900 outline-none transition-all text-right shadow-inner ${!isActionAllowed('walkin') ? 'opacity-60 cursor-not-allowed' : ''}`}
                                       />
                                     </div>
                                   </div>
@@ -8853,20 +9198,27 @@ function StoreContent({ shopId }) {
                               </div>
                             );
                           })()}
-                          <button
-                            onClick={handleCompleteWalkInSale}
-                            disabled={walkInCart.length === 0 || isProcessingWalkIn}
-                            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-[0.15em] rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                          >
-                            {isProcessingWalkIn ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <Receipt className="w-4 h-4" />
-                                <span>Complete Sale & Generate Bill</span>
-                              </>
-                            )}
-                          </button>
+                          {!isActionAllowed('walkin') ? (
+                            <div className="w-full py-3.5 bg-rose-50 border-2 border-rose-300 text-rose-700 font-black text-xs uppercase tracking-[0.1em] rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-not-allowed">
+                              <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Billing Locked (Super Admin Approval Required)</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={handleCompleteWalkInSale}
+                              disabled={walkInCart.length === 0 || isProcessingWalkIn}
+                              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs uppercase tracking-[0.15em] rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              {isProcessingWalkIn ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <Receipt className="w-4 h-4" />
+                                  <span>Complete Sale & Generate Bill</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
 
                       </div>
@@ -8879,14 +9231,14 @@ function StoreContent({ shopId }) {
 
 
               {/* ─── EASYPAISA & CUSTOMER ORDERS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'orders' && isAdminUser && (
+              {activeView === 'orders' && isAdminUser && isViewAllowed('orders') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <OrdersManagement shopId={shopId} />
                 </div>
               )}
 
               {/* ─── REGISTERED & PHYSICAL CUSTOMERS DIRECTORY VIEW ─── */}
-              {activeView === 'registered-customers' && isAdminUser && (
+              {activeView === 'registered-customers' && isAdminUser && isViewAllowed('registered-customers') && (
                 <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Top Header Banner */}
                   <div className="bg-gradient-to-r from-[#1B3817] via-[#24491F] to-[#0f172a] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
@@ -9400,7 +9752,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── 1. SALES REPORT VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'report-sales' && isAdminUser && (
+              {activeView === 'report-sales' && isAdminUser && isViewAllowed('report-sales') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner (Clean Gray & White Theme) */}
                   <div className="bg-white px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-gray-200 shadow-sm text-gray-900 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
@@ -10051,14 +10403,16 @@ function StoreContent({ shopId }) {
                                               </div>
                                             </div>
                                             <div className="flex items-center gap-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleOpenEditSale(inv)}
-                                                className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-all cursor-pointer"
-                                                title="Edit Bill"
-                                              >
-                                                <Edit className="w-3.5 h-3.5 text-amber-600" />
-                                              </button>
+                                              {!isEditLocked && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleOpenEditSale(inv)}
+                                                  className="p-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-all cursor-pointer"
+                                                  title="Edit Bill"
+                                                >
+                                                  <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                                </button>
+                                              )}
                                               <button
                                                 type="button"
                                                 onClick={() => setCompletedBill(inv)}
@@ -10075,14 +10429,16 @@ function StoreContent({ shopId }) {
                                               >
                                                 <Printer className="w-3.5 h-3.5" />
                                               </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDeleteSale(inv._id || inv.id || inv.orderId)}
-                                                className="p-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all cursor-pointer"
-                                                title="Delete Bill"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                                              </button>
+                                              {!isDeleteLocked && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteSale(inv._id || inv.id || inv.orderId)}
+                                                  className="p-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all cursor-pointer"
+                                                  title="Delete Bill"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                                </button>
+                                              )}
                                             </div>
                                           </div>
                                         );
@@ -10540,14 +10896,16 @@ function StoreContent({ shopId }) {
                                                         </td>
                                                         <td className="p-2 text-center">
                                                           <div className="flex items-center justify-center gap-1">
-                                                            <button
-                                                              type="button"
-                                                              onClick={() => handleOpenEditSale(s)}
-                                                              className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded transition-all cursor-pointer"
-                                                              title="Edit Sale / Invoice"
-                                                            >
-                                                              <Edit className="w-3 h-3 text-amber-600" />
-                                                            </button>
+                                                            {!isEditLocked && (
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditSale(s)}
+                                                                className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded transition-all cursor-pointer"
+                                                                title="Edit Sale / Invoice"
+                                                              >
+                                                                <Edit className="w-3 h-3 text-amber-600" />
+                                                              </button>
+                                                            )}
                                                             <button
                                                               type="button"
                                                               onClick={() => setCompletedBill(s)}
@@ -10564,14 +10922,16 @@ function StoreContent({ shopId }) {
                                                             >
                                                               <Printer className="w-3 h-3" />
                                                             </button>
-                                                            <button
-                                                              type="button"
-                                                              onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
-                                                              className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded transition-all cursor-pointer"
-                                                              title="Delete Sale"
-                                                            >
-                                                              <Trash2 className="w-3 h-3" />
-                                                            </button>
+                                                            {!isDeleteLocked && (
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
+                                                                className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded transition-all cursor-pointer"
+                                                                title="Delete Sale"
+                                                              >
+                                                                <Trash2 className="w-3 h-3" />
+                                                              </button>
+                                                            )}
                                                           </div>
                                                         </td>
                                                       </tr>
@@ -10782,15 +11142,17 @@ function StoreContent({ shopId }) {
 
                                       {/* Action buttons */}
                                       <div className="flex items-center gap-1.5 ml-auto">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenEditSale(s)}
-                                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
-                                          title="Edit Sale"
-                                        >
-                                          <Edit className="w-3.5 h-3.5 text-amber-600" />
-                                          <span>Edit</span>
-                                        </button>
+                                        {!isEditLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenEditSale(s)}
+                                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                            title="Edit Sale"
+                                          >
+                                            <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                            <span>Edit</span>
+                                          </button>
+                                        )}
                                         <button
                                           type="button"
                                           onClick={() => setCompletedBill(s)}
@@ -10808,14 +11170,16 @@ function StoreContent({ shopId }) {
                                         >
                                           <Printer className="w-3.5 h-3.5" />
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
-                                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all cursor-pointer"
-                                          title="Delete Sale"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                        {!isDeleteLocked && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
+                                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg transition-all cursor-pointer"
+                                            title="Delete Sale"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -10970,14 +11334,16 @@ function StoreContent({ shopId }) {
                                         </td>
                                         <td className="p-3 text-center">
                                           <div className="flex items-center justify-center gap-1.5">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenEditSale(s)}
-                                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition-all cursor-pointer"
-                                              title="Edit Sale Record"
-                                            >
-                                              <Edit className="w-3.5 h-3.5 text-amber-600" />
-                                            </button>
+                                            {!isEditLocked && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenEditSale(s)}
+                                                className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition-all cursor-pointer"
+                                                title="Edit Sale Record"
+                                              >
+                                                <Edit className="w-3.5 h-3.5 text-amber-600" />
+                                              </button>
+                                            )}
                                             <button
                                               type="button"
                                               onClick={() => setCompletedBill(s)}
@@ -10994,14 +11360,16 @@ function StoreContent({ shopId }) {
                                             >
                                               <Printer className="w-3.5 h-3.5 text-gray-700" />
                                             </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
-                                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
-                                              title="Delete Sale"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                            {!isDeleteLocked && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSale(s._id || s.id || s.orderId)}
+                                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all cursor-pointer"
+                                                title="Delete Sale"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
                                           </div>
                                         </td>
                                       </tr>
@@ -11046,7 +11414,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── CUSTOMER CREDITS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'customer-credits' && isAdminUser && (
+              {activeView === 'customer-credits' && isAdminUser && isViewAllowed('customer-credits') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <CreditManagement
                     items={items}
@@ -11068,7 +11436,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── PURCHASE CREDITS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'purchase-credits' && isAdminUser && (
+              {activeView === 'purchase-credits' && isAdminUser && isViewAllowed('purchase-credits') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <CreditManagement
                     items={items}
@@ -11089,7 +11457,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── 2. PROFIT REPORT VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'report-profit' && isAdminUser && (
+              {activeView === 'report-profit' && isAdminUser && isViewAllowed('report-profit') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner */}
                   <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 overflow-hidden">
@@ -11616,7 +11984,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── 3. EXPENSES & LOSS REPORT VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'report-expenses' && isAdminUser && (
+              {activeView === 'report-expenses' && isAdminUser && isViewAllowed('report-expenses') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner */}
                   <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
@@ -12310,7 +12678,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── 4. DAMAGED PRODUCTS VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'damaged-products' && isAdminUser && (
+              {activeView === 'damaged-products' && isAdminUser && isViewAllowed('damaged-products') && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Executive Sleek Header Banner */}
                   <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl border border-slate-700/70 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
@@ -12699,7 +13067,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── FUEL & VEHICLE EXPENSES VIEW ─── */}
-              {activeView === 'report-fuel' && isAdminUser && (
+              {activeView === 'report-fuel' && isAdminUser && isViewAllowed('report-fuel') && (
                 <FuelReportManagement
                   shopId={shopId}
                   shop={shop}
@@ -12709,7 +13077,7 @@ function StoreContent({ shopId }) {
               )}
 
               {/* ─── 4. CHARTS & ANALYTICS DEDICATED VIEW FOR SHOP ADMIN ─── */}
-              {activeView === 'analytics-charts' && isAdminUser && (
+              {activeView === 'analytics-charts' && isAdminUser && isViewAllowed('analytics-charts') && (
                 <div className="space-y-6">
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -12894,7 +13262,12 @@ function StoreContent({ shopId }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { handleAddToCart(selectedItem); setSelectedItem(null); }}
+                    onClick={() => { 
+                      const cUnit = customerSelectedUnits[selectedItem._id] || 'tray';
+                      const cQty = customerSelectedQuantities[selectedItem._id] || 1;
+                      handleAddToCart(selectedItem, cUnit, cQty); 
+                      setSelectedItem(null); 
+                    }}
                     className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-green-700 hover:from-emerald-500 hover:via-teal-600 hover:to-green-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_8px_25px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.8),0_0_20px_rgba(59,130,246,0.5)] border-t border-t-emerald-300/60 border-b-4 border-b-emerald-950 flex items-center justify-center gap-2 active:translate-y-0.5 transition-all cursor-pointer"
                   >
                     <ShoppingCart className="w-4 h-4 text-emerald-100" />

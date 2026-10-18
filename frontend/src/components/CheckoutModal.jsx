@@ -98,7 +98,12 @@ export function CheckoutModal({ isOpen, onClose, totalAmount, currency }) {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ paymentMethod, shippingDetails })
+        body: JSON.stringify({ 
+          paymentMethod, 
+          shippingDetails,
+          items: cart,
+          shopId: customer?.shopId || ''
+        })
       });
       const data = await res.json();
 
@@ -153,10 +158,32 @@ export function CheckoutModal({ isOpen, onClose, totalAmount, currency }) {
               <input type="text" placeholder="Address" value={shippingDetails.address} onChange={e => setShippingDetails({ ...shippingDetails, address: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm font-bold text-white outline-none focus:border-emerald-500" />
               <input type="text" placeholder="City" value={shippingDetails.city} onChange={e => setShippingDetails({ ...shippingDetails, city: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm font-bold text-white outline-none focus:border-emerald-500" />
 
+              {/* Multiple Products Summary Card */}
+              {Array.isArray(cart) && cart.length > 0 && (
+                <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-3.5 space-y-2.5 shadow-inner">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    <span>Order Items ({cart.length} Products)</span>
+                    <span className="text-emerald-400 font-bold">{cart.reduce((s, i) => s + (Number(i.quantity) || 1), 0)} Total Units</span>
+                  </div>
+                  <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1 scrollbar-hide">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                        <span className="font-bold text-slate-200 truncate max-w-[220px]">
+                          {item.name} <span className="text-[10px] text-amber-300 font-mono">x{item.quantity}</span>
+                        </span>
+                        <span className="font-mono font-black text-emerald-400 text-xs">
+                          {displayCurrency} {((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={() => setStep(2)}
                 disabled={!isDetailsValid}
-                className="w-full py-4 mt-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all"
+                className="w-full py-4 mt-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all cursor-pointer shadow-lg active:scale-98"
               >
                 Continue to Payment
               </button>

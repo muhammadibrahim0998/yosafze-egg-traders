@@ -30,6 +30,7 @@ import { VendorDirectory } from "./pages/VendorDirectory";
 import { PaymentLedger } from "./pages/PaymentLedger";
 import { CustomerPaymentLedger } from "./pages/CustomerPaymentLedger";
 import { VendorPaymentLedger } from "./pages/VendorPaymentLedger";
+import { RolePermissionsView } from "./pages/RolePermissionsView";
 
 
 import { useProducts } from "./contexts/ProductContext";
@@ -48,7 +49,7 @@ import { toast, Toaster } from "sonner";
 
 
 export default function App() {
-  const { user, isSuperAdmin, isShopAdmin, loading: userLoading } = useUser();
+  const { user, isSuperAdmin, isShopAdmin, isPageAllowed, loading: userLoading } = useUser();
   const { cart, clearCart, fetchData, sales, products, categories } = useProducts();
   const { modals, activeData, openModal, closeModal } = useModals();
   const { refreshSession } = useShift();
@@ -325,43 +326,92 @@ export default function App() {
                 } />
 
                 <Route path="/store" element={
-                  <Storefront
-                    onAdd={() => openModal("addProduct")}
-                    onEdit={(p) => openModal("editProduct", p)}
-                    onDelete={handleDeleteProduct}
-                    onView={(p) => openModal("viewProduct", p)}
-                  />
+                  !isSuperAdmin() && !isPageAllowed('store') ? (
+                    <div className="p-8 my-8 bg-white border-2 border-rose-300 rounded-3xl text-center space-y-4 shadow-xl max-w-lg mx-auto">
+                      <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xl font-black uppercase text-zinc-900 tracking-tight">Page Access Restricted by Super Admin</h3>
+                        <p className="text-xs font-bold text-zinc-500 max-w-md mx-auto">This page is currently locked by the Super Admin for your branch.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <Storefront
+                      onAdd={() => openModal("addProduct")}
+                      onEdit={(p) => openModal("editProduct", p)}
+                      onDelete={handleDeleteProduct}
+                      onView={(p) => openModal("viewProduct", p)}
+                    />
+                  )
                 } />
                 <Route path="/store/category/:category" element={
-                  <Storefront
-                    onAdd={(cat) => openModal("addProduct", { category: cat })}
-                    onEdit={(p) => openModal("editProduct", p)}
-                    onDelete={handleDeleteProduct}
-                    onView={(p) => openModal("viewProduct", p)}
-                  />
+                  !isSuperAdmin() && !isPageAllowed('store') ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <Storefront
+                      onAdd={(cat) => openModal("addProduct", { category: cat })}
+                      onEdit={(p) => openModal("editProduct", p)}
+                      onDelete={handleDeleteProduct}
+                      onView={(p) => openModal("viewProduct", p)}
+                    />
+                  )
                 } />
                 <Route path="/store/status/:status" element={
-                  <Storefront
-                    onAdd={() => openModal("addProduct")}
-                    onEdit={(p) => openModal("editProduct", p)}
-                    onDelete={handleDeleteProduct}
-                    onView={(p) => openModal("viewProduct", p)}
-                  />
+                  !isSuperAdmin() && !isPageAllowed('store') ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <Storefront
+                      onAdd={() => openModal("addProduct")}
+                      onEdit={(p) => openModal("editProduct", p)}
+                      onDelete={handleDeleteProduct}
+                      onView={(p) => openModal("viewProduct", p)}
+                    />
+                  )
                 } />
                 <Route path="/product/:id" element={<ProductDetail />} />
-                <Route path="/settings" element={<SettingsView />} />
+                <Route path="/settings" element={
+                  (!isSuperAdmin() && !isPageAllowed('settings')) ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <SettingsView />
+                  )
+                } />
                 <Route path="/help" element={<HelpView />} />
-                <Route path="/team" element={(isShopAdmin() || isSuperAdmin()) ? <TeamView /> : <Navigate to="/" />} />
-                <Route path="/purchases" element={isShopAdmin() ? <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
-                <Route path="/vendors" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
-                <Route path="/vendor-directory" element={(isShopAdmin() || isSuperAdmin()) ? <VendorDirectory /> : <Navigate to="/" />} />
-                <Route path="/customer-payment-ledger" element={!isSuperAdmin() ? <CustomerPaymentLedger /> : <Navigate to="/" />} />
-                <Route path="/vendor-payment-ledger" element={!isSuperAdmin() ? <VendorPaymentLedger /> : <Navigate to="/" />} />
+                <Route path="/team" element={
+                  (isSuperAdmin() || (isShopAdmin() && isPageAllowed('team'))) ? <TeamView /> : <Navigate to="/" />
+                } />
+                <Route path="/role-permissions" element={isSuperAdmin() ? <RolePermissionsView /> : <Navigate to="/" />} />
+                <Route path="/purchases" element={
+                  (isShopAdmin() && isPageAllowed('purchases')) ? (
+                    <PurchasesManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} />
+                  ) : <Navigate to="/" />
+                } />
+                <Route path="/vendors" element={
+                  (isShopAdmin() && isPageAllowed('vendors')) ? (
+                    <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} />
+                  ) : <Navigate to="/" />
+                } />
+                <Route path="/vendor-directory" element={
+                  (isSuperAdmin() || (isShopAdmin() && isPageAllowed('vendorDirectory'))) ? <VendorDirectory /> : <Navigate to="/" />
+                } />
+                <Route path="/customer-payment-ledger" element={
+                  (!isSuperAdmin() && isPageAllowed('customerPaymentLedger')) ? <CustomerPaymentLedger /> : <Navigate to="/" />
+                } />
+                <Route path="/vendor-payment-ledger" element={
+                  (!isSuperAdmin() && isPageAllowed('vendorPaymentLedger')) ? <VendorPaymentLedger /> : <Navigate to="/" />
+                } />
                 <Route path="/customer-ledger" element={<Navigate to="/customer-payment-ledger" replace />} />
                 <Route path="/vendor-ledger" element={<Navigate to="/vendor-payment-ledger" replace />} />
-                <Route path="/payment-ledger" element={!isSuperAdmin() ? <PaymentLedger /> : <Navigate to="/" />} />
+                <Route path="/payment-ledger" element={
+                  (!isSuperAdmin() && isPageAllowed('customerPaymentLedger')) ? <PaymentLedger /> : <Navigate to="/" />
+                } />
                 <Route path="/payment-list" element={<Navigate to="/customer-payment-ledger" replace />} />
-                <Route path="/suppliers" element={isShopAdmin() ? <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} /> : <Navigate to="/" />} />
+                <Route path="/suppliers" element={
+                  (isShopAdmin() && isPageAllowed('vendors')) ? (
+                    <VendorsManagement onAddProduct={() => openModal("addProduct")} onEditProduct={(p) => openModal("editProduct", p)} />
+                  ) : <Navigate to="/" />
+                } />
                 <Route path="/shops" element={isSuperAdmin() ? <Navigate to="/" replace /> : <Navigate to="/" replace />} />
                 <Route path="/shop/:id" element={<ShopAdminDashboard />} />
               </Routes>

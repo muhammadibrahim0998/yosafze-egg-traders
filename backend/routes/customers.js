@@ -124,63 +124,94 @@ router.get('/cart', authenticateCustomer, (req, res) => {
   res.json({ cart: req.customer.cart });
 });
 
-// ─── ADD TO CART ──────────────────────────────────────────────────────────────
+// ─── ADD TO CART (SUPPORTS SINGLE OR MULTIPLE DYNAMIC PRODUCTS) ─────────────
 router.post('/cart', authenticateCustomer, async (req, res) => {
   try {
-    const { itemId, quantity = 1, unit = 'egg' } = req.body;
-    const item = await Item.findById(itemId);
-    if (!item) return res.status(404).json({ message: 'Product not found' });
-    if (item.stock < quantity && unit === 'egg') return res.status(400).json({ message: 'Not enough stock' });
-
-    const basePrice = Number(item.price) || 0;
-    const pEgg = Number(item.pricePerEgg) || 0;
-    const pTray = Number(item.pricePerTray) || 0;
-    const pPeti = Number(item.pricePerPeti) || 0;
-    const uType = String(item.unitType || 'tray').toLowerCase();
-
-    let eggRate = pEgg;
-    if (!eggRate && pTray > 0) eggRate = pTray / 30;
-    else if (!eggRate && pPeti > 0) eggRate = pPeti / 360;
-    else if (!eggRate && basePrice > 0) {
-      eggRate = uType === 'peti' ? basePrice / 360 : uType === 'tray' ? basePrice / 30 : basePrice;
-    }
-    if (!eggRate) eggRate = 30;
-
-    let finalPrice = Math.round(eggRate);
-    if (unit === 'peti') {
-      finalPrice = pPeti > 0 ? pPeti : pTray > 0 ? pTray * 12 : Math.round(eggRate * 360);
-    } else if (unit === 'tray') {
-      finalPrice = pTray > 0 ? pTray : pPeti > 0 ? Math.round(pPeti / 12) : Math.round(eggRate * 30);
-    }
-
-    const unitLabel = unit === 'peti' ? 'Peti' : unit === 'tray' ? 'Tray' : 'Egg';
-    const cleanName = item.name.replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
-
+    const { itemId, quantity = 1, unit = 'egg', items, price, name, image } = req.body;
     const customer = req.customer;
     if (!Array.isArray(customer.cart)) {
       customer.cart = [];
     }
-    const targetUnit = unit || 'egg';
-    const addQty = Math.max(1, Number(quantity) || 1);
-    const existing = customer.cart.find(c => String(c.itemId) === String(itemId) && (c.unit || 'egg') === targetUnit);
-    if (existing) {
-      existing.quantity = (Number(existing.quantity) || 0) + addQty;
-      existing.price = finalPrice;
-    } else {
-      customer.cart.push({
-        itemId: item._id,
-        name: `${cleanName} (${unitLabel})`,
-        unit: targetUnit,
-        price: finalPrice,
-        image: item.images?.[0] || '',
-        quantity: addQty
-      });
+
+    // Support multiple products in a single call or standard single product
+    const incomingItems = (Array.isArray(items) && items.length > 0)
+      ? items
+      : (itemId ? [{ itemId, quantity, unit, price, name, image }] : []);
+
+    if (incomingItems.length === 0) {
+      return res.status(400).json({ message: 'No product specified to add to cart' });
+    }
+
+    for (const inItem of incomingItems) {
+      const itId = inItem.itemId || inItem.productId || inItem._id || inItem.id;
+      if (!itId) continue;
+      const itQty = Math.max(1, Number(inItem.quantity) || 1);
+      const itUnit = String(inItem.unit || 'egg').toLowerCase();
+
+      let item = null;
+      try {
+        item = await Item.findById(itId);
+      } catch (_) {}
+
+      let finalPrice = Number(inItem.price) || 0;
+      if (!finalPrice && item) {
+        const basePrice = Number(item.price) || 0;
+        const pEgg = Number(item.pricePerEgg) || 0;
+        const pTray = Number(item.pricePerTray) || 0;
+        const pPeti = Number(item.pricePerPeti) || 0;
+        const uType = String(item.unitType || 'tray').toLowerCase();
+
+        let eggRate = pEgg;
+        if (!eggRate && pTray > 0) eggRate = pTray / 30;
+        else if (!eggRate && pPeti > 0) eggRate = pPeti / 360;
+        else if (!eggRate && basePrice > 0) {
+          eggRate = uType === 'peti' ? basePrice / 360 : uType === 'tray' ? basePrice / 30 : basePrice;
+        }
+        if (!eggRate) eggRate = 30;
+
+        finalPrice = Math.round(eggRate);
+        if (itUnit === 'peti') {
+          finalPrice = pPeti > 0 ? pPeti : pTray > 0 ? pTray * 12 : Math.round(eggRate * 360);
+        } else if (itUnit === 'tray') {
+          finalPrice = pTray > 0 ? pTray : pPeti > 0 ? Math.round(pPeti / 12) : Math.round(eggRate * 30);
+        }
+      }
+
+      const unitLabel = itUnit === 'peti' ? 'Peti' : itUnit === 'tray' ? 'Tray' : 'Egg';
+      const rawName = item?.name || inItem.name || 'Egg Product';
+      const cleanName = rawName.replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
+      const itemImg = (item && item.images && item.images[0]) || item?.image || inItem.image || inItem.images?.[0] || '';
+
+      const existing = customer.cart.find(c =>
+        String(c.itemId || c.productId || c.id || c._id) === String(itId) &&
+        String(c.unit || 'egg').toLowerCase() === itUnit
+      );
+
+      if (existing) {
+        existing.quantity = (Number(existing.quantity) || 0) + itQty;
+        if (finalPrice > 0) existing.price = finalPrice;
+      } else {
+        customer.cart.push({
+          itemId: itId,
+          productId: itId,
+          id: itId,
+          _id: itId,
+          name: `${cleanName} (${unitLabel})`,
+          unit: itUnit,
+          price: finalPrice,
+          image: itemImg,
+          quantity: itQty
+        });
+      }
     }
 
     // Merge any existing duplicate cart entries
     const mergedCart = [];
     for (const c of customer.cart) {
-      const match = mergedCart.find(m => String(m.itemId) === String(c.itemId) && (m.unit || 'egg') === (c.unit || 'egg'));
+      const match = mergedCart.find(m =>
+        String(m.itemId || m.productId || m.id || m._id) === String(c.itemId || c.productId || c.id || c._id) &&
+        String(m.unit || 'egg').toLowerCase() === String(c.unit || 'egg').toLowerCase()
+      );
       if (match) {
         match.quantity = (Number(match.quantity) || 0) + (Number(c.quantity) || 0);
       } else {
@@ -202,55 +233,75 @@ router.put('/cart/:itemId', authenticateCustomer, async (req, res) => {
     const { quantity, unit, newUnit } = req.body;
     const customer = req.customer;
     if (!Array.isArray(customer.cart)) customer.cart = [];
-    const currentUnit = unit || 'egg';
-    const cartItem = customer.cart.find(c => String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit);
+    const currentUnit = String(unit || 'egg').toLowerCase();
+    const targetItemId = String(req.params.itemId);
+
+    let cartItem = customer.cart.find(c =>
+      String(c.itemId || c.productId || c.id || c._id) === targetItemId &&
+      String(c.unit || 'egg').toLowerCase() === currentUnit
+    );
+
+    // Fallback: match by ID alone if unit wasn't matched
+    if (!cartItem) {
+      cartItem = customer.cart.find(c =>
+        String(c.itemId || c.productId || c.id || c._id) === targetItemId
+      );
+    }
+
     if (!cartItem) return res.status(404).json({ message: 'Item not in cart' });
 
     if (quantity !== undefined) {
-      if (quantity <= 0) {
-        customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit));
+      const parsedQty = Number(quantity);
+      if (parsedQty <= 0) {
+        customer.cart = customer.cart.filter(c => c !== cartItem);
       } else {
-        cartItem.quantity = Number(quantity);
+        cartItem.quantity = parsedQty;
       }
     }
 
-    if (newUnit && newUnit !== currentUnit) {
-      const item = await Item.findById(req.params.itemId);
-      if (item) {
-        const basePrice = Number(item.price) || 0;
-        const pEgg = Number(item.pricePerEgg) || 0;
-        const pTray = Number(item.pricePerTray) || 0;
-        const pPeti = Number(item.pricePerPeti) || 0;
-        const uType = String(item.unitType || 'tray').toLowerCase();
+    if (newUnit && String(newUnit).toLowerCase() !== String(cartItem.unit || 'egg').toLowerCase()) {
+      const toUnit = String(newUnit).toLowerCase();
+      let item = null;
+      try { item = await Item.findById(targetItemId); } catch (_) {}
 
-        let eggRate = pEgg;
-        if (!eggRate && pTray > 0) eggRate = pTray / 30;
-        else if (!eggRate && pPeti > 0) eggRate = pPeti / 360;
-        else if (!eggRate && basePrice > 0) {
-          eggRate = uType === 'peti' ? basePrice / 360 : uType === 'tray' ? basePrice / 30 : basePrice;
-        }
-        if (!eggRate) eggRate = 30;
+      const basePrice = Number(item?.price) || 0;
+      const pEgg = Number(item?.pricePerEgg) || 0;
+      const pTray = Number(item?.pricePerTray) || 0;
+      const pPeti = Number(item?.pricePerPeti) || 0;
+      const uType = String(item?.unitType || 'tray').toLowerCase();
 
-        let unitPrice = Math.round(eggRate);
-        if (newUnit === 'peti') {
-          unitPrice = pPeti > 0 ? pPeti : pTray > 0 ? pTray * 12 : Math.round(eggRate * 360);
-        } else if (newUnit === 'tray') {
-          unitPrice = pTray > 0 ? pTray : pPeti > 0 ? Math.round(pPeti / 12) : Math.round(eggRate * 30);
-        }
+      let eggRate = pEgg;
+      if (!eggRate && pTray > 0) eggRate = pTray / 30;
+      else if (!eggRate && pPeti > 0) eggRate = pPeti / 360;
+      else if (!eggRate && basePrice > 0) {
+        eggRate = uType === 'peti' ? basePrice / 360 : uType === 'tray' ? basePrice / 30 : basePrice;
+      }
+      if (!eggRate) eggRate = 30;
 
-        const unitLabel = newUnit === 'peti' ? 'Peti' : newUnit === 'tray' ? 'Tray' : 'Egg';
-        const cleanName = item.name.replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
+      let unitPrice = Math.round(eggRate);
+      if (toUnit === 'peti') {
+        unitPrice = pPeti > 0 ? pPeti : pTray > 0 ? pTray * 12 : Math.round(eggRate * 360);
+      } else if (toUnit === 'tray') {
+        unitPrice = pTray > 0 ? pTray : pPeti > 0 ? Math.round(pPeti / 12) : Math.round(eggRate * 30);
+      }
 
-        // Check if item with newUnit already exists in cart, merge if so
-        const existingNewUnitItem = customer.cart.find(c => String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === newUnit);
-        if (existingNewUnitItem) {
-          existingNewUnitItem.quantity = (Number(existingNewUnitItem.quantity) || 0) + (Number(cartItem.quantity) || 1);
-          customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === currentUnit));
-        } else {
-          cartItem.unit = newUnit;
-          cartItem.price = unitPrice;
-          cartItem.name = `${cleanName} (${unitLabel})`;
-        }
+      const unitLabel = toUnit === 'peti' ? 'Peti' : toUnit === 'tray' ? 'Tray' : 'Egg';
+      const cleanName = (cartItem.name || 'Egg Product').replace(/\s*\((Peti|Tray|Egg)\)/gi, '').trim();
+
+      // Check if item with newUnit already exists in cart, merge if so
+      const existingNewUnitItem = customer.cart.find(c =>
+        c !== cartItem &&
+        String(c.itemId || c.productId || c.id || c._id) === targetItemId &&
+        String(c.unit || 'egg').toLowerCase() === toUnit
+      );
+
+      if (existingNewUnitItem) {
+        existingNewUnitItem.quantity = (Number(existingNewUnitItem.quantity) || 0) + (Number(cartItem.quantity) || 1);
+        customer.cart = customer.cart.filter(c => c !== cartItem);
+      } else {
+        cartItem.unit = toUnit;
+        cartItem.price = unitPrice;
+        cartItem.name = `${cleanName} (${unitLabel})`;
       }
     }
 
@@ -266,12 +317,21 @@ router.delete('/cart/:itemId', authenticateCustomer, async (req, res) => {
   try {
     const customer = req.customer;
     if (!Array.isArray(customer.cart)) customer.cart = [];
+    const targetItemId = String(req.params.itemId);
     const { unit } = req.query;
+
     if (unit) {
-      customer.cart = customer.cart.filter(c => !(String(c.itemId) === String(req.params.itemId) && (c.unit || 'egg') === unit));
+      const u = String(unit).toLowerCase();
+      customer.cart = customer.cart.filter(c =>
+        !(String(c.itemId || c.productId || c.id || c._id) === targetItemId &&
+          String(c.unit || 'egg').toLowerCase() === u)
+      );
     } else {
-      customer.cart = customer.cart.filter(c => String(c.itemId) !== String(req.params.itemId));
+      customer.cart = customer.cart.filter(c =>
+        String(c.itemId || c.productId || c.id || c._id) !== targetItemId
+      );
     }
+
     await customer.save();
     res.json({ success: true, cart: customer.cart });
   } catch (err) {

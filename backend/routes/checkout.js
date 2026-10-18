@@ -13,42 +13,95 @@ const router = express.Router();
 // Initialize stripe with dummy key if not present in env
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
-// Middleware to verify customer
+// Middleware to verify customer (supports logged-in token OR guest customer with contact info)
 const authenticateCustomer = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Not authenticated' });
+  if (authHeader?.startsWith('Bearer ')) {
+    const customerId = authHeader.split(' ')[1];
+    try {
+      const customer = await Customer.findById(customerId);
+      if (customer) {
+        req.customer = customer;
+        return next();
+      }
+    } catch {}
   }
-  const customerId = authHeader.split(' ')[1];
-  try {
-    const customer = await Customer.findById(customerId);
-    if (!customer) return res.status(401).json({ message: 'Invalid session' });
-    req.customer = customer;
-    next();
-  } catch {
-    res.status(401).json({ message: 'Invalid session' });
+
+  // Fallback: Check if contact info was provided in body
+  const { shippingDetails, phone, fullName, email } = req.body || {};
+  const cPhone = shippingDetails?.phone || phone || '';
+  const cName = shippingDetails?.fullName || fullName || 'Online Customer';
+  const cEmail = shippingDetails?.email || email || '';
+
+  if (cPhone || cName) {
+    try {
+      let cust = null;
+      if (cPhone) {
+        cust = await Customer.findOne({ phone: cPhone });
+      }
+      if (!cust) {
+        cust = await Customer.create({
+          fullName: cName,
+          phone: cPhone,
+          email: cEmail || `guest_${Date.now()}@yosafze.pk`,
+          shopId: req.body?.shopId || null,
+          role: 'customer',
+          cart: []
+        });
+      }
+      req.customer = cust;
+      return next();
+    } catch (e) {
+      req.customer = {
+        _id: 'guest_' + Date.now(),
+        id: 'guest_' + Date.now(),
+        fullName: cName,
+        phone: cPhone,
+        email: cEmail,
+        shopId: req.body?.shopId || null,
+        cart: []
+      };
+      return next();
+    }
   }
+
+  return res.status(401).json({ message: 'Customer authentication or shipping contact details required' });
 };
 
-// Checkout endpoint
-router.post('/', authenticateCustomer, async (req, res) => {
+// Handler for processing single or multiple product checkouts
+const handleCheckoutProcess = async (req, res) => {
   try {
-    const { paymentMethod, shippingDetails } = req.body;
+    const { paymentMethod, shippingDetails, items, shopId: reqShopId } = req.body;
     const customer = req.customer;
 
-    if (!customer.cart || customer.cart.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty' });
+    // Dynamically retrieve multiple items from body, or fallback to customer cart
+    let orderItems = [];
+    if (Array.isArray(items) && items.length > 0) {
+      orderItems = items.map(item => ({
+        itemId: item.itemId || item.productId || item._id || item.id,
+        productId: item.productId || item.itemId || item._id || item.id,
+        name: item.name || 'Egg Product',
+        unit: item.unit || 'egg',
+        price: Number(item.price) || 0,
+        costPrice: Number(item.costPrice) || 0,
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        image: item.image || item.images?.[0] || ''
+      }));
+    } else if (customer && Array.isArray(customer.cart) && customer.cart.length > 0) {
+      orderItems = customer.cart;
+    } else {
+      return res.status(400).json({ message: 'Cart or items list is empty. Please select products to order.' });
     }
 
-    // Calculate total amount
-    const totalAmount = customer.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shopId = customer.shopId;
+    // Calculate dynamic total amount
+    const totalAmount = orderItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+    const shopId = reqShopId || customer.shopId || null;
 
-    // Create Order
+    // Create Order with all multiple items
     const order = await Order.create({
       shopId,
       customerId: customer._id || customer.id,
-      items: customer.cart,
+      items: orderItems,
       totalAmount,
       shippingDetails,
       paymentMethod,
@@ -57,7 +110,7 @@ router.post('/', authenticateCustomer, async (req, res) => {
 
     // Automatically record this online customer transaction into Sale collection
     try {
-      const saleItems = (customer.cart || []).map(item => {
+      const saleItems = orderItems.map(item => {
         const qty = Number(item.quantity) || 1;
         const pr = Number(item.price) || 0;
         const cp = Number(item.costPrice || 0);
@@ -98,23 +151,31 @@ router.post('/', authenticateCustomer, async (req, res) => {
     }
 
     if (paymentMethod === 'COD') {
-      // For Cash on Delivery, just confirm the order and clear the cart
-      customer.cart = [];
-      await customer.save();
-      return res.json({ success: true, message: 'Order placed successfully (COD)', orderId: order._id });
+      // Clear customer cart if persisted in DB
+      if (customer && typeof customer.save === 'function') {
+        customer.cart = [];
+        try { await customer.save(); } catch (e) {}
+      }
+      return res.json({ 
+        success: true, 
+        message: 'Order placed successfully (COD)', 
+        orderId: order._id, 
+        itemsCount: orderItems.length,
+        totalAmount 
+      });
     }
     else if (paymentMethod === 'STRIPE') {
-      // Create Stripe Checkout Session
-      const line_items = customer.cart.map(item => ({
+      // Create Stripe Checkout Session for all items
+      const line_items = orderItems.map(item => ({
         price_data: {
-          currency: 'usd', // Defaulting to USD for Stripe
+          currency: 'usd',
           product_data: {
             name: item.name,
             images: item.image ? [item.image] : [],
           },
-          unit_amount: Math.round(item.price * 100), // Stripe expects cents
+          unit_amount: Math.round(Number(item.price) * 100),
         },
-        quantity: item.quantity,
+        quantity: Math.max(1, Number(item.quantity) || 1),
       }));
 
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -129,9 +190,14 @@ router.post('/', authenticateCustomer, async (req, res) => {
         }
       });
 
+      if (customer && typeof customer.save === 'function') {
+        customer.cart = [];
+        try { await customer.save(); } catch (e) {}
+      }
+
       return res.json({ success: true, sessionId: session.id, url: session.url });
     }
-    else if (paymentMethod === 'EASYPAISA') {
+    else if (paymentMethod === 'EASYPAISA' || paymentMethod === 'BANK') {
       // Fetch this shop's EasyPaisa number from Settings
       let easypaisaNumber = process.env.SUPERADMIN_EASYPAISA_NUMBER || '03098216202';
       let accountTitle = 'Super Admin';
@@ -161,10 +227,15 @@ router.post('/', authenticateCustomer, async (req, res) => {
           senderNumber: shippingDetails?.phone || '',
           amount: totalAmount,
           status: 'PENDING',
-          items: customer.cart
+          items: orderItems
         });
       } catch (epErr) {
         console.error('Failed to create EasyPaisa entry:', epErr);
+      }
+
+      if (customer && typeof customer.save === 'function') {
+        customer.cart = [];
+        try { await customer.save(); } catch (e) {}
       }
 
       const easyPaisaData = {
@@ -172,6 +243,7 @@ router.post('/', authenticateCustomer, async (req, res) => {
         accountTitle,
         orderId: order._id.toString(),
         transactionAmount: totalAmount,
+        itemsCount: orderItems.length
       };
 
       return res.json({ success: true, easyPaisaData, message: 'EasyPaisa Account Details' });
@@ -179,12 +251,16 @@ router.post('/', authenticateCustomer, async (req, res) => {
     else {
       return res.status(400).json({ message: 'Invalid Payment Method' });
     }
-
   } catch (err) {
     console.error('Checkout error:', err);
     res.status(500).json({ message: err.message });
   }
-});
+};
+
+// Checkout endpoints supporting single or multiple dynamic products
+router.post('/', authenticateCustomer, handleCheckoutProcess);
+router.post('/multiple', authenticateCustomer, handleCheckoutProcess);
+
 
 // Endpoint to submit payment proof (EasyPaisa) - stays PENDING until Admin verifies
 router.post('/confirm/:orderId', async (req, res) => {

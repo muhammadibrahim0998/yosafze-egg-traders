@@ -371,6 +371,11 @@ export const getShops = async () => {
   return response.data;
 };
 
+export const updateShopApproval = async (shopId, approvalData) => {
+  const response = await api.patch(`/shops/${shopId}/approval`, approvalData);
+  return response.data;
+};
+
 export const getBranchCashSessions = async (shopId) => {
   const params = shopId && shopId !== 'ALL' ? { shopId } : {};
   const response = await api.get('/cash-sessions/all', { params });

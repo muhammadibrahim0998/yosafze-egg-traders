@@ -324,8 +324,12 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
       if (bankAccountTitle !== undefined) shop.bankAccountTitle = bankAccountTitle;
     }
     
-    if (isSuperAdmin && status) {
-      shop.status = status;
+    if (isSuperAdmin) {
+      if (status) shop.status = status;
+      if (req.body.isEditApproved !== undefined) shop.isEditApproved = req.body.isEditApproved ? 1 : 0;
+      if (req.body.isDeleteApproved !== undefined) shop.isDeleteApproved = req.body.isDeleteApproved ? 1 : 0;
+      if (req.body.approvalStatus !== undefined) shop.approvalStatus = req.body.approvalStatus;
+      if (req.body.approvalNotes !== undefined) shop.approvalNotes = req.body.approvalNotes;
     }
     
     if (ownerEmail !== undefined) {
@@ -379,7 +383,25 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
   }
 });
 
+// Update shop branch approval settings (Super Admin only)
+router.patch('/:id/approval', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { isEditApproved, isDeleteApproved, approvalStatus, approvalNotes, allowedPages } = req.body;
+    const shop = await Shop.findById(req.params.id);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
 
+    if (isEditApproved !== undefined) shop.isEditApproved = isEditApproved ? 1 : 0;
+    if (isDeleteApproved !== undefined) shop.isDeleteApproved = isDeleteApproved ? 1 : 0;
+    if (approvalStatus !== undefined) shop.approvalStatus = approvalStatus;
+    if (approvalNotes !== undefined) shop.approvalNotes = approvalNotes;
+    if (allowedPages !== undefined) shop.allowedPages = Array.isArray(allowedPages) ? allowedPages : [];
+
+    await shop.save();
+    res.json({ success: true, message: 'Branch approval status updated successfully', shop });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // Delete shop (Super Admin only)
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {

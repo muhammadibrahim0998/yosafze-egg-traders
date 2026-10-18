@@ -18,8 +18,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import Settings from '../models/Settings.js';
+import Shop from '../models/Shop.js';
 import { authenticate, requireShopAdmin, preventSuperAdmin } from '../middleware/auth.js';
 import { resolveShopId } from '../utils/shopResolver.js';
+
+// Helper to check Super Admin approval for branch edit/delete/page permission
+const checkBranchApproval = async (req, actionType = 'edit', requiredPage = null) => {
+  if (req.user?.role === 'super_admin') return true;
+  const sId = resolveShopId(req);
+  if (!sId) return true;
+  try {
+    const targetShop = await Shop.findById(sId);
+    if (!targetShop) return true;
+    if (targetShop.approvalStatus === 'LOCKED') return false;
+    if (actionType === 'edit' && Number(targetShop.isEditApproved) === 0) return false;
+    if (actionType === 'delete' && Number(targetShop.isDeleteApproved) === 0) return false;
+    if (requiredPage) {
+      let allowed = targetShop.allowedPages;
+      if (typeof allowed === 'string') {
+        try { allowed = JSON.parse(allowed); } catch { allowed = []; }
+      }
+      if (Array.isArray(allowed) && !allowed.includes(requiredPage)) {
+        return false;
+      }
+    }
+    return true;
+  } catch (err) {
+    return true;
+  }
+};
 
 // Helper to verify Owner Password (Anti-Theft)
 // We now use `authenticate` and `requireShopAdmin` standard RBAC for powerful actions
@@ -459,6 +486,15 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
   const targetShopId = await resolveShopId(rawShopId) || 1;
   
   try {
+    // 0. Super Admin permission check for Walk-In Billing
+    const isApproved = await checkBranchApproval(req, 'edit', 'walkin');
+    if (!isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: '🔒 Walk-In Billing is locked by Super Admin for this branch. Operation not allowed.'
+      });
+    }
+
     // 1. Fetch current settings for the invoice
     let settings = await Settings.findOne({ shopId: targetShopId });
     if (!settings) {
@@ -825,6 +861,10 @@ router.put('/:id/return', authenticate, requireShopAdmin, async (req, res) => {
 
 // Edit a sale (and adjust stock)
 router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canEdit = await checkBranchApproval(req, 'edit');
+  if (!canEdit) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Edit actions are locked for this branch." });
+  }
   const { items, totalAmount, totalProfit, customerName, customerPhone, customerEmail, paymentMethod, cashPaid, bankPaid, dueAmount, saleDate, invoiceNumber } = req.body;
   try {
     const targetId = req.params.id;
@@ -1002,6 +1042,10 @@ router.put('/:id', authenticate, requireShopAdmin, async (req, res) => {
 
 // Delete a sale permanently from database (both Sale and Order if exists)
 router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canDelete = await checkBranchApproval(req, 'delete');
+  if (!canDelete) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Delete actions are locked for this branch." });
+  }
   try {
     const targetId = req.params.id;
     if (!targetId) {
