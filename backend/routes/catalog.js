@@ -117,7 +117,7 @@ router.get('/:shopId', async (req, res) => {
         isDeleteApproved: shop.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
         approvalStatus: shop.approvalStatus || 'APPROVED',
         approvalNotes: shop.approvalNotes || '',
-        allowedPages: shop.allowedPages || []
+        allowedPages: Array.isArray(shop.allowedPages) ? shop.allowedPages : (() => { try { return JSON.parse(shop.allowedPages || '[]'); } catch { return []; } })()
       },
       items,
       categories

@@ -27,6 +27,24 @@ export async function initFuelAndBankSchema() {
       if (!existingShopCols.has('easypaisaNumber')) {
         await pool.query('ALTER TABLE `shops` ADD COLUMN `easypaisaNumber` VARCHAR(100) NULL AFTER `bankAccountTitle`');
       }
+      if (!existingShopCols.has('isEditApproved')) {
+        await pool.query('ALTER TABLE `shops` ADD COLUMN `isEditApproved` TINYINT(1) DEFAULT 1');
+      }
+      if (!existingShopCols.has('isDeleteApproved')) {
+        await pool.query('ALTER TABLE `shops` ADD COLUMN `isDeleteApproved` TINYINT(1) DEFAULT 1');
+      }
+      if (!existingShopCols.has('approvalStatus')) {
+        await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(50) DEFAULT 'APPROVED'");
+      }
+      if (!existingShopCols.has('approvalNotes')) {
+        await pool.query('ALTER TABLE `shops` ADD COLUMN `approvalNotes` TEXT NULL');
+      }
+      if (!existingShopCols.has('allowedPages')) {
+        await pool.query('ALTER TABLE `shops` ADD COLUMN `allowedPages` LONGTEXT NULL');
+      }
+      if (!existingShopCols.has('banksJson')) {
+        await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
+      }
     } catch (err) {
       console.warn('[Migration Warning] shops table columns:', err.message);
     }

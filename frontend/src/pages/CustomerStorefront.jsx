@@ -541,6 +541,45 @@ function StoreContent({ shopId }) {
     return Array.isArray(list) ? list : [];
   }, [shop?.allowedPages, user?.allowedPages]);
 
+  // Live dynamic synchronization when permissions change in another tab or Role Permissions view
+  useEffect(() => {
+    const handleApprovalUpdate = (e) => {
+      const updatedShop = e?.detail?.shop;
+      const updatedId = e?.detail?.shopId;
+      if (updatedShop) {
+        setShop(prev => {
+          const currentId = String(prev?._id || prev?.id || shopId);
+          if (currentId === String(updatedId) || String(shopId) === String(updatedId) || currentId.includes(String(updatedId))) {
+            return { ...prev, ...updatedShop };
+          }
+          return prev;
+        });
+      }
+    };
+    const handleStorageChange = (e) => {
+      if (e.key && e.key.startsWith('nexflow_cached_shop_')) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed) {
+            setShop(prev => {
+              const currentId = String(prev?._id || prev?.id || shopId);
+              if (currentId === String(parsed.id || parsed._id) || e.key.includes(String(shopId))) {
+                return { ...prev, ...parsed };
+              }
+              return prev;
+            });
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('shop_approval_updated', handleApprovalUpdate);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('shop_approval_updated', handleApprovalUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [shopId]);
+
   const isActionAllowed = (actionKey) => {
     if (shop?.approvalStatus === 'LOCKED' || user?.approvalStatus === 'LOCKED') return false;
     if (!shopAllowedPages || shopAllowedPages.length === 0) return false;

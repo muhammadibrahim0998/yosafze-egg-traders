@@ -383,25 +383,77 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
   }
 });
 
-// Update shop branch approval settings (Super Admin only)
-router.patch('/:id/approval', authenticate, requireSuperAdmin, async (req, res) => {
+// Helper to ensure approval columns exist in MySQL shops table dynamically
+async function ensureShopApprovalColumns() {
   try {
+    const [cols] = await pool.query('DESCRIBE `shops`');
+    const set = new Set(cols.map(c => c.Field));
+    if (!set.has('isEditApproved')) {
+      await pool.query('ALTER TABLE `shops` ADD COLUMN `isEditApproved` TINYINT(1) DEFAULT 1');
+    }
+    if (!set.has('isDeleteApproved')) {
+      await pool.query('ALTER TABLE `shops` ADD COLUMN `isDeleteApproved` TINYINT(1) DEFAULT 1');
+    }
+    if (!set.has('approvalStatus')) {
+      await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(50) DEFAULT 'APPROVED'");
+    }
+    if (!set.has('approvalNotes')) {
+      await pool.query('ALTER TABLE `shops` ADD COLUMN `approvalNotes` TEXT NULL');
+    }
+    if (!set.has('allowedPages')) {
+      await pool.query('ALTER TABLE `shops` ADD COLUMN `allowedPages` LONGTEXT NULL');
+    }
+    if (!set.has('banksJson')) {
+      await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
+    }
+  } catch (e) {
+    console.warn('ensureShopApprovalColumns warning:', e.message);
+  }
+}
+
+// Update shop branch approval settings (Super Admin only)
+const handleShopApprovalUpdate = async (req, res) => {
+  try {
+    await ensureShopApprovalColumns();
     const { isEditApproved, isDeleteApproved, approvalStatus, approvalNotes, allowedPages } = req.body;
     const shop = await Shop.findById(req.params.id);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
 
-    if (isEditApproved !== undefined) shop.isEditApproved = isEditApproved ? 1 : 0;
-    if (isDeleteApproved !== undefined) shop.isDeleteApproved = isDeleteApproved ? 1 : 0;
-    if (approvalStatus !== undefined) shop.approvalStatus = approvalStatus;
-    if (approvalNotes !== undefined) shop.approvalNotes = approvalNotes;
-    if (allowedPages !== undefined) shop.allowedPages = Array.isArray(allowedPages) ? allowedPages : [];
+    const newEditApproved = isEditApproved !== undefined ? (isEditApproved ? 1 : 0) : (shop.isEditApproved ? 1 : 0);
+    const newDeleteApproved = isDeleteApproved !== undefined ? (isDeleteApproved ? 1 : 0) : (shop.isDeleteApproved ? 1 : 0);
+    const newStatus = approvalStatus !== undefined ? approvalStatus : (shop.approvalStatus || 'APPROVED');
+    const newNotes = approvalNotes !== undefined ? approvalNotes : (shop.approvalNotes || '');
+    const newPages = allowedPages !== undefined ? (Array.isArray(allowedPages) ? allowedPages : []) : (Array.isArray(shop.allowedPages) ? shop.allowedPages : []);
+    const pagesJson = JSON.stringify(newPages);
 
-    await shop.save();
-    res.json({ success: true, message: 'Branch approval status updated successfully', shop });
+    // Direct SQL update to ensure immediate persistence across all caching mechanisms
+    await pool.query(
+      'UPDATE `shops` SET `isEditApproved` = ?, `isDeleteApproved` = ?, `approvalStatus` = ?, `approvalNotes` = ?, `allowedPages` = ? WHERE `id` = ?',
+      [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson, req.params.id]
+    );
+
+    const updatedShop = await Shop.findById(req.params.id);
+    res.json({
+      success: true,
+      message: 'Branch approval status updated successfully',
+      shop: updatedShop || {
+        ...shop,
+        isEditApproved: newEditApproved,
+        isDeleteApproved: newDeleteApproved,
+        approvalStatus: newStatus,
+        approvalNotes: newNotes,
+        allowedPages: newPages
+      }
+    });
   } catch (error) {
+    console.error('Error updating branch approval:', error);
     res.status(500).json({ message: error.message });
   }
-});
+};
+
+router.patch('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
+router.put('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
+router.post('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
 
 // Delete shop (Super Admin only)
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {

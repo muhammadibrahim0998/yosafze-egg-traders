@@ -372,8 +372,22 @@ export const getShops = async () => {
 };
 
 export const updateShopApproval = async (shopId, approvalData) => {
-  const response = await api.patch(`/shops/${shopId}/approval`, approvalData);
-  return response.data;
+  try {
+    const response = await api.patch(`/shops/${shopId}/approval`, approvalData);
+    return response.data;
+  } catch (err) {
+    // If PATCH failed due to proxy / firewall / network error, fallback to PUT or POST
+    if (!err.response || err.code === 'ERR_NETWORK') {
+      try {
+        const putRes = await api.put(`/shops/${shopId}/approval`, approvalData);
+        return putRes.data;
+      } catch (fErr) {
+        const postRes = await api.post(`/shops/${shopId}/approval`, approvalData);
+        return postRes.data;
+      }
+    }
+    throw err;
+  }
 };
 
 export const getBranchCashSessions = async (shopId) => {

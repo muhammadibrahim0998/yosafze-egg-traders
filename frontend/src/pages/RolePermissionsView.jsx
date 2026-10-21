@@ -70,6 +70,20 @@ export function RolePermissionsView() {
         return [];
     };
 
+    // Helper to broadcast and cache shop approval changes dynamically across windows and tabs
+    const broadcastShopUpdate = (shopObj, payload) => {
+        const sId = shopObj._id || shopObj.id;
+        const merged = { ...shopObj, ...payload };
+        try {
+            localStorage.setItem(`nexflow_cached_shop_${sId}`, JSON.stringify(merged));
+            const rawName = (shopObj.name || '').toLowerCase().trim().replace(/[\s_]+/g, '-');
+            if (rawName) {
+                localStorage.setItem(`nexflow_cached_shop_${rawName}`, JSON.stringify(merged));
+            }
+            window.dispatchEvent(new CustomEvent('shop_approval_updated', { detail: { shopId: sId, shop: merged } }));
+        } catch {}
+    };
+
     // Toggle main branch approval via master checkbox
     const handleToggleBranchCheckbox = async (shop, currentlyChecked) => {
         const sId = shop._id || shop.id;
@@ -101,9 +115,7 @@ export function RolePermissionsView() {
                 }
                 return s;
             }));
-            try {
-                localStorage.setItem(`nexflow_cached_shop_${sId}`, JSON.stringify({ ...shop, ...payload }));
-            } catch {}
+            broadcastShopUpdate(shop, payload);
             if (newApproved) {
                 toast.success(`✅ ${shop.name}: Full Approval Granted`);
             } else {
@@ -177,9 +189,7 @@ export function RolePermissionsView() {
                 }
                 return s;
             }));
-            try {
-                localStorage.setItem(`nexflow_cached_shop_${sId}`, JSON.stringify({ ...shop, ...payload }));
-            } catch {}
+            broadcastShopUpdate(shop, payload);
             const targetPage = BRANCH_PAGES.find(p => p.key === pageKey);
             if (!isCurrentlyAllowed) {
                 toast.success(`✅ ${shop.name}: "${targetPage?.label}" is now Enabled`);
@@ -215,9 +225,7 @@ export function RolePermissionsView() {
                 }
                 return s;
             }));
-            try {
-                localStorage.setItem(`nexflow_cached_shop_${sId}`, JSON.stringify({ ...shop, ...payload }));
-            } catch {}
+            broadcastShopUpdate(shop, payload);
             if (shouldAllowAll) {
                 toast.success(`✅ ${shop.name}: All pages have been Enabled`);
             } else {
