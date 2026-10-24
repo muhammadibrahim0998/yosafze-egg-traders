@@ -10,24 +10,20 @@ import { toast } from 'sonner';
 import { getShops, updateShopApproval } from '../services/api';
 import { useUser } from '../contexts/UserContext';
 
-// Standard Branch Pages and Modules definition
-export const BRANCH_PAGES = [
-    { key: 'dashboard', label: 'Dashboard & Overview', icon: LayoutDashboard, path: '/', desc: 'Real-time sales, charts & summary' },
-    { key: 'store', label: 'All Products (Stock/POS)', icon: Store, path: '/store', desc: 'Stock list, egg pricing & catalog' },
-    { key: 'walkin', label: 'Walk-In Billing / New Bill', icon: Receipt, path: '/walkin', desc: 'Generate POS bills & customer invoices' },
-    { key: 'sales', label: 'Sales Records & Invoices', icon: FileText, path: '/sales', desc: 'Order receipts & sales invoice history' },
-    { key: 'purchases', label: 'Purchases Management', icon: Truck, path: '/purchases', desc: 'Egg intake & supplier purchases' },
-    { key: 'vendors', label: 'Vendors (Ledger)', icon: Building2, path: '/vendors', desc: 'Supplier ledger accounts & credit' },
-    { key: 'vendorDirectory', label: 'Vendor Profiles', icon: Building2, path: '/vendor-directory', desc: 'Vendor directory & supplier profiles' },
-    { key: 'customerPaymentLedger', label: 'Customer Payment Ledger', icon: Users, path: '/customer-payment-ledger', desc: 'Customer dues & payment history' },
-    { key: 'vendorPaymentLedger', label: 'Vendor Payment Ledger', icon: Truck, path: '/vendor-payment-ledger', desc: 'Supplier payments & disbursements' },
-    { key: 'expenses', label: 'Daily Fuel & Expenses', icon: Fuel, path: '/expenses', desc: 'Branch expenses, fuel & operational costs' },
-    { key: 'team', label: 'Team Management', icon: Users, path: '/team', desc: 'Staff, cashiers & user accounts' },
-    { key: 'reports', label: 'Profit & Loss Reports', icon: TrendingUp, path: '/reports', desc: 'Financial reports & branch profit analytics' },
-    { key: 'settings', label: 'Branch Settings', icon: Settings, path: '/settings', desc: 'Branch profile, phone & print headers' }
+// Only pages that have Edit and Delete operations
+export const EDIT_DELETE_PAGES = [
+    { key: 'sales', label: 'Sales Records & Invoices', icon: FileText, path: '/sales', editLabel: 'Edit Bills', deleteLabel: 'Delete Bills', desc: 'POS bills, invoices & customer receipts' },
+    { key: 'purchases', label: 'Purchases Management', icon: Truck, path: '/purchases', editLabel: 'Edit Purchases', deleteLabel: 'Delete Purchases', desc: 'Egg intake, suppliers & purchases' },
+    { key: 'customerPaymentLedger', label: 'Customer Payment Ledger', icon: Users, path: '/customer-payment-ledger', editLabel: 'Edit Customer Info', deleteLabel: 'Delete Customers', desc: 'Customer dues & payment history' },
+    { key: 'vendors', label: 'Vendors (Ledger & Profiles)', icon: Building2, path: '/vendors', editLabel: 'Edit Vendors', deleteLabel: 'Delete Vendors', desc: 'Supplier profiles & vendor accounts' },
+    { key: 'expenses', label: 'Daily Fuel & Expenses', icon: Fuel, path: '/expenses', editLabel: 'Edit Expenses', deleteLabel: 'Delete Expenses', desc: 'Operating costs, vehicles & fuel logs' },
+    { key: 'damaged', label: 'Damaged Stock Loss', icon: Store, path: '/damaged-products', editLabel: 'Edit Damaged Stock', deleteLabel: 'Delete Damaged Stock', desc: 'Damaged eggs, losses & write-offs' }
 ];
 
-export const ALL_BRANCH_PAGE_KEYS = BRANCH_PAGES.map(p => p.key);
+export const ALL_OPERATION_KEYS = EDIT_DELETE_PAGES.flatMap(p => [
+    `${p.key}_edit`,
+    `${p.key}_delete`
+]);
 
 export function RolePermissionsView() {
     const { isSuperAdmin } = useUser();
@@ -53,19 +49,26 @@ export function RolePermissionsView() {
         loadShops();
     }, []);
 
-    // Helper to get allowed pages for a shop (strictly defaults to empty array [] if not set)
+    // Helper to get allowed operations for a shop
     const getShopAllowedPages = (shop) => {
-        if (!shop || !shop.allowedPages) return [];
-        if (Array.isArray(shop.allowedPages)) {
-            return shop.allowedPages;
+        if (!shop) return ALL_OPERATION_KEYS;
+        let pages = shop.allowedPages;
+        if (typeof pages === 'string') {
+            try { pages = JSON.parse(shop.allowedPages); } catch { pages = null; }
         }
-        if (typeof shop.allowedPages === 'string') {
-            try {
-                const parsed = JSON.parse(shop.allowedPages);
-                if (Array.isArray(parsed)) return parsed;
-            } catch {
+        if (Array.isArray(pages)) {
+            const hasGranular = pages.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+            if (hasGranular) {
+                return pages.filter(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+            }
+            // If explicit empty array was saved, all operations are locked
+            if (pages.length === 0) {
                 return [];
             }
+        }
+        // Only if null/undefined in database
+        if (shop.approvalStatus === 'APPROVED' && (shop.isEditApproved === undefined || Number(shop.isEditApproved) !== 0)) {
+            return ALL_OPERATION_KEYS;
         }
         return [];
     };
@@ -91,9 +94,9 @@ export function RolePermissionsView() {
         setUpdatingId(sId);
 
         const currentPages = getShopAllowedPages(shop);
-        // When approving, ensure all pages are enabled; when locking, lock all
+        // When approving, ensure all operations are enabled; when locking, lock all
         const newPages = newApproved 
-            ? (currentPages.length > 0 ? currentPages : ALL_BRANCH_PAGE_KEYS)
+            ? (currentPages.length > 0 ? currentPages : ALL_OPERATION_KEYS)
             : [];
 
         const payload = {
@@ -153,6 +156,7 @@ export function RolePermissionsView() {
                 }
                 return s;
             }));
+            broadcastShopUpdate(shop, payload);
             toast.success(`${shop.name}: ${field === 'isEditApproved' ? 'Edit' : 'Delete'} permission updated`);
         } catch (err) {
             toast.error('Failed to update permission');
@@ -161,20 +165,25 @@ export function RolePermissionsView() {
         }
     };
 
-    // Toggle a single page permission for a specific branch
-    const handleTogglePageCheckbox = async (shop, pageKey) => {
+    // Toggle a single edit or delete operation for a specific page in a branch
+    const handleToggleOperation = async (shop, opKey) => {
         const sId = shop._id || shop.id;
         const currentAllowed = getShopAllowedPages(shop);
-        const isCurrentlyAllowed = currentAllowed.includes(pageKey);
+        const isCurrentlyAllowed = currentAllowed.includes(opKey);
         
         const nextAllowed = isCurrentlyAllowed
-            ? currentAllowed.filter(k => k !== pageKey)
-            : [...currentAllowed, pageKey];
+            ? currentAllowed.filter(k => k !== opKey)
+            : [...currentAllowed, opKey];
 
-        setUpdatingId(`${sId}-page-${pageKey}`);
+        setUpdatingId(`${sId}-${opKey}`);
+
+        const hasAnyEdit = nextAllowed.some(k => k.endsWith('_edit'));
+        const hasAnyDelete = nextAllowed.some(k => k.endsWith('_delete'));
 
         const payload = {
             allowedPages: nextAllowed,
+            isEditApproved: hasAnyEdit ? 1 : 0,
+            isDeleteApproved: hasAnyDelete ? 1 : 0,
             approvalStatus: nextAllowed.length > 0 ? (shop.approvalStatus === 'LOCKED' ? 'APPROVED' : shop.approvalStatus) : shop.approvalStatus
         };
 
@@ -190,27 +199,29 @@ export function RolePermissionsView() {
                 return s;
             }));
             broadcastShopUpdate(shop, payload);
-            const targetPage = BRANCH_PAGES.find(p => p.key === pageKey);
+            const opName = opKey.replace('_', ' ').toUpperCase();
             if (!isCurrentlyAllowed) {
-                toast.success(`✅ ${shop.name}: "${targetPage?.label}" is now Enabled`);
+                toast.success(`✅ ${shop.name}: ${opName} is now Allowed`);
             } else {
-                toast.error(`🔒 ${shop.name}: "${targetPage?.label}" is now Locked`);
+                toast.error(`🔒 ${shop.name}: ${opName} is now Locked`);
             }
         } catch (err) {
-            toast.error('Failed to update page permission');
+            toast.error('Failed to update permission');
         } finally {
             setUpdatingId(null);
         }
     };
 
-    // Bulk enable / disable all pages for a specific branch
-    const handleBulkPagesForBranch = async (shop, shouldAllowAll) => {
+    // Bulk enable / disable all operations for a specific branch
+    const handleBulkOperationsForBranch = async (shop, shouldAllowAll) => {
         const sId = shop._id || shop.id;
-        const nextAllowed = shouldAllowAll ? ALL_BRANCH_PAGE_KEYS : [];
-        setUpdatingId(`${sId}-bulk-pages`);
+        const nextAllowed = shouldAllowAll ? ALL_OPERATION_KEYS : [];
+        setUpdatingId(`${sId}-bulk-ops`);
 
         const payload = {
             allowedPages: nextAllowed,
+            isEditApproved: shouldAllowAll ? 1 : 0,
+            isDeleteApproved: shouldAllowAll ? 1 : 0,
             approvalStatus: shouldAllowAll ? 'APPROVED' : shop.approvalStatus
         };
 
@@ -227,12 +238,12 @@ export function RolePermissionsView() {
             }));
             broadcastShopUpdate(shop, payload);
             if (shouldAllowAll) {
-                toast.success(`✅ ${shop.name}: All pages have been Enabled`);
+                toast.success(`✅ ${shop.name}: All Edit & Delete buttons Allowed`);
             } else {
-                toast.error(`🔒 ${shop.name}: All pages have been Locked`);
+                toast.error(`🔒 ${shop.name}: All Edit & Delete buttons Locked`);
             }
         } catch (err) {
-            toast.error('Failed to update page permissions');
+            toast.error('Failed to update permissions');
         } finally {
             setUpdatingId(null);
         }
@@ -339,9 +350,9 @@ export function RolePermissionsView() {
                     const isDeleteAllowed = shop.approvalStatus !== 'LOCKED' && Number(shop.isDeleteApproved) !== 0;
                     const isUpdating = updatingId === sId;
 
-                    const allowedPages = getShopAllowedPages(shop);
-                    const allowedCount = allowedPages.length;
-                    const totalPages = BRANCH_PAGES.length;
+                    const allowedOperations = getShopAllowedPages(shop);
+                    const allowedOpsCount = allowedOperations.length;
+                    const totalOpsCount = ALL_OPERATION_KEYS.length;
 
                     return (
                         <div
@@ -430,81 +441,32 @@ export function RolePermissionsView() {
                                 </div>
                             </div>
 
-                            {/* Granular Sub-Checkboxes (Edit & Delete Operations) */}
-                            <div className="pt-2 border-t border-zinc-100 space-y-2">
-                                <span className="text-[9.5px] font-black uppercase text-zinc-400 tracking-wider block">
-                                    Record Operations Permissions:
-                                </span>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    {/* Edit Checkbox */}
-                                    <div
-                                        onClick={() => handleToggleGranular(shop, 'isEditApproved')}
-                                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-2 select-none ${
-                                            isEditAllowed
-                                                ? 'bg-emerald-50/60 border-emerald-300 text-emerald-950'
-                                                : 'bg-zinc-50 border-zinc-200 text-zinc-500'
-                                        }`}
-                                    >
-                                        <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${
-                                            isEditAllowed ? 'bg-emerald-600 text-white' : 'border border-zinc-400 bg-white'
-                                        }`}>
-                                            {isEditAllowed && <Check className="w-3 h-3 stroke-[3]" />}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <span className="text-[10px] font-black uppercase block truncate">Edit Bills</span>
-                                            <span className="text-[8px] font-bold text-zinc-400 block">{isEditAllowed ? 'Allowed' : 'Locked'}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Delete Checkbox */}
-                                    <div
-                                        onClick={() => handleToggleGranular(shop, 'isDeleteApproved')}
-                                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-2 select-none ${
-                                            isDeleteAllowed
-                                                ? 'bg-emerald-50/60 border-emerald-300 text-emerald-950'
-                                                : 'bg-zinc-50 border-zinc-200 text-zinc-500'
-                                        }`}
-                                    >
-                                        <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${
-                                            isDeleteAllowed ? 'bg-emerald-600 text-white' : 'border border-zinc-400 bg-white'
-                                        }`}>
-                                            {isDeleteAllowed && <Check className="w-3 h-3 stroke-[3]" />}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <span className="text-[10px] font-black uppercase block truncate">Delete Bills</span>
-                                            <span className="text-[8px] font-bold text-zinc-400 block">{isDeleteAllowed ? 'Allowed' : 'Locked'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ─── PER-PAGE CHECKBOXES FOR THIS BRANCH (Gray & White, Snug & Compact) ─── */}
-                            <div className="pt-2.5 border-t border-gray-100 space-y-2">
+                            {/* ─── ONLY PAGES WITH EDIT & DELETE OPERATIONS ─── */}
+                            <div className="pt-2.5 border-t border-gray-100 space-y-2.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <div>
                                         <span className="text-[11px] font-black uppercase tracking-wider text-gray-800 block">
-                                            Branch Pages Checkboxes:
+                                            Edit &amp; Delete Buttons Permissions:
                                         </span>
                                         <span className="text-[9px] font-bold text-gray-400 block">
-                                            Check to allow, uncheck to lock
+                                            Check to allow button, uncheck to lock
                                         </span>
                                     </div>
 
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <button
                                             type="button"
-                                            onClick={() => handleBulkPagesForBranch(shop, true)}
+                                            onClick={() => handleBulkOperationsForBranch(shop, true)}
                                             className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-[9px] font-black uppercase tracking-wider border border-emerald-200 transition-all cursor-pointer"
-                                            title="Allow all pages for this branch"
+                                            title="Allow all edit & delete buttons"
                                         >
                                             All ✓
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => handleBulkPagesForBranch(shop, false)}
+                                            onClick={() => handleBulkOperationsForBranch(shop, false)}
                                             className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[9px] font-black uppercase tracking-wider border border-rose-200 transition-all cursor-pointer"
-                                            title="Lock all pages for this branch"
+                                            title="Lock all edit & delete buttons"
                                         >
                                             None ✕
                                         </button>
@@ -512,67 +474,96 @@ export function RolePermissionsView() {
                                 </div>
 
                                 <div className="flex items-center justify-between px-2.5 py-1 bg-gray-50 rounded-lg border border-gray-200/90 text-[10px] font-bold text-gray-600">
-                                    <span>Active Pages Count:</span>
+                                    <span>Active Buttons Allowed:</span>
                                     <span className={`px-2 py-0.5 rounded-md font-black text-[9px] uppercase ${
-                                        allowedCount === totalPages
+                                        allowedOpsCount === totalOpsCount
                                             ? 'bg-emerald-100 text-emerald-800'
-                                            : allowedCount > 0
+                                            : allowedOpsCount > 0
                                             ? 'bg-amber-100 text-amber-800'
                                             : 'bg-rose-100 text-rose-800'
                                     }`}>
-                                        {allowedCount} / {totalPages} Pages Allowed
+                                        {allowedOpsCount} / {totalOpsCount} Buttons Allowed
                                     </span>
                                 </div>
 
-                                {/* List of All Branch Pages with Checkboxes - Clean Gray & White Frame, Compact Spacing */}
-                                <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2 max-h-[380px] overflow-y-auto space-y-1 scrollbar-thin">
-                                    {BRANCH_PAGES.map((page) => {
+                                {/* List of Pages with Edit and Delete buttons */}
+                                <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2.5 max-h-[420px] overflow-y-auto space-y-2 scrollbar-thin">
+                                    {EDIT_DELETE_PAGES.map((page) => {
                                         const PageIcon = page.icon;
-                                        const isPageAllowed = allowedPages.includes(page.key);
-                                        const isPageUpdating = updatingId === `${sId}-page-${page.key}`;
+                                        const editKey = `${page.key}_edit`;
+                                        const deleteKey = `${page.key}_delete`;
+                                        const isPageEditAllowed = allowedOperations.includes(editKey);
+                                        const isPageDeleteAllowed = allowedOperations.includes(deleteKey);
+                                        const isPageUpdating = updatingId === `${sId}-${editKey}` || updatingId === `${sId}-${deleteKey}`;
 
                                         return (
                                             <div
                                                 key={page.key}
-                                                onClick={() => !isPageUpdating && handleTogglePageCheckbox(shop, page.key)}
-                                                className={`py-1.5 px-2 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-2 ${
-                                                    isPageAllowed
-                                                        ? 'bg-white hover:bg-emerald-50/30 border-gray-200 hover:border-emerald-400 shadow-2xs'
-                                                        : 'bg-gray-100/70 hover:bg-white hover:border-gray-300 border-gray-200/70 opacity-65'
-                                                }`}
+                                                className="p-2.5 bg-white rounded-xl border border-gray-200 shadow-2xs space-y-2"
                                             >
-                                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                    {/* Page Checkbox (Right next to icon & label) */}
-                                                    <div className={`w-4.5 h-4.5 rounded-md flex items-center justify-center font-black transition-all shrink-0 ${
-                                                        isPageAllowed
-                                                            ? 'bg-emerald-600 text-white shadow-2xs ring-1 ring-emerald-400'
-                                                            : 'border-2 border-gray-400 bg-white'
-                                                    }`}>
-                                                        {isPageAllowed && <Check className="w-3 h-3 stroke-[3.5]" />}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                                                        <PageIcon className="w-3.5 h-3.5" />
                                                     </div>
-
-                                                    <div className="p-1 bg-gray-100 rounded-md text-gray-600 shrink-0">
-                                                        <PageIcon className="w-3 h-3" />
-                                                    </div>
-
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="font-bold text-[10.5px] text-gray-900 truncate leading-tight">
+                                                        <div className="font-extrabold text-[11px] text-gray-900 truncate leading-tight">
                                                             {page.label}
                                                         </div>
                                                         <div className="text-[8px] text-gray-400 truncate leading-tight">
-                                                            {page.path}
+                                                            {page.desc}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="shrink-0">
-                                                    <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider border ${
-                                                        isPageAllowed
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                                                    }`}>
-                                                        {isPageAllowed ? 'Allowed' : 'Locked'}
-                                                    </span>
+                                                {/* Edit and Delete Checkboxes for this specific page */}
+                                                <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-gray-100">
+                                                    {/* Edit Button Checkbox */}
+                                                    <div
+                                                        onClick={() => !isPageUpdating && handleToggleOperation(shop, editKey)}
+                                                        className={`px-2 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 select-none ${
+                                                            isPageEditAllowed
+                                                                ? 'bg-amber-50/70 border-amber-300 text-amber-950 shadow-2xs'
+                                                                : 'bg-gray-100/80 border-gray-200 text-gray-400'
+                                                        }`}
+                                                    >
+                                                        <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 ${
+                                                            isPageEditAllowed ? 'bg-amber-500 text-white' : 'border border-gray-400 bg-white'
+                                                        }`}>
+                                                            {isPageEditAllowed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1 flex items-center justify-between">
+                                                            <span className="text-[9.5px] font-black truncate">{page.editLabel}</span>
+                                                            <span className={`text-[7.5px] font-bold uppercase ml-1 px-1 rounded ${
+                                                                isPageEditAllowed ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                                                            }`}>
+                                                                {isPageEditAllowed ? 'Allowed' : 'Locked'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Delete Button Checkbox */}
+                                                    <div
+                                                        onClick={() => !isPageUpdating && handleToggleOperation(shop, deleteKey)}
+                                                        className={`px-2 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 select-none ${
+                                                            isPageDeleteAllowed
+                                                                ? 'bg-rose-50/70 border-rose-300 text-rose-950 shadow-2xs'
+                                                                : 'bg-gray-100/80 border-gray-200 text-gray-400'
+                                                        }`}
+                                                    >
+                                                        <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 ${
+                                                            isPageDeleteAllowed ? 'bg-rose-600 text-white' : 'border border-gray-400 bg-white'
+                                                        }`}>
+                                                            {isPageDeleteAllowed && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1 flex items-center justify-between">
+                                                            <span className="text-[9.5px] font-black truncate">{page.deleteLabel}</span>
+                                                            <span className={`text-[7.5px] font-bold uppercase ml-1 px-1 rounded ${
+                                                                isPageDeleteAllowed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-700'
+                                                            }`}>
+                                                                {isPageDeleteAllowed ? 'Allowed' : 'Locked'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -691,13 +682,13 @@ export function RolePermissionsView() {
                                             </td>
                                             <td className="p-3.5 text-center">
                                                 <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
-                                                    allowedPages.length === ALL_BRANCH_PAGE_KEYS.length
+                                                    allowedPages.length === ALL_OPERATION_KEYS.length
                                                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                                         : allowedPages.length > 0
                                                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                                                         : 'bg-rose-50 text-rose-800 border-rose-200'
                                                 }`}>
-                                                    {allowedPages.length} / {ALL_BRANCH_PAGE_KEYS.length} Pages
+                                                    {allowedPages.length} / {ALL_OPERATION_KEYS.length} Buttons
                                                 </span>
                                             </td>
                                             <td className="p-3.5 text-center">

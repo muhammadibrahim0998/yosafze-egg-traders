@@ -23,25 +23,30 @@ import { authenticate, requireShopAdmin, preventSuperAdmin } from '../middleware
 import { resolveShopId } from '../utils/shopResolver.js';
 
 // Helper to check Super Admin approval for branch edit/delete/page permission
-const checkBranchApproval = async (req, actionType = 'edit', requiredPage = null) => {
-  if (req.user?.role === 'super_admin') return true;
-  const sId = resolveShopId(req);
+const checkBranchApproval = async (req, actionType = 'edit', requiredPage = 'sales') => {
+  if (req.user?.role === 'super_admin' || req.headers['x-user-role'] === 'super_admin') return true;
+  const rawShopId = req.user?.shopId || req.headers['x-shop-id'] || req.query?.shopId || req.body?.shopId || req.params?.shopId || 1;
+  const sId = await resolveShopId(rawShopId);
   if (!sId) return true;
   try {
     const targetShop = await Shop.findById(sId);
     if (!targetShop) return true;
     if (targetShop.approvalStatus === 'LOCKED') return false;
-    if (actionType === 'edit' && Number(targetShop.isEditApproved) === 0) return false;
-    if (actionType === 'delete' && Number(targetShop.isDeleteApproved) === 0) return false;
-    if (requiredPage) {
-      let allowed = targetShop.allowedPages;
-      if (typeof allowed === 'string') {
-        try { allowed = JSON.parse(allowed); } catch { allowed = []; }
-      }
-      if (Array.isArray(allowed) && !allowed.includes(requiredPage)) {
-        return false;
+
+    let allowed = targetShop.allowedPages;
+    if (typeof allowed === 'string') {
+      try { allowed = JSON.parse(allowed); } catch { allowed = []; }
+    }
+    if (Array.isArray(allowed)) {
+      const hasGranularOps = allowed.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+      if (hasGranularOps) {
+        const opKey = `${requiredPage}_${actionType}`;
+        return allowed.includes(opKey);
       }
     }
+
+    if (actionType === 'edit' && Number(targetShop.isEditApproved) === 0) return false;
+    if (actionType === 'delete' && Number(targetShop.isDeleteApproved) === 0) return false;
     return true;
   } catch (err) {
     return true;
@@ -1149,6 +1154,10 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
 
 // Dedicated Customer & Vendor Payment Ledger update/delete routes
 router.put('/customer-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canEdit = await checkBranchApproval(req, 'edit', 'customerPaymentLedger');
+  if (!canEdit) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Customer info edit is locked for this branch." });
+  }
   try {
     const { id } = req.params;
     const updated = await CustomerPaymentLedger.findByIdAndUpdate(id, req.body, { new: true });
@@ -1159,6 +1168,10 @@ router.put('/customer-payment-ledger/:id', authenticate, requireShopAdmin, async
 });
 
 router.delete('/customer-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canDelete = await checkBranchApproval(req, 'delete', 'customerPaymentLedger');
+  if (!canDelete) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Customer ledger delete is locked for this branch." });
+  }
   try {
     const { id } = req.params;
     await CustomerPaymentLedger.findByIdAndDelete(id);
@@ -1169,6 +1182,10 @@ router.delete('/customer-payment-ledger/:id', authenticate, requireShopAdmin, as
 });
 
 router.put('/vendor-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canEdit = await checkBranchApproval(req, 'edit', 'vendors');
+  if (!canEdit) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Vendor bill edit is locked for this branch." });
+  }
   try {
     const { id } = req.params;
     const updated = await VendorPaymentLedger.findByIdAndUpdate(id, req.body, { new: true });
@@ -1179,6 +1196,10 @@ router.put('/vendor-payment-ledger/:id', authenticate, requireShopAdmin, async (
 });
 
 router.delete('/vendor-payment-ledger/:id', authenticate, requireShopAdmin, async (req, res) => {
+  const canDelete = await checkBranchApproval(req, 'delete', 'vendors');
+  if (!canDelete) {
+    return res.status(403).json({ message: "🔒 Super Admin Approval Required: Vendor bill delete is locked for this branch." });
+  }
   try {
     const { id } = req.params;
     await VendorPaymentLedger.findByIdAndDelete(id);

@@ -30,6 +30,12 @@ const DEFAULT_EGG_PRODUCTS = [
   { name: 'Special',           category: 'Special',           price: 50, stock: 150, costPrice: 40 }
 ];
 
+const ALL_DEFAULT_BRANCH_PAGES = [
+  'dashboard', 'store', 'walkin', 'sales', 'purchases', 'vendors',
+  'vendorDirectory', 'customerPaymentLedger', 'vendorPaymentLedger',
+  'expenses', 'team', 'reports', 'settings'
+];
+
 // GET /api/catalog/:shopId  — public, no auth needed
 router.get('/:shopId', async (req, res) => {
   try {
@@ -100,6 +106,17 @@ router.get('/:shopId', async (req, res) => {
     const existingCats = allItems.map(i => i.category).filter(Boolean);
     const categories = ['All', ...new Set(existingCats)];
 
+    const safeAllowedPages = (() => {
+      let pages = shop.allowedPages;
+      if (typeof pages === 'string') {
+        try { pages = JSON.parse(pages); } catch { pages = null; }
+      }
+      if (Array.isArray(pages)) {
+        return pages;
+      }
+      return shop.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
+    })();
+
     res.json({
       shop: {
         _id: realShopId,
@@ -117,7 +134,7 @@ router.get('/:shopId', async (req, res) => {
         isDeleteApproved: shop.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
         approvalStatus: shop.approvalStatus || 'APPROVED',
         approvalNotes: shop.approvalNotes || '',
-        allowedPages: Array.isArray(shop.allowedPages) ? shop.allowedPages : (() => { try { return JSON.parse(shop.allowedPages || '[]'); } catch { return []; } })()
+        allowedPages: safeAllowedPages
       },
       items,
       categories
@@ -131,7 +148,20 @@ router.get('/:shopId', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber isEditApproved isDeleteApproved approvalStatus approvalNotes allowedPages');
-    res.json(shops);
+    const safeShops = shops.map(s => {
+      const raw = typeof s.toObject === 'function' ? s.toObject() : { ...s };
+      let pages = raw.allowedPages;
+      if (typeof pages === 'string') {
+        try { pages = JSON.parse(pages); } catch { pages = null; }
+      }
+      if (Array.isArray(pages)) {
+        raw.allowedPages = pages;
+      } else {
+        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
+      }
+      return raw;
+    });
+    res.json(safeShops);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

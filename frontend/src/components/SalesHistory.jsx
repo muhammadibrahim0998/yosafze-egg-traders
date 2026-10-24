@@ -1,5 +1,6 @@
 import { Trash2, Edit, Download, Receipt, ShoppingBag, RotateCcw, Eye, FileSpreadsheet, Calendar } from 'lucide-react';
 import { getBackendBaseUrl } from '../services/api';
+import { useUser } from '../contexts/UserContext';
 
 export function SalesHistory({
   sales,
@@ -9,6 +10,9 @@ export function SalesHistory({
   onViewSale,
   onExport
 }) {
+  const { isPageOpAllowed } = useUser();
+  const isEditAllowed = isPageOpAllowed ? isPageOpAllowed('sales', 'edit') : true;
+  const isDeleteAllowed = isPageOpAllowed ? isPageOpAllowed('sales', 'delete') : true;
   const fmt = (n) => `Rs. ${(n || 0).toLocaleString('en-PK')}`;
 
   return (
@@ -108,7 +112,7 @@ export function SalesHistory({
                   {sale.status !== 'returned' && (
                     <button onClick={() => onReturnSale(sale._id)} className="p-2.5 bg-[var(--color-surface-base)] hover:bg-rose-500/10 text-[var(--color-text-muted)] hover:text-rose-500 rounded-xl transition-all border border-[var(--color-border-subtle)]" title="Return Archive"><RotateCcw className="w-4 h-4" /></button>
                   )}
-                  <button onClick={() => openEditSaleModal(sale)} className="p-2.5 bg-[var(--color-surface-base)] hover:bg-green-600 hover:text-[var(--color-text-primary)] rounded-xl transition-all border border-[var(--color-border-subtle)]" title="Modify Record"><Edit className="w-4 h-4" /></button>
+                  {isEditAllowed && <button onClick={() => openEditSaleModal(sale)} className="p-2.5 bg-[var(--color-surface-base)] hover:bg-green-600 hover:text-[var(--color-text-primary)] rounded-xl transition-all border border-[var(--color-border-subtle)]" title="Modify Record"><Edit className="w-4 h-4" /></button>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   {sale.invoiceUrl && (
@@ -123,7 +127,7 @@ export function SalesHistory({
                       <Download className="w-4 h-4" />
                     </button>
                   )}
-                  <button onClick={() => handleDeleteSale(sale)} className="p-2.5 bg-[var(--color-surface-base)] hover:bg-rose-600 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-xl transition-all border border-[var(--color-border-subtle)]" title="Purge Record"><Trash2 className="w-4 h-4" /></button>
+                  {isDeleteAllowed && <button onClick={() => handleDeleteSale(sale)} className="p-2.5 bg-[var(--color-surface-base)] hover:bg-rose-600 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-xl transition-all border border-[var(--color-border-subtle)]" title="Purge Record"><Trash2 className="w-4 h-4" /></button>}
                 </div>
               </div>
             </div>

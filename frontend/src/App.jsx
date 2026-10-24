@@ -49,7 +49,7 @@ import { toast, Toaster } from "sonner";
 
 
 export default function App() {
-  const { user, isSuperAdmin, isShopAdmin, isPageAllowed, loading: userLoading } = useUser();
+  const { user, isSuperAdmin, isShopAdmin, isPageAllowed, isPageOpAllowed, loading: userLoading } = useUser();
   const { cart, clearCart, fetchData, sales, products, categories } = useProducts();
   const { modals, activeData, openModal, closeModal } = useModals();
   const { refreshSession } = useShift();
@@ -110,6 +110,10 @@ export default function App() {
   };
 
   const handleEditProductSubmit = async (productData) => {
+    if (isShopAdmin() && isPageOpAllowed && !isPageOpAllowed('purchases', 'edit')) {
+      toast.error("🔒 Super Admin Approval Required: Product editing is locked for your branch.");
+      return;
+    }
     requireAuth(async (pw) => {
       try {
         const prodId = activeData?.product?._id || activeData?.product?.id || productData?._id || productData?.id;
@@ -129,6 +133,10 @@ export default function App() {
 
   const handleDeleteProduct = (product) => {
     if (!product) return;
+    if (isShopAdmin() && isPageOpAllowed && !isPageOpAllowed('purchases', 'delete')) {
+      toast.error("🔒 Super Admin Approval Required: Product deletion is locked for your branch.");
+      return;
+    }
     const id = typeof product === 'string' ? product : (product?._id || product?.id);
     const name = typeof product === 'string' ? 'Selected Product' : (product?.name || 'Selected Product');
     if (!id || id === 'undefined') {
@@ -202,6 +210,10 @@ export default function App() {
 
 
   const handleDeleteSale = (sale) => {
+    if (isShopAdmin() && isPageOpAllowed && !isPageOpAllowed('sales', 'delete')) {
+      toast.error("🔒 Super Admin Approval Required: Sale deletion is locked for your branch.");
+      return;
+    }
     setDeleteDialog({
       isOpen: true,
       type: 'sale',

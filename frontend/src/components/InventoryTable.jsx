@@ -14,7 +14,7 @@ const fadeUpVariant = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
 };
 
-const RowActions = ({ onEdit, onDelete, onView, isShopAdmin }) => {
+const RowActions = ({ onEdit, onDelete, onView, isShopAdmin, isEditAllowed = true, isDeleteAllowed = true }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -49,8 +49,12 @@ const RowActions = ({ onEdit, onDelete, onView, isShopAdmin }) => {
             {isShopAdmin && (
               <>
                 <div className="w-px h-4 bg-zinc-200 mx-1" />
-                <button onClick={() => { onEdit(); setIsOpen(false); }} className="p-2 text-green-600 hover:text-white hover:bg-green-300 rounded-lg" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => { onDelete(); setIsOpen(false); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                {isEditAllowed && (
+                  <button onClick={() => { onEdit(); setIsOpen(false); }} className="p-2 text-green-600 hover:text-white hover:bg-green-300 rounded-lg" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                )}
+                {isDeleteAllowed && (
+                  <button onClick={() => { onDelete(); setIsOpen(false); }} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                )}
               </>
             )}
           </motion.div>
@@ -61,7 +65,9 @@ const RowActions = ({ onEdit, onDelete, onView, isShopAdmin }) => {
 };
 
 export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
-  const { isShopAdmin, isCustomer } = useUser();
+  const { isShopAdmin, isCustomer, isPageOpAllowed } = useUser();
+  const isEditAllowed = isPageOpAllowed ? isPageOpAllowed('purchases', 'edit') : true;
+  const isDeleteAllowed = isPageOpAllowed ? isPageOpAllowed('purchases', 'delete') : true;
   const {
     filteredProducts: products, handleSort, sortConfig, getStockStatus,
     addToCart, currentPage, setCurrentPage, itemsPerPage, setItemsPerPage
@@ -167,7 +173,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                         {isCustomer() && (
                           <button onClick={() => addToCart(product)} className="p-2 text-zinc-400 hover:text-white hover:bg-green-400 rounded-lg transition-all"><ShoppingCart className="w-4 h-4" /></button>
                         )}
-                        <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product)} isShopAdmin={isShopAdmin()} />
+                        <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product)} isShopAdmin={isShopAdmin()} isEditAllowed={isEditAllowed} isDeleteAllowed={isDeleteAllowed} />
                       </div>
                     </td>
                   </motion.tr>
@@ -223,7 +229,7 @@ export function InventoryTable({ onEdit, onDelete, onView, onExport }) {
                   <span className="text-[9px] font-black text-green-600 uppercase">{product.category}</span>
                 </div>
               </div>
-              <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product)} isShopAdmin={isShopAdmin()} />
+              <RowActions onView={() => onView(product)} onEdit={() => onEdit(product)} onDelete={() => onDelete(product)} isShopAdmin={isShopAdmin()} isEditAllowed={isEditAllowed} isDeleteAllowed={isDeleteAllowed} />
             </div>
             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-zinc-50">
               <div>

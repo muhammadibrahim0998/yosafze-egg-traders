@@ -100,6 +100,43 @@ export const UserProvider = ({ children }) => {
     return role === 'customer';
   };
 
+  // Live dynamic synchronization when permissions change in another tab or Role Permissions view
+  useEffect(() => {
+    const handleApprovalUpdate = (e) => {
+      const updatedShop = e?.detail?.shop;
+      const updatedId = e?.detail?.shopId;
+      if (updatedShop && user?.shopId && String(user.shopId) === String(updatedId)) {
+        setUser(prev => {
+          if (!prev) return prev;
+          const merged = { ...prev, ...updatedShop };
+          try { localStorage.setItem('nexflow_user', JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      }
+    };
+    const handleStorage = (e) => {
+      if (e.key && user?.shopId && e.key.includes(String(user.shopId))) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed) {
+            setUser(prev => {
+              if (!prev) return prev;
+              const merged = { ...prev, ...parsed };
+              try { localStorage.setItem('nexflow_user', JSON.stringify(merged)); } catch {}
+              return merged;
+            });
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('shop_approval_updated', handleApprovalUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('shop_approval_updated', handleApprovalUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [user?.shopId]);
+
   const isPageAllowed = (pageKey) => {
     if (!user) return false;
     const role = (user.role || '').toLowerCase();
@@ -156,12 +193,64 @@ export const UserProvider = ({ children }) => {
     if (typeof allowed === 'string') {
       try { allowed = JSON.parse(allowed); } catch { allowed = []; }
     }
-    if (!Array.isArray(allowed) || allowed.length === 0) return false;
+    if (!Array.isArray(allowed) || allowed.length === 0) return true;
+
+    // If allowedPages contains granular edit/delete keys, whole-page viewing is allowed
+    const hasGranularOnly = allowed.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+    if (hasGranularOnly) return true;
+
     return allowed.includes(key);
   };
 
+  // Helper to check whether an individual Edit or Delete button is allowed for a page
+  const isPageOpAllowed = (pageKey, opType = 'edit', explicitShopId = null) => {
+    if (!user) return false;
+    const role = (user.role || '').toLowerCase();
+    const sId = explicitShopId || user.shopId;
+
+    if (!sId) {
+      if (role === 'super_admin') return true;
+      return false;
+    }
+
+    let shopData = null;
+    try {
+      const cached = localStorage.getItem(`nexflow_cached_shop_${sId}`);
+      if (cached) shopData = JSON.parse(cached);
+    } catch {}
+
+    const approvalStatus = shopData?.approvalStatus || user.approvalStatus;
+    if (approvalStatus === 'LOCKED') return false;
+
+    let allowed = shopData?.allowedPages !== undefined ? shopData.allowedPages : user.allowedPages;
+    if (typeof allowed === 'string') {
+      try { allowed = JSON.parse(allowed); } catch { allowed = null; }
+    }
+
+    if (Array.isArray(allowed)) {
+      const hasGranularOps = allowed.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+      if (hasGranularOps) {
+        return allowed.includes(`${pageKey}_${opType}`);
+      }
+      if (allowed.length === 0 && (shopData?.isEditApproved !== undefined || user.isEditApproved !== undefined)) {
+        return false;
+      }
+    }
+
+    if (opType === 'edit') {
+      const editFlag = shopData?.isEditApproved !== undefined ? Number(shopData.isEditApproved) : (user.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
+      if (editFlag === 0) return false;
+    }
+    if (opType === 'delete') {
+      const deleteFlag = shopData?.isDeleteApproved !== undefined ? Number(shopData.isDeleteApproved) : (user.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
+      if (deleteFlag === 0) return false;
+    }
+
+    return true;
+  };
+
   return (
-    <UserContext.Provider value={{ user, login, logout, isSuperAdmin, isShopAdmin, isCustomer, isPageAllowed, loading }}>
+    <UserContext.Provider value={{ user, login, logout, isSuperAdmin, isShopAdmin, isCustomer, isPageAllowed, isPageOpAllowed, loading }}>
       {!loading && children}
     </UserContext.Provider>
   );
@@ -178,6 +267,7 @@ export const useUser = () => {
       isShopAdmin: () => false,
       isCustomer: () => true,
       isPageAllowed: () => false,
+      isPageOpAllowed: () => false,
       loading: false
     };
   }

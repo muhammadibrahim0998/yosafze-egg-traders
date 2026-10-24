@@ -35,7 +35,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export function VendorPaymentLedger({ shopId: propShopId }) {
-  const { user } = useUser();
+  const { user, isPageOpAllowed } = useUser();
   const { products = [], categories = [], fetchData } = useProducts();
 
   // Local state
@@ -63,9 +63,10 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
     dueAmount: 0
   });
   const [deletingBill, setDeletingBill] = useState(null);
-  const [actionLoading, setActionLoading] = useState(false);
-
   const activeShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null);
+  const isEditAllowed = isPageOpAllowed ? isPageOpAllowed('vendors', 'edit', activeShopId) : true;
+  const isDeleteAllowed = isPageOpAllowed ? isPageOpAllowed('vendors', 'delete', activeShopId) : true;
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Dynamic Ledger data from API
   const [ledgerApiData, setLedgerApiData] = useState({
@@ -372,6 +373,10 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
 
   // Open Edit Modal
   const handleOpenEdit = (txn) => {
+    if (!isEditAllowed) {
+      toast.error("🔒 Super Admin Approval Required: Vendor bill editing is locked for this branch.");
+      return;
+    }
     setEditingBill(txn);
     setEditFormData({
       supplierName: txn.supplierName || '',
@@ -445,6 +450,10 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
   // Submit Delete
   const handleConfirmDelete = async () => {
     if (!deletingBill) return;
+    if (!isDeleteAllowed) {
+      toast.error("🔒 Super Admin Approval Required: Vendor bill deletion is locked for this branch.");
+      return;
+    }
 
     setActionLoading(true);
     try {
@@ -914,20 +923,24 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                       </td>
                       <td className="py-2 px-2.5 text-center whitespace-nowrap border border-gray-300">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenEdit(txn)}
-                            className="p-1 rounded-lg text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
-                            title="Edit Bill"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeletingBill(txn)}
-                            className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                            title="Delete Bill"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {isEditAllowed && (
+                            <button
+                              onClick={() => handleOpenEdit(txn)}
+                              className="p-1 rounded-lg text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
+                              title="Edit Bill"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isDeleteAllowed && (
+                            <button
+                              onClick={() => setDeletingBill(txn)}
+                              className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                              title="Delete Bill"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1118,20 +1131,24 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                 </td>
                                 <td className="py-2 px-3 text-center whitespace-nowrap border border-gray-300">
                                   <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => handleOpenEdit(b)}
-                                      className="p-1 rounded text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
-                                      title="Edit"
-                                    >
-                                      <Pencil className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => setDeletingBill(b)}
-                                      className="p-1 rounded text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
+                                    {isEditAllowed && (
+                                      <button
+                                        onClick={() => handleOpenEdit(b)}
+                                        className="p-1 rounded text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
+                                        title="Edit"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {isDeleteAllowed && (
+                                      <button
+                                        onClick={() => setDeletingBill(b)}
+                                        className="p-1 rounded text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>

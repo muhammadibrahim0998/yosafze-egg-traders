@@ -80,6 +80,8 @@ export const seedDatabase = async () => {
 
     // 4. Ensure Physical Base Tables & Triggers for all 3 branches
     try {
+      const { ensureShopApprovalColumns } = await import('./routes/shops.js');
+      await ensureShopApprovalColumns();
       const bModule = await import('./createBranchTables.js');
       await bModule.createAllBranchTables();
       const ccModule = await import('./create_customer_credits_tables.js');

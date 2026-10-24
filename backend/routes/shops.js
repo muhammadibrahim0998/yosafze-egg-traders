@@ -31,6 +31,12 @@ const DEFAULT_EGG_PRODUCTS = [
   { name: 'Special',           category: 'Special',           price: 50, stock: 150, costPrice: 40 }
 ];
 
+const ALL_DEFAULT_BRANCH_PAGES = [
+  'dashboard', 'store', 'walkin', 'sales', 'purchases', 'vendors',
+  'vendorDirectory', 'customerPaymentLedger', 'vendorPaymentLedger',
+  'expenses', 'team', 'reports', 'settings'
+];
+
 const router = express.Router();
 
 // Synchronize all bank accounts directly into MySQL columns & shop_banks table
@@ -167,6 +173,15 @@ router.get('/public', async (req, res) => {
         raw.bankAccountNumber = raw.banks[0].bankAccountNumber || raw.bankAccountNumber || '';
         raw.bankAccountTitle = raw.banks[0].bankAccountTitle || raw.bankAccountTitle || '';
       }
+      let pages = raw.allowedPages;
+      if (typeof pages === 'string') {
+        try { pages = JSON.parse(pages); } catch { pages = null; }
+      }
+      if (Array.isArray(pages)) {
+        raw.allowedPages = pages;
+      } else {
+        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
+      }
       return raw;
     }));
     res.json(enriched);
@@ -199,6 +214,15 @@ router.get('/', authenticate, requireSuperAdmin, async (req, res) => {
         raw.bankName = raw.banks[0].bankName || raw.bankName || '';
         raw.bankAccountNumber = raw.banks[0].bankAccountNumber || raw.bankAccountNumber || '';
         raw.bankAccountTitle = raw.banks[0].bankAccountTitle || raw.bankAccountTitle || '';
+      }
+      let pList = raw.allowedPages;
+      if (typeof pList === 'string') {
+        try { pList = JSON.parse(pList); } catch { pList = null; }
+      }
+      if (Array.isArray(pList)) {
+        raw.allowedPages = pList;
+      } else {
+        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
       }
       return raw;
     }));
@@ -384,7 +408,7 @@ router.put('/:id', authenticate, validateShop, async (req, res) => {
 });
 
 // Helper to ensure approval columns exist in MySQL shops table dynamically
-async function ensureShopApprovalColumns() {
+export async function ensureShopApprovalColumns() {
   try {
     const [cols] = await pool.query('DESCRIBE `shops`');
     const set = new Set(cols.map(c => c.Field));

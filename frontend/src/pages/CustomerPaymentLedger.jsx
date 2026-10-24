@@ -37,7 +37,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export function CustomerPaymentLedger({ shopId: propShopId }) {
-  const { user } = useUser();
+  const { user, isPageOpAllowed } = useUser();
   const { sales = [], products = [], categories = [], fetchData } = useProducts();
 
   // Local state
@@ -68,6 +68,8 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   const [activeTxnMenuId, setActiveTxnMenuId] = useState(null);
 
   const activeShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null);
+  const isEditAllowed = isPageOpAllowed ? isPageOpAllowed('customerPaymentLedger', 'edit', activeShopId) : true;
+  const isDeleteAllowed = isPageOpAllowed ? isPageOpAllowed('customerPaymentLedger', 'delete', activeShopId) : true;
 
   // Dynamic Ledger data from API
   const [ledgerApiData, setLedgerApiData] = useState({
@@ -398,6 +400,10 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
 
   // Open Edit Modal
   const handleOpenEdit = (txn) => {
+    if (!isEditAllowed) {
+      toast.error("🔒 Super Admin Approval Required: Customer info / invoice editing is locked for this branch.");
+      return;
+    }
     setEditingSale(txn);
     setEditFormData({
       customerName: txn.customerName || '',
@@ -457,6 +463,10 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   // Submit Delete
   const handleConfirmDelete = async () => {
     if (!deletingSale) return;
+    if (!isDeleteAllowed) {
+      toast.error("🔒 Super Admin Approval Required: Customer ledger / invoice deletion is locked for this branch.");
+      return;
+    }
 
     setActionLoading(true);
     try {
@@ -1320,28 +1330,32 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                                   <Printer className="w-3 h-3 text-blue-600 shrink-0" />
                                   <span>Print Invoice</span>
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveTxnMenuId(null);
-                                    handleOpenEdit(txn);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
-                                >
-                                  <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
-                                  <span>Edit Invoice</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveTxnMenuId(null);
-                                    setDeletingSale(txn);
-                                  }}
-                                  className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
-                                  <span>Delete Sale</span>
-                                </button>
+                                {isEditAllowed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveTxnMenuId(null);
+                                      handleOpenEdit(txn);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span>Edit Invoice</span>
+                                  </button>
+                                )}
+                                {isDeleteAllowed && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveTxnMenuId(null);
+                                      setDeletingSale(txn);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
+                                    <span>Delete Sale</span>
+                                  </button>
+                                )}
                               </div>
                             </>
                           )}
@@ -1554,28 +1568,32 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                                             <Printer className="w-3 h-3 text-blue-600 shrink-0" />
                                             <span>Print Invoice</span>
                                           </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActiveTxnMenuId(null);
-                                              handleOpenEdit(t);
-                                            }}
-                                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
-                                          >
-                                            <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
-                                            <span>Edit Invoice</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActiveTxnMenuId(null);
-                                              setDeletingSale(t);
-                                            }}
-                                            className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
-                                            <span>Delete Invoice</span>
-                                          </button>
+                                          {isEditAllowed && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveTxnMenuId(null);
+                                                handleOpenEdit(t);
+                                              }}
+                                              className="w-full px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                              <Pencil className="w-3 h-3 text-emerald-600 shrink-0" />
+                                              <span>Edit Invoice</span>
+                                            </button>
+                                          )}
+                                          {isDeleteAllowed && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveTxnMenuId(null);
+                                                setDeletingSale(t);
+                                              }}
+                                              className="w-full px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3 h-3 text-rose-600 shrink-0" />
+                                              <span>Delete Invoice</span>
+                                            </button>
+                                          )}
                                         </div>
                                       </>
                                     )}

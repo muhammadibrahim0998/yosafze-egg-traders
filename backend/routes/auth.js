@@ -43,6 +43,13 @@ router.get("/me", authenticate, async (req, res) => {
     if (user.shopId) {
       shop = await Shop.findById(user.shopId);
     }
+    let shopPages = [];
+    if (shop?.allowedPages) {
+      if (Array.isArray(shop.allowedPages)) shopPages = shop.allowedPages;
+      else if (typeof shop.allowedPages === 'string') {
+        try { shopPages = JSON.parse(shop.allowedPages); } catch { shopPages = []; }
+      }
+    }
     res.json({
       success: true,
       user: {
@@ -51,8 +58,10 @@ router.get("/me", authenticate, async (req, res) => {
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
+        isEditApproved: shop?.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
+        isDeleteApproved: shop?.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
         approvalStatus: shop?.approvalStatus || 'APPROVED',
-        allowedPages: shop?.allowedPages || []
+        allowedPages: shopPages
       }
     });
   } catch (error) {
@@ -145,6 +154,14 @@ router.post("/login", validateLogin, async (req, res) => {
       shop = await Shop.findById(user.shopId);
     }
 
+    let shopPages = [];
+    if (shop?.allowedPages) {
+      if (Array.isArray(shop.allowedPages)) shopPages = shop.allowedPages;
+      else if (typeof shop.allowedPages === 'string') {
+        try { shopPages = JSON.parse(shop.allowedPages); } catch { shopPages = []; }
+      }
+    }
+
     res.json({
       success: true,
       message: "Login successful",
@@ -155,8 +172,10 @@ router.post("/login", validateLogin, async (req, res) => {
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
+        isEditApproved: shop?.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
+        isDeleteApproved: shop?.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
         approvalStatus: shop?.approvalStatus || 'APPROVED',
-        allowedPages: shop?.allowedPages || []
+        allowedPages: shopPages
       }
     });
   } catch (error) {

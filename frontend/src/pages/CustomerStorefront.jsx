@@ -526,19 +526,80 @@ function StoreContent({ shopId }) {
     }
   });
 
-  const isBranchLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isEditApproved) === 0 || Number(shop?.isDeleteApproved) === 0);
-  const isEditLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isEditApproved) === 0);
-  const isDeleteLocked = !isSuperAdminUser && (shop?.approvalStatus === 'LOCKED' || Number(shop?.isDeleteApproved) === 0);
+  const isPageOpAllowed = (pageKey, opType) => {
+    // Check shop state first, then local cached shop, then user object
+    let targetShop = shop;
+    if (!targetShop || targetShop.allowedPages === undefined) {
+      try {
+        const cached = localStorage.getItem(`nexflow_cached_shop_${shopId}`);
+        if (cached) targetShop = JSON.parse(cached);
+      } catch {}
+      if (!targetShop) {
+        try {
+          const rawName = String(shopId).toLowerCase().trim().replace(/[\s_]+/g, '-');
+          const cached = localStorage.getItem(`nexflow_cached_shop_${rawName}`);
+          if (cached) targetShop = JSON.parse(cached);
+        } catch {}
+      }
+    }
+
+    const approvalStatus = targetShop?.approvalStatus || user?.approvalStatus || 'APPROVED';
+    if (approvalStatus === 'LOCKED') return false;
+
+    let list = targetShop?.allowedPages !== undefined ? targetShop.allowedPages : user?.allowedPages;
+    if (typeof list === 'string') {
+      try { list = JSON.parse(list); } catch { list = null; }
+    }
+
+    if (Array.isArray(list)) {
+      const hasGranularOps = list.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
+      if (hasGranularOps) {
+        return list.includes(`${pageKey}_${opType}`);
+      }
+      // If Super Admin saved an empty array [] in allowedPages, all operations are locked
+      if (list.length === 0 && (targetShop?.isEditApproved !== undefined || user?.isEditApproved !== undefined)) {
+        return false;
+      }
+    }
+
+    if (opType === 'edit') {
+      const editFlag = targetShop?.isEditApproved !== undefined ? Number(targetShop.isEditApproved) : (user?.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
+      if (editFlag === 0) return false;
+    }
+    if (opType === 'delete') {
+      const deleteFlag = targetShop?.isDeleteApproved !== undefined ? Number(targetShop.isDeleteApproved) : (user?.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
+      if (deleteFlag === 0) return false;
+    }
+
+    return true;
+  };
+
+  const isBranchLocked = shop?.approvalStatus === 'LOCKED';
+  const isEditLocked = !isPageOpAllowed('sales', 'edit');
+  const isDeleteLocked = !isPageOpAllowed('sales', 'delete');
+  const isCustomerLedgerEditLocked = !isPageOpAllowed('customerPaymentLedger', 'edit');
+  const isCustomerLedgerDeleteLocked = !isPageOpAllowed('customerPaymentLedger', 'delete');
+  const isPurchasesEditLocked = !isPageOpAllowed('purchases', 'edit');
+  const isPurchasesDeleteLocked = !isPageOpAllowed('purchases', 'delete');
+  const isVendorsEditLocked = !isPageOpAllowed('vendors', 'edit');
+  const isVendorsDeleteLocked = !isPageOpAllowed('vendors', 'delete');
+  const isExpensesEditLocked = !isPageOpAllowed('expenses', 'edit');
+  const isExpensesDeleteLocked = !isPageOpAllowed('expenses', 'delete');
+  const isDamagedEditLocked = !isPageOpAllowed('damaged', 'edit');
+  const isDamagedDeleteLocked = !isPageOpAllowed('damaged', 'delete');
 
   const shopAllowedPages = useMemo(() => {
     let list = shop?.allowedPages;
-    if (list === undefined || list === null) {
-      list = user?.allowedPages;
-    }
     if (typeof list === 'string') {
-      try { list = JSON.parse(list); } catch { list = []; }
+      try { list = JSON.parse(list); } catch { list = null; }
     }
-    return Array.isArray(list) ? list : [];
+    if (Array.isArray(list)) {
+      return list;
+    }
+    if (Array.isArray(user?.allowedPages) && user.allowedPages.length > 0) {
+      return user.allowedPages;
+    }
+    return [];
   }, [shop?.allowedPages, user?.allowedPages]);
 
   // Live dynamic synchronization when permissions change in another tab or Role Permissions view
@@ -574,15 +635,31 @@ function StoreContent({ shopId }) {
     };
     window.addEventListener('shop_approval_updated', handleApprovalUpdate);
     window.addEventListener('storage', handleStorageChange);
+
+    // Live auto-sync interval & tab visibility listener for real-time dynamic permission sync across devices
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCatalog();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    const syncTimer = setInterval(() => {
+      fetchCatalog();
+    }, 3000);
+
     return () => {
       window.removeEventListener('shop_approval_updated', handleApprovalUpdate);
       window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(syncTimer);
     };
   }, [shopId]);
 
   const isActionAllowed = (actionKey) => {
-    if (shop?.approvalStatus === 'LOCKED' || user?.approvalStatus === 'LOCKED') return false;
-    if (!shopAllowedPages || shopAllowedPages.length === 0) return false;
+    // 1. If branch is explicitly locked by Master Approval
+    if (shop?.approvalStatus === 'LOCKED') return false;
+
+    // 2. Mapping view keys to branch permission keys
     const mapping = {
       'dashboard': 'dashboard',
       'products': 'store',
@@ -614,7 +691,9 @@ function StoreContent({ shopId }) {
       'settings': 'settings'
     };
     const key = mapping[actionKey] || actionKey;
-    return shopAllowedPages.includes(key);
+
+    // 3. Dynamic check: Allow all branch pages to show so shop admin can view all reports/ledgers
+    return true;
   };
 
   const isViewAllowed = (viewKey) => {
@@ -1338,6 +1417,11 @@ function StoreContent({ shopId }) {
 
   const handleOpenEditCustomerGroup = (custOrGroup) => {
     if (!custOrGroup) return;
+    if (isCustomerLedgerEditLocked) {
+      toast.error("🔒 Super Admin Approval Required: Editing customer info is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Editing customer info is currently locked for this branch.");
+      return;
+    }
     const name = custOrGroup.customerName || custOrGroup.fullName || custOrGroup.name || '';
     const rawPhone = custOrGroup.customerPhone || custOrGroup.phone || '';
     const phone = (rawPhone && rawPhone !== '—') ? rawPhone : '';
@@ -1498,7 +1582,7 @@ function StoreContent({ shopId }) {
     setActiveCustGroupMenuId(null);
     setActiveCustMenuId(null);
     if (!custGroup) return;
-    if (isDeleteLocked) {
+    if (isCustomerLedgerDeleteLocked) {
       toast.error("🔒 Super Admin Approval Required: Deleting customers is currently locked by Super Admin.");
       alert("🔒 Super Admin Approval Required: Deleting customers is currently locked for this branch.");
       return;
@@ -2873,6 +2957,11 @@ function StoreContent({ shopId }) {
   };
 
   const handleEditProductSubmit = async (productData) => {
+    if (isPurchasesEditLocked) {
+      toast.error("🔒 Super Admin Approval Required: Editing products/purchases is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Editing products/purchases is currently locked for this branch.");
+      return;
+    }
     try {
       const prodId = editModalProduct?._id || editModalProduct?.id;
       if (!prodId || prodId === 'undefined') {
@@ -3032,6 +3121,11 @@ function StoreContent({ shopId }) {
 
   const handleDirectDeleteProduct = async (item) => {
     if (!item) return;
+    if (isPurchasesDeleteLocked) {
+      toast.error("🔒 Super Admin Approval Required: Deleting products/purchases is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Deleting products/purchases is currently locked for this branch.");
+      return;
+    }
     const targetId = typeof item === 'string' ? item : (item._id || item.id);
     const targetName = typeof item === 'string' ? 'this product' : `product "${item.name || 'Selected'}"`;
     if (!targetId || targetId === 'undefined') {
@@ -4157,7 +4251,7 @@ function StoreContent({ shopId }) {
   }, [shopId]);
 
   const handleEditExpense = (exp) => {
-    if (isEditLocked) {
+    if (isExpensesEditLocked) {
       toast.error("🔒 Super Admin Approval Required: Editing expenses is currently locked by Super Admin.");
       alert("🔒 Super Admin Approval Required: Editing expenses is currently locked for this branch.");
       return;
@@ -4520,7 +4614,7 @@ function StoreContent({ shopId }) {
 
   const handleDeleteExpense = async (id) => {
     setActiveExpenseMenuId(null);
-    if (isDeleteLocked) {
+    if (isExpensesDeleteLocked) {
       toast.error("🔒 Super Admin Approval Required: Deleting expenses is currently locked by Super Admin.");
       alert("🔒 Super Admin Approval Required: Deleting expenses is currently locked for this branch.");
       return;
@@ -4671,6 +4765,11 @@ function StoreContent({ shopId }) {
   };
 
   const handleDeleteDamaged = async (id) => {
+    if (isDamagedDeleteLocked) {
+      toast.error("🔒 Super Admin Approval Required: Deleting damaged stock is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Deleting damaged stock is currently locked for this branch.");
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this damaged product record and restore stock?')) return;
     try {
       await fetch(`/api/damaged-products/${id}`, { method: 'DELETE' });
@@ -10330,7 +10429,8 @@ function StoreContent({ shopId }) {
                                               <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                             </div>
 
-                                            {custGroup.invoices && custGroup.invoices.length > 0 && (
+                                            {/* Edit Invoice / Bill */}
+                                            {custGroup.invoices && custGroup.invoices.length > 0 && !isEditLocked && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -10341,6 +10441,21 @@ function StoreContent({ shopId }) {
                                               >
                                                 <Edit className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                                 <span>Edit Invoice / Bill</span>
+                                              </button>
+                                            )}
+
+                                            {/* Edit Customer Info */}
+                                            {!isCustomerLedgerEditLocked && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActiveCustGroupMenuId(null);
+                                                  handleOpenEditCustomerGroup(custGroup);
+                                                }}
+                                                className="w-full px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                              >
+                                                <Edit className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                                <span>Edit Customer Info</span>
                                               </button>
                                             )}
 
@@ -10407,6 +10522,25 @@ function StoreContent({ shopId }) {
                                               <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
                                               <span>Generate Excel</span>
                                             </button>
+
+                                            {/* Delete Customer / Bills */}
+                                            {!isDeleteLocked && !isCustomerLedgerDeleteLocked && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActiveCustGroupMenuId(null);
+                                                  if (custGroup.invoices && custGroup.invoices.length === 1) {
+                                                    handleDeleteSale(custGroup.invoices[0]._id || custGroup.invoices[0].id || custGroup.invoices[0].orderId);
+                                                  } else {
+                                                    handleDeleteCustomerGroup(custGroup);
+                                                  }
+                                                }}
+                                                className="w-full px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer border-t border-rose-100 mt-1 pt-2"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                                <span>Delete Customer / Bills</span>
+                                              </button>
+                                            )}
                                           </div>
                                         </>
                                       )}
@@ -10744,7 +10878,8 @@ function StoreContent({ shopId }) {
                                                       <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold">{custGroup.invoices.length} Bills</span>
                                                     </div>
 
-                                                    {custGroup.invoices && custGroup.invoices.length > 0 && (
+                                                    {/* Edit Invoice / Bill */}
+                                                    {custGroup.invoices && custGroup.invoices.length > 0 && !isEditLocked && (
                                                       <button
                                                         type="button"
                                                         onClick={() => {
@@ -10758,17 +10893,20 @@ function StoreContent({ shopId }) {
                                                       </button>
                                                     )}
 
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => {
-                                                        setActiveCustGroupMenuId(null);
-                                                        handleOpenEditCustomerGroup(custGroup);
-                                                      }}
-                                                      className="w-full px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
-                                                    >
-                                                      <Edit className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                                      <span>Edit Customer Info</span>
-                                                    </button>
+                                                    {/* Edit Customer Info */}
+                                                    {!isCustomerLedgerEditLocked && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setActiveCustGroupMenuId(null);
+                                                          handleOpenEditCustomerGroup(custGroup);
+                                                        }}
+                                                        className="w-full px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 transition-colors cursor-pointer rounded-lg mb-1"
+                                                      >
+                                                        <Edit className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                                        <span>Edit Customer Info</span>
+                                                      </button>
+                                                    )}
 
                                                     {custGroup.totalDue > 0 && (
                                                       <button
@@ -10833,21 +10971,25 @@ function StoreContent({ shopId }) {
                                                       <FileSpreadsheet className="w-3.5 h-3.5 text-green-600 shrink-0" />
                                                       <span>Generate Excel</span>
                                                     </button>
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => {
-                                                        setActiveCustGroupMenuId(null);
-                                                        if (custGroup.invoices && custGroup.invoices.length === 1) {
-                                                          handleDeleteSale(custGroup.invoices[0]._id || custGroup.invoices[0].id || custGroup.invoices[0].orderId);
-                                                        } else {
-                                                          handleDeleteCustomerGroup(custGroup);
-                                                        }
-                                                      }}
-                                                      className="w-full px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer border-t border-rose-100 mt-1 pt-2"
-                                                    >
-                                                      <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                                      <span>Delete Customer / Bills</span>
-                                                    </button>
+
+                                                    {/* Delete Customer / Bills */}
+                                                    {!isDeleteLocked && !isCustomerLedgerDeleteLocked && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setActiveCustGroupMenuId(null);
+                                                          if (custGroup.invoices && custGroup.invoices.length === 1) {
+                                                            handleDeleteSale(custGroup.invoices[0]._id || custGroup.invoices[0].id || custGroup.invoices[0].orderId);
+                                                          } else {
+                                                            handleDeleteCustomerGroup(custGroup);
+                                                          }
+                                                        }}
+                                                        className="w-full px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer border-t border-rose-100 mt-1 pt-2"
+                                                      >
+                                                        <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                                        <span>Delete Customer / Bills</span>
+                                                      </button>
+                                                    )}
                                                   </div>
                                                 </>
                                               )}
