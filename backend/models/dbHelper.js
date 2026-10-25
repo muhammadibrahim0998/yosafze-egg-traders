@@ -125,10 +125,10 @@ export class BaseModel {
         try {
           obj[field] = JSON.parse(obj[field]);
         } catch {
-          obj[field] = [];
+          obj[field] = field === 'allowedPages' ? null : [];
         }
       } else if (!obj[field]) {
-        obj[field] = [];
+        obj[field] = field === 'allowedPages' ? null : [];
       }
     }
 

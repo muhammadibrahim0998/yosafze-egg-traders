@@ -83,6 +83,8 @@ export function RolePermissionsView() {
             if (rawName) {
                 localStorage.setItem(`nexflow_cached_shop_${rawName}`, JSON.stringify(merged));
             }
+            // Trigger storage event across all tabs and devices
+            localStorage.setItem('nexflow_cached_shop_last_update', Date.now().toString());
             window.dispatchEvent(new CustomEvent('shop_approval_updated', { detail: { shopId: sId, shop: merged } }));
         } catch {}
     };
@@ -253,21 +255,33 @@ export function RolePermissionsView() {
     const handleBulkApproval = async (shouldApprove) => {
         setLoading(true);
         try {
-            await Promise.all(shops.map(s => {
+            const bulkPayload = {
+                isEditApproved: shouldApprove ? 1 : 0,
+                isDeleteApproved: shouldApprove ? 1 : 0,
+                approvalStatus: shouldApprove ? 'APPROVED' : 'LOCKED',
+                approvalNotes: shouldApprove ? 'Bulk Approved by Super Admin' : 'Bulk Locked by Super Admin',
+                allowedPages: shouldApprove ? ALL_OPERATION_KEYS : []
+            };
+
+            // Call backend bulk approval endpoint
+            try {
+                await updateShopApproval('ALL', bulkPayload);
+            } catch (_) {}
+
+            // Also update each individual branch
+            await Promise.all(shops.map(async s => {
                 const sId = s._id || s.id;
-                return updateShopApproval(sId, {
-                    isEditApproved: shouldApprove ? 1 : 0,
-                    isDeleteApproved: shouldApprove ? 1 : 0,
-                    approvalStatus: shouldApprove ? 'APPROVED' : 'LOCKED',
-                    approvalNotes: shouldApprove ? 'Bulk Approved by Super Admin' : 'Bulk Locked by Super Admin',
-                    allowedPages: shouldApprove ? ALL_BRANCH_PAGE_KEYS : []
-                });
+                try {
+                    await updateShopApproval(sId, bulkPayload);
+                    broadcastShopUpdate(s, bulkPayload);
+                } catch (_) {}
             }));
+
             await loadShops();
             if (shouldApprove) {
-                toast.success('All branches and all pages approved successfully!');
+                toast.success('All branches: All Edit & Delete buttons Allowed!');
             } else {
-                toast.error('All branches locked successfully!');
+                toast.error('All branches: All Edit & Delete buttons Locked!');
             }
         } catch (err) {
             toast.error('Failed bulk update');

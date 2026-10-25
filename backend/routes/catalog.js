@@ -36,6 +36,15 @@ const ALL_DEFAULT_BRANCH_PAGES = [
   'expenses', 'team', 'reports', 'settings'
 ];
 
+export const ALL_OPERATION_KEYS = [
+  'sales_edit', 'sales_delete',
+  'purchases_edit', 'purchases_delete',
+  'customerPaymentLedger_edit', 'customerPaymentLedger_delete',
+  'vendors_edit', 'vendors_delete',
+  'expenses_edit', 'expenses_delete',
+  'damaged_edit', 'damaged_delete'
+];
+
 // GET /api/catalog/:shopId  — public, no auth needed
 router.get('/:shopId', async (req, res) => {
   try {
@@ -111,10 +120,13 @@ router.get('/:shopId', async (req, res) => {
       if (typeof pages === 'string') {
         try { pages = JSON.parse(pages); } catch { pages = null; }
       }
-      if (Array.isArray(pages)) {
+      if (Array.isArray(pages) && pages.length > 0) {
         return pages;
       }
-      return shop.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
+      if (Array.isArray(pages) && pages.length === 0 && (Number(shop.isEditApproved) === 0 || Number(shop.isDeleteApproved) === 0 || shop.approvalStatus === 'LOCKED')) {
+        return [];
+      }
+      return shop.approvalStatus === 'LOCKED' ? [] : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
     })();
 
     res.json({
@@ -154,10 +166,12 @@ router.get('/', async (req, res) => {
       if (typeof pages === 'string') {
         try { pages = JSON.parse(pages); } catch { pages = null; }
       }
-      if (Array.isArray(pages)) {
+      if (Array.isArray(pages) && pages.length > 0) {
         raw.allowedPages = pages;
+      } else if (Array.isArray(pages) && pages.length === 0 && (Number(raw.isEditApproved) === 0 || Number(raw.isDeleteApproved) === 0 || raw.approvalStatus === 'LOCKED')) {
+        raw.allowedPages = [];
       } else {
-        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : ALL_DEFAULT_BRANCH_PAGES;
+        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
       }
       return raw;
     });

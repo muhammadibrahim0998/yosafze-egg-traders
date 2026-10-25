@@ -35,13 +35,13 @@ import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSumma
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { CustomerCharts } from '../components/CustomerCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, updateSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, updateSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses, getApiUrl } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
 import { getImageUrl } from '../utils/imageHelper.js';
 
-const API_CATALOG = '/api/catalog';
+const API_CATALOG = getApiUrl('/catalog');
 
 // Helper to get category-specific icon
 const getCategoryIcon = (category) => {
@@ -546,6 +546,16 @@ function StoreContent({ shopId }) {
     const approvalStatus = targetShop?.approvalStatus || user?.approvalStatus || 'APPROVED';
     if (approvalStatus === 'LOCKED') return false;
 
+    // Direct edit / delete toggle flags on shop
+    if (opType === 'edit') {
+      const editFlag = targetShop?.isEditApproved !== undefined ? Number(targetShop.isEditApproved) : (user?.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
+      if (editFlag === 0) return false;
+    }
+    if (opType === 'delete') {
+      const deleteFlag = targetShop?.isDeleteApproved !== undefined ? Number(targetShop.isDeleteApproved) : (user?.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
+      if (deleteFlag === 0) return false;
+    }
+
     let list = targetShop?.allowedPages !== undefined ? targetShop.allowedPages : user?.allowedPages;
     if (typeof list === 'string') {
       try { list = JSON.parse(list); } catch { list = null; }
@@ -556,19 +566,9 @@ function StoreContent({ shopId }) {
       if (hasGranularOps) {
         return list.includes(`${pageKey}_${opType}`);
       }
-      // If Super Admin saved an empty array [] in allowedPages, all operations are locked
-      if (list.length === 0 && (targetShop?.isEditApproved !== undefined || user?.isEditApproved !== undefined)) {
+      if (list.length === 0 && (Number(targetShop?.isEditApproved) === 0 || Number(targetShop?.isDeleteApproved) === 0)) {
         return false;
       }
-    }
-
-    if (opType === 'edit') {
-      const editFlag = targetShop?.isEditApproved !== undefined ? Number(targetShop.isEditApproved) : (user?.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
-      if (editFlag === 0) return false;
-    }
-    if (opType === 'delete') {
-      const deleteFlag = targetShop?.isDeleteApproved !== undefined ? Number(targetShop.isDeleteApproved) : (user?.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
-      if (deleteFlag === 0) return false;
     }
 
     return true;
@@ -618,13 +618,14 @@ function StoreContent({ shopId }) {
       }
     };
     const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('nexflow_cached_shop_')) {
+      if (e.key && (e.key.startsWith('nexflow_cached_shop_') || e.key === 'nexflow_cached_shop_last_update')) {
+        fetchCatalog();
         try {
           const parsed = JSON.parse(e.newValue);
-          if (parsed) {
+          if (parsed && typeof parsed === 'object') {
             setShop(prev => {
               const currentId = String(prev?._id || prev?.id || shopId);
-              if (currentId === String(parsed.id || parsed._id) || e.key.includes(String(shopId))) {
+              if (currentId === String(parsed.id || parsed._id) || e.key.includes(String(shopId)) || e.key.includes('last_update')) {
                 return { ...prev, ...parsed };
               }
               return prev;
@@ -8034,21 +8035,21 @@ function StoreContent({ shopId }) {
               {/* ─── CUSTOMER PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
               {activeView === 'customer-payment-ledger' && isAdminUser && isViewAllowed('customer-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <CustomerPaymentLedger shopId={shopId} />
+                  <CustomerPaymentLedger shopId={shopId} isPageOpAllowed={isPageOpAllowed} />
                 </div>
               )}
 
               {/* ─── VENDOR PAYMENT LEDGER VIEW FOR BRANCHES ─── */}
               {activeView === 'vendor-payment-ledger' && isAdminUser && isViewAllowed('vendor-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <VendorPaymentLedger shopId={shopId} />
+                  <VendorPaymentLedger shopId={shopId} isPageOpAllowed={isPageOpAllowed} />
                 </div>
               )}
 
               {/* ─── FALLBACK PAYMENT LEDGER VIEW ─── */}
               {activeView === 'payment-ledger' && isAdminUser && isViewAllowed('customer-payment-ledger') && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <CustomerPaymentLedger shopId={shopId} />
+                  <CustomerPaymentLedger shopId={shopId} isPageOpAllowed={isPageOpAllowed} />
                 </div>
               )}
 
@@ -10445,7 +10446,7 @@ function StoreContent({ shopId }) {
                                             )}
 
                                             {/* Edit Customer Info */}
-                                            {!isCustomerLedgerEditLocked && (
+                                            {(!isCustomerLedgerEditLocked || !isEditLocked) && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -10524,7 +10525,7 @@ function StoreContent({ shopId }) {
                                             </button>
 
                                             {/* Delete Customer / Bills */}
-                                            {!isDeleteLocked && !isCustomerLedgerDeleteLocked && (
+                                            {(!isDeleteLocked || !isCustomerLedgerDeleteLocked) && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -10894,7 +10895,7 @@ function StoreContent({ shopId }) {
                                                     )}
 
                                                     {/* Edit Customer Info */}
-                                                    {!isCustomerLedgerEditLocked && (
+                                                    {(!isCustomerLedgerEditLocked || !isEditLocked) && (
                                                       <button
                                                         type="button"
                                                         onClick={() => {
@@ -10973,7 +10974,7 @@ function StoreContent({ shopId }) {
                                                     </button>
 
                                                     {/* Delete Customer / Bills */}
-                                                    {!isDeleteLocked && !isCustomerLedgerDeleteLocked && (
+                                                    {(!isDeleteLocked || !isCustomerLedgerDeleteLocked) && (
                                                       <button
                                                         type="button"
                                                         onClick={() => {

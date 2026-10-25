@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import pool from '../config/mysql.js';
+import { resolveShopId } from '../utils/shopResolver.js';
 
 const DEFAULT_EGG_PRODUCTS = [
   { name: 'loman brown',       category: 'loman brown',       price: 25, stock: 500, costPrice: 20 },
@@ -430,6 +431,9 @@ export async function ensureShopApprovalColumns() {
     if (!set.has('banksJson')) {
       await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
     }
+    await pool.query("UPDATE `shops` SET `isEditApproved` = 1 WHERE `isEditApproved` IS NULL");
+    await pool.query("UPDATE `shops` SET `isDeleteApproved` = 1 WHERE `isDeleteApproved` IS NULL");
+    await pool.query("UPDATE `shops` SET `approvalStatus` = 'APPROVED' WHERE `approvalStatus` IS NULL OR `approvalStatus` = ''");
   } catch (e) {
     console.warn('ensureShopApprovalColumns warning:', e.message);
   }
@@ -440,28 +444,47 @@ const handleShopApprovalUpdate = async (req, res) => {
   try {
     await ensureShopApprovalColumns();
     const { isEditApproved, isDeleteApproved, approvalStatus, approvalNotes, allowedPages } = req.body;
-    const shop = await Shop.findById(req.params.id);
-    if (!shop) return res.status(404).json({ message: 'Shop not found' });
+    const targetId = req.params.id;
 
-    const newEditApproved = isEditApproved !== undefined ? (isEditApproved ? 1 : 0) : (shop.isEditApproved ? 1 : 0);
-    const newDeleteApproved = isDeleteApproved !== undefined ? (isDeleteApproved ? 1 : 0) : (shop.isDeleteApproved ? 1 : 0);
-    const newStatus = approvalStatus !== undefined ? approvalStatus : (shop.approvalStatus || 'APPROVED');
-    const newNotes = approvalNotes !== undefined ? approvalNotes : (shop.approvalNotes || '');
-    const newPages = allowedPages !== undefined ? (Array.isArray(allowedPages) ? allowedPages : []) : (Array.isArray(shop.allowedPages) ? shop.allowedPages : []);
+    const newEditApproved = isEditApproved !== undefined ? (isEditApproved ? 1 : 0) : 1;
+    const newDeleteApproved = isDeleteApproved !== undefined ? (isDeleteApproved ? 1 : 0) : 1;
+    const newStatus = approvalStatus !== undefined ? approvalStatus : 'APPROVED';
+    const newNotes = approvalNotes !== undefined ? approvalNotes : '';
+    const newPages = Array.isArray(allowedPages) ? allowedPages : (allowedPages ? [allowedPages] : []);
     const pagesJson = JSON.stringify(newPages);
+
+    // Support updating ALL branches at once
+    if (String(targetId).toUpperCase() === 'ALL') {
+      await pool.query(
+        'UPDATE `shops` SET `isEditApproved` = ?, `isDeleteApproved` = ?, `approvalStatus` = ?, `approvalNotes` = ?, `allowedPages` = ?',
+        [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson]
+      );
+      const allShops = await Shop.find();
+      return res.json({
+        success: true,
+        message: 'All branches approval status updated successfully',
+        shops: allShops
+      });
+    }
+
+    const resolvedId = await resolveShopId(targetId);
+    const shop = await Shop.findById(resolvedId || targetId);
+    if (!shop) return res.status(404).json({ message: 'Shop not found' });
 
     // Direct SQL update to ensure immediate persistence across all caching mechanisms
     await pool.query(
       'UPDATE `shops` SET `isEditApproved` = ?, `isDeleteApproved` = ?, `approvalStatus` = ?, `approvalNotes` = ?, `allowedPages` = ? WHERE `id` = ?',
-      [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson, req.params.id]
+      [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson, resolvedId || targetId]
     );
 
-    const updatedShop = await Shop.findById(req.params.id);
+    const updatedShop = await Shop.findById(resolvedId || targetId);
     res.json({
       success: true,
       message: 'Branch approval status updated successfully',
       shop: updatedShop || {
         ...shop,
+        id: resolvedId || targetId,
+        _id: resolvedId || targetId,
         isEditApproved: newEditApproved,
         isDeleteApproved: newDeleteApproved,
         approvalStatus: newStatus,

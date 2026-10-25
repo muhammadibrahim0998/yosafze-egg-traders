@@ -50,10 +50,21 @@ export const getApiUrl = (endpoint = '') => {
 // Global transparent fetch router:
 // Redirects any relative fetch('/api/...') or fetch('/uploads/...') to backend directly,
 // preventing any SPA hosting provider from accidentally returning index.html (HTML/DOCTYPE).
-if (typeof window !== 'undefined' && API_BASE) {
+if (typeof window !== 'undefined') {
   const originalFetch = window.fetch;
   window.fetch = function (resource, config = {}) {
-    if (typeof resource === 'string') {
+    const token = localStorage.getItem('nexflow_token') || sessionStorage.getItem('nexflow_token');
+    
+    // Auto-inject Authorization header if token exists
+    if (token) {
+      const headers = new Headers(config.headers || {});
+      if (!headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      config = { ...config, headers };
+    }
+
+    if (API_BASE && typeof resource === 'string') {
       if (resource.startsWith('/api/') || resource === '/api') {
         resource = `${API_BASE}${resource}`;
         if (!config.credentials) {
