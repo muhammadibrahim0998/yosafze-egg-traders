@@ -36,7 +36,8 @@ export function RolePermissionsView() {
         setLoading(true);
         try {
             const data = await getShops();
-            setShops(Array.isArray(data) ? data : []);
+            const branchList = (Array.isArray(data) ? data : []).filter(s => !s.name?.toLowerCase().includes('super admin') && s.id !== 4);
+            setShops(branchList);
         } catch (err) {
             console.error('Failed to load branches:', err);
             toast.error('Failed to load branch list');

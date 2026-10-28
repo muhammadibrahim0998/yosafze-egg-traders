@@ -50,10 +50,10 @@ export const seedDatabase = async () => {
         email: 'Mainyet123@gmail.com',
         fullName: 'System Super Admin',
         role: 'super_admin',
-        password: 'super12345',
+        password: 'super123456.',
         status: 'active'
       });
-      console.log('✅ Default Super Admin created: Mainyet123@gmail.com / super12345');
+      console.log('✅ Default Super Admin created: Mainyet123@gmail.com / super123456.');
     }
 
     // 3. Ensure Default Branch Admin exists

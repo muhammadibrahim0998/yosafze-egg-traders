@@ -327,7 +327,8 @@ export function SuperAdminDashboard() {
     const fetchShops = async () => {
         try {
             const res = await api.get('/shops');
-            setShops(res.data);
+            const branchList = (Array.isArray(res.data) ? res.data : []).filter(s => !s.name?.toLowerCase().includes('super admin') && s.id !== 4);
+            setShops(branchList);
         } catch (error) {
             toast.error('Failed to load shops');
         } finally {
@@ -359,7 +360,7 @@ export function SuperAdminDashboard() {
     const handleDeleteShop = (shop) => {
         setDeleteDialog({
             isOpen: true,
-            id: shop._id,
+            id: shop._id || shop.id,
             name: shop.name
         });
     };
@@ -368,7 +369,15 @@ export function SuperAdminDashboard() {
         const { id } = deleteDialog;
         setIsDeleting(true);
         try {
-            await api.delete(`/shops/${id}`);
+            try {
+                await api.delete(`/shops/${id}`);
+            } catch (dErr) {
+                if (dErr.response?.status === 405 || dErr.response?.status === 404 || !dErr.response) {
+                    await api.post(`/shops/${id}/delete`);
+                } else {
+                    throw dErr;
+                }
+            }
             toast.success("Shop deleted successfully");
             setDeleteDialog({ isOpen: false, id: null, name: '' });
             fetchShops();
@@ -382,6 +391,11 @@ export function SuperAdminDashboard() {
 
     const handleUpdateShop = async (id) => {
         try {
+            const targetId = id || editingShop;
+            if (!targetId) {
+                toast.error("No shop selected to update");
+                return;
+            }
             const validBanks = (editData.banks || []).filter(b => (b.bankName && b.bankName.trim()) || (b.bankAccountNumber && b.bankAccountNumber.trim()) || (b.bankAccountTitle && b.bankAccountTitle.trim()));
             const payload = {
                 ...editData,
@@ -390,7 +404,15 @@ export function SuperAdminDashboard() {
                 bankAccountNumber: validBanks[0]?.bankAccountNumber || '',
                 bankAccountTitle: validBanks[0]?.bankAccountTitle || ''
             };
-            await api.put(`/shops/${id}`, payload);
+            try {
+                await api.put(`/shops/${targetId}`, payload);
+            } catch (uErr) {
+                if (uErr.response?.status === 405 || uErr.response?.status === 404 || !uErr.response) {
+                    await api.post(`/shops/${targetId}/update`, payload);
+                } else {
+                    throw uErr;
+                }
+            }
             toast.success("Shop and Bank details updated successfully");
             setEditingShop(null);
             fetchShops();
@@ -401,7 +423,7 @@ export function SuperAdminDashboard() {
 
     const startEdit = (shop) => {
         setActiveTab('management'); // Switch to management tab if not there
-        setEditingShop(shop._id || shop.id);
+        setEditingShop(String(shop._id || shop.id));
         
         let initialBanks = [];
         if (Array.isArray(shop.banks) && shop.banks.length > 0) {
@@ -762,9 +784,10 @@ export function SuperAdminDashboard() {
                     <div className="lg:col-span-2 space-y-4">
                         <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-4 pl-2">Modify Existing Access</h3>
                         {filteredShops.map(shop => {
-                            const isEditing = editingShop === shop._id;
+                            const shopId = shop._id || shop.id;
+                            const isEditing = String(editingShop) === String(shopId);
                             return (
-                                <div key={shop._id} id={`shop-manage-${shop._id}`} className="bg-white p-5 rounded-2xl border border-zinc-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm hover:shadow-rich hover:border-green-500/20 transition-all group/shop relative overflow-hidden">
+                                <div key={shopId} id={`shop-manage-${shopId}`} className="bg-white p-5 rounded-2xl border border-zinc-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm hover:shadow-rich hover:border-green-500/20 transition-all group/shop relative">
                                     <div className="flex items-start md:items-center gap-4 flex-1 min-w-0 w-full">
                                         <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-100 transition-colors group-hover/shop:bg-green-50/50 flex-shrink-0 mt-1 md:mt-0">
                                             <Store className="w-6 h-6 text-zinc-400 group-hover/shop:text-green-500 transition-colors" />
@@ -906,28 +929,26 @@ export function SuperAdminDashboard() {
                                         )}
                                     </div>
 
-                                    <div className="flex items-center gap-3 ml-auto md:ml-4 flex-shrink-0">
+                                    <div className="flex items-center gap-2 flex-wrap ml-auto md:ml-4 flex-shrink-0">
                                         {isEditing ? (
                                             <>
-                                                <button onClick={() => handleUpdateShop(shop._id)} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-xs flex items-center gap-1.5 cursor-pointer"><Check className="w-4 h-4" /> Save</button>
-                                                <button onClick={() => setEditingShop(null)} className="p-2.5 bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-xl transition-all border border-zinc-200 cursor-pointer"><X className="w-4 h-4" /></button>
+                                                <button type="button" onClick={() => handleUpdateShop(shopId)} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"><Check className="w-4 h-4" /> Save</button>
+                                                <button type="button" onClick={() => setEditingShop(null)} className="p-2.5 bg-zinc-100 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-200 rounded-xl transition-all border border-zinc-200 cursor-pointer"><X className="w-4 h-4" /></button>
                                             </>
                                         ) : (
                                             <>
-                                                <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all group-hover/shop:opacity-0 group-hover/shop:scale-90 ${shop.status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                                    {shop.status}
+                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${shop.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                                    {shop.status || 'active'}
                                                 </span>
-                                                <div className="flex items-center gap-2 opacity-0 group-hover/shop:opacity-100 absolute right-5 transition-all translate-x-4 group-hover/shop:translate-x-0">
-                                                    <button onClick={() => window.open(`/shop/${shop._id}`, '_blank')} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Open Store Portal">
-                                                        <Store className="w-3.5 h-3.5" /> Open Portal
-                                                    </button>
-                                                    <button onClick={() => { setSelectedApprovalBranchId(shop._id || shop.id); setActiveTab('approvals'); }} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Branch Approvals">
-                                                        <ShieldCheck className="w-3.5 h-3.5" /> Approvals
-                                                    </button>
-                                                    <button onClick={() => setViewingShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="View Details"><Eye className="w-4 h-4" /></button>
-                                                    <button onClick={() => startEdit(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Edit Shop"><Edit2 className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleDeleteShop(shop)} className="p-2.5 bg-zinc-50 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-zinc-100 cursor-pointer" title="Delete Shop"><Trash2 className="w-4 h-4" /></button>
-                                                </div>
+                                                <button type="button" onClick={() => window.open(`/shop/${shopId}`, '_blank')} className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer active:scale-95" title="Open Store Portal">
+                                                    <Store className="w-3.5 h-3.5" /> Portal
+                                                </button>
+                                                <button type="button" onClick={() => { setSelectedApprovalBranchId(shopId); setActiveTab('approvals'); }} className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 cursor-pointer active:scale-95" title="Branch Approvals">
+                                                    <ShieldCheck className="w-3.5 h-3.5" /> Approvals
+                                                </button>
+                                                <button type="button" onClick={() => setViewingShop(shop)} className="p-2 bg-zinc-50 text-zinc-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all border border-zinc-200 cursor-pointer" title="View Details"><Eye className="w-3.5 h-3.5" /></button>
+                                                <button type="button" onClick={() => startEdit(shop)} className="p-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-all border border-amber-200 cursor-pointer" title="Edit Shop"><Edit2 className="w-3.5 h-3.5" /></button>
+                                                <button type="button" onClick={() => handleDeleteShop(shop)} className="p-2 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg transition-all border border-rose-200 cursor-pointer" title="Delete Shop"><Trash2 className="w-3.5 h-3.5" /></button>
                                             </>
                                         )}
                                     </div>

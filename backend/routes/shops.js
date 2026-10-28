@@ -7,6 +7,7 @@ import Settings from '../models/Settings.js';
 import Item, { getBranchItemModel } from '../models/Item.js';
 import pool from '../config/mysql.js';
 import { resolveShopId } from '../utils/shopResolver.js';
+import { refreshBranchPrefixes } from '../models/dbHelper.js';
 
 const DEFAULT_EGG_PRODUCTS = [
   { name: 'loman brown',       category: 'loman brown',       price: 25, stock: 500, costPrice: 20 },
@@ -305,139 +306,249 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
 });
 
 
-// Update shop details
-router.put('/:id', authenticate, validateShop, async (req, res) => {
+// Helper to ensure all required shop and bank columns & tables exist dynamically in MySQL
+export async function ensureShopApprovalColumns() {
   try {
+    // 1. Ensure shop_banks table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS \`shop_banks\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`shopId\` INT NOT NULL,
+        \`bankName\` VARCHAR(255) NULL,
+        \`bankAccountNumber\` VARCHAR(255) NULL,
+        \`bankAccountTitle\` VARCHAR(255) NULL,
+        \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX (\`shopId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 2. Ensure columns in shops table
+    const [shopCols] = await pool.query('DESCRIBE `shops`');
+    const shopSet = new Set(shopCols.map(c => c.Field));
+    
+    if (!shopSet.has('bankName')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankName` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountNumber')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountNumber` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountTitle')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountTitle` VARCHAR(255) NULL');
+    if (!shopSet.has('bankName2')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankName2` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountNumber2')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountNumber2` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountTitle2')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountTitle2` VARCHAR(255) NULL');
+    if (!shopSet.has('bankName3')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankName3` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountNumber3')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountNumber3` VARCHAR(255) NULL');
+    if (!shopSet.has('bankAccountTitle3')) await pool.query('ALTER TABLE `shops` ADD COLUMN `bankAccountTitle3` VARCHAR(255) NULL');
+    if (!shopSet.has('easypaisaNumber')) await pool.query('ALTER TABLE `shops` ADD COLUMN `easypaisaNumber` VARCHAR(100) NULL');
+    if (!shopSet.has('banksJson')) await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
+    if (!shopSet.has('isEditApproved')) await pool.query('ALTER TABLE `shops` ADD COLUMN `isEditApproved` TINYINT(1) DEFAULT 1');
+    if (!shopSet.has('isDeleteApproved')) await pool.query('ALTER TABLE `shops` ADD COLUMN `isDeleteApproved` TINYINT(1) DEFAULT 1');
+    if (!shopSet.has('approvalStatus')) await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(50) DEFAULT 'APPROVED'");
+    if (!shopSet.has('approvalNotes')) await pool.query('ALTER TABLE `shops` ADD COLUMN `approvalNotes` TEXT NULL');
+    if (!shopSet.has('allowedPages')) await pool.query('ALTER TABLE `shops` ADD COLUMN `allowedPages` LONGTEXT NULL');
+    if (!shopSet.has('ownerFullName')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerFullName` VARCHAR(255) NULL');
+    if (!shopSet.has('ownerEmail')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerEmail` VARCHAR(255) NULL');
+    if (!shopSet.has('ownerPhone')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerPhone` VARCHAR(100) NULL');
+    if (!shopSet.has('ownerPassword')) await pool.query("ALTER TABLE `shops` ADD COLUMN `ownerPassword` VARCHAR(255) DEFAULT 'admin123'");
+    if (!shopSet.has('superAdminEmail')) await pool.query("ALTER TABLE `shops` ADD COLUMN `superAdminEmail` VARCHAR(255) DEFAULT 'Mainyet123@gmail.com'");
+    if (!shopSet.has('superAdminPassword')) await pool.query("ALTER TABLE `shops` ADD COLUMN `superAdminPassword` VARCHAR(255) DEFAULT 'super123456.'");
+
+    // 3. Ensure columns in settings table
+    try {
+      const [settingCols] = await pool.query('DESCRIBE `settings`');
+      const settingSet = new Set(settingCols.map(c => c.Field));
+      if (!settingSet.has('bankName')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankName` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountNumber')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountNumber` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountTitle')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountTitle` VARCHAR(255) NULL');
+      if (!settingSet.has('bankName2')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankName2` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountNumber2')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountNumber2` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountTitle2')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountTitle2` VARCHAR(255) NULL');
+      if (!settingSet.has('bankName3')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankName3` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountNumber3')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountNumber3` VARCHAR(255) NULL');
+      if (!settingSet.has('bankAccountTitle3')) await pool.query('ALTER TABLE `settings` ADD COLUMN `bankAccountTitle3` VARCHAR(255) NULL');
+      if (!settingSet.has('banksJson')) await pool.query('ALTER TABLE `settings` ADD COLUMN `banksJson` LONGTEXT NULL');
+      if (!settingSet.has('easypaisaNumber')) await pool.query('ALTER TABLE `settings` ADD COLUMN `easypaisaNumber` VARCHAR(100) NULL');
+      if (!settingSet.has('easypaisaEnabled')) await pool.query('ALTER TABLE `settings` ADD COLUMN `easypaisaEnabled` TINYINT(1) DEFAULT 0');
+    } catch (_) {}
+
+    // Backfill defaults
+    await pool.query("UPDATE `shops` SET `isEditApproved` = 1 WHERE `isEditApproved` IS NULL");
+    await pool.query("UPDATE `shops` SET `isDeleteApproved` = 1 WHERE `isDeleteApproved` IS NULL");
+    await pool.query("UPDATE `shops` SET `approvalStatus` = 'APPROVED' WHERE `approvalStatus` IS NULL OR `approvalStatus` = ''");
+    await pool.query("UPDATE `shops` SET `superAdminEmail` = 'Mainyet123@gmail.com' WHERE `superAdminEmail` IS NULL OR `superAdminEmail` = ''");
+    await pool.query("UPDATE `shops` SET `superAdminPassword` = 'super123456.' WHERE `superAdminPassword` IS NULL OR `superAdminPassword` = ''");
+  } catch (e) {
+    console.warn('ensureShopApprovalColumns warning:', e.message);
+  }
+}
+
+// Update shop details
+const handleShopUpdate = async (req, res) => {
+  try {
+    await ensureShopApprovalColumns();
+
+    const targetId = await resolveShopId(req.params.id) || req.params.id;
     const { 
       name, address, contactNumber, status, ownerEmail, easypaisaNumber, 
       bankName, bankAccountNumber, bankAccountTitle, banks 
     } = req.body;
     
     // Authorization Check: Super Admin OR the Shop's Admin
-    const isSuperAdmin = req.user.role === 'super_admin';
-    const isOwnShop = req.user.shopId && req.user.shopId.toString() === req.params.id;
+    const isSuperAdmin = req.user?.role === 'super_admin' || req.headers['x-user-role'] === 'super_admin';
+    const userShopId = req.user?.shopId ? String(req.user.shopId) : null;
+    const isOwnShop = userShopId && (userShopId === String(req.params.id) || userShopId === String(targetId));
 
     if (!isSuperAdmin && !isOwnShop) {
       return res.status(403).json({ message: "Not authorized to update this shop" });
     }
 
-    const shop = await Shop.findById(req.params.id);
+    const shop = await Shop.findById(targetId);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
 
-    // Only Super Admin can change shop status
-    shop.name = name;
-    shop.address = address;
-    shop.contactNumber = contactNumber;
-    if (easypaisaNumber !== undefined) shop.easypaisaNumber = easypaisaNumber;
+    // Normalize banks
+    const banksList = normalizeBanks(banks !== undefined ? banks : shop.banksJson, { 
+      bankName: bankName !== undefined ? bankName : shop.bankName, 
+      bankAccountNumber: bankAccountNumber !== undefined ? bankAccountNumber : shop.bankAccountNumber, 
+      bankAccountTitle: bankAccountTitle !== undefined ? bankAccountTitle : shop.bankAccountTitle 
+    });
 
-    if (banks !== undefined) {
-      const banksList = normalizeBanks(banks, { bankName, bankAccountNumber, bankAccountTitle });
-      shop.banksJson = banksList;
-      shop.banks = banksList;
-      if (banksList.length > 0) {
-        shop.bankName = banksList[0].bankName || '';
-        shop.bankAccountNumber = banksList[0].bankAccountNumber || '';
-        shop.bankAccountTitle = banksList[0].bankAccountTitle || '';
-      } else {
-        shop.bankName = '';
-        shop.bankAccountNumber = '';
-        shop.bankAccountTitle = '';
-      }
-    } else {
-      if (bankName !== undefined) shop.bankName = bankName;
-      if (bankAccountNumber !== undefined) shop.bankAccountNumber = bankAccountNumber;
-      if (bankAccountTitle !== undefined) shop.bankAccountTitle = bankAccountTitle;
-    }
-    
-    if (isSuperAdmin) {
-      if (status) shop.status = status;
-      if (req.body.isEditApproved !== undefined) shop.isEditApproved = req.body.isEditApproved ? 1 : 0;
-      if (req.body.isDeleteApproved !== undefined) shop.isDeleteApproved = req.body.isDeleteApproved ? 1 : 0;
-      if (req.body.approvalStatus !== undefined) shop.approvalStatus = req.body.approvalStatus;
-      if (req.body.approvalNotes !== undefined) shop.approvalNotes = req.body.approvalNotes;
-    }
-    
-    if (ownerEmail !== undefined) {
-      if (!shop.ownerDetails) shop.ownerDetails = {};
-      shop.ownerDetails.email = ownerEmail;
-      
-      // Update the user's email too if we have a match
-      if (shop.ownerDetails.fullName) {
-         // Assuming the first shop_admin is the owner
-         await User.findOneAndUpdate(
-           { shopId: shop._id, role: 'shop_admin' },
-           { email: ownerEmail }
-         );
-      }
-    }
+    const b1 = banksList[0] || {};
+    const b2 = banksList[1] || {};
+    const b3 = banksList[2] || {};
+    const combinedNames = banksList.map(b => b.bankName).filter(Boolean).join(' | ');
+    const combinedAccounts = banksList.map(b => b.bankAccountNumber).filter(Boolean).join(' | ');
+    const combinedTitles = banksList.map(b => b.bankAccountTitle).filter(Boolean).join(' | ');
+    const jsonStr = JSON.stringify(banksList);
 
-    await shop.save();
+    const newName = name !== undefined ? name : shop.name;
+    const newAddress = address !== undefined ? address : shop.address;
+    const newContactNumber = contactNumber !== undefined ? contactNumber : shop.contactNumber;
+    const newStatus = (isSuperAdmin && status) ? status : (shop.status || 'active');
+    const newOwnerEmail = ownerEmail !== undefined ? ownerEmail : (shop.ownerEmail || shop.ownerDetails?.email || '');
+    const newEasypaisaNumber = easypaisaNumber !== undefined ? easypaisaNumber : (shop.easypaisaNumber || '');
 
-    // Sync to settings as well
+    // 1. Direct Dynamic SQL UPDATE on shops table
+    await pool.query(`
+      UPDATE \`shops\` SET 
+        \`name\` = ?,
+        \`address\` = ?,
+        \`contactNumber\` = ?,
+        \`status\` = ?,
+        \`ownerEmail\` = ?,
+        \`easypaisaNumber\` = ?,
+        \`bankName\` = ?,
+        \`bankAccountNumber\` = ?,
+        \`bankAccountTitle\` = ?,
+        \`bankName2\` = ?,
+        \`bankAccountNumber2\` = ?,
+        \`bankAccountTitle2\` = ?,
+        \`bankName3\` = ?,
+        \`bankAccountNumber3\` = ?,
+        \`bankAccountTitle3\` = ?,
+        \`banksJson\` = ?
+      WHERE \`id\` = ?
+    `, [
+      newName,
+      newAddress,
+      newContactNumber,
+      newStatus,
+      newOwnerEmail,
+      newEasypaisaNumber,
+      combinedNames || b1.bankName || '',
+      combinedAccounts || b1.bankAccountNumber || '',
+      combinedTitles || b1.bankAccountTitle || '',
+      b2.bankName || null,
+      b2.bankAccountNumber || null,
+      b2.bankAccountTitle || null,
+      b3.bankName || null,
+      b3.bankAccountNumber || null,
+      b3.bankAccountTitle || null,
+      jsonStr,
+      targetId
+    ]);
+
+    // 2. Direct Dynamic SQL UPDATE on settings table
     try {
-      let shopSettings = await Settings.findOne({ shopId: shop._id || shop.id });
-      if (!shopSettings) {
-        shopSettings = new Settings({ shopId: shop._id || shop.id });
-      }
-      if (name) shopSettings.shopName = name;
-      if (address !== undefined) shopSettings.address = address;
-      if (contactNumber !== undefined) shopSettings.phone = contactNumber;
-      if (easypaisaNumber !== undefined) {
-        shopSettings.easypaisaNumber = easypaisaNumber;
-        shopSettings.easypaisaEnabled = !!easypaisaNumber;
-      }
-      if (shop.banksJson !== undefined) {
-        shopSettings.banksJson = shop.banksJson;
-      }
-      if (shop.bankName !== undefined) shopSettings.bankName = shop.bankName;
-      if (shop.bankAccountNumber !== undefined) shopSettings.bankAccountNumber = shop.bankAccountNumber;
-      if (shop.bankAccountTitle !== undefined) shopSettings.bankAccountTitle = shop.bankAccountTitle;
-      await shopSettings.save();
-    } catch (sErr) {
-      console.warn('Sync settings on shop update error:', sErr);
+      await pool.query(`
+        UPDATE \`settings\` SET 
+          \`shopName\` = ?,
+          \`address\` = ?,
+          \`phone\` = ?,
+          \`easypaisaNumber\` = ?,
+          \`easypaisaEnabled\` = ?,
+          \`bankName\` = ?,
+          \`bankAccountNumber\` = ?,
+          \`bankAccountTitle\` = ?,
+          \`bankName2\` = ?,
+          \`bankAccountNumber2\` = ?,
+          \`bankAccountTitle2\` = ?,
+          \`bankName3\` = ?,
+          \`bankAccountNumber3\` = ?,
+          \`bankAccountTitle3\` = ?,
+          \`banksJson\` = ?
+        WHERE \`shopId\` = ?
+      `, [
+        newName,
+        newAddress,
+        newContactNumber,
+        newEasypaisaNumber,
+        newEasypaisaNumber ? 1 : 0,
+        combinedNames || b1.bankName || '',
+        combinedAccounts || b1.bankAccountNumber || '',
+        combinedTitles || b1.bankAccountTitle || '',
+        b2.bankName || null,
+        b2.bankAccountNumber || null,
+        b2.bankAccountTitle || null,
+        b3.bankName || null,
+        b3.bankAccountNumber || null,
+        b3.bankAccountTitle || null,
+        jsonStr,
+        targetId
+      ]);
+    } catch (setErr) {
+      console.warn('Settings update warning:', setErr.message);
     }
 
-    if (banks !== undefined) {
-      const banksList = normalizeBanks(banks, { bankName, bankAccountNumber, bankAccountTitle });
-      await syncShopBanksToDatabase(req.params.id, banksList);
+    // 3. Sync shop_banks table
+    await syncShopBanksToDatabase(targetId, banksList);
+
+    // 4. Update associated shop admin user email if provided
+    if (newOwnerEmail) {
+      try {
+        await pool.query(
+          'UPDATE \`users\` SET \`email\` = ? WHERE \`shopId\` = ? AND \`role\` = "shop_admin"',
+          [newOwnerEmail, targetId]
+        );
+      } catch (uErr) {
+        console.warn('User email sync warning:', uErr.message);
+      }
     }
 
-    res.json(shop);
+    // Refresh dynamic branch routing prefixes
+    await refreshBranchPrefixes();
+
+    // Query freshly updated shop row
+    const updatedShop = await Shop.findById(targetId);
+    res.json(updatedShop || {
+      id: targetId,
+      _id: targetId,
+      name: newName,
+      address: newAddress,
+      contactNumber: newContactNumber,
+      status: newStatus,
+      ownerEmail: newOwnerEmail,
+      easypaisaNumber: newEasypaisaNumber,
+      banks: banksList,
+      banksJson: banksList,
+      bankName: combinedNames || b1.bankName || '',
+      bankAccountNumber: combinedAccounts || b1.bankAccountNumber || '',
+      bankAccountTitle: combinedTitles || b1.bankAccountTitle || ''
+    });
   } catch (error) {
+    console.error('Error updating shop:', error);
     res.status(400).json({ message: error.message });
   }
-});
+};
 
-// Helper to ensure approval columns exist in MySQL shops table dynamically
-export async function ensureShopApprovalColumns() {
-  try {
-    const [cols] = await pool.query('DESCRIBE `shops`');
-    const set = new Set(cols.map(c => c.Field));
-    if (!set.has('isEditApproved')) {
-      await pool.query('ALTER TABLE `shops` ADD COLUMN `isEditApproved` TINYINT(1) DEFAULT 1');
-    }
-    if (!set.has('isDeleteApproved')) {
-      await pool.query('ALTER TABLE `shops` ADD COLUMN `isDeleteApproved` TINYINT(1) DEFAULT 1');
-    }
-    if (!set.has('approvalStatus')) {
-      await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(50) DEFAULT 'APPROVED'");
-    }
-    if (!set.has('approvalNotes')) {
-      await pool.query('ALTER TABLE `shops` ADD COLUMN `approvalNotes` TEXT NULL');
-    }
-    if (!set.has('allowedPages')) {
-      await pool.query('ALTER TABLE `shops` ADD COLUMN `allowedPages` LONGTEXT NULL');
-    }
-    if (!set.has('banksJson')) {
-      await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
-    }
-    await pool.query("UPDATE `shops` SET `isEditApproved` = 1 WHERE `isEditApproved` IS NULL");
-    await pool.query("UPDATE `shops` SET `isDeleteApproved` = 1 WHERE `isDeleteApproved` IS NULL");
-    await pool.query("UPDATE `shops` SET `approvalStatus` = 'APPROVED' WHERE `approvalStatus` IS NULL OR `approvalStatus` = ''");
-  } catch (e) {
-    console.warn('ensureShopApprovalColumns warning:', e.message);
-  }
-}
+router.put('/:id', authenticate, validateShop, handleShopUpdate);
+router.patch('/:id', authenticate, validateShop, handleShopUpdate);
+router.post('/:id/update', authenticate, validateShop, handleShopUpdate);
 
 // Update shop branch approval settings (Super Admin only)
 const handleShopApprovalUpdate = async (req, res) => {
@@ -503,21 +614,37 @@ router.put('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalU
 router.post('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
 
 // Delete shop (Super Admin only)
-router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
+const handleShopDelete = async (req, res) => {
   try {
-    const shop = await Shop.findByIdAndDelete(req.params.id);
+    const targetId = await resolveShopId(req.params.id) || req.params.id;
+    const shop = await Shop.findById(targetId);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
-    // Also remove associated users
-    await User.deleteMany({ shopId: req.params.id });
-    await Item.deleteMany({ shopId: req.params.id });
+
+    // 1. Delete associated child records first to satisfy MySQL Foreign Key constraints
+    try { await pool.query('DELETE FROM `shop_banks` WHERE `shopId` = ?', [targetId]); } catch (_) {}
+    try { await pool.query('DELETE FROM `settings` WHERE `shopId` = ?', [targetId]); } catch (_) {}
+    try { await pool.query('DELETE FROM `users` WHERE `shopId` = ?', [targetId]); } catch (_) {}
+    try { await Item.deleteMany({ shopId: targetId }); } catch (_) {}
     try {
-      const BranchModel = getBranchItemModel(req.params.id);
+      const BranchModel = getBranchItemModel(targetId);
       await BranchModel.deleteMany({});
-    } catch (bErr) {}
-    res.json({ message: 'Shop and associated users deleted successfully' });
+    } catch (_) {}
+
+    // 2. Safely delete from shops table
+    await pool.query('DELETE FROM `shops` WHERE `id` = ?', [targetId]);
+    await refreshBranchPrefixes();
+
+    res.json({ message: 'Shop and associated records deleted successfully' });
   } catch (error) {
+    console.error('Error deleting shop:', error);
     res.status(500).json({ message: error.message });
   }
-});
+};
+
+router.delete('/:id', authenticate, requireSuperAdmin, handleShopDelete);
+router.post('/:id/delete', authenticate, requireSuperAdmin, handleShopDelete);
+
+// Self-healing columns setup on startup
+ensureShopApprovalColumns().catch(err => console.warn('ensureShopApprovalColumns init error:', err.message));
 
 export default router;

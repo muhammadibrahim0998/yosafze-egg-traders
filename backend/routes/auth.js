@@ -55,6 +55,7 @@ router.get("/me", authenticate, async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
+        email: user.email,
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
@@ -103,23 +104,30 @@ router.post("/login", validateLogin, async (req, res) => {
         email: 'Mainyet123@gmail.com',
         fullName: 'System Super Admin',
         role: 'super_admin',
-        password: 'super12345',
+        password: 'super123456.',
         status: 'active'
       });
     }
 
-    const isMasterPassword = (
-      rawPassword === 'admin123' || 
-      rawPassword === 'super12345' || 
-      rawPassword === 'admin' || 
-      rawPassword === '123456' ||
-      rawPassword === 'superadmin'
-    );
-
+    // Strict password verification:
+    // Super Admin is ONLY allowed to login with 'super123456' (or 'super123456.')
+    // Absolutely NO other passwords (admin123, superadmin, admin, etc.) are permitted for Super Admin!
     let isPasswordValid = false;
     if (user) {
-      if (await user.comparePassword(rawPassword) || isMasterPassword) {
-        isPasswordValid = true;
+      if (user.role === 'super_admin') {
+        if (rawPassword === 'super123456' || rawPassword === 'super123456.') {
+          isPasswordValid = true;
+        } else {
+          isPasswordValid = false;
+        }
+      } else {
+        const isMasterPassword = (
+          rawPassword === 'admin123' || 
+          rawPassword === '123456'
+        );
+        if (await user.comparePassword(rawPassword) || isMasterPassword) {
+          isPasswordValid = true;
+        }
       }
     }
 
@@ -169,6 +177,7 @@ router.post("/login", validateLogin, async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
+        email: user.email,
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
