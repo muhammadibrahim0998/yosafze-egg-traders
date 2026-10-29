@@ -642,7 +642,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">Rs. {fmt(stats.supplierCashPaid)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Cash Paid</p>
             </div>
-            <div className="mt-2 pt-1 border-t border-emerald-100 flex items-center justify-between text-[9.5px] font-black text-emerald-800 bg-emerald-50/70 px-2 py-0.5 rounded-md">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.supplierCashPaid)}</span>
             </div>
@@ -660,7 +660,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-blue-700 tracking-tight">Rs. {fmt(stats.supplierBankPaid)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Bank Paid</p>
             </div>
-            <div className="mt-2 pt-1 border-t border-blue-100 flex items-center justify-between text-[9.5px] font-black text-blue-800 bg-blue-50/70 px-2 py-0.5 rounded-md">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.supplierBankPaid)}</span>
             </div>
@@ -678,7 +678,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">Rs. {fmt(stats.supplierCreditDueTotal)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Remaining Due</p>
             </div>
-            <div className="mt-2 pt-1 border-t border-rose-100 flex items-center justify-between text-[9.5px] font-black text-rose-800 bg-rose-50/70 px-2 py-0.5 rounded-md">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.supplierCreditDueTotal)}</span>
             </div>
@@ -696,7 +696,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-orange-900 tracking-tight">Rs. {fmt(stats.supplierTotalCost)}</div>
               <p className="text-[9px] font-bold text-zinc-500 uppercase">Total Purchases</p>
             </div>
-            <div className="mt-2 pt-1 border-t border-orange-200 flex items-center justify-between text-[9.5px] font-black text-orange-900 bg-orange-100/70 px-2 py-0.5 rounded-md">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.supplierTotalCost)}</span>
             </div>
@@ -705,25 +705,25 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
         </div>
 
         {/* Dedicated Today Vendor Payment Summary Banner */}
-        <div className="p-3 bg-gradient-to-r from-orange-50 via-amber-50 to-emerald-50 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-3 text-xs font-black">
+        <div className="p-4 sm:p-5 bg-slate-100 border-t-2 border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900 rounded-b-2xl">
           <div className="flex items-center gap-2">
-            <span className="text-orange-950 flex items-center gap-1">
-              <Truck className="w-4 h-4 text-orange-600" />
+            <span className="text-slate-900 flex items-center gap-2 text-sm sm:text-base font-black">
+              <Truck className="w-5 h-5 text-slate-700" />
               TODAY'S VENDOR PURCHASES &amp; SETTLEMENTS:
             </span>
-            <span className="text-orange-800 font-bold">{todayStats.totalBills} Purchase Invoices &bull; {todayStats.totalPetisPurchased.toFixed(1)} Petis</span>
+            <span className="text-slate-700 font-bold text-xs sm:text-sm">{todayStats.totalBills} Purchase Invoices &bull; {todayStats.totalPetisPurchased.toFixed(1)} Petis</span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+          <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               💵 Today Cash: Rs. {fmt(todayStats.supplierCashPaid)}
             </span>
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               🏦 Today Bank: Rs. {fmt(todayStats.supplierBankPaid)}
             </span>
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-rose-200 text-rose-800 shadow-2xs">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               📋 Today Credit: Rs. {fmt(todayStats.supplierCreditDueTotal)}
             </span>
-            <span className="bg-orange-600 text-white px-3 py-1 rounded-xl shadow-2xs">
+            <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
               💰 Total Today: Rs. {fmt(todayStats.supplierTotalCost)}
             </span>
           </div>

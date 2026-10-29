@@ -1069,9 +1069,9 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               <span className="text-emerald-700 font-bold">{stats.totalLiters.toFixed(1)} L</span>
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-emerald-100 flex items-center justify-between text-[10.5px] font-black text-emerald-800 bg-emerald-50/70 -mx-4 -mb-4 px-4 py-1.5 rounded-b-xl">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>TODAY FUEL:</span>
-            <span>RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</span>
+          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>TODAY FUEL:</span>
+            <span className="text-slate-900 font-black">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</span>
           </div>
         </div>
 
@@ -1092,9 +1092,9 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               <span>Petrol: <strong className="text-sky-700">{stats.petrolLiters.toFixed(1)}L</strong></span>
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-sky-100 flex items-center justify-between text-[10.5px] font-black text-sky-800 bg-sky-50/70 -mx-4 -mb-4 px-4 py-1.5 rounded-b-xl">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-pulse"></span>TODAY LITERS:</span>
-            <span>{todayFuelStats.totalLiters.toFixed(1)} L</span>
+          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse"></span>TODAY LITERS:</span>
+            <span className="text-slate-900 font-black">{todayFuelStats.totalLiters.toFixed(1)} L</span>
           </div>
         </div>
 
@@ -1114,9 +1114,9 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               Cash Settled
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-teal-100 flex items-center justify-between text-[10.5px] font-black text-teal-800 bg-teal-50/70 -mx-4 -mb-4 px-4 py-1.5 rounded-b-xl">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>TODAY CASH:</span>
-            <span>RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</span>
+          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse"></span>TODAY CASH:</span>
+            <span className="text-slate-900 font-black">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</span>
           </div>
         </div>
 
@@ -1136,9 +1136,9 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               Bank Transfer
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-purple-100 flex items-center justify-between text-[10.5px] font-black text-purple-800 bg-purple-50/70 -mx-4 -mb-4 px-4 py-1.5 rounded-b-xl">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse"></span>TODAY BANK:</span>
-            <span>RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</span>
+          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse"></span>TODAY BANK:</span>
+            <span className="text-slate-900 font-black">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</span>
           </div>
         </div>
 
@@ -1158,43 +1158,43 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               {stats.totalCreditDue > 0 ? 'Due Debt' : 'Paid'}
             </div>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-rose-100 flex items-center justify-between text-[10.5px] font-black text-rose-800 bg-rose-50/70 -mx-4 -mb-4 px-4 py-1.5 rounded-b-xl">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>TODAY CREDIT:</span>
-            <span>RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</span>
+          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>TODAY CREDIT:</span>
+            <span className="text-slate-900 font-black">RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</span>
           </div>
         </div>
       </div>
 
-      {/* ─── DEDICATED TODAY'S FUEL & VEHICLE SUMMARY BANNER ─── */}
-      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-emerald-500/10 border-2 border-emerald-400/80 rounded-2xl p-3.5 shadow-sm">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      {/* ─── DEDICATED TODAY'S FUEL & VEHICLE SUMMARY BANNER (GRAY & BIGGER SIZE) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
             </span>
-            <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
               TODAY'S VEHICLE FUEL &amp; TRANSPORT SUMMARY (LIVE)
             </span>
-            <span className="text-[10px] font-bold bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full">
               {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-            <div className="bg-emerald-100 text-emerald-900 px-3 py-1 rounded-xl border border-emerald-300">
-              Today Fuel Expense: <strong>RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</strong>
+          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
+            <div className="bg-white text-emerald-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Fuel Expense: <strong className="text-sm font-black">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-sky-100 text-sky-900 px-3 py-1 rounded-xl border border-sky-300">
-              Today Liters: <strong>{todayFuelStats.totalLiters.toFixed(1)} L</strong>
+            <div className="bg-white text-sky-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Liters: <strong className="text-sm font-black">{todayFuelStats.totalLiters.toFixed(1)} L</strong>
             </div>
-            <div className="bg-teal-100 text-teal-900 px-3 py-1 rounded-xl border border-teal-300">
-              Today Cash: <strong>RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</strong>
+            <div className="bg-white text-teal-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Cash: <strong className="text-sm font-black">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-purple-100 text-purple-900 px-3 py-1 rounded-xl border border-purple-300">
-              Today Bank: <strong>RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</strong>
+            <div className="bg-white text-purple-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Bank: <strong className="text-sm font-black">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-slate-100 text-slate-800 px-3 py-1 rounded-xl border border-slate-300">
-              Today Trips: <strong>{todayFuelStats.tripsCount}</strong>
+            <div className="bg-white text-slate-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Trips: <strong className="text-sm font-black">{todayFuelStats.tripsCount}</strong>
             </div>
           </div>
         </div>

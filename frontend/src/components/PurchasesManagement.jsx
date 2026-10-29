@@ -1654,7 +1654,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               {stats.totalTrays} Trays • {fmt(stats.totalEggs)} Eggs
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[10px] font-black text-amber-800 bg-amber-50/80 px-2 py-1 rounded-xl">
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
             <span>📅 Today:</span>
             <span>{todayStats.totalPetis} Petis ({todayStats.totalEggs} Eggs)</span>
           </div>
@@ -1672,7 +1672,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
             <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
           </div>
-          <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[10px] font-black text-emerald-800 bg-emerald-50/80 px-2 py-1 rounded-xl">
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
             <span>📅 Today:</span>
             <span>Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</span>
           </div>
@@ -1690,7 +1690,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
             <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
           </div>
-          <div className="mt-2 pt-2 border-t border-blue-100 flex items-center justify-between text-[10px] font-black text-blue-800 bg-blue-50/80 px-2 py-1 rounded-xl">
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
             <span>📅 Today:</span>
             <span>Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</span>
           </div>
@@ -1710,7 +1710,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               {stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-rose-100 flex items-center justify-between text-[10px] font-black text-rose-800 bg-rose-50/80 px-2 py-1 rounded-xl">
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
             <span>📅 Today:</span>
             <span>Rs. {todayStats.totalDue.toLocaleString('en-PK')}</span>
           </div>
@@ -1730,7 +1730,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
             <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
           </div>
-          <div className="mt-2 pt-2 border-t border-purple-100 flex items-center justify-between text-[10px] font-black text-purple-800 bg-purple-50/80 px-2 py-1 rounded-xl">
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
             <span>📅 Today:</span>
             <span>Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</span>
           </div>
@@ -1738,30 +1738,30 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       </div>
 
       {/* Dedicated Today Purchases Summary Banner */}
-      <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-emerald-50 border-2 border-amber-300 rounded-2xl p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs font-black text-amber-950">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-2xs">
-            <Box className="w-4 h-4" />
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-slate-800 text-white rounded-xl shadow-xs">
+            <Box className="w-5 h-5" />
           </div>
           <div>
-            <span className="uppercase tracking-wider text-[11px] block font-black text-amber-900">📅 TODAY'S LIVE PURCHASES &amp; RESTOCKS SUMMARY</span>
-            <span className="text-[10px] text-amber-700 font-bold block">{todayStats.count} Purchase Batches Recorded Today</span>
+            <span className="uppercase tracking-wider text-xs sm:text-sm block font-black text-slate-900">📅 TODAY'S LIVE PURCHASES &amp; RESTOCKS SUMMARY</span>
+            <span className="text-xs text-slate-700 font-bold block">{todayStats.count} Purchase Batches Recorded Today</span>
           </div>
         </div>
-        <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
-          <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-200 text-amber-900 shadow-2xs">
+        <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
+          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
             📦 Today Stock: {todayStats.totalPetis} Petis ({todayStats.totalEggs.toLocaleString('en-PK')} Eggs)
           </span>
-          <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
             💵 Cash Paid: Rs. {todayStats.cashPaid.toLocaleString('en-PK')}
           </span>
-          <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
             🏦 Bank Paid: Rs. {todayStats.bankPaid.toLocaleString('en-PK')}
           </span>
-          <span className="bg-white px-2.5 py-1 rounded-xl border border-rose-200 text-rose-800 shadow-2xs">
+          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
             📋 Credit Due: Rs. {todayStats.totalDue.toLocaleString('en-PK')}
           </span>
-          <span className="bg-purple-700 text-white px-3 py-1 rounded-xl shadow-2xs">
+          <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
             💰 Today Investment: Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}
           </span>
         </div>

@@ -410,12 +410,12 @@ export function VendorsManagement({ shopId: propShopId }) {
             </div>
             <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
           </div>
-          <div className="mt-2 pt-1.5 border-t border-teal-100 flex items-center justify-between text-[10px] font-black bg-teal-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
-            <span className="text-teal-800 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
+            <span className="text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-slate-600 animate-pulse"></span>
               TODAY REGISTERED:
             </span>
-            <span className="text-teal-900 font-black">{todayVendorStats.addedToday} Vendors Today</span>
+            <span className="text-slate-950 font-black">{todayVendorStats.addedToday} Vendors Today</span>
           </div>
         </div>
 
@@ -430,9 +430,9 @@ export function VendorsManagement({ shopId: propShopId }) {
             </div>
             <p className="text-[9px] font-bold text-emerald-600 uppercase">Available for Direct Contact</p>
           </div>
-          <div className="mt-2 pt-1.5 border-t border-emerald-100 flex items-center justify-between text-[10px] font-black bg-emerald-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
-            <span className="text-emerald-800">CONNECTIVITY:</span>
-            <span className="text-emerald-900 font-black">{stats.total > 0 ? Math.round((stats.withPhone / stats.total) * 100) : 0}% Verified</span>
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
+            <span className="text-slate-700">CONNECTIVITY:</span>
+            <span className="text-slate-900 font-black">{stats.total > 0 ? Math.round((stats.withPhone / stats.total) * 100) : 0}% Verified</span>
           </div>
         </div>
 
@@ -447,33 +447,33 @@ export function VendorsManagement({ shopId: propShopId }) {
             </div>
             <p className="text-[9px] font-bold text-blue-600 uppercase">Farms &amp; Supply Regions</p>
           </div>
-          <div className="mt-2 pt-1.5 border-t border-blue-100 flex items-center justify-between text-[10px] font-black bg-blue-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
-            <span className="text-blue-800">REGIONAL NETWORK:</span>
-            <span className="text-blue-900 font-black">{stats.locations} Cities Active</span>
+          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
+            <span className="text-slate-700">REGIONAL NETWORK:</span>
+            <span className="text-slate-900 font-black">{stats.locations} Cities Active</span>
           </div>
         </div>
       </div>
 
       {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY BANNER ─── */}
-      <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border-2 border-teal-400/80 rounded-2xl p-3 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
             </span>
-            <span className="text-xs font-black uppercase tracking-wider text-teal-950">
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
               TODAY'S VENDORS &amp; FARM SUPPLIERS ACTIVITY
             </span>
-            <span className="text-[10px] font-bold bg-teal-200/70 text-teal-900 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold bg-white text-slate-800 border-2 border-slate-300 px-2.5 py-1 rounded-xl shadow-xs">
               {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-            <div className="bg-teal-100 text-teal-900 px-3 py-1 rounded-xl border border-teal-300">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
+            <div className="bg-white text-slate-900 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border-2 border-slate-300 shadow-xs">
               Vendors Added Today: <strong>{todayVendorStats.addedToday}</strong>
             </div>
-            <div className="bg-emerald-100 text-emerald-900 px-3 py-1 rounded-xl border border-emerald-300">
+            <div className="bg-white text-slate-900 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border-2 border-slate-300 shadow-xs">
               Total Active Directory: <strong>{stats.total} Suppliers</strong>
             </div>
           </div>

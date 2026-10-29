@@ -984,7 +984,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
             </div>
-            <div className="mt-2 pt-1.5 border-t border-emerald-100 flex items-center justify-between text-[9.5px] font-black text-emerald-800 bg-emerald-50/80 px-2 py-1 rounded-lg">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.totalCashReceived)}</span>
             </div>
@@ -1031,7 +1031,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
             </div>
-            <div className="mt-2 pt-1.5 border-t border-blue-100 flex items-center justify-between text-[9.5px] font-black text-blue-800 bg-blue-50/80 px-2 py-1 rounded-lg">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.totalBankReceived)}</span>
             </div>
@@ -1078,7 +1078,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
             </div>
-            <div className="mt-2 pt-1.5 border-t border-amber-100 flex items-center justify-between text-[9.5px] font-black text-amber-800 bg-amber-50/80 px-2 py-1 rounded-lg">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.customerCreditDueTotal)}</span>
             </div>
@@ -1125,7 +1125,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
             </div>
-            <div className="mt-2 pt-1.5 border-t border-teal-100 flex items-center justify-between text-[9.5px] font-black text-teal-900 bg-teal-50/80 px-2 py-1 rounded-lg">
+            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
               <span>📅 Today:</span>
               <span>Rs. {fmt(todayStats.customerTotalRevenue)}</span>
             </div>
@@ -1134,25 +1134,25 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
         </div>
 
         {/* Dedicated Today Customer Payment Summary Banner */}
-        <div className="mt-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border-2 border-emerald-300 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-black shadow-2xs">
+        <div className="mt-4 bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-emerald-950 flex items-center gap-1">
-              <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+            <span className="text-slate-900 flex items-center gap-2 text-sm sm:text-base font-black">
+              <Sparkles className="w-5 h-5 text-slate-700 animate-pulse" />
               TODAY'S CUSTOMER INFLOW &amp; LEDGER SUMMARY:
             </span>
-            <span className="text-emerald-700 font-bold">{todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold</span>
+            <span className="text-slate-700 font-bold text-xs sm:text-sm">{todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold</span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+          <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               💵 Today Cash: Rs. {fmt(todayStats.totalCashReceived)}
             </span>
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               🏦 Today Bank: Rs. {fmt(todayStats.totalBankReceived)}
             </span>
-            <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-200 text-amber-800 shadow-2xs">
+            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
               📋 Today Credit: Rs. {fmt(todayStats.customerCreditDueTotal)}
             </span>
-            <span className="bg-emerald-600 text-white px-3 py-1 rounded-xl shadow-2xs">
+            <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
               💰 Total Today: Rs. {fmt(todayStats.customerTotalRevenue)}
             </span>
           </div>

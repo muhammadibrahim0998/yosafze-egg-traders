@@ -695,12 +695,12 @@ export function CreditManagement({
             </div>
           </div>
           {/* Today Supplier Debt Badge */}
-          <div className="mt-3 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px] font-black bg-rose-50/80 -mx-5 -mb-5 px-5 py-2">
-            <span className="text-rose-700 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
+            <span className="text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
               TODAY DEBT:
             </span>
-            <span className="text-rose-800">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')} ({todayCreditStats.todayPurchaseCount} Today)</span>
+            <span className="text-slate-900 font-black">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')} ({todayCreditStats.todayPurchaseCount} Today)</span>
           </div>
         </div>
 
@@ -724,12 +724,12 @@ export function CreditManagement({
             </div>
           </div>
           {/* Today Customer Receivables Badge */}
-          <div className="mt-3 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] font-black bg-emerald-50/80 -mx-5 -mb-5 px-5 py-2">
-            <span className="text-emerald-700 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
+            <span className="text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               TODAY RECEIVABLE:
             </span>
-            <span className="text-emerald-800">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')} ({todayCreditStats.todayCustomerCount} Today)</span>
+            <span className="text-slate-900 font-black">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')} ({todayCreditStats.todayCustomerCount} Today)</span>
           </div>
         </div>
 
@@ -754,12 +754,12 @@ export function CreditManagement({
             </div>
           </div>
           {/* Today Net Balance Badge */}
-          <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] font-black bg-zinc-50 -mx-5 -mb-5 px-5 py-2">
-            <span className="text-zinc-700 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
+            <span className="text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
               TODAY NET:
             </span>
-            <span className={todayCreditStats.todayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+            <span className={todayCreditStats.todayNet >= 0 ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
               {todayCreditStats.todayNet >= 0 ? '+' : ''}{currency} {Math.abs(todayCreditStats.todayNet).toLocaleString('en-PK')}
             </span>
           </div>
@@ -785,43 +785,43 @@ export function CreditManagement({
             </div>
           </div>
           {/* Today Active Accounts Badge */}
-          <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] font-black bg-amber-50/80 -mx-5 -mb-5 px-5 py-2">
-            <span className="text-amber-800 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
+            <span className="text-slate-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
               TODAY NEW:
             </span>
-            <span className="text-amber-900">{todayCreditStats.todayTotalAccounts} Entries Today</span>
+            <span className="text-slate-900 font-black">{todayCreditStats.todayTotalAccounts} Entries Today</span>
           </div>
         </div>
       </div>
 
-      {/* ─── DEDICATED TODAY'S CREDIT & DEBT LIVE SUMMARY BANNER ─── */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-emerald-500/10 border-2 border-amber-300/80 rounded-2xl p-3.5 shadow-sm">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+      {/* ─── DEDICATED TODAY'S CREDIT & DEBT LIVE SUMMARY BANNER (GRAY & BIGGER SIZE) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
             </span>
-            <span className="text-xs font-black uppercase tracking-wider text-amber-900">
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
               TODAY'S CREDIT &amp; DEBT REAL-TIME SUMMARY
             </span>
-            <span className="text-[10px] font-bold bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full">
               {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-            <div className="bg-rose-100 text-rose-800 px-3 py-1 rounded-xl border border-rose-300">
-              Today Supplier Debt: <strong>{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')}</strong>
+          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
+            <div className="bg-white text-rose-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Supplier Debt: <strong className="text-sm font-black">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-xl border border-emerald-300">
-              Today Customer Receivable: <strong>{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')}</strong>
+            <div className="bg-white text-emerald-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Customer Receivable: <strong className="text-sm font-black">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-sky-100 text-sky-800 px-3 py-1 rounded-xl border border-sky-300">
-              Today Collected: <strong>{currency} {todayCreditStats.todayCustomerPaid.toLocaleString('en-PK')}</strong>
+            <div className="bg-white text-sky-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Collected: <strong className="text-sm font-black">{currency} {todayCreditStats.todayCustomerPaid.toLocaleString('en-PK')}</strong>
             </div>
-            <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-xl border border-purple-300">
-              Today Supplier Paid: <strong>{currency} {todayCreditStats.todayPurchasePaid.toLocaleString('en-PK')}</strong>
+            <div className="bg-white text-purple-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
+              Today Supplier Paid: <strong className="text-sm font-black">{currency} {todayCreditStats.todayPurchasePaid.toLocaleString('en-PK')}</strong>
             </div>
           </div>
         </div>
