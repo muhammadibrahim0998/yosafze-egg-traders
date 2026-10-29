@@ -13487,7 +13487,7 @@ function StoreContent({ shopId }) {
                             {(
                               (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) :
                                 (dynamicExpenseStats.totalDamagedEggs || 0)
-                            ).toLocaleString('en-PK')} Eggs
+                            ).toLocaleString('en-PK')}
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-rose-100 font-medium">
                             Physical cracked &amp; broken eggs count
@@ -13505,7 +13505,7 @@ function StoreContent({ shopId }) {
                           <h4 className="text-2xl font-black text-purple-700 tracking-tight">
                             {(
                               ((appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) : (dynamicExpenseStats.totalDamagedEggs || 0)) / 360
-                            ).toFixed(1)} Petis
+                            ).toFixed(1)}
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-purple-100 font-medium">
                             Calculated at 360 eggs per peti standard
@@ -13521,7 +13521,7 @@ function StoreContent({ shopId }) {
                             <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 rounded-full text-[9px] font-black">RECORDS</span>
                           </div>
                           <h4 className="text-2xl font-black text-slate-900 tracking-tight">
-                            {(damagedProductsList || []).length} Logs
+                            {(damagedProductsList || []).length}
                           </h4>
                           <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-100 font-medium">
                             Total historical breakage entries recorded
@@ -13549,17 +13549,17 @@ function StoreContent({ shopId }) {
                         </div>
                         <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
                           <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">2. Today Damaged Eggs</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')} Eggs</div>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')}</div>
                           <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Broken / Cracked</span>
                         </div>
                         <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
                           <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">3. Today Damaged Petis</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedPetis} Petis</div>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedPetis}</div>
                           <span className="text-[10px] font-bold text-slate-600 truncate mt-1">360 Eggs Standard</span>
                         </div>
                         <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">4. Today Damage Logs</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedCount} Logs</div>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedCount}</div>
                           <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Recorded Today</span>
                         </div>
                       </div>
