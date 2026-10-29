@@ -7993,11 +7993,6 @@ function StoreContent({ shopId }) {
                                 🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales
                               </p>
                             </div>
-                            {/* Today Sale Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>📅 Today:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</span>
-                            </div>
                           </div>
 
                           {/* 2. TOTAL FUEL EXPENSE (FROM FUEL REPORT PAGE) */}
@@ -8023,11 +8018,6 @@ function StoreContent({ shopId }) {
                                 ⛽ {profitReportStats.filteredFuelCount || 0} Logs &bull; Vehicle &amp; Transport Fuel
                               </p>
                             </div>
-                            {/* Today Fuel Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>⛽ Today:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayFuelExpense.toLocaleString('en-PK')}</span>
-                            </div>
                           </div>
 
                           {/* 3. TOTAL EXPENSE */}
@@ -8048,11 +8038,6 @@ function StoreContent({ shopId }) {
                               <p className="text-[10px] text-rose-700 font-bold mt-1">
                                 🧾 {profitReportStats.filteredExpensesCount || 0} Logs &bull; Shop Overhead
                               </p>
-                            </div>
-                            {/* Today Expense Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>🧾 Today:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}</span>
                             </div>
                           </div>
 
@@ -8075,11 +8060,6 @@ function StoreContent({ shopId }) {
                                 🥚 {((profitReportStats.totalDamagedEggs || 0) / 360).toFixed(1)} Petis &bull; {(profitReportStats.totalDamagedEggs || 0).toLocaleString('en-PK')} Eggs
                               </p>
                             </div>
-                            {/* Today Damaged Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>🥚 Today:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</span>
-                            </div>
                           </div>
 
                           {/* 5. TOTAL PROFIT */}
@@ -8101,11 +8081,6 @@ function StoreContent({ shopId }) {
                                 💰 Realized Net Profit
                               </p>
                             </div>
-                            {/* Today Profit Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>💰 Today:</span>
-                              <span className="text-emerald-950 font-black">Rs. {todayMasterMetrics.todayNetProfit.toLocaleString('en-PK')}</span>
-                            </div>
                           </div>
 
                           {/* 6. TOTAL LOSS */}
@@ -8126,11 +8101,6 @@ function StoreContent({ shopId }) {
                               <p className="text-[10px] text-rose-700 font-bold mt-1">
                                 {(profitReportStats.finalNetProfit || 0) < 0 ? '⚠️ Realized Net Deficit' : '⚠️ Breakage & Waste Loss'}
                               </p>
-                            </div>
-                            {/* Today Loss Div */}
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl text-slate-800">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>⚠️ Today:</span>
-                              <span className="text-rose-950 font-black">Rs. {todayMasterMetrics.todayTotalLoss.toLocaleString('en-PK')}</span>
                             </div>
                           </div>
 
