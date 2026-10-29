@@ -10298,10 +10298,6 @@ function StoreContent({ shopId }) {
                       <span className="text-[10px] font-black text-amber-600 uppercase mt-1 block">
                         Direct Cash in Hand
                       </span>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}</span>
-                      </div>
                     </div>
 
                     {/* Card 2: Dark Forest Green - 🏦 Bank / Online Sales */}
@@ -10328,10 +10324,6 @@ function StoreContent({ shopId }) {
                       <span className="text-[10px] font-bold text-emerald-200/80 uppercase mt-1 block">
                         Transferred to Bank Account
                       </span>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}</span>
-                      </div>
                     </div>
 
                     {/* Card 3: Blue - 📋 Credit Sales */}
@@ -10358,10 +10350,6 @@ function StoreContent({ shopId }) {
                       <span className="text-[10px] font-black text-blue-600 uppercase mt-1 block">
                         Customer Outstanding Credit
                       </span>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</span>
-                      </div>
                     </div>
 
                     {/* Card 4: Indigo / Purple - 📅 Today Sales (beside Credit Due) */}
@@ -10397,10 +10385,6 @@ function StoreContent({ shopId }) {
                       <span className="text-[10px] font-black text-indigo-600 uppercase mt-1 block">
                         {todayMasterMetrics.todaySalesCount} Bills &bull; {todayMasterMetrics.todaySalesPetis} Petis Today
                       </span>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>⚡ Real-time:</span>
-                        <span className="text-slate-900 font-black">{todayMasterMetrics.todaySalesEggs.toLocaleString('en-PK')} Eggs</span>
-                      </div>
                     </div>
 
                     {/* Card 5: Green - Total Gross Sales (Right Side) */}
@@ -10433,10 +10417,6 @@ function StoreContent({ shopId }) {
                         <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
                           {salesReportStats.totalBills} Bills • {salesReportStats.totalPetis} Petis ({Number(salesReportStats.totalEggs || 0).toLocaleString('en-PK')} Eggs)
                         </span>
-                      </div>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</span>
                       </div>
                     </div>
                   </div>
@@ -12735,10 +12715,6 @@ function StoreContent({ shopId }) {
                                 <span className="text-rose-600">Cut: -{currency}{timeframeCashExp.toLocaleString('en-PK')}</span>
                               </div>
                             </div>
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-2xl">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>📅 Today Net Cash:</span>
-                              <span className="text-slate-900 font-black">Rs. {(todayMasterMetrics.todaySalesCash - (dynamicExpenseStats.todayCashExp || 0)).toLocaleString('en-PK')}</span>
-                            </div>
                           </div>
 
                           {/* Card 2: Dark Forest Green - 🏦 Bank Balance (Minus Bank Expenses) */}
@@ -12755,10 +12731,6 @@ function StoreContent({ shopId }) {
                                 <span>Sales: {currency}{timeframeBankSales.toLocaleString('en-PK')}</span>
                                 <span className="text-rose-300">Cut: -{currency}{timeframeBankExp.toLocaleString('en-PK')}</span>
                               </div>
-                            </div>
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-700 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-100 bg-slate-800/90 -mx-5 -mb-5 px-5 py-2.5 rounded-b-2xl">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>📅 Today Net Bank:</span>
-                              <span className="text-white font-black">Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</span>
                             </div>
                           </div>
 
@@ -12777,10 +12749,6 @@ function StoreContent({ shopId }) {
                                 <span>🏦 Bank: {currency}{timeframeBankExp.toLocaleString('en-PK')}</span>
                               </div>
                             </div>
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-2xl">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>📅 Today Expenses:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')} ({todayMasterMetrics.todayExpensesCount} Logs)</span>
-                            </div>
                           </div>
 
                           {/* Card 4: Orange - Damaged Egg Loss */}
@@ -12797,37 +12765,46 @@ function StoreContent({ shopId }) {
                                 {dynamicExpenseStats.totalDamagedEggs} egg cracked/broken stock losses
                               </p>
                             </div>
-                            <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-2xl">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>📅 Today Damaged:</span>
-                              <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')} ({todayMasterMetrics.todayDamagedEggs} Eggs)</span>
-                            </div>
                           </div>
                         </div>
 
-                        {/* Dedicated Today Expenses Summary Banner (Gray & Bigger Size) */}
-                        <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 text-sm sm:text-base font-black text-slate-900 shadow-sm">
-                          <div className="flex items-center gap-2.5">
-                            <span className="flex h-3 w-3 relative">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
+                        {/* Dedicated Today Expenses Summary (Separate Div Below with Cards) */}
+                        <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                              Today's Operating Expenses &amp; Losses (Daily Breakdown)
                             </span>
-                            <span className="text-slate-900 font-black tracking-wide">
-                              TODAY'S OPERATING EXPENSES &amp; LOSSES:
-                            </span>
-                            <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-bold">
+                            <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
                               {todayMasterMetrics.todayExpensesCount} Shop Expense Logs &bull; {todayMasterMetrics.todayDamagedCount} Damage Logs
                             </span>
                           </div>
-                          <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-                            <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                              🧾 Today Expenses: Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}
-                            </span>
-                            <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                              🥚 Today Damaged Loss: Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')} ({todayMasterMetrics.todayDamagedEggs} Eggs)
-                            </span>
-                            <span className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black shadow-sm">
-                              ⚠️ Total Today Outflow: Rs. {(todayMasterMetrics.todayExpenses + todayMasterMetrics.todayDamagedLoss).toLocaleString('en-PK')}
-                            </span>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Net Cash</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todaySalesCash - (dynamicExpenseStats.todayCashExp || 0)).toLocaleString('en-PK')}</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash In Hand</span>
+                            </div>
+                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Net Bank</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank Remaining</span>
+                            </div>
+                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">3. Today Expenses</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayExpensesCount} Shop Expense Logs</span>
+                            </div>
+                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-orange-800">4. Today Damaged</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayDamagedEggs} Eggs ({todayMasterMetrics.todayDamagedPetis} Petis)</span>
+                            </div>
+                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Total Today Outflow</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todayExpenses + todayMasterMetrics.todayDamagedLoss).toLocaleString('en-PK')}</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Expenses + Breakage</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -13455,10 +13432,6 @@ function StoreContent({ shopId }) {
                                     (dynamicExpenseStats.totalDamaged || 0)
                           ).toLocaleString('en-PK')}
                         </h4>
-                        <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center gap-3 text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-6 -mb-6 px-6 py-2.5 rounded-b-2xl">
-                          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>📅 Today:</span>
-                          <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')} &bull; {todayMasterMetrics.todayDamagedEggs} Eggs ({todayMasterMetrics.todayDamagedPetis} Petis)</span>
-                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
