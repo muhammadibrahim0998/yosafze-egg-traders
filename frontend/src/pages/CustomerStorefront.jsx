@@ -9703,10 +9703,6 @@ function StoreContent({ shopId }) {
                           🌐 {unifiedCustomersList.filter(c => c.isOnline).length} Online &bull; 🏬 {unifiedCustomersList.filter(c => !c.isOnline).length} Physical
                         </div>
                       </div>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">{todayMasterMetrics.todaySalesCount} Active Customers</span>
-                      </div>
                     </div>
 
                     <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-emerald-50/40 to-white flex flex-col justify-between">
@@ -9721,10 +9717,6 @@ function StoreContent({ shopId }) {
                         <div className="text-[10.5px] font-bold text-emerald-600 mt-1">
                           Total Lifetime Cumulative Sales
                         </div>
-                      </div>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</span>
                       </div>
                     </div>
 
@@ -9741,10 +9733,6 @@ function StoreContent({ shopId }) {
                           Total Outstanding Receivables
                         </div>
                       </div>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</span>
-                      </div>
                     </div>
 
                     <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-amber-50/40 to-white flex flex-col justify-between">
@@ -9759,10 +9747,6 @@ function StoreContent({ shopId }) {
                         <div className="text-[10.5px] font-bold text-amber-700 mt-1">
                           Combined Total Bills &amp; Invoices
                         </div>
-                      </div>
-                      <div className="mt-3 pt-2.5 border-t-2 border-slate-300 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>📅 Today:</span>
-                        <span className="text-slate-900 font-black">{todayMasterMetrics.todaySalesCount} Orders Placed</span>
                       </div>
                     </div>
                   </div>

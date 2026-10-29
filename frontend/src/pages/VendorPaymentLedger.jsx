@@ -642,10 +642,6 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">Rs. {fmt(stats.supplierCashPaid)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Cash Paid</p>
             </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.supplierCashPaid)}</span>
-            </div>
           </div>
 
           {/* 2. Bank Paid */}
@@ -659,10 +655,6 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               </div>
               <div className="text-lg sm:text-xl font-black text-blue-700 tracking-tight">Rs. {fmt(stats.supplierBankPaid)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Bank Paid</p>
-            </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.supplierBankPaid)}</span>
             </div>
           </div>
 
@@ -678,10 +670,6 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">Rs. {fmt(stats.supplierCreditDueTotal)}</div>
               <p className="text-[9px] font-bold text-zinc-400 uppercase">Remaining Due</p>
             </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.supplierCreditDueTotal)}</span>
-            </div>
           </div>
 
           {/* 4. Total Cost */}
@@ -695,10 +683,6 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
               </div>
               <div className="text-lg sm:text-xl font-black text-orange-900 tracking-tight">Rs. {fmt(stats.supplierTotalCost)}</div>
               <p className="text-[9px] font-bold text-zinc-500 uppercase">Total Purchases</p>
-            </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3.5 sm:-mx-4 -mb-3.5 sm:-mb-4 px-3.5 sm:px-4 py-2.5 rounded-b-2xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.supplierTotalCost)}</span>
             </div>
           </div>
 

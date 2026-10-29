@@ -984,10 +984,6 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
             </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.totalCashReceived)}</span>
-            </div>
           </div>
 
           {/* 2. Bank Card */}
@@ -1030,10 +1026,6 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                 Rs. {fmt(stats.totalBankReceived)}
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
-            </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.totalBankReceived)}</span>
             </div>
           </div>
 
@@ -1078,10 +1070,6 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
               </div>
               <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
             </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.customerCreditDueTotal)}</span>
-            </div>
           </div>
 
           {/* 4. Total Card */}
@@ -1124,10 +1112,6 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
                 Rs. {fmt(stats.customerTotalRevenue)}
               </div>
               <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
-            </div>
-            <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-3 -mb-3 px-3 py-2.5 rounded-b-xl">
-              <span>📅 Today:</span>
-              <span>Rs. {fmt(todayStats.customerTotalRevenue)}</span>
             </div>
           </div>
 

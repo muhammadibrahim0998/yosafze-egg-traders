@@ -410,13 +410,6 @@ export function VendorsManagement({ shopId: propShopId }) {
             </div>
             <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
           </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
-            <span className="text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-slate-600 animate-pulse"></span>
-              TODAY REGISTERED:
-            </span>
-            <span className="text-slate-950 font-black">{todayVendorStats.addedToday} Vendors Today</span>
-          </div>
         </div>
 
         <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">

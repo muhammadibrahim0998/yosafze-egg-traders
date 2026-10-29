@@ -694,14 +694,6 @@ export function CreditManagement({
               <span className="text-rose-500">{purchaseCreditList.filter(p => p.calculatedDue > 0).length} Unsettled</span>
             </div>
           </div>
-          {/* Today Supplier Debt Badge */}
-          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
-            <span className="text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-              TODAY DEBT:
-            </span>
-            <span className="text-slate-900 font-black">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')} ({todayCreditStats.todayPurchaseCount} Today)</span>
-          </div>
         </div>
 
         {/* Total Customer Credit Due */}
@@ -722,14 +714,6 @@ export function CreditManagement({
               <span>Collected: {currency} {totalCustomerPaid.toLocaleString('en-PK')}</span>
               <span className="text-emerald-600">{customerCreditList.filter(c => c.calculatedDue > 0).length} Invoices</span>
             </div>
-          </div>
-          {/* Today Customer Receivables Badge */}
-          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
-            <span className="text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              TODAY RECEIVABLE:
-            </span>
-            <span className="text-slate-900 font-black">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')} ({todayCreditStats.todayCustomerCount} Today)</span>
           </div>
         </div>
 
@@ -753,16 +737,6 @@ export function CreditManagement({
               {(totalCustomerDue - totalPurchaseDue) >= 0 ? '🟢 Receivables exceed debts' : '🔴 Debts exceed receivables'}
             </div>
           </div>
-          {/* Today Net Balance Badge */}
-          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
-            <span className="text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              TODAY NET:
-            </span>
-            <span className={todayCreditStats.todayNet >= 0 ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
-              {todayCreditStats.todayNet >= 0 ? '+' : ''}{currency} {Math.abs(todayCreditStats.todayNet).toLocaleString('en-PK')}
-            </span>
-          </div>
         </div>
 
         {/* Total Active Credit Cases */}
@@ -783,14 +757,6 @@ export function CreditManagement({
               <span>Suppliers: {purchaseCreditList.filter(p => p.calculatedDue > 0).length}</span>
               <span>Customers: {customerCreditList.filter(c => c.calculatedDue > 0).length}</span>
             </div>
-          </div>
-          {/* Today Active Accounts Badge */}
-          <div className="mt-3.5 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-5 -mb-5 px-5 py-2.5 rounded-b-3xl text-slate-800">
-            <span className="text-slate-800 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              TODAY NEW:
-            </span>
-            <span className="text-slate-900 font-black">{todayCreditStats.todayTotalAccounts} Entries Today</span>
           </div>
         </div>
       </div>

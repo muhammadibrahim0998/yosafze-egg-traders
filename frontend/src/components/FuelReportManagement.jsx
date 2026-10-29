@@ -1069,10 +1069,6 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               <span className="text-emerald-700 font-bold">{stats.totalLiters.toFixed(1)} L</span>
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>TODAY FUEL:</span>
-            <span className="text-slate-900 font-black">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</span>
-          </div>
         </div>
 
         {/* Liters Consumed */}
@@ -1092,10 +1088,6 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               <span>Petrol: <strong className="text-sky-700">{stats.petrolLiters.toFixed(1)}L</strong></span>
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse"></span>TODAY LITERS:</span>
-            <span className="text-slate-900 font-black">{todayFuelStats.totalLiters.toFixed(1)} L</span>
-          </div>
         </div>
 
         {/* Paid Cash */}
@@ -1113,10 +1105,6 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
             <div className="text-[10.5px] text-slate-500 mt-1 font-medium">
               Cash Settled
             </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse"></span>TODAY CASH:</span>
-            <span className="text-slate-900 font-black">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</span>
           </div>
         </div>
 
@@ -1136,10 +1124,6 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
               Bank Transfer
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse"></span>TODAY BANK:</span>
-            <span className="text-slate-900 font-black">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</span>
-          </div>
         </div>
 
         {/* Remaining Credit Due */}
@@ -1157,10 +1141,6 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
             <div className="text-[10.5px] text-slate-500 mt-1 font-medium">
               {stats.totalCreditDue > 0 ? 'Due Debt' : 'Paid'}
             </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>TODAY CREDIT:</span>
-            <span className="text-slate-900 font-black">RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</span>
           </div>
         </div>
       </div>

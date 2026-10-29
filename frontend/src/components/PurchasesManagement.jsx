@@ -1654,10 +1654,6 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               {stats.totalTrays} Trays • {fmt(stats.totalEggs)} Eggs
             </span>
           </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-            <span>📅 Today:</span>
-            <span>{todayStats.totalPetis} Petis ({todayStats.totalEggs} Eggs)</span>
-          </div>
         </div>
 
         {/* Card 2: Cash Paid (Separate) */}
@@ -1672,10 +1668,6 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
             <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
           </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-            <span>📅 Today:</span>
-            <span>Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</span>
-          </div>
         </div>
 
         {/* Card 3: Bank Transfer Paid (Separate) */}
@@ -1689,10 +1681,6 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             </div>
             <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
             <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
-          </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-            <span>📅 Today:</span>
-            <span>Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</span>
           </div>
         </div>
 
@@ -1710,10 +1698,6 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
               {stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}
             </span>
           </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-            <span>📅 Today:</span>
-            <span>Rs. {todayStats.totalDue.toLocaleString('en-PK')}</span>
-          </div>
         </div>
 
         {/* Card 5: Grand Total Purchase Cost */}
@@ -1730,40 +1714,46 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
             <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
             <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
           </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black text-slate-800 bg-slate-100 -mx-4 -mb-4 px-4 py-2.5 rounded-b-2xl">
-            <span>📅 Today:</span>
-            <span>Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</span>
-          </div>
         </div>
       </div>
 
-      {/* Dedicated Today Purchases Summary Banner */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-slate-800 text-white rounded-xl shadow-xs">
-            <Box className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="uppercase tracking-wider text-xs sm:text-sm block font-black text-slate-900">📅 TODAY'S LIVE PURCHASES &amp; RESTOCKS SUMMARY</span>
-            <span className="text-xs text-slate-700 font-bold block">{todayStats.count} Purchase Batches Recorded Today</span>
-          </div>
+      {/* Dedicated Today Purchases Summary (Separate Div Below) */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Box className="w-5 h-5 text-slate-700" />
+            Today's Live Purchases &amp; Restocks Summary
+          </span>
+          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+            {todayStats.count} Purchase Batches Recorded Today
+          </span>
         </div>
-        <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-            📦 Today Stock: {todayStats.totalPetis} Petis ({todayStats.totalEggs.toLocaleString('en-PK')} Eggs)
-          </span>
-          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-            💵 Cash Paid: Rs. {todayStats.cashPaid.toLocaleString('en-PK')}
-          </span>
-          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-            🏦 Bank Paid: Rs. {todayStats.bankPaid.toLocaleString('en-PK')}
-          </span>
-          <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-            📋 Credit Due: Rs. {todayStats.totalDue.toLocaleString('en-PK')}
-          </span>
-          <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
-            💰 Today Investment: Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}
-          </span>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Stock</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayStats.totalPetis} Petis</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">({todayStats.totalEggs.toLocaleString('en-PK')} Eggs)</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Cash Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Inflow</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Today Bank Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank / Online</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">4. Today Credit Due</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalDue.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Pending Owed Debt</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Today Investment</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Today Purchases</span>
+          </div>
         </div>
       </div>
 
