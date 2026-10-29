@@ -191,32 +191,38 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
           let totalEggs = 0;
           let itemsDescriptions = [];
 
+          // Ensure items is always a valid array (fix for online items=0 bug)
+          let saleItems = [];
           if (Array.isArray(s.items)) {
-            s.items.forEach(it => {
-              const qty = Number(it.quantity) || 1;
-              const uType = it.unit || it.unitType || 'peti';
-              let petiCount = 0;
-              let eggCount = 0;
-
-              if (uType === 'peti') {
-                petiCount = qty;
-                eggCount = qty * 360;
-              } else if (uType === 'tray') {
-                petiCount = qty / 12;
-                eggCount = qty * 30;
-              } else {
-                petiCount = qty / 360;
-                eggCount = qty;
-              }
-
-              if (Number(it.petiQuantity) > 0) petiCount = Number(it.petiQuantity);
-              if (Number(it.totalEggs) > 0) eggCount = Number(it.totalEggs);
-
-              totalPetis += petiCount;
-              totalEggs += eggCount;
-              itemsDescriptions.push(`${it.name || it.rawProductName || 'Eggs'} (${qty} ${uType})`);
-            });
+            saleItems = s.items;
+          } else if (typeof s.items === 'string' && s.items) {
+            try { saleItems = JSON.parse(s.items); } catch { saleItems = []; }
           }
+
+          saleItems.forEach(it => {
+            const qty = Number(it.quantity) || 1;
+            const uType = it.unit || it.unitType || 'peti';
+            let petiCount = 0;
+            let eggCount = 0;
+
+            if (uType === 'peti') {
+              petiCount = qty;
+              eggCount = qty * 360;
+            } else if (uType === 'tray') {
+              petiCount = qty / 12;
+              eggCount = qty * 30;
+            } else {
+              petiCount = qty / 360;
+              eggCount = qty;
+            }
+
+            if (Number(it.petiQuantity) > 0) petiCount = Number(it.petiQuantity);
+            if (Number(it.totalEggs) > 0) eggCount = Number(it.totalEggs);
+
+            totalPetis += petiCount;
+            totalEggs += eggCount;
+            itemsDescriptions.push(`${it.name || it.rawProductName || 'Eggs'} (${qty} ${uType})`);
+          });
 
           return {
             id: s._id || s.id,
@@ -234,11 +240,13 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             petisBought: totalPetis > 0 ? Number(totalPetis.toFixed(2)) : 0,
             eggsBought: Math.round(totalEggs),
             itemsDescription: itemsDescriptions.join(', ') || 'Eggs Stock',
-            category: (Array.isArray(s.items) && s.items[0]?.category) || s.category || 'Eggs',
+            items: saleItems,
+            category: (saleItems.length > 0 && saleItems[0]?.category) || s.category || 'Eggs',
             status: due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT')
           };
         });
     }
+
 
     // 2. Fetch Purchases from dynamic VendorPaymentLedger branch table
     let purchasesList = [];
@@ -639,6 +647,66 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
     }
     
     const newSale = await Sale.create(salePayload);
+
+    // Auto-create CustomerPaymentLedger record for EVERY sale (fixes items=0 and ledger empty on online)
+    if (newSale) {
+      try {
+        const saleItems = Array.isArray(newSale.items) ? newSale.items : (typeof newSale.items === 'string' ? JSON.parse(newSale.items || '[]') : []);
+        let totalPetis = 0;
+        let totalEggs = 0;
+        const descParts = [];
+
+        for (const it of saleItems) {
+          const qty = Number(it.quantity) || 1;
+          const uType = (it.unitLabel || it.unit || it.unitType || 'peti').toLowerCase();
+          const nm = it.rawProductName || it.name || 'Eggs';
+          let petis = 0;
+          let eggs = 0;
+          if (uType.includes('peti')) {
+            petis = qty;
+            eggs = qty * 360;
+          } else if (uType.includes('tray')) {
+            petis = qty / 12;
+            eggs = qty * 30;
+          } else {
+            eggs = Number(it.totalEggs) > 0 ? Number(it.totalEggs) : qty;
+            petis = eggs / 360;
+          }
+          if (Number(it.petiQuantity) > 0) petis = Number(it.petiQuantity);
+          if (Number(it.totalEggs) > 0) eggs = Number(it.totalEggs);
+          totalPetis += petis;
+          totalEggs += eggs;
+          descParts.push(`${nm} (${qty} ${uType})`);
+        }
+
+        const cplDue = Number(newSale.dueAmount) || 0;
+        const cplCash = Number(newSale.cashPaid) || 0;
+        const cplBank = Number(newSale.bankPaid) || 0;
+        const cplStatus = cplDue <= 0 ? 'PAID' : (cplCash > 0 || cplBank > 0 ? 'PARTIAL' : 'CREDIT');
+
+        await CustomerPaymentLedger.create({
+          shopId: newSale.shopId,
+          saleId: newSale.id || newSale._id,
+          invoiceNumber: newSale.invoiceNumber || '',
+          date: newSale.saleDate || new Date(),
+          customerName: newSale.customerName || 'Walk-in Customer',
+          customerPhone: newSale.customerPhone || '',
+          customerEmail: newSale.customerEmail || '',
+          totalAmount: Number(newSale.totalAmount) || 0,
+          cashPaid: cplCash,
+          bankPaid: cplBank,
+          dueAmount: cplDue,
+          paymentMethod: newSale.paymentMethod || 'CASH',
+          petisBought: Number(totalPetis.toFixed(2)),
+          eggsBought: Math.round(totalEggs),
+          itemsDescription: descParts.join(', ') || 'Eggs Stock',
+          category: (saleItems[0]?.category) || 'Eggs',
+          status: cplStatus
+        });
+      } catch (cplErr) {
+        console.error('[createSaleRecord] CustomerPaymentLedger creation error:', cplErr.message);
+      }
+    }
 
     // Auto-create CustomerCredit record if sale has due balance or is credit
     if (newSale && (Number(newSale.dueAmount) > 0 || newSale.isCredit)) {
