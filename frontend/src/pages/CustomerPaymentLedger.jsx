@@ -29,7 +29,7 @@ import {
   Tag,
   MoreVertical
 } from 'lucide-react';
-import api, { getPaymentLedger, getCustomerCredits, updateSale, deleteSale } from '../services/api';
+import api, { getPaymentLedger, getCustomerCredits, getSales, updateSale, deleteSale } from '../services/api';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
 import { toast } from 'sonner';
@@ -80,17 +80,78 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [ledgerRes, creditsRes] = await Promise.allSettled([
+      const [ledgerRes, creditsRes, salesRes] = await Promise.allSettled([
         getPaymentLedger(activeShopId),
-        getCustomerCredits(activeShopId)
+        getCustomerCredits(activeShopId),
+        getSales(activeShopId)
       ]);
 
-      if (ledgerRes.status === 'fulfilled' && ledgerRes.value?.success) {
-        setLedgerApiData({
-          summary: ledgerRes.value.summary || null,
-          sales: Array.isArray(ledgerRes.value.sales) ? ledgerRes.value.sales : []
+      let salesData = [];
+      if (ledgerRes.status === 'fulfilled' && ledgerRes.value?.success && Array.isArray(ledgerRes.value.sales) && ledgerRes.value.sales.length > 0) {
+        salesData = ledgerRes.value.sales;
+      }
+
+      // Dynamic fallback: If payment-ledger API returned 0 sales, fallback to getSales direct query
+      if (salesData.length === 0 && salesRes.status === 'fulfilled' && Array.isArray(salesRes.value) && salesRes.value.length > 0) {
+        salesData = salesRes.value.map(s => {
+          let itemsList = [];
+          if (Array.isArray(s.items)) itemsList = s.items;
+          else if (typeof s.items === 'string' && s.items.trim()) {
+            try { itemsList = JSON.parse(s.items); if (typeof itemsList === 'string') itemsList = JSON.parse(itemsList); } catch {}
+          }
+          if (!Array.isArray(itemsList)) itemsList = [];
+
+          let totalPetis = Number(s.petisBought) || 0;
+          let totalEggs = Number(s.eggsBought) || 0;
+          let desc = s.itemsDescription || '';
+
+          if (itemsList.length > 0) {
+            itemsList.forEach(it => {
+              const qty = Number(it.quantity) || 1;
+              const u = (it.unitLabel || it.unit || 'peti').toLowerCase();
+              if (u.includes('peti')) { totalPetis += qty; totalEggs += qty * 360; }
+              else if (u.includes('tray')) { totalPetis += qty / 12; totalEggs += qty * 30; }
+              else { totalEggs += qty; totalPetis += qty / 360; }
+            });
+            if (!desc) desc = itemsList.map(i => `${i.rawProductName || i.name || 'Eggs'} (${i.quantity || 1} ${i.unitLabel || i.unit || 'x'})`).join(', ');
+          } else if (totalPetis === 0 && totalEggs === 0 && (Number(s.totalAmount) || 0) > 0) {
+            totalPetis = Number(((Number(s.totalAmount) || 0) / 1050).toFixed(2)) || 1;
+            totalEggs = Math.round(totalPetis * 360);
+            desc = `Eggs Stock (${totalPetis} Petis • ${totalEggs} Eggs)`;
+          }
+
+          const totalAmt = Number(s.totalAmount) || 0;
+          const cash = Number(s.cashPaid) || (s.paymentMethod === 'CASH' ? totalAmt : 0);
+          const bank = Number(s.bankPaid) || (s.paymentMethod !== 'CASH' && !s.isCredit ? totalAmt : 0);
+          const due = Number(s.dueAmount) || (s.isCredit ? totalAmt : 0);
+
+          return {
+            id: s._id || s.id,
+            shopId: s.shopId,
+            date: s.saleDate || s.createdAt,
+            invoiceNumber: s.invoiceNumber || `INV-${String(s.serialNumber || s.id).slice(-5)}`,
+            customerName: s.customerName || (due > 0 ? 'Credit Customer' : 'Walk-in Customer'),
+            customerPhone: s.customerPhone || '',
+            customerEmail: s.customerEmail || '',
+            totalAmount: totalAmt,
+            cashPaid: cash,
+            bankPaid: bank,
+            dueAmount: due,
+            paymentMethod: String(s.paymentMethod || 'CASH').toUpperCase(),
+            petisBought: totalPetis > 0 ? Number(totalPetis.toFixed(2)) : 0,
+            eggsBought: Math.round(totalEggs),
+            itemsDescription: desc || 'Eggs Stock',
+            items: itemsList,
+            category: s.category || (itemsList[0]?.category) || 'Eggs',
+            status: due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT')
+          };
         });
       }
+
+      setLedgerApiData({
+        summary: (ledgerRes.status === 'fulfilled' && ledgerRes.value?.summary) || null,
+        sales: salesData
+      });
 
       if (creditsRes.status === 'fulfilled' && Array.isArray(creditsRes.value)) {
         setCustomerCredits(creditsRes.value);

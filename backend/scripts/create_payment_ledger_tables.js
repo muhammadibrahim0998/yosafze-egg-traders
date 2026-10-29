@@ -94,18 +94,86 @@ export async function initPaymentLedgerTables() {
     `);
 
     console.log(`✅ Verified MySQL branch tables inside branch: \`${custTable}\` & \`${vndTable}\``);
+
+    // Also auto-ensure columns on branch sales tables
+    const salesTable = `${pfx}__sales`;
+    try {
+      const [salesCols] = await pool.query(`DESCRIBE \`${salesTable}\``).catch(() => [[]]);
+      const sColsSet = new Set(salesCols.map(c => c.Field));
+      if (!sColsSet.has('items')) {
+        await pool.query(`ALTER TABLE \`${salesTable}\` ADD COLUMN \`items\` LONGTEXT NULL`).catch(() => {});
+      }
+      if (!sColsSet.has('itemsDescription')) {
+        await pool.query(`ALTER TABLE \`${salesTable}\` ADD COLUMN \`itemsDescription\` TEXT NULL`).catch(() => {});
+      }
+      if (!sColsSet.has('petisBought')) {
+        await pool.query(`ALTER TABLE \`${salesTable}\` ADD COLUMN \`petisBought\` DECIMAL(10,2) DEFAULT 0.00`).catch(() => {});
+      }
+      if (!sColsSet.has('eggsBought')) {
+        await pool.query(`ALTER TABLE \`${salesTable}\` ADD COLUMN \`eggsBought\` INT DEFAULT 0`).catch(() => {});
+      }
+      if (!sColsSet.has('category')) {
+        await pool.query(`ALTER TABLE \`${salesTable}\` ADD COLUMN \`category\` VARCHAR(100) DEFAULT 'Eggs'`).catch(() => {});
+      }
+    } catch (_) {}
   }
 
-  // Remove outside root tables so they only appear inside branch folders in phpMyAdmin
+  // Ensure root tables also exist for dynamic fallbacks
   try {
-    await pool.query('DROP TABLE IF EXISTS `customer_payment_ledger`');
-    await pool.query('DROP TABLE IF EXISTS `vendor_payment_ledger`');
-    console.log('🧹 Cleaned up outside root tables (tables are now strictly inside branch folders).');
-  } catch (cleanErr) {
-    console.warn('Notice dropping outside tables:', cleanErr.message);
-  }
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS \`customer_payment_ledger\` (
+        \`id\` VARCHAR(255) PRIMARY KEY,
+        \`shopId\` INT NOT NULL DEFAULT 1,
+        \`saleId\` VARCHAR(255) NULL,
+        \`invoiceNumber\` VARCHAR(100) NULL,
+        \`customerName\` VARCHAR(255) NULL,
+        \`customerPhone\` VARCHAR(50) NULL,
+        \`category\` VARCHAR(100) DEFAULT 'Eggs',
+        \`itemsDescription\` TEXT NULL,
+        \`petisBought\` DECIMAL(10,2) DEFAULT 0.00,
+        \`eggsBought\` INT DEFAULT 0,
+        \`totalAmount\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        \`cashPaid\` DECIMAL(12,2) DEFAULT 0.00,
+        \`bankPaid\` DECIMAL(12,2) DEFAULT 0.00,
+        \`dueAmount\` DECIMAL(12,2) DEFAULT 0.00,
+        \`paymentMethod\` VARCHAR(50) DEFAULT 'CASH',
+        \`status\` VARCHAR(50) DEFAULT 'PAID',
+        \`date\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY \`idx_cpl_root_shop\` (\`shopId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS \`vendor_payment_ledger\` (
+        \`id\` VARCHAR(255) PRIMARY KEY,
+        \`shopId\` INT NOT NULL DEFAULT 1,
+        \`purchaseId\` VARCHAR(255) NULL,
+        \`supplierName\` VARCHAR(255) NULL,
+        \`supplierPhone\` VARCHAR(50) NULL,
+        \`supplierLocation\` VARCHAR(255) NULL,
+        \`productName\` VARCHAR(255) NULL,
+        \`category\` VARCHAR(100) DEFAULT 'Eggs',
+        \`petisPurchased\` DECIMAL(10,2) DEFAULT 0.00,
+        \`eggQuantity\` INT DEFAULT 0,
+        \`unitType\` VARCHAR(50) DEFAULT 'peti',
+        \`buyCost\` DECIMAL(12,2) DEFAULT 0.00,
+        \`totalCost\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        \`amountPaid\` DECIMAL(12,2) DEFAULT 0.00,
+        \`cashPaid\` DECIMAL(12,2) DEFAULT 0.00,
+        \`bankPaid\` DECIMAL(12,2) DEFAULT 0.00,
+        \`dueAmount\` DECIMAL(12,2) DEFAULT 0.00,
+        \`paymentMethod\` VARCHAR(50) DEFAULT 'Cash',
+        \`status\` VARCHAR(50) DEFAULT 'PAID',
+        \`date\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY \`idx_vpl_root_shop\` (\`shopId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  } catch (_) {}
 
-  // 4. Populate / Sync Initial Data from Sales and Purchases into Branch Tables
+  // 4. Populate / Sync Data from Sales and Purchases into Branch Tables
   try {
     for (const b of branches) {
       const pfx = b.prefix;
@@ -115,84 +183,122 @@ export async function initPaymentLedgerTables() {
       const custTable = `${pfx}__customer_payment_ledger`;
       const vndTable = `${pfx}__vendor_payment_ledger`;
 
-      // Sync sales into custTable if custTable is empty
-      const [existingCust] = await pool.query(`SELECT COUNT(*) AS cnt FROM \`${custTable}\` WHERE shopId = ?`, [sId]).catch(() => [[{ cnt: 0 }]]);
-      if (!existingCust || existingCust[0]?.cnt === 0) {
-        // Check if sales exist
-        const [salesRows] = await pool.query(`SELECT * FROM \`${salesTable}\` WHERE shopId = ?`, [sId]).catch(() => [[]]);
-        if (salesRows && salesRows.length > 0) {
-          for (const s of salesRows) {
-            const sid = s.id || s._id;
-            const total = Number(s.totalAmount || 0);
-            const cash = Number(s.cashPaid || 0);
-            const bank = Number(s.bankPaid || 0);
-            const due = Number(s.dueAmount || 0);
-            await pool.query(`
-              INSERT IGNORE INTO \`${custTable}\`
-              (id, shopId, saleId, invoiceNumber, customerName, customerPhone, category, itemsDescription, petisBought, eggsBought, totalAmount, cashPaid, bankPaid, dueAmount, paymentMethod, status, date)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              `cpl-${sid}`,
-              sId,
-              String(sid),
-              s.invoiceNumber || `INV-${sid}`,
-              s.customerName || 'Walk-in Customer',
-              s.customerPhone || '',
-              s.category || 'Eggs',
-              s.itemsDescription || 'Eggs Stock',
-              Number(s.petisBought || 0),
-              Number(s.eggsBought || 0),
-              total,
-              cash,
-              bank,
-              due,
-              s.paymentMethod || 'CASH',
-              due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT'),
-              s.saleDate || s.createdAt || new Date()
-            ]).catch(() => {});
+      // Sync sales into custTable
+      const [salesRows] = await pool.query(`SELECT * FROM \`${salesTable}\` WHERE shopId = ?`, [sId]).catch(() => [[]]);
+      if (salesRows && salesRows.length > 0) {
+        for (const s of salesRows) {
+          const sid = s.id || s._id;
+          const total = Number(s.totalAmount || 0);
+          const cash = Number(s.cashPaid || 0);
+          const bank = Number(s.bankPaid || 0);
+          const due = Number(s.dueAmount || 0);
+
+          let saleItems = [];
+          if (Array.isArray(s.items)) saleItems = s.items;
+          else if (typeof s.items === 'string' && s.items.trim()) {
+            try { saleItems = JSON.parse(s.items); if (typeof saleItems === 'string') saleItems = JSON.parse(saleItems); } catch {}
           }
+          if (!Array.isArray(saleItems)) saleItems = [];
+
+          let petis = Number(s.petisBought || 0);
+          let eggs = Number(s.eggsBought || 0);
+          let descParts = [];
+
+          if (saleItems.length > 0) {
+            saleItems.forEach(it => {
+              const qty = Number(it.quantity) || 1;
+              const u = (it.unitLabel || it.unit || 'peti').toLowerCase();
+              if (u.includes('peti')) { petis += qty; eggs += qty * 360; }
+              else if (u.includes('tray')) { petis += qty / 12; eggs += qty * 30; }
+              else { eggs += qty; petis += qty / 360; }
+              descParts.push(`${it.rawProductName || it.name || 'Eggs'} (${qty} ${u})`);
+            });
+          } else if (petis === 0 && eggs === 0 && total > 0) {
+            petis = Number((total / 1050).toFixed(2)) || 1;
+            eggs = Math.round(petis * 360);
+            descParts.push(`Eggs Stock (${petis} Petis • ${eggs} Eggs)`);
+          }
+
+          const itemsDescription = descParts.join(', ') || s.itemsDescription || 'Eggs Stock';
+
+          await pool.query(`
+            INSERT INTO \`${custTable}\`
+            (id, shopId, saleId, invoiceNumber, customerName, customerPhone, category, itemsDescription, petisBought, eggsBought, totalAmount, cashPaid, bankPaid, dueAmount, paymentMethod, status, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              customerName = VALUES(customerName),
+              customerPhone = VALUES(customerPhone),
+              itemsDescription = VALUES(itemsDescription),
+              petisBought = VALUES(petisBought),
+              eggsBought = VALUES(eggsBought),
+              totalAmount = VALUES(totalAmount),
+              cashPaid = VALUES(cashPaid),
+              bankPaid = VALUES(bankPaid),
+              dueAmount = VALUES(dueAmount),
+              status = VALUES(status)
+          `, [
+            `cpl-${sid}`,
+            sId,
+            String(sid),
+            s.invoiceNumber || `INV-${sid}`,
+            s.customerName || 'Walk-in Customer',
+            s.customerPhone || '',
+            s.category || (saleItems[0]?.category) || 'Eggs',
+            itemsDescription,
+            Number(Number(petis).toFixed(2)),
+            Math.round(eggs),
+            total,
+            cash,
+            bank,
+            due,
+            s.paymentMethod || 'CASH',
+            due === 0 ? 'PAID' : (cash > 0 || bank > 0 ? 'PARTIAL' : 'CREDIT'),
+            s.saleDate || s.createdAt || new Date()
+          ]).catch(() => {});
         }
       }
 
-      // Sync purchases into vndTable if vndTable is empty
-      const [existingVnd] = await pool.query(`SELECT COUNT(*) AS cnt FROM \`${vndTable}\` WHERE shopId = ?`, [sId]).catch(() => [[{ cnt: 0 }]]);
-      if (!existingVnd || existingVnd[0]?.cnt === 0) {
-        const [purchRows] = await pool.query(`SELECT * FROM \`${purchasesTable}\` WHERE shopId = ?`, [sId]).catch(() => [[]]);
-        if (purchRows && purchRows.length > 0) {
-          for (const p of purchRows) {
-            const pid = p.id || p._id;
-            const total = Number(p.totalCost || 0);
-            const paid = Number(p.amountPaid || 0);
-            const cash = Number(p.cashPaid || 0);
-            const bank = Number(p.bankPaid || 0);
-            const due = Number(p.dueAmount || 0);
-            await pool.query(`
-              INSERT IGNORE INTO \`${vndTable}\`
-              (id, shopId, purchaseId, supplierName, supplierPhone, supplierLocation, productName, category, petisPurchased, eggQuantity, unitType, buyCost, totalCost, amountPaid, cashPaid, bankPaid, dueAmount, paymentMethod, status, date)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              `vpl-${pid}`,
-              sId,
-              String(pid),
-              p.supplierName || 'Farm Vendor',
-              p.supplierPhone || '',
-              p.supplierLocation || '',
-              p.productName || 'Eggs Stock',
-              p.category || 'Eggs',
-              Number(p.petisPurchased || p.petiQuantity || 0),
-              Number(p.eggQuantity || 0),
-              p.unitType || 'peti',
-              Number(p.buyCost || 0),
-              total,
-              paid,
-              cash,
-              bank,
-              due,
-              p.paymentMethod || 'Cash',
-              due === 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'CREDIT'),
-              p.purchaseDate || p.createdAt || new Date()
-            ]).catch(() => {});
-          }
+      // Sync purchases into vndTable
+      const [purchRows] = await pool.query(`SELECT * FROM \`${purchasesTable}\` WHERE shopId = ?`, [sId]).catch(() => [[]]);
+      if (purchRows && purchRows.length > 0) {
+        for (const p of purchRows) {
+          const pid = p.id || p._id;
+          const total = Number(p.totalCost || 0);
+          const paid = Number(p.amountPaid || 0);
+          const cash = Number(p.cashPaid || 0);
+          const bank = Number(p.bankPaid || 0);
+          const due = Number(p.dueAmount || 0);
+          await pool.query(`
+            INSERT INTO \`${vndTable}\`
+            (id, shopId, purchaseId, supplierName, supplierPhone, supplierLocation, productName, category, petisPurchased, eggQuantity, unitType, buyCost, totalCost, amountPaid, cashPaid, bankPaid, dueAmount, paymentMethod, status, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              supplierName = VALUES(supplierName),
+              totalCost = VALUES(totalCost),
+              amountPaid = VALUES(amountPaid),
+              dueAmount = VALUES(dueAmount)
+          `, [
+            `vpl-${pid}`,
+            sId,
+            String(pid),
+            p.supplierName || 'Farm Vendor',
+            p.supplierPhone || '',
+            p.supplierLocation || '',
+            p.productName || 'Eggs Stock',
+            p.category || 'Eggs',
+            Number(p.petisPurchased || p.petiQuantity || 0),
+            Number(p.eggQuantity || 0),
+            p.unitType || 'peti',
+            Number(p.buyCost || 0),
+            total,
+            paid,
+            cash,
+            bank,
+            due,
+            p.paymentMethod || 'Cash',
+            due === 0 ? 'PAID' : (paid > 0 ? 'PARTIAL' : 'CREDIT'),
+            p.purchaseDate || p.createdAt || new Date()
+          ]).catch(() => {});
         }
       }
     }

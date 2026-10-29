@@ -10,6 +10,20 @@ class SaleModel extends BaseModel {
     if (!obj) return null;
 
     if (!Array.isArray(obj.items)) {
+      if (typeof obj.items === 'string' && obj.items.trim()) {
+        try {
+          obj.items = JSON.parse(obj.items);
+          if (typeof obj.items === 'string') {
+            obj.items = JSON.parse(obj.items);
+          }
+        } catch {
+          obj.items = [];
+        }
+      } else {
+        obj.items = [];
+      }
+    }
+    if (!Array.isArray(obj.items)) {
       obj.items = [];
     }
 

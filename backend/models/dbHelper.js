@@ -10,6 +10,41 @@ async function getTableColumns(tableName) {
   try {
     const [rows] = await pool.query(`DESCRIBE \`${tableName}\``);
     const cols = new Set(rows.map(r => r.Field));
+
+    // Auto-ensure required columns on sales tables
+    if (tableName.includes('sales')) {
+      if (!cols.has('items')) {
+        try {
+          await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`items\` LONGTEXT NULL`);
+          cols.add('items');
+        } catch (_) {}
+      }
+      if (!cols.has('itemsDescription')) {
+        try {
+          await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`itemsDescription\` TEXT NULL`);
+          cols.add('itemsDescription');
+        } catch (_) {}
+      }
+      if (!cols.has('petisBought')) {
+        try {
+          await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`petisBought\` DECIMAL(10,2) DEFAULT 0.00`);
+          cols.add('petisBought');
+        } catch (_) {}
+      }
+      if (!cols.has('eggsBought')) {
+        try {
+          await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`eggsBought\` INT DEFAULT 0`);
+          cols.add('eggsBought');
+        } catch (_) {}
+      }
+      if (!cols.has('category')) {
+        try {
+          await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`category\` VARCHAR(100) DEFAULT 'Eggs'`);
+          cols.add('category');
+        } catch (_) {}
+      }
+    }
+
     tableColumnsCache[tableName] = cols;
     return cols;
   } catch {
@@ -52,9 +87,9 @@ export const BRANCH_TABLE_PREFIXES = new Proxy(rawBranchPrefixes, {
       const s = String(prop).toLowerCase();
       if (s.includes('mardan')) return 'mardan_branch';
       if (s.includes('attock')) return 'attock_branch';
-      return 'peshawar_branch';
+      if (s.includes('peshawar') || s.includes('peshware')) return 'peshawar_branch';
     }
-    return target[prop];
+    return target[prop] || 'peshawar_branch';
   }
 });
 
@@ -65,13 +100,19 @@ export const refreshBranchPrefixes = async () => {
     const [shops] = await pool.query('SELECT id, name FROM shops');
     for (const s of shops) {
       const name = (s.name || '').toLowerCase();
+      let pfx = 'peshawar_branch';
       if (name.includes('mardan')) {
-        rawBranchPrefixes[s.id] = 'mardan_branch';
+        pfx = 'mardan_branch';
       } else if (name.includes('attock')) {
-        rawBranchPrefixes[s.id] = 'attock_branch';
+        pfx = 'attock_branch';
+      } else if (name.includes('peshawar') || name.includes('peshware')) {
+        pfx = 'peshawar_branch';
       } else {
-        rawBranchPrefixes[s.id] = 'peshawar_branch';
+        pfx = 'peshawar_branch';
       }
+      rawBranchPrefixes[s.id] = pfx;
+      rawBranchPrefixes[String(s.id)] = pfx;
+      rawBranchPrefixes[Number(s.id)] = pfx;
     }
   } catch (_) {}
 };
@@ -270,7 +311,18 @@ export class BaseModel {
         const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
         pool.query(sql, values)
           .then(([rows]) => resolve(rows.map(r => this._parseRow(r))))
-          .catch(reject);
+          .catch(async (err) => {
+            if (err.code === 'ER_NO_SUCH_TABLE') {
+              try {
+                const fallbackSql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
+                const [rows] = await pool.query(fallbackSql, values);
+                return resolve(rows.map(r => this._parseRow(r)));
+              } catch (_) {
+                return resolve([]);
+              }
+            }
+            reject(err);
+          });
       },
       catch: (reject) => {
         const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} ${queryObj._limit}`;
@@ -305,7 +357,18 @@ export class BaseModel {
         const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} LIMIT 1`;
         pool.query(sql, values)
           .then(([rows]) => resolve(rows.length > 0 ? this._parseRow(rows[0]) : null))
-          .catch(reject);
+          .catch(async (err) => {
+            if (err.code === 'ER_NO_SUCH_TABLE') {
+              try {
+                const fallbackSql = `SELECT * FROM \`${this.tableName}\` ${whereClause} ${queryObj._sort} LIMIT 1`;
+                const [rows] = await pool.query(fallbackSql, values);
+                return resolve(rows.length > 0 ? this._parseRow(rows[0]) : null);
+              } catch (_) {
+                return resolve(null);
+              }
+            }
+            reject(err);
+          });
       },
       catch: (reject) => {
         const sql = `SELECT * FROM ${sourceSql} ${whereClause} ${queryObj._sort} LIMIT 1`;
@@ -335,7 +398,18 @@ export class BaseModel {
         const sql = `SELECT * FROM ${sourceSql} WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
         pool.query(sql, [id])
           .then(([rows]) => resolve(rows.length > 0 ? this._parseRow(rows[0]) : null))
-          .catch(reject);
+          .catch(async (err) => {
+            if (err.code === 'ER_NO_SUCH_TABLE') {
+              try {
+                const fallbackSql = `SELECT * FROM \`${this.tableName}\` WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
+                const [rows] = await pool.query(fallbackSql, [id]);
+                return resolve(rows.length > 0 ? this._parseRow(rows[0]) : null);
+              } catch (_) {
+                return resolve(null);
+              }
+            }
+            reject(err);
+          });
       },
       catch: (reject) => {
         const sql = `SELECT * FROM ${sourceSql} WHERE \`${this.primaryKey}\` = ? LIMIT 1`;
@@ -349,11 +423,15 @@ export class BaseModel {
   async create(data) {
     const record = Array.isArray(data) ? data[0] : data;
     const shopId = record.shopId ? Number(record.shopId) : 1;
-    const targetTable = (this.isBranchEntity && BRANCH_TABLE_PREFIXES[shopId])
+    let targetTable = (this.isBranchEntity && BRANCH_TABLE_PREFIXES[shopId])
       ? `${BRANCH_TABLE_PREFIXES[shopId]}__${this.tableName}`
       : this.tableName;
 
-    const validCols = await getTableColumns(targetTable);
+    let validCols = await getTableColumns(targetTable);
+    if (!validCols) {
+      targetTable = this.tableName;
+      validCols = await getTableColumns(targetTable);
+    }
     const cleanData = {};
 
     for (const [key, val] of Object.entries(record)) {

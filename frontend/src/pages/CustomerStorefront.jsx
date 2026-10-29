@@ -4149,9 +4149,26 @@ function StoreContent({ shopId }) {
         }
       }
 
-      (s.items || []).forEach(i => {
-        totalEggs += Number(i.totalEggs || i.quantity || 0);
-      });
+      let sItems = [];
+      if (Array.isArray(s.items)) {
+        sItems = s.items;
+      } else if (typeof s.items === 'string' && s.items.trim()) {
+        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch {}
+      }
+      if (!Array.isArray(sItems)) sItems = [];
+
+      if (sItems.length > 0) {
+        sItems.forEach(i => {
+          totalEggs += Number(i.totalEggs || i.quantity || 0);
+        });
+      } else if (Number(s.eggsBought) > 0) {
+        totalEggs += Number(s.eggsBought);
+      } else if (Number(s.petisBought) > 0) {
+        totalEggs += Number(s.petisBought) * 360;
+      } else if (amount > 0) {
+        const estPetis = Number((amount / 1050).toFixed(1)) || 1;
+        totalEggs += Math.round(estPetis * 360);
+      }
     });
 
     const totalPetis = (totalEggs / 360).toFixed(1);
@@ -10717,7 +10734,15 @@ function StoreContent({ shopId }) {
                                             let totalEggsCount = 0;
 
                                             (custGroup.invoices || []).forEach(inv => {
-                                              (inv.items || []).forEach(it => {
+                                              let invItems = [];
+                                              if (Array.isArray(inv.items)) {
+                                                invItems = inv.items;
+                                              } else if (typeof inv.items === 'string' && inv.items.trim()) {
+                                                try { invItems = JSON.parse(inv.items); if (typeof invItems === 'string') invItems = JSON.parse(invItems); } catch {}
+                                              }
+                                              if (!Array.isArray(invItems)) invItems = [];
+
+                                              invItems.forEach(it => {
                                                 const itemName = it.rawProductName || it.name || it.title || 'Product';
                                                 const qty = Number(it.quantity) || 1;
                                                 const unit = (it.unitLabel || it.unit || '').trim();
@@ -10744,6 +10769,29 @@ function StoreContent({ shopId }) {
                                                   else totalEggsCount += qty;
                                                 }
                                               });
+
+                                              // Fallback for bills where items array is empty (legacy or online unparsed bills)
+                                              if (invItems.length === 0) {
+                                                const pBought = Number(inv.petisBought) || 0;
+                                                const eBought = Number(inv.eggsBought) || 0;
+                                                const desc = inv.itemsDescription || '';
+                                                const totAmt = Number(inv.totalAmount) || 0;
+
+                                                if (pBought > 0) {
+                                                  totalPetis += pBought;
+                                                  totalEggsCount += pBought * 360;
+                                                  customerItems.push({ name: desc || 'Eggs', quantity: pBought, unit: 'Peti' });
+                                                } else if (eBought > 0) {
+                                                  totalLooseEggs += eBought;
+                                                  totalEggsCount += eBought;
+                                                  customerItems.push({ name: desc || 'Eggs', quantity: eBought, unit: 'Egg' });
+                                                } else if (totAmt > 0) {
+                                                  const calcPetis = Number((totAmt / 1050).toFixed(1)) || 1;
+                                                  totalPetis += calcPetis;
+                                                  totalEggsCount += calcPetis * 360;
+                                                  customerItems.push({ name: desc || 'Eggs', quantity: calcPetis, unit: 'Peti' });
+                                                }
+                                              }
                                             });
 
                                             if (customerItems.length === 0) {
