@@ -13722,13 +13722,33 @@ function StoreContent({ shopId }) {
                                         <span className="text-slate-400 font-bold uppercase text-[9.5px]">Damaged Qty:</span>
                                         {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
                                           <div className="flex flex-wrap items-center gap-1 text-[10px]">
-                                            {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black">{dmg.petiQuantity} Petis</span>}
-                                            {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black">{dmg.trayQuantity} Trays</span>}
-                                            {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                            {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black">{dmg.petiQuantity} {dmg.petiQuantity === 1 ? 'Peti' : 'Petis'}</span>}
+                                            {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black">{dmg.trayQuantity} {dmg.trayQuantity === 1 ? 'Tray' : 'Trays'}</span>}
+                                            {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black">{dmg.eggQuantity} {dmg.eggQuantity === 1 ? 'Single Egg' : 'Single Eggs'}</span>}
                                           </div>
-                                        ) : (
-                                          <span className="font-bold text-slate-800">{dmg.quantity || dmg.deductedEggs || 0} Units</span>
-                                        )}
+                                        ) : (() => {
+                                          const qty = Number(dmg.quantity || dmg.deductedEggs) || 1;
+                                          const u = String(dmg.unitType || dmg.unit || 'egg').toLowerCase().trim();
+                                          if (u.includes('peti')) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-black text-[10px]">
+                                                {qty} {qty === 1 ? 'Peti' : 'Petis'}
+                                              </span>
+                                            );
+                                          }
+                                          if (u.includes('tray')) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300 rounded font-black text-[10px]">
+                                                {qty} {qty === 1 ? 'Tray' : 'Trays'}
+                                              </span>
+                                            );
+                                          }
+                                          return (
+                                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-black text-[10px]">
+                                              {qty} {qty === 1 ? 'Single Egg' : 'Single Eggs'}
+                                            </span>
+                                          );
+                                        })()}
                                       </div>
 
                                       <div className="flex items-center justify-between text-[11px]">
@@ -13801,13 +13821,33 @@ function StoreContent({ shopId }) {
                                         <td className="p-3.5 text-center font-black text-slate-900">
                                           {(dmg.petiQuantity > 0 || dmg.trayQuantity > 0 || dmg.eggQuantity > 0) ? (
                                             <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
-                                              {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} Petis</span>}
-                                              {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} Trays</span>}
-                                              {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} Eggs</span>}
+                                              {dmg.petiQuantity > 0 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black">{dmg.petiQuantity} {dmg.petiQuantity === 1 ? 'Peti' : 'Petis'}</span>}
+                                              {dmg.trayQuantity > 0 && <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black">{dmg.trayQuantity} {dmg.trayQuantity === 1 ? 'Tray' : 'Trays'}</span>}
+                                              {dmg.eggQuantity > 0 && <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black">{dmg.eggQuantity} {dmg.eggQuantity === 1 ? 'Single Egg' : 'Single Eggs'}</span>}
                                             </div>
-                                          ) : (
-                                            <span>{dmg.quantity || dmg.deductedEggs || 0} Units</span>
-                                          )}
+                                          ) : (() => {
+                                            const qty = Number(dmg.quantity || dmg.deductedEggs) || 1;
+                                            const u = String(dmg.unitType || dmg.unit || 'egg').toLowerCase().trim();
+                                            if (u.includes('peti')) {
+                                              return (
+                                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300/80 rounded font-black text-[11px]">
+                                                  {qty} {qty === 1 ? 'Peti' : 'Petis'}
+                                                </span>
+                                              );
+                                            }
+                                            if (u.includes('tray')) {
+                                              return (
+                                                <span className="px-1.5 py-0.5 bg-sky-100 text-sky-900 border border-sky-300/80 rounded font-black text-[11px]">
+                                                  {qty} {qty === 1 ? 'Tray' : 'Trays'}
+                                                </span>
+                                              );
+                                            }
+                                            return (
+                                              <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300/80 rounded font-black text-[11px]">
+                                                {qty} {qty === 1 ? 'Single Egg' : 'Single Eggs'}
+                                              </span>
+                                            );
+                                          })()}
                                         </td>
                                         <td className="p-3.5 font-bold text-slate-600">
                                           {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
