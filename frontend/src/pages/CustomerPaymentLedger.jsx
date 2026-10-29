@@ -1122,28 +1122,38 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
 
         </div>
 
-        {/* Dedicated Today Customer Payment Summary Banner */}
-        <div className="mt-4 bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-900 flex items-center gap-2 text-sm sm:text-base font-black">
-              <Sparkles className="w-5 h-5 text-slate-700 animate-pulse" />
-              TODAY'S CUSTOMER INFLOW &amp; LEDGER SUMMARY:
+        {/* Dedicated Today Customer Payment Summary (Separate Div Below with Cards) */}
+        <div className="mt-4 bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+              Today's Customer Inflow &amp; Ledger (Daily Breakdown)
             </span>
-            <span className="text-slate-700 font-bold text-xs sm:text-sm">{todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold</span>
+            <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+              {todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold
+            </span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              💵 Today Cash: Rs. {fmt(todayStats.totalCashReceived)}
-            </span>
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              🏦 Today Bank: Rs. {fmt(todayStats.totalBankReceived)}
-            </span>
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              📋 Today Credit: Rs. {fmt(todayStats.customerCreditDueTotal)}
-            </span>
-            <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
-              💰 Total Today: Rs. {fmt(todayStats.customerTotalRevenue)}
-            </span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
+              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalCashReceived)}</div>
+              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
+            </div>
+            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
+              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalBankReceived)}</div>
+              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+            </div>
+            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Due</span>
+              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerCreditDueTotal)}</div>
+              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Customer Due Balance</span>
+            </div>
+            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900">4. Total Today Revenue</span>
+              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerTotalRevenue)}</div>
+              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
+            </div>
           </div>
         </div>
       </div>
