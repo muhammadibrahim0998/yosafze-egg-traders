@@ -267,8 +267,8 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
   };
 
   // 1. Process Customer Sales Ledger List
-  // 1. Process Raw Customer Sales Ledger List (Filtered by Date Range)
-  const allDateFilteredSales = useMemo(() => {
+  // 1. Process and Normalize Raw Customer Sales Ledger List
+  const normalizedSales = useMemo(() => {
     const rawList = (ledgerApiData.sales && ledgerApiData.sales.length > 0)
       ? ledgerApiData.sales
       : (sales || []);
@@ -373,10 +373,15 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           items: itemsList,
           isCredit: due > 0 || pMethod.includes('CREDIT')
         };
-      })
+      });
+  }, [ledgerApiData.sales, sales]);
+
+  // Date Filtered Sales
+  const allDateFilteredSales = useMemo(() => {
+    return normalizedSales
       .filter(item => isInDateRange(item.date))
       .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [ledgerApiData.sales, sales, startDate, endDate]);
+  }, [normalizedSales, startDate, endDate]);
 
   // 2. Stats calculation (Computed from all date-filtered records so top 4 cards always retain accurate totals)
   const stats = useMemo(() => {
