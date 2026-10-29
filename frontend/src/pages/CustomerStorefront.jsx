@@ -5035,22 +5035,19 @@ function StoreContent({ shopId }) {
       totalDamagedEggs += Number(d.quantity) || 1;
     });
 
-    // Gross Sales Revenue before fuel deduction
+    // Gross Sales Revenue (pure realized sales from invoices & orders)
+    // Fuel expense is tracked separately in Card 2 and as an operating cost in net profit, NOT deducted from sales
     const grossRevenue = totalRevenue;
-    // Minus fuel expense from total sales as requested ("da fuel expens da total sale na minus ka")
-    const netSalesAfterFuel = Math.max(0, grossRevenue - totalFuelExpense);
-    const finalSalesRevenue = netSalesAfterFuel;
 
-    // 6. Final Realized Net Profit (Net Revenue - Purchases - Shop Overhead - Damaged Loss)
+    // 6. Final Realized Net Profit (Total Revenue - Purchases - Shop Overhead - Fuel Expense - Damaged Loss)
     const finalNetProfit = totalPurchasesCost > 0
-      ? (finalSalesRevenue - totalPurchasesCost - totalExpenses - totalDamagedLoss)
+      ? (grossRevenue - totalPurchasesCost - totalExpenses - totalFuelExpense - totalDamagedLoss)
       : (grossProfit - totalFuelExpense - totalExpenses - totalDamagedLoss);
 
     return {
       grossProfit,
       grossRevenue,
-      totalRevenue: finalSalesRevenue,
-      netSalesAfterFuel,
+      totalRevenue: grossRevenue,
       totalFuelExpense,
       filteredFuelCount: filteredFuelExpenses.length,
       filteredFuelExpenses,
@@ -5307,6 +5304,9 @@ function StoreContent({ shopId }) {
       ['1', '(+) Total Sales Revenue Earned', `${profitReportStats.filteredSalesCount} Sales Invoices`, `+ Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}`],
       ['2', '(-) Purchased Products / Restocks Cost', `${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs.toLocaleString('en-PK')} Eggs`, `- Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')}`],
       ['3', '(-) Shop Operational Expenses (Bills, Rent, Misc)', `${profitReportStats.filteredExpensesCount} Expense Logs`, `- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}`],
+      ...((profitReportStats.totalFuelExpense || 0) > 0 ? [
+        ['3b', '(-) Vehicle & Transport Fuel Expenses', `${profitReportStats.filteredFuelCount || 0} Fuel Logs`, `- Rs. ${(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}`]
+      ] : []),
       ['4', '(-) Damaged / Broken Egg Inventory Loss', `${profitReportStats.filteredDamagedCount} Logs (${profitReportStats.totalDamagedEggs} Broken Eggs)`, `- Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}`],
       ['5', '(=) FINAL PURE REALIZED NET PROFIT', 'Pure Realized Cash Balance', `Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}`]
     ];
@@ -5480,6 +5480,9 @@ function StoreContent({ shopId }) {
       message += `(+) Total Sales: Rs. ${(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}\n`;
       message += `(-) Purchases Cost: Rs. ${(profitReportStats.totalPurchasesCost || 0).toLocaleString('en-PK')} (${profitReportStats.totalPurchasesPetis} Petis • ${profitReportStats.totalPurchasesTrays} Trays • ${profitReportStats.totalPurchasesEggs} Eggs)\n`;
       message += `(-) Shop Expenses: Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}\n`;
+      if ((profitReportStats.totalFuelExpense || 0) > 0) {
+        message += `(-) Vehicle Fuel Expenses: Rs. ${(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')} (${profitReportStats.filteredFuelCount || 0} Logs)\n`;
+      }
       message += `(-) Damaged Egg Loss: Rs. ${(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')} (${profitReportStats.totalDamagedEggs} Eggs)\n`;
       message += `━━━━━━━━━━━━━━━━━━━━\n`;
       message += `💵 *(=) FINAL PURE REALIZED NET PROFIT: Rs. ${(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}*\n`;
@@ -5734,6 +5737,15 @@ function StoreContent({ shopId }) {
                   <td style="text-align:center;">${profitReportStats.filteredExpensesCount} Logs</td>
                   <td style="text-align:right; font-weight:bold; color:#dc2626;">- Rs. ${(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}</td>
                 </tr>
+                ${(profitReportStats.totalFuelExpense || 0) > 0 ? `
+                <tr>
+                  <td style="text-align:center; font-weight:bold;">3b</td>
+                  <td><strong style="color:#d97706;">(-) Vehicle &amp; Transport Fuel Expenses</strong></td>
+                  <td style="text-align:center;">Fuel Logs</td>
+                  <td style="text-align:center;">${profitReportStats.filteredFuelCount || 0} Logs</td>
+                  <td style="text-align:right; font-weight:bold; color:#d97706;">- Rs. ${(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}</td>
+                </tr>
+                ` : ''}
                 <tr>
                   <td style="text-align:center; font-weight:bold;">4</td>
                   <td><strong style="color:#d97706;">(-) Damaged / Broken Egg Inventory Loss</strong></td>
@@ -7807,7 +7819,7 @@ function StoreContent({ shopId }) {
                         {/* ─── 6 FINAL RESULT CARDS IN EXACT SEQUENCE (GRAY & WHITE THEME) ─── */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 relative z-10">
 
-                          {/* 1. TOTAL SALE (NET AFTER MINUSING FUEL EXPENSE) */}
+                          {/* 1. TOTAL SALE (PURE SALES ONLY - NO FUEL DEDUCTION) */}
                           <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-1.5">
@@ -7823,11 +7835,7 @@ function StoreContent({ shopId }) {
                                 Rs. {(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                               </h3>
                               <p className="text-[10px] text-emerald-700 font-bold mt-1">
-                                {(profitReportStats.totalFuelExpense || 0) > 0 ? (
-                                  <span>Gross: Rs. {(profitReportStats.grossRevenue || 0).toLocaleString('en-PK')} &bull; <span className="text-rose-600 font-black">(-Rs. {(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')} Fuel)</span></span>
-                                ) : (
-                                  <span>🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales</span>
-                                )}
+                                🛒 {profitReportStats.filteredSalesCount || 0} Orders &bull; Realized Sales
                               </p>
                             </div>
                           </div>
@@ -7852,7 +7860,7 @@ function StoreContent({ shopId }) {
                                 Rs. {(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}
                               </h3>
                               <p className="text-[10px] text-amber-700 font-bold mt-1">
-                                ⛽ {profitReportStats.filteredFuelCount || 0} Logs &bull; Deducted from Sales
+                                ⛽ {profitReportStats.filteredFuelCount || 0} Logs &bull; Vehicle &amp; Transport Fuel
                               </p>
                             </div>
                           </div>
@@ -11993,6 +12001,33 @@ function StoreContent({ shopId }) {
                         </div>
                       </div>
 
+                      {/* Card 3b: Vehicle Fuel Expenses */}
+                      {(profitReportStats.totalFuelExpense || 0) > 0 && (
+                        <div className="bg-amber-50/50 border-2 border-amber-200 rounded-2xl p-3.5 shadow-sm space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-black">
+                                #3b
+                              </span>
+                              <span className="font-black text-amber-950 text-xs uppercase">
+                                (-) Fuel &amp; Transport Expenses
+                              </span>
+                            </div>
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[8.5px] font-black uppercase">
+                              Fuel
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                            <span className="text-[11px] font-bold text-gray-600">
+                              {profitReportStats.filteredFuelCount || 0} Fuel Logs
+                            </span>
+                            <span className="text-base font-black text-amber-700">
+                              - {currency} {Number(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Card 4: Damaged Egg Loss */}
                       <div className="bg-amber-50/50 border-2 border-amber-200 rounded-2xl p-3.5 shadow-sm space-y-2">
                         <div className="flex items-center justify-between">
@@ -12126,6 +12161,30 @@ function StoreContent({ shopId }) {
                               - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
                             </td>
                           </tr>
+
+                          {/* Row 3b: Fuel Expenses */}
+                          {(profitReportStats.totalFuelExpense || 0) > 0 && (
+                            <tr className="hover:bg-gray-50/80 transition-colors">
+                              <td className="p-3.5 text-center text-gray-400 font-bold">3b</td>
+                              <td className="p-3.5 text-amber-800 font-extrabold">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                  (-) Vehicle &amp; Transport Fuel Expenses
+                                </div>
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                                  Fuel &amp; Transport
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-center text-gray-600">
+                                {profitReportStats.filteredFuelCount || 0} Fuel Logs
+                              </td>
+                              <td className="p-3.5 text-right text-amber-700 font-black text-sm">
+                                - {currency} {Number(profitReportStats.totalFuelExpense || 0).toLocaleString('en-PK')}
+                              </td>
+                            </tr>
+                          )}
 
                           {/* Row 4: Damaged Egg Loss */}
                           <tr className="hover:bg-gray-50/80 transition-colors">
