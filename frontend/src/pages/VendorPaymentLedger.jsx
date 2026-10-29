@@ -25,7 +25,8 @@ import {
   X,
   Pencil,
   Trash2,
-  Tag
+  Tag,
+  Sparkles
 } from 'lucide-react';
 import api, { getPaymentLedger, getPurchaseCredits, deletePurchaseCredit, updateItem } from '../services/api';
 import { useProducts } from '../contexts/ProductContext';
@@ -687,29 +688,39 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
           </div>
 
         </div>
+      </div>
 
-        {/* Dedicated Today Vendor Payment Summary Banner */}
-        <div className="p-4 sm:p-5 bg-slate-100 border-t-2 border-slate-300 flex flex-wrap items-center justify-between gap-3 text-sm sm:text-base font-black text-slate-900 rounded-b-2xl">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-900 flex items-center gap-2 text-sm sm:text-base font-black">
-              <Truck className="w-5 h-5 text-slate-700" />
-              TODAY'S VENDOR PURCHASES &amp; SETTLEMENTS:
-            </span>
-            <span className="text-slate-700 font-bold text-xs sm:text-sm">{todayStats.totalBills} Purchase Invoices &bull; {todayStats.totalPetisPurchased.toFixed(1)} Petis</span>
+      {/* Dedicated Today Vendor Purchases & Settlements (Separate Div Below with Cards) */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+            Today's Vendor Purchases &amp; Settlements (Daily Breakdown)
+          </span>
+          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+            {todayStats.totalBills} Purchase Invoices &bull; {todayStats.totalPetisPurchased.toFixed(1)} Petis
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.supplierCashPaid)}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash Outflow</span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              💵 Today Cash: Rs. {fmt(todayStats.supplierCashPaid)}
-            </span>
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              🏦 Today Bank: Rs. {fmt(todayStats.supplierBankPaid)}
-            </span>
-            <span className="bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border-2 border-slate-300 text-slate-900 shadow-xs font-black">
-              📋 Today Credit: Rs. {fmt(todayStats.supplierCreditDueTotal)}
-            </span>
-            <span className="bg-slate-900 text-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl shadow-xs font-black">
-              💰 Total Today: Rs. {fmt(todayStats.supplierTotalCost)}
-            </span>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.supplierBankPaid)}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank Transfer Outflow</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">3. Today Credit Due</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.supplierCreditDueTotal)}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Remaining Due Balance</span>
+          </div>
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-orange-900">4. Total Today Purchases</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.supplierTotalCost)}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Stock Cost</span>
           </div>
         </div>
       </div>
