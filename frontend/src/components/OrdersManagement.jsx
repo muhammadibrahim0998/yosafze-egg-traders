@@ -287,6 +287,43 @@ export function OrdersManagement({ shopId = null }) {
     return orders.filter(ord => isDateInSelectedRange(ord.createdAt || ord.orderDate));
   }, [orders, appliedStartDate, appliedEndDate]);
 
+  // Dynamic Today's Order Stats
+  const todayOrderStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    let todayCount = 0;
+    let todayTotal = 0;
+    let todayPaid = 0;
+    let todayPending = 0;
+
+    (orders || []).forEach(o => {
+      if (isMatchToday(o.createdAt || o.orderDate)) {
+        todayCount += 1;
+        const tot = Number(o.totalAmount) || 0;
+        todayTotal += tot;
+        if (String(o.paymentStatus).toUpperCase() === 'PAID') {
+          todayPaid += tot;
+        } else {
+          todayPending += tot;
+        }
+      }
+    });
+
+    return { todayCount, todayTotal, todayPaid, todayPending };
+  }, [orders]);
+
   return (
     <div className="bg-[var(--color-surface-card)] rounded-xl border border-[var(--color-border-subtle)] shadow-sm p-6 overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-700 space-y-6">
       {/* Header */}
@@ -385,6 +422,38 @@ export function OrdersManagement({ shopId = null }) {
           >
             <RefreshCw className="w-3.5 h-3.5" /> Refresh Orders
           </button>
+        </div>
+      </div>
+
+      {/* ─── DEDICATED TODAY'S ORDERS & EASYPAISA LIVE SUMMARY BANNER ─── */}
+      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-emerald-500/10 border-2 border-emerald-400/80 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
+              TODAY'S ORDERS &amp; EASYPAISA SUMMARY (LIVE)
+            </span>
+            <span className="text-[10px] font-bold bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-full">
+              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+            <div className="bg-emerald-100 text-emerald-900 px-3 py-1 rounded-xl border border-emerald-300">
+              Today Orders: <strong>{todayOrderStats.todayCount}</strong>
+            </div>
+            <div className="bg-teal-100 text-teal-900 px-3 py-1 rounded-xl border border-teal-300">
+              Today Volume: <strong>{fmt(todayOrderStats.todayTotal)}</strong>
+            </div>
+            <div className="bg-sky-100 text-sky-900 px-3 py-1 rounded-xl border border-sky-300">
+              Paid / Verified: <strong>{fmt(todayOrderStats.todayPaid)}</strong>
+            </div>
+            <div className="bg-amber-100 text-amber-900 px-3 py-1 rounded-xl border border-amber-300">
+              Pending Verification: <strong>{fmt(todayOrderStats.todayPending)}</strong>
+            </div>
+          </div>
         </div>
       </div>
 

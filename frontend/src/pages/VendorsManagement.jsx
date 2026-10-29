@@ -310,6 +310,26 @@ export function VendorsManagement({ shopId: propShopId }) {
     return { total, withPhone, locations };
   }, [vendors]);
 
+  // Dynamic Today's Vendor Stats
+  const todayVendorStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    const addedToday = vendors.filter(v => isMatchToday(v.createdAt || v.date)).length;
+    return { addedToday };
+  }, [vendors]);
+
   // Filtered vendors
   const filteredVendors = useMemo(() => {
     return vendors.filter(v => {
@@ -379,37 +399,84 @@ export function VendorsManagement({ shopId: propShopId }) {
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>Total Vendors</span>
-            <Building2 className="w-4 h-4 text-teal-600" />
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+              <span>Total Vendors</span>
+              <Building2 className="w-4 h-4 text-teal-600" />
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              <CountUpNumber value={stats.total} />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900">
-            <CountUpNumber value={stats.total} />
+          <div className="mt-2 pt-1.5 border-t border-teal-100 flex items-center justify-between text-[10px] font-black bg-teal-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
+            <span className="text-teal-800 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse"></span>
+              TODAY REGISTERED:
+            </span>
+            <span className="text-teal-900 font-black">{todayVendorStats.addedToday} Vendors Today</span>
           </div>
-          <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
         </div>
 
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>With Phone Number</span>
-            <Phone className="w-4 h-4 text-emerald-600" />
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+              <span>With Phone Number</span>
+              <Phone className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
+              <CountUpNumber value={stats.withPhone} />
+            </div>
+            <p className="text-[9px] font-bold text-emerald-600 uppercase">Available for Direct Contact</p>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-700">
-            <CountUpNumber value={stats.withPhone} />
+          <div className="mt-2 pt-1.5 border-t border-emerald-100 flex items-center justify-between text-[10px] font-black bg-emerald-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
+            <span className="text-emerald-800">CONNECTIVITY:</span>
+            <span className="text-emerald-900 font-black">{stats.total > 0 ? Math.round((stats.withPhone / stats.total) * 100) : 0}% Verified</span>
           </div>
-          <p className="text-[9px] font-bold text-emerald-600 uppercase">Available for Direct Contact</p>
         </div>
 
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-            <span>Locations / Cities</span>
-            <MapPin className="w-4 h-4 text-blue-600" />
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+              <span>Locations / Cities</span>
+              <MapPin className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-blue-600 mt-1">
+              <CountUpNumber value={stats.locations} />
+            </div>
+            <p className="text-[9px] font-bold text-blue-600 uppercase">Farms &amp; Supply Regions</p>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-blue-600">
-            <CountUpNumber value={stats.locations} />
+          <div className="mt-2 pt-1.5 border-t border-blue-100 flex items-center justify-between text-[10px] font-black bg-blue-50/70 -mx-3.5 -mb-3.5 px-3.5 py-1 rounded-b-2xl">
+            <span className="text-blue-800">REGIONAL NETWORK:</span>
+            <span className="text-blue-900 font-black">{stats.locations} Cities Active</span>
           </div>
-          <p className="text-[9px] font-bold text-blue-600 uppercase">Farms &amp; Supply Regions</p>
+        </div>
+      </div>
+
+      {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY BANNER ─── */}
+      <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border-2 border-teal-400/80 rounded-2xl p-3 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-teal-950">
+              TODAY'S VENDORS &amp; FARM SUPPLIERS ACTIVITY
+            </span>
+            <span className="text-[10px] font-bold bg-teal-200/70 text-teal-900 px-2 py-0.5 rounded-full">
+              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+            <div className="bg-teal-100 text-teal-900 px-3 py-1 rounded-xl border border-teal-300">
+              Vendors Added Today: <strong>{todayVendorStats.addedToday}</strong>
+            </div>
+            <div className="bg-emerald-100 text-emerald-900 px-3 py-1 rounded-xl border border-emerald-300">
+              Total Active Directory: <strong>{stats.total} Suppliers</strong>
+            </div>
+          </div>
         </div>
       </div>
 

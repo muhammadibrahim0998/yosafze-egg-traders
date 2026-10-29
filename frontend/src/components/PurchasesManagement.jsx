@@ -637,6 +637,124 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     };
   }, [filteredByTimeframeProducts]);
 
+  // ─── Master Today Purchases Stats ───
+  const todayStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    const todayProducts = (products || []).filter(p => isMatchToday(p.purchaseDate || p.createdAt || p.date));
+
+    let totalPurchasesCost = 0;
+    let cashPaid = 0;
+    let bankPaid = 0;
+    let totalDue = 0;
+    let totalPetisPurchased = 0;
+
+    todayProducts.forEach((p) => {
+      const stockEggs = Number(p.stock) || 0;
+      const petiQty = Number(p.petiQuantity) || 0;
+      const trayQty = Number(p.trayQuantity) || 0;
+      const eggQty = Number(p.eggQuantity) || 0;
+
+      if (petiQty > 0 || trayQty > 0 || eggQty > 0) {
+        totalPetisPurchased += petiQty + (trayQty / 12) + (eggQty / 360);
+      } else if (stockEggs > 0) {
+        totalPetisPurchased += stockEggs / 360;
+      }
+
+      const unitCost = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
+      const unitDivisor = p.unitType === 'egg' ? 1 : p.unitType === 'tray' ? 30 : 360;
+
+      const cost = Number(p.totalPurchaseCost) > 0
+        ? Number(p.totalPurchaseCost)
+        : (petiQty > 0 ? petiQty * unitCost : (stockEggs > 0 ? stockEggs * (unitCost / unitDivisor) : 0));
+
+      const receiptImg = getReceiptImg(p);
+      const pMethod = String(p.paymentMethod || 'Cash').trim().toLowerCase();
+
+      const isOnline = p.isOnlinePayment === true || !!receiptImg || (
+        pMethod.includes('bank') || 
+        pMethod.includes('easy') || 
+        pMethod.includes('jazz') || 
+        pMethod.includes('online') || 
+        pMethod.includes('cheque') || 
+        pMethod.includes('transfer') ||
+        pMethod.includes('card')
+      );
+
+      const isCredit = !isOnline && (
+        pMethod.includes('credit') || 
+        pMethod.includes('due')
+      );
+
+      const hasExplicitDue = p.dueAmountToSupplier !== undefined && p.dueAmountToSupplier !== null && Number(p.dueAmountToSupplier) >= 0;
+      let due = 0;
+      let paid = 0;
+
+      if (hasExplicitDue || isCredit) {
+        const rawDue = hasExplicitDue ? Number(p.dueAmountToSupplier) : cost;
+        due = Math.min(cost, Math.max(0, rawDue));
+        paid = Math.max(0, cost - due);
+      } else {
+        paid = cost;
+      }
+
+      totalPurchasesCost += isNaN(cost) ? 0 : cost;
+      totalDue += isNaN(due) ? 0 : due;
+
+      let itemCashPaid = 0;
+      let itemBankPaid = 0;
+
+      if (p.cashPaidToSupplier !== undefined && p.cashPaidToSupplier !== null && Number(p.cashPaidToSupplier) > 0) {
+        itemCashPaid = Number(p.cashPaidToSupplier);
+      }
+      if (p.bankPaidToSupplier !== undefined && p.bankPaidToSupplier !== null && Number(p.bankPaidToSupplier) > 0) {
+        itemBankPaid = Number(p.bankPaidToSupplier);
+      }
+
+      if (itemCashPaid === 0 && itemBankPaid === 0 && paid > 0) {
+        const isStrictBank = (
+          pMethod.includes('bank') || 
+          pMethod.includes('easy') || 
+          pMethod.includes('jazz') || 
+          pMethod.includes('transfer') || 
+          pMethod.includes('online') ||
+          p.isOnlinePayment === true
+        );
+        if (isStrictBank) {
+          itemBankPaid = paid;
+        } else {
+          itemCashPaid = paid;
+        }
+      }
+
+      cashPaid += isNaN(itemCashPaid) ? 0 : itemCashPaid;
+      bankPaid += isNaN(itemBankPaid) ? 0 : itemBankPaid;
+    });
+
+    return {
+      count: todayProducts.length,
+      totalPurchasesCost: isNaN(totalPurchasesCost) ? 0 : Math.round(totalPurchasesCost),
+      cashPaid: isNaN(cashPaid) ? 0 : Math.round(cashPaid),
+      bankPaid: isNaN(bankPaid) ? 0 : Math.round(bankPaid),
+      totalDue: isNaN(totalDue) ? 0 : Math.round(totalDue),
+      totalPetis: isNaN(totalPetisPurchased) ? 0 : Number(totalPetisPurchased.toFixed(1)),
+      totalTrays: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 12),
+      totalEggs: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 360)
+    };
+  }, [products]);
+
   const attachedReceipts = useMemo(() => {
     return filteredByTimeframeProducts.filter(p => !!getReceiptImg(p));
   }, [filteredByTimeframeProducts]);
@@ -1522,70 +1640,130 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: Stock Purchased */}
         <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
-              {timeframe === 'DAY' ? 'Today Stock' : timeframe === 'MONTH' ? 'Month Stock' : timeframe === 'YEAR' ? 'Year Stock' : 'Stock Purchased'}
-            </span>
-            <div className="p-1.5 bg-amber-100 rounded-lg">
-              <Box className="w-3.5 h-3.5 text-amber-600" />
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
+                {timeframe === 'DAY' ? 'Today Stock' : timeframe === 'MONTH' ? 'Month Stock' : timeframe === 'YEAR' ? 'Year Stock' : 'Stock Purchased'}
+              </span>
+              <div className="p-1.5 bg-amber-100 rounded-lg">
+                <Box className="w-3.5 h-3.5 text-amber-600" />
+              </div>
             </div>
+            <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.totalPetis} <span className="text-base text-amber-600">Petis</span></h4>
+            <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+              {stats.totalTrays} Trays • {fmt(stats.totalEggs)} Eggs
+            </span>
           </div>
-          <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.totalPetis} <span className="text-base text-amber-600">Petis</span></h4>
-          <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-            {stats.totalTrays} Trays • {fmt(stats.totalEggs)} Eggs
-          </span>
+          <div className="mt-2 pt-2 border-t border-amber-100 flex items-center justify-between text-[10px] font-black text-amber-800 bg-amber-50/80 px-2 py-1 rounded-xl">
+            <span>📅 Today:</span>
+            <span>{todayStats.totalPetis} Petis ({todayStats.totalEggs} Eggs)</span>
+          </div>
         </div>
 
         {/* Card 2: Cash Paid (Separate) */}
         <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Cash Paid</span>
-            <div className="p-1.5 bg-emerald-100 rounded-lg">
-              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Cash Paid</span>
+              <div className="p-1.5 bg-emerald-100 rounded-lg">
+                <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
             </div>
+            <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
+            <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
           </div>
-          <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
-          <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
+          <div className="mt-2 pt-2 border-t border-emerald-100 flex items-center justify-between text-[10px] font-black text-emerald-800 bg-emerald-50/80 px-2 py-1 rounded-xl">
+            <span>📅 Today:</span>
+            <span>Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</span>
+          </div>
         </div>
 
         {/* Card 3: Bank Transfer Paid (Separate) */}
         <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Bank Paid</span>
-            <div className="p-1.5 bg-blue-100 rounded-lg">
-              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Bank Paid</span>
+              <div className="p-1.5 bg-blue-100 rounded-lg">
+                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              </div>
             </div>
+            <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
+            <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
           </div>
-          <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
-          <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
+          <div className="mt-2 pt-2 border-t border-blue-100 flex items-center justify-between text-[10px] font-black text-blue-800 bg-blue-50/80 px-2 py-1 rounded-xl">
+            <span>📅 Today:</span>
+            <span>Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</span>
+          </div>
         </div>
 
         {/* Card 4: Due Balance (Credit) */}
         <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between ${stats.totalDue > 0 ? 'border-rose-300 bg-rose-50' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
-            <div className="p-1.5 bg-rose-100 rounded-lg">
-              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
+              <div className="p-1.5 bg-rose-100 rounded-lg">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              </div>
             </div>
+            <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${stats.totalDue > 0 ? 'text-rose-600' : 'text-gray-400'}`}>Rs. <CountUpNumber value={stats.totalDue} /></h4>
+            <span className={`text-[10px] font-bold uppercase mt-1 block ${stats.totalDue > 0 ? 'text-rose-500' : 'text-gray-400'}`}>
+              {stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}
+            </span>
           </div>
-          <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${stats.totalDue > 0 ? 'text-rose-600' : 'text-gray-400'}`}>Rs. <CountUpNumber value={stats.totalDue} /></h4>
-          <span className={`text-[10px] font-bold uppercase mt-1 block ${stats.totalDue > 0 ? 'text-rose-500' : 'text-gray-400'}`}>
-            {stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}
-          </span>
+          <div className="mt-2 pt-2 border-t border-rose-100 flex items-center justify-between text-[10px] font-black text-rose-800 bg-rose-50/80 px-2 py-1 rounded-xl">
+            <span>📅 Today:</span>
+            <span>Rs. {todayStats.totalDue.toLocaleString('en-PK')}</span>
+          </div>
         </div>
 
         {/* Card 5: Grand Total Purchase Cost */}
         <div className="bg-white border-2 border-purple-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest">
-              {timeframe === 'DAY' ? 'Today Cost' : timeframe === 'MONTH' ? 'Month Cost' : timeframe === 'YEAR' ? 'Year Cost' : 'Total Investment'}
-            </span>
-            <div className="p-1.5 bg-purple-100 rounded-lg">
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest">
+                {timeframe === 'DAY' ? 'Today Cost' : timeframe === 'MONTH' ? 'Month Cost' : timeframe === 'YEAR' ? 'Year Cost' : 'Total Investment'}
+              </span>
+              <div className="p-1.5 bg-purple-100 rounded-lg">
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+              </div>
             </div>
+            <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
+            <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
           </div>
-          <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
-          <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
+          <div className="mt-2 pt-2 border-t border-purple-100 flex items-center justify-between text-[10px] font-black text-purple-800 bg-purple-50/80 px-2 py-1 rounded-xl">
+            <span>📅 Today:</span>
+            <span>Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Dedicated Today Purchases Summary Banner */}
+      <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-emerald-50 border-2 border-amber-300 rounded-2xl p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs font-black text-amber-950">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-2xs">
+            <Box className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="uppercase tracking-wider text-[11px] block font-black text-amber-900">📅 TODAY'S LIVE PURCHASES &amp; RESTOCKS SUMMARY</span>
+            <span className="text-[10px] text-amber-700 font-bold block">{todayStats.count} Purchase Batches Recorded Today</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
+          <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-200 text-amber-900 shadow-2xs">
+            📦 Today Stock: {todayStats.totalPetis} Petis ({todayStats.totalEggs.toLocaleString('en-PK')} Eggs)
+          </span>
+          <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+            💵 Cash Paid: Rs. {todayStats.cashPaid.toLocaleString('en-PK')}
+          </span>
+          <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+            🏦 Bank Paid: Rs. {todayStats.bankPaid.toLocaleString('en-PK')}
+          </span>
+          <span className="bg-white px-2.5 py-1 rounded-xl border border-rose-200 text-rose-800 shadow-2xs">
+            📋 Credit Due: Rs. {todayStats.totalDue.toLocaleString('en-PK')}
+          </span>
+          <span className="bg-purple-700 text-white px-3 py-1 rounded-xl shadow-2xs">
+            💰 Today Investment: Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}
+          </span>
         </div>
       </div>
 

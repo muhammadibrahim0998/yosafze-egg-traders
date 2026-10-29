@@ -397,6 +397,40 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
     };
   }, [allDateFilteredSales]);
 
+  // Master Today Customer Payment Stats
+  const todayStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    const todayList = (normalizedSales || []).filter(s => isMatchToday(s.date || s.createdAt || s.saleDate));
+    const customerTotalRevenue = todayList.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+    const totalCashReceived = todayList.reduce((sum, s) => sum + (Number(s.cashPaid) || 0), 0);
+    const totalBankReceived = todayList.reduce((sum, s) => sum + (Number(s.bankPaid) || 0), 0);
+    const customerCreditDueTotal = todayList.reduce((sum, s) => sum + (Number(s.dueAmount) || 0), 0);
+    const totalPetisSold = todayList.reduce((sum, s) => sum + (Number(s.petisBought) || 0), 0);
+    const totalInvoices = todayList.length;
+
+    return {
+      customerTotalRevenue,
+      totalCashReceived,
+      totalBankReceived,
+      customerCreditDueTotal,
+      totalPetisSold,
+      totalInvoices
+    };
+  }, [normalizedSales]);
+
   // 3. Filtered Customer Sales Ledger List (Filtered by Search Term & Clickable Payment Filter)
   const customerLedgerList = useMemo(() => {
     return allDateFilteredSales
@@ -919,35 +953,41 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             }`}
             title="Click to view Cash Inflow transactions & ledger"
           >
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1 truncate">
-                💵 Cash Inflow
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrintSummaryReport('CASH');
-                  }}
-                  className="p-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                  title="Print Total Cash Record"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                </button>
-                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                  paymentMethodFilter === 'CASH'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                }`}>
-                  <Banknote className="w-3.5 h-3.5" />
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1 truncate">
+                  💵 Cash Inflow
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintSummaryReport('CASH');
+                    }}
+                    className="p-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                    title="Print Total Cash Record"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                    paymentMethodFilter === 'CASH'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                  }`}>
+                    <Banknote className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               </div>
+              <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight leading-tight">
+                Rs. {fmt(stats.totalCashReceived)}
+              </div>
+              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
             </div>
-            <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight leading-tight">
-              Rs. {fmt(stats.totalCashReceived)}
+            <div className="mt-2 pt-1.5 border-t border-emerald-100 flex items-center justify-between text-[9.5px] font-black text-emerald-800 bg-emerald-50/80 px-2 py-1 rounded-lg">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.totalCashReceived)}</span>
             </div>
-            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
           </div>
 
           {/* 2. Bank Card */}
@@ -960,35 +1000,41 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             }`}
             title="Click to view Bank / Online transactions & ledger"
           >
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1 truncate">
-                🏦 Bank / Online
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrintSummaryReport('BANK');
-                  }}
-                  className="p-1 rounded-md border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                  title="Print Total Bank Record"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                </button>
-                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                  paymentMethodFilter === 'BANK'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                    : 'bg-blue-50 text-blue-600 border-blue-200'
-                }`}>
-                  <Building2 className="w-3.5 h-3.5" />
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1 truncate">
+                  🏦 Bank / Online
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintSummaryReport('BANK');
+                    }}
+                    className="p-1 rounded-md border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                    title="Print Total Bank Record"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                    paymentMethodFilter === 'BANK'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-blue-50 text-blue-600 border-blue-200'
+                  }`}>
+                    <Building2 className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               </div>
+              <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight leading-tight">
+                Rs. {fmt(stats.totalBankReceived)}
+              </div>
+              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
             </div>
-            <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight leading-tight">
-              Rs. {fmt(stats.totalBankReceived)}
+            <div className="mt-2 pt-1.5 border-t border-blue-100 flex items-center justify-between text-[9.5px] font-black text-blue-800 bg-blue-50/80 px-2 py-1 rounded-lg">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.totalBankReceived)}</span>
             </div>
-            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
           </div>
 
           {/* 3. Credit Card */}
@@ -1001,35 +1047,41 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             }`}
             title="Click to view Credit / Receivable Due ledger"
           >
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1 truncate">
-                📋 Credit (Due)
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrintSummaryReport('CREDIT');
-                  }}
-                  className="p-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 hover:text-amber-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                  title="Print Total Credit Record"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                </button>
-                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                  paymentMethodFilter === 'CREDIT'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                    : 'bg-amber-50 text-amber-600 border-amber-200'
-                }`}>
-                  <CreditCard className="w-3.5 h-3.5" />
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1 truncate">
+                  📋 Credit (Due)
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintSummaryReport('CREDIT');
+                    }}
+                    className="p-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 hover:text-amber-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                    title="Print Total Credit Record"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                    paymentMethodFilter === 'CREDIT'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-amber-50 text-amber-600 border-amber-200'
+                  }`}>
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               </div>
+              <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight leading-tight">
+                Rs. {fmt(stats.customerCreditDueTotal)}
+              </div>
+              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
             </div>
-            <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight leading-tight">
-              Rs. {fmt(stats.customerCreditDueTotal)}
+            <div className="mt-2 pt-1.5 border-t border-amber-100 flex items-center justify-between text-[9.5px] font-black text-amber-800 bg-amber-50/80 px-2 py-1 rounded-lg">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.customerCreditDueTotal)}</span>
             </div>
-            <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
           </div>
 
           {/* 4. Total Card */}
@@ -1042,37 +1094,68 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
             }`}
             title="Click to view Total Gross Revenue transactions & ledger"
           >
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 flex items-center gap-1 truncate">
-                💰 Total Revenue
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrintSummaryReport('TOTAL');
-                  }}
-                  className="p-1 rounded-md border border-teal-300 bg-white hover:bg-teal-100 text-teal-700 hover:text-teal-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                  title="Print Total Revenue Record"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                </button>
-                <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                  paymentMethodFilter === 'ALL'
-                    ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
-                    : 'bg-teal-50 text-teal-700 border-teal-200'
-                }`}>
-                  <Wallet className="w-3.5 h-3.5" />
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 flex items-center gap-1 truncate">
+                  💰 Total Revenue
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintSummaryReport('TOTAL');
+                    }}
+                    className="p-1 rounded-md border border-teal-300 bg-white hover:bg-teal-100 text-teal-700 hover:text-teal-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                    title="Print Total Revenue Record"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                    paymentMethodFilter === 'ALL'
+                      ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
+                      : 'bg-teal-50 text-teal-700 border-teal-200'
+                  }`}>
+                    <Wallet className="w-3.5 h-3.5" />
+                  </div>
                 </div>
               </div>
+              <div className="text-base sm:text-lg font-black text-teal-950 tracking-tight leading-tight">
+                Rs. {fmt(stats.customerTotalRevenue)}
+              </div>
+              <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
             </div>
-            <div className="text-base sm:text-lg font-black text-teal-950 tracking-tight leading-tight">
-              Rs. {fmt(stats.customerTotalRevenue)}
+            <div className="mt-2 pt-1.5 border-t border-teal-100 flex items-center justify-between text-[9.5px] font-black text-teal-900 bg-teal-50/80 px-2 py-1 rounded-lg">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.customerTotalRevenue)}</span>
             </div>
-            <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
           </div>
 
+        </div>
+
+        {/* Dedicated Today Customer Payment Summary Banner */}
+        <div className="mt-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border-2 border-emerald-300 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-black shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-950 flex items-center gap-1">
+              <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+              TODAY'S CUSTOMER INFLOW &amp; LEDGER SUMMARY:
+            </span>
+            <span className="text-emerald-700 font-bold">{todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold</span>
+          </div>
+          <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+              💵 Today Cash: Rs. {fmt(todayStats.totalCashReceived)}
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+              🏦 Today Bank: Rs. {fmt(todayStats.totalBankReceived)}
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-amber-200 text-amber-800 shadow-2xs">
+              📋 Today Credit: Rs. {fmt(todayStats.customerCreditDueTotal)}
+            </span>
+            <span className="bg-emerald-600 text-white px-3 py-1 rounded-xl shadow-2xs">
+              💰 Total Today: Rs. {fmt(todayStats.customerTotalRevenue)}
+            </span>
+          </div>
         </div>
       </div>
 

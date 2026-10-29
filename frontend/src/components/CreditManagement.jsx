@@ -268,6 +268,58 @@ export function CreditManagement({
     return customerCreditList.reduce((sum, sale) => sum + (Number(sale.calculatedPaid) || 0), 0);
   }, [customerCreditList]);
 
+  // Dynamic Today's Credit Metrics (Supplier + Customer)
+  const todayCreditStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    let todayPurchaseDue = 0;
+    let todayPurchasePaid = 0;
+    let todayPurchaseCount = 0;
+
+    (purchaseCreditList || []).forEach(p => {
+      if (isMatchToday(p.createdAt || p.purchaseDate || p.date)) {
+        todayPurchaseDue += Number(p.calculatedDue || 0);
+        todayPurchasePaid += Number(p.calculatedPaid || 0);
+        todayPurchaseCount += 1;
+      }
+    });
+
+    let todayCustomerDue = 0;
+    let todayCustomerPaid = 0;
+    let todayCustomerCount = 0;
+
+    (customerCreditList || []).forEach(c => {
+      if (isMatchToday(c.createdAt || c.saleDate || c.date)) {
+        todayCustomerDue += Number(c.calculatedDue || 0);
+        todayCustomerPaid += Number(c.calculatedPaid || 0);
+        todayCustomerCount += 1;
+      }
+    });
+
+    return {
+      todayPurchaseDue,
+      todayPurchasePaid,
+      todayPurchaseCount,
+      todayCustomerDue,
+      todayCustomerPaid,
+      todayCustomerCount,
+      todayNet: todayCustomerDue - todayPurchaseDue,
+      todayTotalAccounts: todayPurchaseCount + todayCustomerCount
+    };
+  }, [purchaseCreditList, customerCreditList]);
+
   // Filtered lists based on search & filter status
   const filteredPurchases = useMemo(() => {
     return purchaseCreditList.filter(item => {
@@ -624,79 +676,153 @@ export function CreditManagement({
       {/* ─── Overview KPI Metric Cards ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Purchases Credit Owed */}
-        <div className="bg-white border border-rose-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
-              SUPPLIER DEBT
-            </span>
-            <div className="w-9 h-9 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600">
-              <Truck className="w-4 h-4" />
+        <div className="bg-white border border-rose-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                SUPPLIER DEBT
+              </span>
+              <div className="w-9 h-9 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600">
+                <Truck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight">
+              {currency} <CountUpNumber value={totalPurchaseDue} />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
+              <span>Paid: {currency} {totalPurchasePaid.toLocaleString('en-PK')}</span>
+              <span className="text-rose-500">{purchaseCreditList.filter(p => p.calculatedDue > 0).length} Unsettled</span>
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight">
-            {currency} <CountUpNumber value={totalPurchaseDue} />
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
-            <span>Paid: {currency} {totalPurchasePaid.toLocaleString('en-PK')}</span>
-            <span className="text-rose-500">{purchaseCreditList.filter(p => p.calculatedDue > 0).length} Unsettled</span>
+          {/* Today Supplier Debt Badge */}
+          <div className="mt-3 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px] font-black bg-rose-50/80 -mx-5 -mb-5 px-5 py-2">
+            <span className="text-rose-700 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+              TODAY DEBT:
+            </span>
+            <span className="text-rose-800">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')} ({todayCreditStats.todayPurchaseCount} Today)</span>
           </div>
         </div>
 
         {/* Total Customer Credit Due */}
-        <div className="bg-white border border-emerald-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              CUSTOMER RECEIVABLES
-            </span>
-            <div className="w-9 h-9 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600">
-              <Users className="w-4 h-4" />
+        <div className="bg-white border border-emerald-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                CUSTOMER RECEIVABLES
+              </span>
+              <div className="w-9 h-9 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
+              {currency} <CountUpNumber value={totalCustomerDue} />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
+              <span>Collected: {currency} {totalCustomerPaid.toLocaleString('en-PK')}</span>
+              <span className="text-emerald-600">{customerCreditList.filter(c => c.calculatedDue > 0).length} Invoices</span>
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
-            {currency} <CountUpNumber value={totalCustomerDue} />
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
-            <span>Collected: {currency} {totalCustomerPaid.toLocaleString('en-PK')}</span>
-            <span className="text-emerald-600">{customerCreditList.filter(c => c.calculatedDue > 0).length} Invoices</span>
+          {/* Today Customer Receivables Badge */}
+          <div className="mt-3 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] font-black bg-emerald-50/80 -mx-5 -mb-5 px-5 py-2">
+            <span className="text-emerald-700 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              TODAY RECEIVABLE:
+            </span>
+            <span className="text-emerald-800">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')} ({todayCreditStats.todayCustomerCount} Today)</span>
           </div>
         </div>
 
         {/* Net Credit Status */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-wider text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-full border border-zinc-200">
-              NET BALANCE
-            </span>
-            <div className="w-9 h-9 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-700">
-              <DollarSign className="w-4 h-4" />
+        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-black uppercase tracking-wider text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-full border border-zinc-200">
+                NET BALANCE
+              </span>
+              <div className="w-9 h-9 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-700">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <div className={`text-2xl sm:text-3xl font-black tracking-tight ${
+              (totalCustomerDue - totalPurchaseDue) >= 0 ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
+              {currency} <CountUpNumber value={Math.abs(totalCustomerDue - totalPurchaseDue)} />
+            </div>
+            <div className="text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100 truncate">
+              {(totalCustomerDue - totalPurchaseDue) >= 0 ? '🟢 Receivables exceed debts' : '🔴 Debts exceed receivables'}
             </div>
           </div>
-          <div className={`text-2xl sm:text-3xl font-black tracking-tight ${
-            (totalCustomerDue - totalPurchaseDue) >= 0 ? 'text-emerald-600' : 'text-rose-600'
-          }`}>
-            {currency} <CountUpNumber value={Math.abs(totalCustomerDue - totalPurchaseDue)} />
-          </div>
-          <div className="text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100 truncate">
-            {(totalCustomerDue - totalPurchaseDue) >= 0 ? '🟢 Receivables exceed debts' : '🔴 Debts exceed receivables'}
+          {/* Today Net Balance Badge */}
+          <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] font-black bg-zinc-50 -mx-5 -mb-5 px-5 py-2">
+            <span className="text-zinc-700 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              TODAY NET:
+            </span>
+            <span className={todayCreditStats.todayNet >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+              {todayCreditStats.todayNet >= 0 ? '+' : ''}{currency} {Math.abs(todayCreditStats.todayNet).toLocaleString('en-PK')}
+            </span>
           </div>
         </div>
 
         {/* Total Active Credit Cases */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-              TOTAL ACTIVE ACCOUNTS
-            </span>
-            <div className="w-9 h-9 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
-              <CreditCard className="w-4 h-4" />
+        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                TOTAL ACTIVE ACCOUNTS
+              </span>
+              <div className="w-9 h-9 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
+                <CreditCard className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+              {purchaseCreditList.filter(p => p.calculatedDue > 0).length + customerCreditList.filter(c => c.calculatedDue > 0).length}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
+              <span>Suppliers: {purchaseCreditList.filter(p => p.calculatedDue > 0).length}</span>
+              <span>Customers: {customerCreditList.filter(c => c.calculatedDue > 0).length}</span>
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
-            {purchaseCreditList.filter(p => p.calculatedDue > 0).length + customerCreditList.filter(c => c.calculatedDue > 0).length}
+          {/* Today Active Accounts Badge */}
+          <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] font-black bg-amber-50/80 -mx-5 -mb-5 px-5 py-2">
+            <span className="text-amber-800 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              TODAY NEW:
+            </span>
+            <span className="text-amber-900">{todayCreditStats.todayTotalAccounts} Entries Today</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
-            <span>Suppliers: {purchaseCreditList.filter(p => p.calculatedDue > 0).length}</span>
-            <span>Customers: {customerCreditList.filter(c => c.calculatedDue > 0).length}</span>
+        </div>
+      </div>
+
+      {/* ─── DEDICATED TODAY'S CREDIT & DEBT LIVE SUMMARY BANNER ─── */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-emerald-500/10 border-2 border-amber-300/80 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-amber-900">
+              TODAY'S CREDIT &amp; DEBT REAL-TIME SUMMARY
+            </span>
+            <span className="text-[10px] font-bold bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full">
+              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+            <div className="bg-rose-100 text-rose-800 px-3 py-1 rounded-xl border border-rose-300">
+              Today Supplier Debt: <strong>{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')}</strong>
+            </div>
+            <div className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-xl border border-emerald-300">
+              Today Customer Receivable: <strong>{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')}</strong>
+            </div>
+            <div className="bg-sky-100 text-sky-800 px-3 py-1 rounded-xl border border-sky-300">
+              Today Collected: <strong>{currency} {todayCreditStats.todayCustomerPaid.toLocaleString('en-PK')}</strong>
+            </div>
+            <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-xl border border-purple-300">
+              Today Supplier Paid: <strong>{currency} {todayCreditStats.todayPurchasePaid.toLocaleString('en-PK')}</strong>
+            </div>
           </div>
         </div>
       </div>

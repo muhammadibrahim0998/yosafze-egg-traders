@@ -364,6 +364,40 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
     };
   }, [supplierLedgerList]);
 
+  // Master Today Vendor Purchases Stats
+  const todayStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+
+    const todayList = (supplierLedgerList || []).filter(s => isMatchToday(s.date || s.createdAt));
+    const supplierTotalCost = todayList.reduce((sum, s) => sum + s.totalCost, 0);
+    const supplierCashPaid = todayList.reduce((sum, s) => sum + s.cashPaid, 0);
+    const supplierBankPaid = todayList.reduce((sum, s) => sum + s.bankPaid, 0);
+    const supplierCreditDueTotal = todayList.reduce((sum, s) => sum + s.dueAmount, 0);
+    const totalPetisPurchased = todayList.reduce((sum, s) => sum + s.petisPurchased, 0);
+    const totalBills = todayList.length;
+
+    return {
+      supplierTotalCost,
+      supplierCashPaid,
+      supplierBankPaid,
+      supplierCreditDueTotal,
+      totalPetisPurchased,
+      totalBills
+    };
+  }, [supplierLedgerList]);
+
   const toggleVendor = (vName) => {
     setExpandedVendors(prev => ({
       ...prev,
@@ -597,53 +631,102 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-zinc-100">
           
           {/* 1. Cash Paid */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-emerald-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">💵 Cash</span>
-              <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
-                <Banknote className="w-3.5 h-3.5" />
+          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-emerald-50/40 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">💵 Cash</span>
+                <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
+                  <Banknote className="w-3.5 h-3.5" />
+                </div>
               </div>
+              <div className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">Rs. {fmt(stats.supplierCashPaid)}</div>
+              <p className="text-[9px] font-bold text-zinc-400 uppercase">Cash Paid</p>
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-700 tracking-tight">Rs. {fmt(stats.supplierCashPaid)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Cash Paid</p>
+            <div className="mt-2 pt-1 border-t border-emerald-100 flex items-center justify-between text-[9.5px] font-black text-emerald-800 bg-emerald-50/70 px-2 py-0.5 rounded-md">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.supplierCashPaid)}</span>
+            </div>
           </div>
 
           {/* 2. Bank Paid */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-blue-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">🏦 Bank</span>
-              <div className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
-                <Building2 className="w-3.5 h-3.5" />
+          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-blue-50/40 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">🏦 Bank</span>
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
+                  <Building2 className="w-3.5 h-3.5" />
+                </div>
               </div>
+              <div className="text-lg sm:text-xl font-black text-blue-700 tracking-tight">Rs. {fmt(stats.supplierBankPaid)}</div>
+              <p className="text-[9px] font-bold text-zinc-400 uppercase">Bank Paid</p>
             </div>
-            <div className="text-lg sm:text-xl font-black text-blue-700 tracking-tight">Rs. {fmt(stats.supplierBankPaid)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Bank Paid</p>
+            <div className="mt-2 pt-1 border-t border-blue-100 flex items-center justify-between text-[9.5px] font-black text-blue-800 bg-blue-50/70 px-2 py-0.5 rounded-md">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.supplierBankPaid)}</span>
+            </div>
           </div>
 
           {/* 3. Credit Remaining */}
-          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-rose-50/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">📋 Credit</span>
-              <div className="p-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200">
-                <CreditCard className="w-3.5 h-3.5" />
+          <div className="p-3.5 sm:p-4 space-y-1 hover:bg-rose-50/40 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">📋 Credit</span>
+                <div className="p-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200">
+                  <CreditCard className="w-3.5 h-3.5" />
+                </div>
               </div>
+              <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">Rs. {fmt(stats.supplierCreditDueTotal)}</div>
+              <p className="text-[9px] font-bold text-zinc-400 uppercase">Remaining Due</p>
             </div>
-            <div className="text-lg sm:text-xl font-black text-rose-600 tracking-tight">Rs. {fmt(stats.supplierCreditDueTotal)}</div>
-            <p className="text-[9px] font-bold text-zinc-400 uppercase">Remaining Due</p>
+            <div className="mt-2 pt-1 border-t border-rose-100 flex items-center justify-between text-[9.5px] font-black text-rose-800 bg-rose-50/70 px-2 py-0.5 rounded-md">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.supplierCreditDueTotal)}</span>
+            </div>
           </div>
 
           {/* 4. Total Cost */}
-          <div className="p-3.5 sm:p-4 space-y-1 bg-orange-50/20 hover:bg-orange-100/30 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-600">💰 Total</span>
-              <div className="p-1 rounded-lg bg-orange-100 text-orange-700 border border-orange-300">
-                <DollarSign className="w-3.5 h-3.5" />
+          <div className="p-3.5 sm:p-4 space-y-1 bg-orange-50/20 hover:bg-orange-100/30 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-600">💰 Total</span>
+                <div className="p-1 rounded-lg bg-orange-100 text-orange-700 border border-orange-300">
+                  <DollarSign className="w-3.5 h-3.5" />
+                </div>
               </div>
+              <div className="text-lg sm:text-xl font-black text-orange-900 tracking-tight">Rs. {fmt(stats.supplierTotalCost)}</div>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase">Total Purchases</p>
             </div>
-            <div className="text-lg sm:text-xl font-black text-orange-900 tracking-tight">Rs. {fmt(stats.supplierTotalCost)}</div>
-            <p className="text-[9px] font-bold text-zinc-500 uppercase">Total Purchases</p>
+            <div className="mt-2 pt-1 border-t border-orange-200 flex items-center justify-between text-[9.5px] font-black text-orange-900 bg-orange-100/70 px-2 py-0.5 rounded-md">
+              <span>📅 Today:</span>
+              <span>Rs. {fmt(todayStats.supplierTotalCost)}</span>
+            </div>
           </div>
 
+        </div>
+
+        {/* Dedicated Today Vendor Payment Summary Banner */}
+        <div className="p-3 bg-gradient-to-r from-orange-50 via-amber-50 to-emerald-50 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-3 text-xs font-black">
+          <div className="flex items-center gap-2">
+            <span className="text-orange-950 flex items-center gap-1">
+              <Truck className="w-4 h-4 text-orange-600" />
+              TODAY'S VENDOR PURCHASES &amp; SETTLEMENTS:
+            </span>
+            <span className="text-orange-800 font-bold">{todayStats.totalBills} Purchase Invoices &bull; {todayStats.totalPetisPurchased.toFixed(1)} Petis</span>
+          </div>
+          <div className="flex items-center gap-2.5 flex-wrap text-[11px]">
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-emerald-200 text-emerald-800 shadow-2xs">
+              💵 Today Cash: Rs. {fmt(todayStats.supplierCashPaid)}
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-blue-200 text-blue-800 shadow-2xs">
+              🏦 Today Bank: Rs. {fmt(todayStats.supplierBankPaid)}
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-xl border border-rose-200 text-rose-800 shadow-2xs">
+              📋 Today Credit: Rs. {fmt(todayStats.supplierCreditDueTotal)}
+            </span>
+            <span className="bg-orange-600 text-white px-3 py-1 rounded-xl shadow-2xs">
+              💰 Total Today: Rs. {fmt(todayStats.supplierTotalCost)}
+            </span>
+          </div>
         </div>
       </div>
 
