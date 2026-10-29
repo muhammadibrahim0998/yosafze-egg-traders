@@ -13418,70 +13418,150 @@ function StoreContent({ shopId }) {
                       {renderCalendarFilter('light')}
                     </div>
 
-                    <div className="p-6 bg-amber-50/80 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div>
-                        <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-1">
-                          {getActivePeriodLabel()} Damaged Stock Loss
-                        </span>
-                        <h4 className="text-3xl font-black text-amber-600 tracking-tight">
-                          {currency} {(
-                            (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
-                              reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
-                                reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
-                                  reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
-                                    (dynamicExpenseStats.totalDamaged || 0)
-                          ).toLocaleString('en-PK')}
-                        </h4>
-                      </div>
+                    {/* Damaged Stock Quick Action Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 bg-amber-50/60 p-3 rounded-2xl border border-amber-200">
+                      <span className="text-xs font-black uppercase text-amber-900 tracking-wider flex items-center gap-1.5">
+                        <PackageX className="w-4 h-4 text-amber-700" />
+                        {getActivePeriodLabel()} Damaged Stock Overview
+                      </span>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => setShowAddDamagedModal(true)}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-md cursor-pointer"
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow-xs cursor-pointer flex items-center gap-1"
                         >
-                          + Log Damaged
+                          <Plus className="w-3.5 h-3.5" /> Log Damaged
                         </button>
                         <button
                           onClick={() => handlePrintSingleReport('damaged', reportTimeframe)}
-                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                         >
-                          <Printer className="w-3.5 h-3.5" /> Print PDF Sheet
+                          <Printer className="w-3.5 h-3.5" /> Print PDF
                         </button>
                         <button
                           onClick={() => handleWhatsAppReportShare('damaged', reportTimeframe)}
-                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                         >
-                          <Send className="w-3.5 h-3.5" /> Send WhatsApp
+                          <Send className="w-3.5 h-3.5" /> WhatsApp
                         </button>
                         <button
                           onClick={() => handleExportExcelReport('damaged', reportTimeframe)}
-                          className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white font-black text-xs uppercase rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                         >
-                          <FileSpreadsheet className="w-3.5 h-3.5" /> Generate Excel
+                          <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
                         </button>
                       </div>
                     </div>
 
-                    {/* Dedicated Today Damaged Summary Banner (Gray & Bigger Size) */}
-                    <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 text-sm sm:text-base font-black text-slate-900 shadow-sm">
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex h-3 w-3 relative">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
+                    {/* Total Summary Cards Grid (Total Wala Div) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Card 1: Total Financial Breakage Loss */}
+                      <div className="bg-white border-2 border-amber-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-amber-800 text-[10px] font-black uppercase tracking-widest mb-2">
+                            <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5 text-amber-600" /> Total Breakage Loss</span>
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[9px] font-black">FINANCIAL</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-amber-700 tracking-tight">
+                            {currency} {(
+                              (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
+                                reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
+                                  reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                                    reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                                      (dynamicExpenseStats.totalDamaged || 0)
+                            ).toLocaleString('en-PK')}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-amber-100 font-medium">
+                            {getActivePeriodLabel()} direct revenue write-off
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card 2: Total Cracked / Broken Eggs */}
+                      <div className="bg-white border-2 border-rose-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-rose-700 text-[10px] font-black uppercase tracking-widest mb-2">
+                            <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-rose-600" /> Total Damaged Eggs</span>
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[9px] font-black">PIECES</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-rose-600 tracking-tight">
+                            {(
+                              (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) :
+                                (dynamicExpenseStats.totalDamagedEggs || 0)
+                            ).toLocaleString('en-PK')} Eggs
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-rose-100 font-medium">
+                            Physical cracked &amp; broken eggs count
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card 3: Total Damaged Petis */}
+                      <div className="bg-white border-2 border-purple-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-purple-700 text-[10px] font-black uppercase tracking-widest mb-2">
+                            <span className="flex items-center gap-1"><Layers className="w-3.5 h-3.5 text-purple-600" /> Petis Equivalent</span>
+                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[9px] font-black">PETIS</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-purple-700 tracking-tight">
+                            {(
+                              ((appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) : (dynamicExpenseStats.totalDamagedEggs || 0)) / 360
+                            ).toFixed(1)} Petis
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-purple-100 font-medium">
+                            Calculated at 360 eggs per peti standard
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card 4: Total Damaged Incidents / Logs */}
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-slate-800 text-[10px] font-black uppercase tracking-widest mb-2">
+                            <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-slate-700" /> Total Damage Logs</span>
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 rounded-full text-[9px] font-black">RECORDS</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-slate-900 tracking-tight">
+                            {(damagedProductsList || []).length} Logs
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-100 font-medium">
+                            Total historical breakage entries recorded
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dedicated Today Damaged Summary (Separate Div Below with Cards) */}
+                    <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                          Today's Damaged Stock Activity (Daily Breakdown)
                         </span>
-                        <span className="text-slate-900 font-black tracking-wide">
-                          TODAY'S DAMAGED STOCK SUMMARY:
-                        </span>
-                        <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-bold">
+                        <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
                           {todayMasterMetrics.todayDamagedCount} Damage Incidents Logged Today
                         </span>
                       </div>
-                      <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-                        <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                          🥚 Total Eggs Damaged: {todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')} Eggs ({todayMasterMetrics.todayDamagedPetis} Petis)
-                        </span>
-                        <span className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black shadow-sm">
-                          ⚠️ Financial Breakage Loss: Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}
-                        </span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Breakage Loss</span>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
+                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Loss Value</span>
+                        </div>
+                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">2. Today Damaged Eggs</span>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')} Eggs</div>
+                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Broken / Cracked</span>
+                        </div>
+                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">3. Today Damaged Petis</span>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedPetis} Petis</div>
+                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">360 Eggs Standard</span>
+                        </div>
+                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">4. Today Damage Logs</span>
+                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedCount} Logs</div>
+                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Recorded Today</span>
+                        </div>
                       </div>
                     </div>
 
