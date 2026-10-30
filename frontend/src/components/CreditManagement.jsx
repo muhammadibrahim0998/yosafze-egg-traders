@@ -23,7 +23,8 @@ import {
   Loader2,
   ExternalLink,
   Phone,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,6 +39,7 @@ export function CreditManagement({
   shop,
   currency = 'Rs.',
   initialTab = 'purchases',
+  todayMasterMetrics,
   onRefresh,
   onOpenSettleCustomerCredit
 }) {
@@ -319,6 +321,44 @@ export function CreditManagement({
       todayTotalAccounts: todayPurchaseCount + todayCustomerCount
     };
   }, [purchaseCreditList, customerCreditList]);
+
+  // Dynamic Today's Real-Time Performance & Inflow (Cash, Bank, Credit, Total)
+  const todayInflow = useMemo(() => {
+    if (todayMasterMetrics) {
+      return {
+        cash: Number(todayMasterMetrics.todaySalesCash || 0),
+        bank: Number(todayMasterMetrics.todaySalesBank || 0),
+        credit: Number(todayMasterMetrics.todaySalesCredit || 0),
+        total: Number(todayMasterMetrics.todaySalesRevenue || 0),
+        count: Number(todayMasterMetrics.todaySalesCount || 0),
+        petis: Number(todayMasterMetrics.todaySalesPetis || 0)
+      };
+    }
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const isMatchToday = (raw) => {
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
+      const dLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dLocal === localToday) return true;
+      return d.toISOString().split('T')[0] === todayStr;
+    };
+    let cash = 0, bank = 0, credit = 0, total = 0, count = 0, petis = 0;
+    (shopSalesList || []).forEach(s => {
+      if (isMatchToday(s.saleDate || s.createdAt || s.date)) {
+        total += Number(s.totalAmount || 0);
+        cash += Number(s.cashPaid !== undefined ? s.cashPaid : (s.paymentMethod === 'CASH' ? s.totalAmount : 0)) || 0;
+        bank += Number(s.bankPaid !== undefined ? s.bankPaid : (s.paymentMethod === 'BANK' || s.paymentMethod === 'ONLINE' ? s.totalAmount : 0)) || 0;
+        credit += Number(s.creditDue || s.dueAmount || (s.paymentMethod === 'CREDIT' ? s.totalAmount : 0)) || 0;
+        count += 1;
+        if (Number(s.petisBought) > 0) petis += Number(s.petisBought);
+      }
+    });
+    return { cash, bank, credit, total, count, petis };
+  }, [todayMasterMetrics, shopSalesList]);
 
   // Filtered lists based on search & filter status
   const filteredPurchases = useMemo(() => {
@@ -761,34 +801,44 @@ export function CreditManagement({
         </div>
       </div>
 
-      {/* ─── DEDICATED TODAY'S CREDIT & DEBT LIVE SUMMARY BANNER (GRAY & BIGGER SIZE) ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-3 w-3 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
-            </span>
-            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
-              TODAY'S CREDIT &amp; DEBT REAL-TIME SUMMARY
-            </span>
-            <span className="text-xs font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full">
-              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </span>
+      {/* ─── DEDICATED TODAY'S PERFORMANCE & INFLOW (CASH, BANK, CREDIT, TOTAL) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+            Today's Sales &amp; Inflow Activity (Daily Breakdown)
+          </span>
+          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+            {todayInflow.count} Invoices &bull; {todayInflow.petis} Petis Sold
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Card 1: Today Cash Inflow */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.cash.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
-            <div className="bg-white text-rose-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Supplier Debt: <strong className="text-sm font-black">{currency} {todayCreditStats.todayPurchaseDue.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-emerald-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Customer Receivable: <strong className="text-sm font-black">{currency} {todayCreditStats.todayCustomerDue.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-sky-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Collected: <strong className="text-sm font-black">{currency} {todayCreditStats.todayCustomerPaid.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-purple-800 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Supplier Paid: <strong className="text-sm font-black">{currency} {todayCreditStats.todayPurchasePaid.toLocaleString('en-PK')}</strong>
-            </div>
+
+          {/* Card 2: Today Bank Inflow */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.bank.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+          </div>
+
+          {/* Card 3: Today Credit Given */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Given</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.credit.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Receivables Due</span>
+          </div>
+
+          {/* Card 4: Total Today Revenue */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Revenue</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.total.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
           </div>
         </div>
       </div>

@@ -639,41 +639,15 @@ export default function WalkInBillModal({ bill, shop, onClose, currency = 'RS' }
             </tfoot>
           </table>
 
-          <div class="breakdown-box">
-            <div style="font-size:10px; font-weight:900; color:#475569; text-transform:uppercase; letter-spacing:1px; display:flex; justify-content:space-between; align-items:center;">
-              <span>📊 TOTAL GOODS &amp; QUANTITY DETAILS</span>
-              <span style="color:#059669; font-size:10px; font-weight:800;">${items.length} Product${items.length > 1 ? 's' : ''} (${totalItemsQty} Total Quantity)</span>
-            </div>
-            <div class="breakdown-grid">
-              <div class="breakdown-card" style="border:1px solid #fde68a; background:#fefce8;">
-                <div style="font-size:9px; font-weight:900; color:#92400e; text-transform:uppercase;">📦 Total Petis / Items</div>
-                <div style="font-size:16px; font-weight:900; color:#78350f; margin-top:2px;">${displayPetis} <span style="font-size:9.5px; color:#92400e;">PETIS</span></div>
-              </div>
-              <div class="breakdown-card" style="border:1px solid #bfdbfe; background:#eff6ff;">
-                <div style="font-size:9px; font-weight:900; color:#1d4ed8; text-transform:uppercase;">🍱 Total Trays</div>
-                <div style="font-size:16px; font-weight:900; color:#1e40af; margin-top:2px;">${displayTrays} <span style="font-size:9.5px; color:#1d4ed8;">TRAYS</span></div>
-              </div>
-              <div class="breakdown-card" style="border:1px solid #bbf7d0; background:#f0fdf4;">
-                <div style="font-size:9px; font-weight:900; color:#15803d; text-transform:uppercase;">🥚 Total Single Eggs</div>
-                <div style="font-size:16px; font-weight:900; color:#166534; margin-top:2px;">${displayEggs} <span style="font-size:9.5px; color:#15803d;">EGGS</span></div>
-              </div>
-            </div>
-          </div>
-
           ${discountAmount > 0 ? `
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 14px; background:#fffbeb; border:1px dashed #f59e0b; border-radius:8px; margin-bottom:8px; font-size:12px; font-weight:800; color:#b45309;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 14px; background:#fffbeb; border:1px dashed #f59e0b; border-radius:8px; margin-top:12px; margin-bottom:8px; font-size:12px; font-weight:800; color:#b45309;">
             <span>🏷️ SPECIAL DISCOUNT APPLIED:</span>
             <span>- ${currency} ${discountAmount.toLocaleString('en-PK')}</span>
           </div>
           ` : ''}
 
           <div class="total-bar">
-            <div>
-              <div class="tot-lbl">${discountAmount > 0 ? 'NET FINAL BILL AMOUNT:' : 'GRAND TOTAL AMOUNT PAID:'}</div>
-              <div style="font-size:10px; color:#047857; font-weight:700; margin-top:2px;">
-                TOTAL GOODS: ${displayPetis} PETIS • ${displayTrays} TRAYS • ${displayEggs} SINGLE EGGS
-              </div>
-            </div>
+            <span class="tot-lbl">${discountAmount > 0 ? 'NET FINAL BILL AMOUNT:' : 'GRAND TOTAL AMOUNT PAID:'}</span>
             <span class="tot-val">${currency} ${totalAmount.toLocaleString('en-PK')}</span>
           </div>
 

@@ -19,7 +19,8 @@ import {
   List,
   LayoutGrid,
   Calendar,
-  Filter
+  Filter,
+  Sparkles
 } from 'lucide-react';
 import { useProducts } from '../contexts/ProductContext';
 import { useUser } from '../contexts/UserContext';
@@ -326,9 +327,16 @@ export function VendorsManagement({ shopId: propShopId }) {
       return d.toISOString().split('T')[0] === todayStr;
     };
 
-    const addedToday = vendors.filter(v => isMatchToday(v.createdAt || v.date)).length;
-    return { addedToday };
-  }, [vendors]);
+    const addedList = vendors.filter(v => isMatchToday(v.createdAt || v.date));
+    const addedToday = addedList.length;
+    const withPhoneToday = addedList.filter(v => v.phone && v.phone.trim()).length;
+    return {
+      addedToday,
+      withPhoneToday,
+      totalActive: stats.total,
+      totalLocations: stats.locations
+    };
+  }, [vendors, stats]);
 
   // Filtered vendors
   const filteredVendors = useMemo(() => {
@@ -447,28 +455,44 @@ export function VendorsManagement({ shopId: propShopId }) {
         </div>
       </div>
 
-      {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY BANNER ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-3 w-3 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
-            </span>
-            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
-              TODAY'S VENDORS &amp; FARM SUPPLIERS ACTIVITY
-            </span>
-            <span className="text-xs font-bold bg-white text-slate-800 border-2 border-slate-300 px-2.5 py-1 rounded-xl shadow-xs">
-              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </span>
+      {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY (GRAY & BIGGER SIZE) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+            Today's Vendors &amp; Farm Suppliers Activity (Daily Breakdown)
+          </span>
+          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+            {todayVendorStats.addedToday} Added Today &bull; {todayVendorStats.totalActive} Active Suppliers
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Card 1: Vendors Added Today */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">1. Vendors Added Today</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.addedToday} New</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Newly Registered Suppliers</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
-            <div className="bg-white text-slate-900 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border-2 border-slate-300 shadow-xs">
-              Vendors Added Today: <strong>{todayVendorStats.addedToday}</strong>
-            </div>
-            <div className="bg-white text-slate-900 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border-2 border-slate-300 shadow-xs">
-              Total Active Directory: <strong>{stats.total} Suppliers</strong>
-            </div>
+
+          {/* Card 2: Today Verified Contacts */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Verified Contacts</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.withPhoneToday} Contacts</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">With Phone Number</span>
+          </div>
+
+          {/* Card 3: Active Supplier Farms */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Active Supply Farms</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalLocations} Cities</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Regional Supply Network</span>
+          </div>
+
+          {/* Card 4: Total Directory Suppliers */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Directory</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalActive} Suppliers</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Full Vendor Network</span>
           </div>
         </div>
       </div>

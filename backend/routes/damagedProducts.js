@@ -102,6 +102,112 @@ router.post('/shop/:shopId', async (req, res) => {
   }
 });
 
+// PUT edit an existing damaged product log entry & adjust inventory stock difference
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = await DamagedProduct.findById(id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Damaged record not found' });
+    }
+
+    const {
+      productName,
+      productId,
+      quantity,
+      unitType,
+      petiQuantity,
+      trayQuantity,
+      eggQuantity,
+      unitPrice,
+      totalLoss,
+      reason,
+      damageDate,
+      notes,
+      reportedBy
+    } = req.body;
+
+    const pQty = Number(petiQuantity !== undefined ? petiQuantity : record.petiQuantity) || 0;
+    const tQty = Number(trayQuantity !== undefined ? trayQuantity : record.trayQuantity) || 0;
+    const eQty = Number(eggQuantity !== undefined ? eggQuantity : record.eggQuantity) || 0;
+    const rawQty = Number(quantity !== undefined ? quantity : record.quantity) || 0;
+
+    const unit = String(unitType || record.unitType || 'egg').toLowerCase().trim();
+    const price = Number(unitPrice !== undefined ? unitPrice : record.unitPrice) || 0;
+
+    // Find the item to adjust stock
+    const targetProdId = productId || record.productId;
+    let item = null;
+    if (targetProdId) {
+      item = await Item.findById(targetProdId);
+    }
+    if (!item && (productName || record.productName)) {
+      const pName = (productName || record.productName).trim();
+      item = await Item.findOne({
+        shopId: record.shopId,
+        name: { $regex: new RegExp(`^${pName}$`, 'i') }
+      });
+    }
+
+    const traysPerPeti = item?.traysPerPeti || 12;
+    const eggsPerTray = item?.eggsPerTray || 30;
+    const ePerP = traysPerPeti * eggsPerTray;
+    const ePerT = eggsPerTray;
+
+    let newDeductedEggs = 0;
+    if (pQty > 0 || tQty > 0 || eQty > 0) {
+      newDeductedEggs = Math.round((pQty * ePerP) + (tQty * ePerT) + eQty);
+    } else if (unit === 'peti') {
+      newDeductedEggs = Math.round(rawQty * ePerP);
+    } else if (unit === 'tray') {
+      newDeductedEggs = Math.round(rawQty * ePerT);
+    } else {
+      newDeductedEggs = Math.round(rawQty);
+    }
+
+    // Adjust difference in item inventory
+    const oldDeductedEggs = Number(record.deductedEggs) || 0;
+    const eggDifference = newDeductedEggs - oldDeductedEggs; // > 0 means more damage (deduct from stock), < 0 means less damage (restore to stock)
+
+    if (item && eggDifference !== 0) {
+      const currentStockEggs = item.stock || (item.petiQuantity ? Math.round(item.petiQuantity * ePerP) : (item.eggQuantity || 0)) || 0;
+      const updatedStock = Math.max(0, currentStockEggs - eggDifference);
+      item.stock = updatedStock;
+      item.petiQuantity = Number((updatedStock / ePerP).toFixed(2));
+      item.trayQuantity = Number((updatedStock / ePerT).toFixed(1));
+      item.eggQuantity = updatedStock;
+      await item.save();
+    }
+
+    const loss = totalLoss !== undefined
+      ? Number(totalLoss)
+      : (newDeductedEggs * (price / (unit === 'peti' ? ePerP : (unit === 'tray' ? ePerT : 1))));
+
+    const updateData = {
+      productName: productName || record.productName,
+      productId: item ? String(item._id || item.id) : (targetProdId || record.productId || ''),
+      quantity: rawQty > 0 ? rawQty : (pQty > 0 ? pQty : (tQty > 0 ? tQty : eQty)),
+      petiQuantity: pQty,
+      trayQuantity: tQty,
+      eggQuantity: eQty,
+      unitType: unit,
+      deductedEggs: newDeductedEggs,
+      unitPrice: price,
+      totalLoss: loss,
+      reason: reason || record.reason || 'Egg Breakage / Crack',
+      damageDate: damageDate ? new Date(damageDate) : record.damageDate,
+      notes: notes !== undefined ? notes : (record.notes || ''),
+      reportedBy: reportedBy || record.reportedBy || 'Shop Admin'
+    };
+
+    const updatedRecord = await DamagedProduct.findByIdAndUpdate(id, updateData, { new: true });
+    res.json({ success: true, data: updatedRecord, updatedItem: item });
+  } catch (error) {
+    console.error('[DamagedProduct update error]', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // DELETE a damaged product log entry by ID & restore inventory stock
 router.delete('/:id', async (req, res) => {
   try {

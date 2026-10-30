@@ -329,18 +329,29 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             }
           }
 
+          const petisVal = Number(p.petisPurchased || p.petiQuantity || p.petisCount || 0);
+          const traysVal = Number(p.trayQuantity || p.traysCount || (petisVal > 0 ? Math.round(petisVal * 12) : 0));
+          const eggsVal = Number(p.eggQuantity || p.totalEggsCount || (petisVal > 0 ? Math.round(petisVal * 360) : 0));
+
           return {
             id: p.id,
             shopId: p.shopId,
             purchaseId: p.purchaseId,
             date: p.date || p.createdAt,
+            createdAt: p.createdAt || p.date,
             supplierName: p.supplierName || 'Farm Vendor',
             supplierPhone: p.supplierPhone || '',
             supplierLocation: p.supplierLocation || '',
             productName: p.productName || 'Eggs Stock',
             category: p.category || 'Eggs',
-            petisPurchased: Number(p.petisPurchased) || 0,
-            eggQuantity: Number(p.eggQuantity) || 0,
+            petisPurchased: petisVal,
+            petiQuantity: petisVal,
+            petisCount: petisVal,
+            trayQuantity: traysVal,
+            traysCount: traysVal,
+            eggQuantity: eggsVal,
+            totalEggsCount: eggsVal,
+            quantityText: p.quantityText || '',
             unitType: p.unitType || 'peti',
             buyCost: Number(p.buyCost) || 0,
             totalCost: Math.round(totalCost),
@@ -414,21 +425,40 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
           }
         }
 
-        const petiQty = Number(p.petiQuantity) > 0
+        let petiQty = Number(p.petiQuantity) > 0
           ? Number(p.petiQuantity)
           : (matchingItem?.petiQuantity > 0 ? Number(matchingItem.petiQuantity) : (Number(p.eggQuantity) > 0 ? Number((p.eggQuantity / 360).toFixed(2)) : 0));
+        let trayQty = Number(p.trayQuantity) > 0
+          ? Number(p.trayQuantity)
+          : (matchingItem?.trayQuantity > 0 ? Number(matchingItem.trayQuantity) : 0);
+        let eggQty = Number(p.eggQuantity) > 0
+          ? Number(p.eggQuantity)
+          : (matchingItem?.eggQuantity > 0 ? Number(matchingItem.eggQuantity) : (Number(matchingItem?.stock) || 0));
+
+        if (petiQty > 0 && trayQty === 0) trayQty = Math.round(petiQty * 12);
+        if (petiQty > 0 && eggQty === 0) eggQty = Math.round(petiQty * 360);
+        if (trayQty > 0 && eggQty === 0) eggQty = Math.round(trayQty * 30);
+        if (eggQty > 0 && petiQty === 0) petiQty = Number((eggQty / 360).toFixed(2));
+        if (eggQty > 0 && trayQty === 0) trayQty = Math.round(eggQty / 30);
 
         purchasesList.push({
           id: pId,
           shopId: p.shopId,
           date: p.purchaseDate || p.createdAt,
+          createdAt: p.createdAt || p.purchaseDate,
           supplierName: p.supplierName || matchingItem?.supplierName || 'Farm Vendor',
           supplierPhone: p.supplierPhone || matchingItem?.supplierPhone || '',
           supplierLocation: p.supplierLocation || matchingItem?.supplierLocation || '',
           productName: p.productName || matchingItem?.name || 'Eggs Stock',
           category: p.category || matchingItem?.category || 'Eggs',
           petisPurchased: Number(petiQty) || 0,
-          eggQuantity: Number(p.eggQuantity) || 0,
+          petiQuantity: Number(petiQty) || 0,
+          petisCount: Number(petiQty) || 0,
+          trayQuantity: Number(trayQty) || 0,
+          traysCount: Number(trayQty) || 0,
+          eggQuantity: Number(eggQty) || 0,
+          totalEggsCount: Number(eggQty) || 0,
+          quantityText: p.quantityText || matchingItem?.quantityText || '',
           unitType: p.unitType || 'peti',
           buyCost: Number(p.buyCost) || Number(matchingItem?.costPrice) || 0,
           totalCost: Math.round(totalCost),
@@ -457,17 +487,34 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             else cashAmt = paidAmt;
           }
 
+          let petiQty = Number(it.petiQuantity) || (Number(it.stock) > 0 ? Number((it.stock / 360).toFixed(2)) : 0);
+          let trayQty = Number(it.trayQuantity) || 0;
+          let eggQty = Number(it.eggQuantity) || Number(it.stock) || 0;
+
+          if (petiQty > 0 && trayQty === 0) trayQty = Math.round(petiQty * 12);
+          if (petiQty > 0 && eggQty === 0) eggQty = Math.round(petiQty * 360);
+          if (trayQty > 0 && eggQty === 0) eggQty = Math.round(trayQty * 30);
+          if (eggQty > 0 && petiQty === 0) petiQty = Number((eggQty / 360).toFixed(2));
+          if (eggQty > 0 && trayQty === 0) trayQty = Math.round(eggQty / 30);
+
           purchasesList.push({
             id: `item-${itId}`,
             shopId: it.shopId,
             date: it.createdAt,
+            createdAt: it.createdAt,
             supplierName: it.supplierName || 'Farm Vendor',
             supplierPhone: it.supplierPhone || '',
             supplierLocation: it.supplierLocation || '',
             productName: it.name || 'Eggs Stock',
             category: it.category || 'Eggs',
-            petisPurchased: Number(it.petiQuantity) || (Number(it.stock) > 0 ? Number((it.stock / 360).toFixed(2)) : 0),
-            eggQuantity: Number(it.eggQuantity) || Number(it.stock) || 0,
+            petisPurchased: Number(petiQty) || 0,
+            petiQuantity: Number(petiQty) || 0,
+            petisCount: Number(petiQty) || 0,
+            trayQuantity: Number(trayQty) || 0,
+            traysCount: Number(trayQty) || 0,
+            eggQuantity: Number(eggQty) || 0,
+            totalEggsCount: Number(eggQty) || 0,
+            quantityText: it.quantityText || '',
             unitType: it.unitType || 'peti',
             buyCost: Number(it.costPrice) || 0,
             totalCost: Math.round(totalCost),
@@ -624,8 +671,52 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
     try {
       existingCount = await Sale.countDocuments({ shopId: targetShopId });
     } catch (cErr) { }
-    const serialNumber = 1 + existingCount;
     const saleItems = Array.isArray(items) ? items : (typeof items === 'string' ? JSON.parse(items || '[]') : []);
+
+    // ── STRICT DYNAMIC STOCK VALIDATION (Online Server & POS Enforcement) ──
+    // Prevent sales when product is low stock or out of stock (stock <= 0 or requested > available)
+    for (const it of saleItems) {
+      const prodId = it.productId || it.itemId || it._id || it.id;
+      if (prodId) {
+        const product = await Item.findById(prodId);
+        if (product) {
+          const availStock = Number(product.stock) || 0;
+          const qty = Number(it.quantity) || 1;
+          const uType = String(it.unitLabel || it.unit || it.unitType || product.unitType || 'peti').toLowerCase();
+          const tPerP = Number(product.traysPerPeti) || 12;
+          const ePerT = Number(product.eggsPerTray) || 30;
+          const ePerP = tPerP * ePerT || 360;
+
+          let eggsRequired = 0;
+          if (Number(it.totalEggs) > 0) {
+            eggsRequired = Number(it.totalEggs);
+          } else if (uType.includes('peti')) {
+            eggsRequired = qty * ePerP;
+          } else if (uType.includes('tray')) {
+            eggsRequired = qty * ePerT;
+          } else {
+            eggsRequired = qty;
+          }
+
+          if (availStock <= 0) {
+            return res.status(400).json({
+              success: false,
+              message: `Cannot complete sale: Product "${product.name}" is completely Out of Stock (0 remaining). Please restock before selling.`
+            });
+          }
+
+          if (eggsRequired > availStock) {
+            const availPetis = (availStock / ePerP).toFixed(1);
+            return res.status(400).json({
+              success: false,
+              message: `Cannot complete sale: Insufficient stock for "${product.name}". Available: ${availStock} eggs (${availPetis} Petis), but requested ${eggsRequired} eggs. Please adjust quantity or restock.`
+            });
+          }
+        }
+      }
+    }
+    const serialNumber = 1 + existingCount;
+    const invoiceNumber = req.body.invoiceNumber || explicitPaymentData.invoiceNumber || (settings?.invoicePrefix ? `${settings.invoicePrefix}-${String(serialNumber).padStart(5, '0')}` : `INV-${String(serialNumber).padStart(5, '0')}`);
     let computedPetis = 0;
     let computedEggs = 0;
     const descParts = [];
@@ -717,30 +808,42 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
     }
     
     // 3. Update stock for each item if items provided
-    if (Array.isArray(items)) {
-      for (const item of items) {
-        const prodId = item.productId || item._id || item.id;
+    if (Array.isArray(saleItems) && saleItems.length > 0) {
+      for (const item of saleItems) {
+        const prodId = item.productId || item.itemId || item._id || item.id;
         if (prodId) {
           const product = await Item.findById(prodId);
           if (product) {
             const qty = Number(item.quantity) || 1;
-            const stockToDeduct = Number(item.totalEggs) > 0 ? Number(item.totalEggs) : qty;
+            const uType = String(item.unitLabel || item.unit || item.unitType || product.unitType || 'peti').toLowerCase();
+            const tPerP = Number(product.traysPerPeti) || 12;
+            const ePerT = Number(product.eggsPerTray) || 30;
+            const ePerP = tPerP * ePerT || 360;
+
+            let stockToDeduct = 0;
+            if (Number(item.totalEggs) > 0) {
+              stockToDeduct = Number(item.totalEggs);
+            } else if (uType.includes('peti')) {
+              stockToDeduct = qty * ePerP;
+            } else if (uType.includes('tray')) {
+              stockToDeduct = qty * ePerT;
+            } else {
+              stockToDeduct = qty;
+            }
+
             const newStock = Math.max(0, (Number(product.stock) || 0) - stockToDeduct);
+            const newPetis = Math.max(0, Number((newStock / ePerP).toFixed(2)));
+            const newTrays = Math.max(0, Math.round(newStock / ePerT));
             
             const itemUpdate = {
               stock: newStock,
+              petiQuantity: newPetis,
+              trayQuantity: newTrays,
+              eggQuantity: newStock,
               lastUpdated: new Date().toISOString().split('T')[0]
             };
 
-            if (product.unitType === 'peti') {
-              itemUpdate.petiQuantity = Math.max(0, (Number(product.petiQuantity) || 0) - qty);
-            } else if (product.unitType === 'tray') {
-              itemUpdate.trayQuantity = Math.max(0, (Number(product.trayQuantity) || 0) - qty);
-            } else if (product.unitType === 'egg') {
-              itemUpdate.eggQuantity = newStock;
-            }
-
-            await Item.findByIdAndUpdate(product.id, itemUpdate);
+            await Item.findByIdAndUpdate(product.id || product._id, itemUpdate);
           }
         }
       }

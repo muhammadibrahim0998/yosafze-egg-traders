@@ -154,6 +154,16 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
     return null;
   };
 
+  // Helper to format Date and Time
+  const formatDateTime = (val) => {
+    if (!val) return { dateStr: '-', timeStr: '' };
+    const d = parseSafeDate(val);
+    if (!d) return { dateStr: String(val), timeStr: '' };
+    const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return { dateStr, timeStr };
+  };
+
   const isInDateRange = (itemDate) => {
     if (!startDate && !endDate) return true;
     if (!itemDate) return true;
@@ -249,22 +259,69 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
         displayMethod = 'CASH';
       }
 
-      // Peti, Tray, Egg breakdown
-      const rawPetis = Number(p.petisPurchased || p.petiQuantity || 0);
-      const rawTrays = Number(p.trayQuantity || p.traysCount || p.trays || 0);
-      const rawEggs = Number(p.eggQuantity || p.totalEggsCount || p.quantity || 0);
+      // Peti, Tray, Egg breakdown - Multi-source dynamic detection
+      let rawPetis = Number(p.petisPurchased || p.petiQuantity || p.petis || p.petisCount || 0);
+      let rawTrays = Number(p.trayQuantity || p.traysCount || p.trays || 0);
+      let rawEggs = Number(p.eggQuantity || p.totalEggsCount || p.quantity || p.stock || 0);
 
-      let totalEggs = 0;
-      if (rawEggs > 0 && rawEggs >= (rawPetis * 360 + rawTrays * 30)) {
-        totalEggs = rawEggs;
-      } else if (rawPetis > 0 || rawTrays > 0 || rawEggs > 0) {
-        totalEggs = (rawPetis * 360) + (rawTrays * 30) + (rawEggs > 0 && rawEggs < 30 ? rawEggs : 0);
-        if (totalEggs === 0 && rawEggs > 0) totalEggs = rawEggs;
+      // 1. Parse text from quantityText, notes, productName, itemsDescription
+      const qText = String(p.quantityText || p.notes || p.itemsDescription || p.productName || '');
+      if (qText) {
+        const pMatch = qText.match(/(\d+(?:\.\d+)?)\s*(?:peti|petis|box|boxes|p\b)/i);
+        const tMatch = qText.match(/(\d+(?:\.\d+)?)\s*(?:tray|trays|t\b)/i);
+        const eMatch = qText.match(/([\d,]+(?:\.\d+)?)\s*(?:egg|eggs|e\b|stock)/i);
+        if (pMatch && !rawPetis) rawPetis = parseFloat(pMatch[1]);
+        if (tMatch && !rawTrays) rawTrays = parseFloat(tMatch[1]);
+        if (eMatch && !rawEggs) rawEggs = parseFloat(eMatch[1].replace(/,/g, ''));
       }
 
-      const petisCount = rawPetis > 0 ? rawPetis : Math.floor(totalEggs / 360);
-      const traysCount = rawTrays > 0 ? rawTrays : Math.floor((totalEggs > 0 ? totalEggs : (petisCount * 360)) / 30);
-      const finalEggsCount = totalEggs > 0 ? totalEggs : (petisCount * 360);
+      // 2. Nested items array or JSON string parsing
+      if (p.items) {
+        let itemsArr = [];
+        if (Array.isArray(p.items)) itemsArr = p.items;
+        else if (typeof p.items === 'string') {
+          try { itemsArr = JSON.parse(p.items); } catch (_) {}
+        }
+        if (Array.isArray(itemsArr) && itemsArr.length > 0) {
+          let itemPetis = 0;
+          let itemTrays = 0;
+          let itemEggs = 0;
+          itemsArr.forEach(it => {
+            itemPetis += Number(it.petiQuantity || it.petis || 0);
+            itemTrays += Number(it.trayQuantity || it.trays || 0);
+            itemEggs += Number(it.eggQuantity || it.eggs || it.quantity || 0);
+          });
+          if (!rawPetis && itemPetis > 0) rawPetis = itemPetis;
+          if (!rawTrays && itemTrays > 0) rawTrays = itemTrays;
+          if (!rawEggs && itemEggs > 0) rawEggs = itemEggs;
+        }
+      }
+
+      // 3. Fallback derivation from cost if petis and eggs are 0
+      const bCost = Number(p.buyCost || p.costPrice || 0);
+      if (rawPetis === 0 && rawEggs === 0 && bCost > 0 && cost > 0) {
+        if (bCost >= 1000) {
+          rawPetis = Number((cost / bCost).toFixed(2));
+        } else {
+          rawEggs = Math.round(cost / bCost);
+        }
+      }
+
+      // 4. Synchronize: 1 Peti = 12 Trays = 360 Eggs
+      if (rawPetis > 0) {
+        if (rawTrays === 0) rawTrays = Math.round(rawPetis * 12);
+        if (rawEggs === 0) rawEggs = Math.round(rawPetis * 360);
+      } else if (rawTrays > 0) {
+        if (rawPetis === 0) rawPetis = Number((rawTrays / 12).toFixed(2));
+        if (rawEggs === 0) rawEggs = Math.round(rawTrays * 30);
+      } else if (rawEggs > 0) {
+        if (rawPetis === 0) rawPetis = Number((rawEggs / 360).toFixed(2));
+        if (rawTrays === 0) rawTrays = Math.round(rawEggs / 30);
+      }
+
+      const petisCount = rawPetis;
+      const traysCount = rawTrays;
+      const finalEggsCount = rawEggs;
 
       return {
         id: p._id || p.id,
@@ -523,7 +580,7 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
       s.supplierPhone || '-',
       s.category,
       s.productName,
-      new Date(s.date).toLocaleDateString(),
+      `${formatDateTime(s.date).dateStr} ${formatDateTime(s.date).timeStr}`.trim(),
       `${s.petisPurchased} P`,
       s.paymentMethod || 'CASH',
       `Rs. ${fmt(s.cashPaid)}`,
@@ -896,8 +953,16 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                 ) : (
                   supplierLedgerList.map((txn) => (
                     <tr key={txn.id} className="hover:bg-orange-50/20 transition-colors border-b border-gray-300">
-                      <td className="py-2 px-2.5 whitespace-nowrap text-zinc-500 text-[10.5px] border border-gray-300">
-                        {new Date(txn.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      <td className="py-2 px-2.5 whitespace-nowrap border border-gray-300">
+                        <div className="font-bold text-zinc-900 text-[11px] leading-tight">
+                          {formatDateTime(txn.date).dateStr}
+                        </div>
+                        {formatDateTime(txn.date).timeStr && (
+                          <div className="flex items-center gap-1 text-[9.5px] text-zinc-500 font-semibold mt-0.5">
+                            <Clock className="w-2.5 h-2.5 text-orange-600 shrink-0" />
+                            <span>{formatDateTime(txn.date).timeStr}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-2.5 max-w-[120px] border border-gray-300">
                         <div className="font-black text-zinc-900 truncate" title={txn.supplierName}>{txn.supplierName}</div>
@@ -921,19 +986,19 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                             <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
                               <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
                               <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                {txn.petisCount > 0 ? txn.petisCount : (txn.petisPurchased > 0 ? txn.petisPurchased : '0')}
+                                {txn.petisCount > 0 ? txn.petisCount : (txn.petisPurchased > 0 ? txn.petisPurchased : (txn.totalEggsCount > 0 ? Math.floor(txn.totalEggsCount / 360) : '0'))}
                               </span>
                             </div>
                             <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[30px]">
                               <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
                               <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                {txn.traysCount > 0 ? txn.traysCount : '0'}
+                                {txn.traysCount > 0 ? txn.traysCount : (txn.petisCount > 0 ? Math.round(txn.petisCount * 12) : (txn.totalEggsCount > 0 ? Math.round(txn.totalEggsCount / 30) : '0'))}
                               </span>
                             </div>
                             <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[38px]">
                               <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
                               <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                {txn.totalEggsCount > 0 ? txn.totalEggsCount.toLocaleString('en-PK') : (txn.eggQuantity > 0 ? txn.eggQuantity.toLocaleString('en-PK') : '0')}
+                                {txn.totalEggsCount > 0 ? txn.totalEggsCount.toLocaleString('en-PK') : (txn.petisCount > 0 ? Math.round(txn.petisCount * 360).toLocaleString('en-PK') : (txn.eggQuantity > 0 ? txn.eggQuantity.toLocaleString('en-PK') : '0'))}
                               </span>
                             </div>
                           </div>
@@ -941,11 +1006,11 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                       </td>
                       <td className="py-2 px-2 text-center whitespace-nowrap font-black text-orange-800 border border-gray-300">
                         <div className="font-black text-orange-800 text-[11px]">
-                          {txn.petisPurchased > 0 ? `${txn.petisPurchased} P` : (txn.petisCount > 0 ? `${txn.petisCount} P` : '-')}
+                          {txn.petisPurchased > 0 ? `${txn.petisPurchased} P` : (txn.petisCount > 0 ? `${txn.petisCount} P` : (txn.totalEggsCount > 0 ? `${Math.floor(txn.totalEggsCount / 360)} P` : '-'))}
                         </div>
-                        {txn.totalEggsCount > 0 && (
+                        {(txn.totalEggsCount > 0 || txn.petisCount > 0) && (
                           <div className="text-[8px] font-bold text-zinc-400">
-                            {txn.totalEggsCount.toLocaleString('en-PK')} Eggs
+                            {(txn.totalEggsCount > 0 ? txn.totalEggsCount : (txn.petisCount * 360)).toLocaleString('en-PK')} Eggs
                           </div>
                         )}
                       </td>
@@ -1121,8 +1186,16 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                           <tbody className="divide-y divide-gray-300 font-bold text-zinc-700">
                             {vnd.bills.map(b => (
                               <tr key={b.id} className="hover:bg-zinc-50 border-b border-gray-300">
-                                <td className="py-2 px-3 whitespace-nowrap text-zinc-500 text-[10.5px] border border-gray-300">
-                                  {new Date(b.date).toLocaleDateString('en-PK')}
+                                <td className="py-2 px-3 whitespace-nowrap border border-gray-300">
+                                  <div className="font-bold text-zinc-900 text-[11px] leading-tight">
+                                    {formatDateTime(b.date).dateStr}
+                                  </div>
+                                  {formatDateTime(b.date).timeStr && (
+                                    <div className="flex items-center gap-1 text-[9.5px] text-zinc-500 font-semibold mt-0.5">
+                                      <Clock className="w-2.5 h-2.5 text-orange-600 shrink-0" />
+                                      <span>{formatDateTime(b.date).timeStr}</span>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="py-2 px-3 whitespace-nowrap border border-gray-300">
                                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-orange-50 text-orange-700 border border-orange-200">
@@ -1137,28 +1210,28 @@ export function VendorPaymentLedger({ shopId: propShopId }) {
                                       <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[28px]">
                                         <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Peti</span>
                                         <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                          {b.petisCount > 0 ? b.petisCount : (b.petisPurchased > 0 ? b.petisPurchased : '0')}
+                                          {b.petisCount > 0 ? b.petisCount : (b.petisPurchased > 0 ? b.petisPurchased : (b.totalEggsCount > 0 ? Math.floor(b.totalEggsCount / 360) : '0'))}
                                         </span>
                                       </div>
                                       <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[28px]">
                                         <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Tray</span>
                                         <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                          {b.traysCount > 0 ? b.traysCount : '0'}
+                                          {b.traysCount > 0 ? b.traysCount : (b.petisCount > 0 ? Math.round(b.petisCount * 12) : (b.totalEggsCount > 0 ? Math.round(b.totalEggsCount / 30) : '0'))}
                                         </span>
                                       </div>
                                       <div className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-center min-w-[34px]">
                                         <span className="text-[7px] font-black text-gray-600 uppercase block leading-none">Egg</span>
                                         <span className="text-[10px] font-black text-gray-950 leading-tight block mt-0.5">
-                                          {b.totalEggsCount > 0 ? b.totalEggsCount.toLocaleString('en-PK') : (b.eggQuantity > 0 ? b.eggQuantity.toLocaleString('en-PK') : '0')}
+                                          {b.totalEggsCount > 0 ? b.totalEggsCount.toLocaleString('en-PK') : (b.petisCount > 0 ? Math.round(b.petisCount * 360).toLocaleString('en-PK') : (b.eggQuantity > 0 ? b.eggQuantity.toLocaleString('en-PK') : '0'))}
                                         </span>
                                       </div>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="py-2 px-3 text-center font-black text-orange-800 border border-gray-300">
-                                  <div>{b.petisPurchased > 0 ? `${b.petisPurchased} P` : (b.petisCount > 0 ? `${b.petisCount} P` : '-')}</div>
-                                  {b.totalEggsCount > 0 && (
-                                    <div className="text-[8px] font-bold text-zinc-400">{b.totalEggsCount.toLocaleString('en-PK')} Eggs</div>
+                                  <div>{b.petisPurchased > 0 ? `${b.petisPurchased} P` : (b.petisCount > 0 ? `${b.petisCount} P` : (b.totalEggsCount > 0 ? `${Math.floor(b.totalEggsCount / 360)} P` : '-'))}</div>
+                                  {(b.totalEggsCount > 0 || b.petisCount > 0) && (
+                                    <div className="text-[8px] font-bold text-zinc-400">{(b.totalEggsCount > 0 ? b.totalEggsCount : (b.petisCount * 360)).toLocaleString('en-PK')} Eggs</div>
                                   )}
                                 </td>
                                 <td className="py-2 px-3 text-center whitespace-nowrap border border-gray-300">

@@ -97,6 +97,36 @@ const handleCheckoutProcess = async (req, res) => {
     const totalAmount = orderItems.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
     const shopId = reqShopId || customer.shopId || null;
 
+    // Strict Dynamic Stock Validation for Online Storefront Orders
+    for (const item of orderItems) {
+      const prodId = item.productId || item.itemId;
+      if (prodId) {
+        const product = await Item.findById(prodId);
+        if (product) {
+          const availStock = Number(product.stock) || 0;
+          const qty = Number(item.quantity) || 1;
+          const uType = String(item.unit || product.unitType || 'egg').toLowerCase();
+          const tPerP = Number(product.traysPerPeti) || 12;
+          const ePerT = Number(product.eggsPerTray) || 30;
+          const ePerP = tPerP * ePerT || 360;
+          const eggsRequired = uType.includes('peti') ? qty * ePerP : (uType.includes('tray') ? qty * ePerT : qty);
+
+          if (availStock <= 0) {
+            return res.status(400).json({
+              success: false,
+              message: `Cannot place order: Product "${product.name}" is completely Out of Stock (0 remaining). Please remove it from cart.`
+            });
+          }
+          if (eggsRequired > availStock) {
+            return res.status(400).json({
+              success: false,
+              message: `Cannot place order: Insufficient stock for "${product.name}". Available: ${availStock} eggs, but requested: ${eggsRequired} eggs.`
+            });
+          }
+        }
+      }
+    }
+
     // Create Order with all multiple items
     const order = await Order.create({
       shopId,
@@ -146,8 +176,34 @@ const handleCheckoutProcess = async (req, res) => {
         isOnlineOrder: true,
         orderSource: 'ONLINE_STOREFRONT'
       });
+
+      // Deduct stock for ordered items
+      for (const item of orderItems) {
+        const prodId = item.productId || item.itemId;
+        if (prodId) {
+          const product = await Item.findById(prodId);
+          if (product) {
+            const qty = Number(item.quantity) || 1;
+            const uType = String(item.unit || product.unitType || 'egg').toLowerCase();
+            const tPerP = Number(product.traysPerPeti) || 12;
+            const ePerT = Number(product.eggsPerTray) || 30;
+            const ePerP = tPerP * ePerT || 360;
+            const eggsToDeduct = uType.includes('peti') ? qty * ePerP : (uType.includes('tray') ? qty * ePerT : qty);
+            const newStock = Math.max(0, (Number(product.stock) || 0) - eggsToDeduct);
+            const newPetis = Math.max(0, Number((newStock / ePerP).toFixed(2)));
+            const newTrays = Math.max(0, Math.round(newStock / ePerT));
+            await Item.findByIdAndUpdate(product.id || product._id, {
+              stock: newStock,
+              petiQuantity: newPetis,
+              trayQuantity: newTrays,
+              eggQuantity: newStock,
+              lastUpdated: new Date().toISOString().split('T')[0]
+            });
+          }
+        }
+      }
     } catch (saleErr) {
-      console.error('Failed to create sale for order:', saleErr);
+      console.error('Failed to create sale or deduct stock for order:', saleErr);
     }
 
     if (paymentMethod === 'COD') {

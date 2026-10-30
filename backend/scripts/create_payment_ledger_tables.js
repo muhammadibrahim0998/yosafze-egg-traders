@@ -268,12 +268,27 @@ export async function initPaymentLedgerTables() {
           const cash = Number(p.cashPaid || 0);
           const bank = Number(p.bankPaid || 0);
           const due = Number(p.dueAmount || 0);
+
+          let petis = Number(p.petisPurchased || p.petiQuantity || 0);
+          let eggs = Number(p.eggQuantity || 0);
+          const qText = String(p.quantityText || p.notes || p.productName || '');
+          if (qText) {
+            const pMatch = qText.match(/(\d+(?:\.\d+)?)\s*(?:peti|petis|box|boxes|p\b)/i);
+            const eMatch = qText.match(/([\d,]+(?:\.\d+)?)\s*(?:egg|eggs|e\b|stock)/i);
+            if (pMatch && !petis) petis = parseFloat(pMatch[1]);
+            if (eMatch && !eggs) eggs = parseFloat(eMatch[1].replace(/,/g, ''));
+          }
+          if (petis > 0 && eggs === 0) eggs = Math.round(petis * 360);
+          if (eggs > 0 && petis === 0) petis = Number((eggs / 360).toFixed(2));
+
           await pool.query(`
             INSERT INTO \`${vndTable}\`
             (id, shopId, purchaseId, supplierName, supplierPhone, supplierLocation, productName, category, petisPurchased, eggQuantity, unitType, buyCost, totalCost, amountPaid, cashPaid, bankPaid, dueAmount, paymentMethod, status, date)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               supplierName = VALUES(supplierName),
+              petisPurchased = VALUES(petisPurchased),
+              eggQuantity = VALUES(eggQuantity),
               totalCost = VALUES(totalCost),
               amountPaid = VALUES(amountPaid),
               dueAmount = VALUES(dueAmount)
@@ -286,8 +301,8 @@ export async function initPaymentLedgerTables() {
             p.supplierLocation || '',
             p.productName || 'Eggs Stock',
             p.category || 'Eggs',
-            Number(p.petisPurchased || p.petiQuantity || 0),
-            Number(p.eggQuantity || 0),
+            petis,
+            eggs,
             p.unitType || 'peti',
             Number(p.buyCost || 0),
             total,

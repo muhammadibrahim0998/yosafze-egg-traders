@@ -26,7 +26,8 @@ import {
   Building2,
   Clock,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -1145,37 +1146,51 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
         </div>
       </div>
 
-      {/* ─── DEDICATED TODAY'S FUEL & VEHICLE SUMMARY BANNER (GRAY & BIGGER SIZE) ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-3 w-3 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
-            </span>
-            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
-              TODAY'S VEHICLE FUEL &amp; TRANSPORT SUMMARY (LIVE)
-            </span>
-            <span className="text-xs font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full">
-              {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </span>
+      {/* ─── DEDICATED TODAY'S FUEL & VEHICLE SUMMARY (GRAY & BIGGER SIZE) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+            Today's Vehicle Fuel &amp; Transport Activity (Daily Breakdown)
+          </span>
+          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+            {todayFuelStats.tripsCount} Trips &bull; {todayFuelStats.totalLiters.toFixed(1)} Liters Today
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Card 1: Today Fuel Expense */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Fuel Expense</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayFuelStats.tripsCount} Trips Recorded</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-black">
-            <div className="bg-white text-emerald-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Fuel Expense: <strong className="text-sm font-black">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-sky-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Liters: <strong className="text-sm font-black">{todayFuelStats.totalLiters.toFixed(1)} L</strong>
-            </div>
-            <div className="bg-white text-teal-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Cash: <strong className="text-sm font-black">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-purple-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Bank: <strong className="text-sm font-black">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</strong>
-            </div>
-            <div className="bg-white text-slate-900 px-3.5 py-1.5 rounded-xl border-2 border-slate-300 shadow-xs">
-              Today Trips: <strong className="text-sm font-black">{todayFuelStats.tripsCount}</strong>
-            </div>
+
+          {/* Card 2: Today Fuel Liters */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-sky-800">2. Today Fuel Liters</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayFuelStats.totalLiters.toFixed(1)} L</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Fuel Consumed</span>
+          </div>
+
+          {/* Card 3: Today Cash */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">3. Today Cash Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash Settled</span>
+          </div>
+
+          {/* Card 4: Today Bank */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">4. Today Bank Paid</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank Transfer</span>
+          </div>
+
+          {/* Card 5: Today Credit Due */}
+          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">5. Today Credit Due</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayFuelStats.totalCreditDue > 0 ? 'Unsettled Fuel Due' : 'All Settled'}</span>
           </div>
         </div>
       </div>

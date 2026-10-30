@@ -719,6 +719,25 @@ function StoreContent({ shopId }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
+
+  const lowStockItems = useMemo(() => {
+    return (items || []).filter(item => {
+      const itemStock = Number(item.stock) || 0;
+      const itemPetiQty = Number(item.petiQuantity) || 0;
+      const itemMinStock = Number(item.minStock) || 5;
+      const isOutOfStock = itemStock <= 0 || (item.unitType === 'peti' && itemPetiQty <= 0 && itemStock <= 0);
+      const isLowStock = !isOutOfStock && (itemStock <= itemMinStock || itemStock <= 5);
+      return isOutOfStock || isLowStock;
+    });
+  }, [items]);
+
+  const displayedCatalogItems = useMemo(() => {
+    if (showOnlyLowStock) {
+      return lowStockItems;
+    }
+    return items || [];
+  }, [items, showOnlyLowStock, lowStockItems]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editModalProduct, setEditModalProduct] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, item: null });
@@ -2604,23 +2623,49 @@ function StoreContent({ shopId }) {
       toast.error('Walk-In Billing is locked by Super Admin for this branch.');
       return;
     }
-    if ((product.stock || 0) <= 0) {
-      alert('Product is out of stock!');
+    const prodId = product._id || product.id;
+    const liveProduct = (items || []).find(p => String(p._id || p.id) === String(prodId)) || product;
+    const availableStock = Number(liveProduct?.stock) || 0;
+    if (availableStock <= 0) {
+      toast.error(`"${liveProduct.name}" is completely Out of Stock (0 remaining)! Please restock first.`);
       return;
     }
-    const unitPrice = getProductUnitPrice(product, unit);
+
+    const tPerP = Number(liveProduct?.traysPerPeti) || 12;
+    const ePerT = Number(liveProduct?.eggsPerTray) || 30;
+    const ePerP = tPerP * ePerT || 360;
+    const eggsToAdd = unit === 'peti' ? ePerP : unit === 'tray' ? ePerT : 1;
+
+    // Check existing eggs of this product already in walkInCart
+    const currentEggsInCart = walkInCart
+      .filter(item => String(item.product._id || item.product.id) === String(prodId))
+      .reduce((sum, item) => {
+        const u = item.selectedUnit || 'tray';
+        const mult = u === 'peti' ? ePerP : u === 'tray' ? ePerT : 1;
+        return sum + (Number(item.quantity) || 0) * mult;
+      }, 0);
+
+    if (currentEggsInCart + eggsToAdd > availableStock) {
+      const remainingEggs = Math.max(0, availableStock - currentEggsInCart);
+      const remainingUnits = Math.floor(remainingEggs / eggsToAdd);
+      const remainingPetis = (remainingEggs / ePerP).toFixed(1);
+      toast.error(`Low stock! Only ${remainingUnits} ${unit.toUpperCase()} (${remainingEggs} eggs / ${remainingPetis} Petis) available in stock. Cannot add more.`);
+      return;
+    }
+
+    const unitPrice = getProductUnitPrice(liveProduct, unit);
     setWalkInCart(prev => {
-      const existing = prev.find(item => item.product._id === product._id && (item.selectedUnit || 'tray') === unit);
+      const existing = prev.find(item => String(item.product._id || item.product.id) === String(prodId) && (item.selectedUnit || 'tray') === unit);
       if (existing) {
         return prev.map(item =>
-          item.product._id === product._id && (item.selectedUnit || 'tray') === unit
-            ? { ...item, quantity: item.quantity + 1 }
+          String(item.product._id || item.product.id) === String(prodId) && (item.selectedUnit || 'tray') === unit
+            ? { ...item, quantity: (Number(item.quantity) || 0) + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedUnit: unit, unitPrice }];
+      return [...prev, { product: liveProduct, quantity: 1, selectedUnit: unit, unitPrice }];
     });
-    setAddedMsg(`Added ${product.name} (${unit.toUpperCase()}) to bill`);
+    setAddedMsg(`Added ${liveProduct.name} (${unit.toUpperCase()}) to bill`);
     setTimeout(() => setAddedMsg(''), 2000);
   };
 
@@ -2649,12 +2694,37 @@ function StoreContent({ shopId }) {
     if (!isActionAllowed('walkin')) return;
     setWalkInCart(prev =>
       prev.map(item => {
-        if (item.product._id === productId && (item.selectedUnit || 'tray') === currentUnit) {
-          const tPerP = item.product?.traysPerPeti || 12;
-          const ePerT = item.product?.eggsPerTray || 30;
-          const ePerP = tPerP * ePerT;
+        if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === currentUnit) {
+          const liveProduct = (items || []).find(p => String(p._id || p.id) === String(productId)) || item.product;
+          const availableStock = Number(liveProduct?.stock) || 0;
+          const tPerP = Number(liveProduct?.traysPerPeti) || 12;
+          const ePerT = Number(liveProduct?.eggsPerTray) || 30;
+          const ePerP = tPerP * ePerT || 360;
 
-          let newUnitPrice = getProductUnitPrice(item.product, newUnit);
+          const currentEggsPerUnit = currentUnit === 'peti' ? ePerP : currentUnit === 'tray' ? ePerT : 1;
+          const newEggsPerUnit = newUnit === 'peti' ? ePerP : newUnit === 'tray' ? ePerT : 1;
+
+          // Convert quantity based on total egg count
+          const currentQty = Number(item.quantity) || 1;
+          const totalEggsInItem = currentQty * currentEggsPerUnit;
+          let convertedQty = Math.max(1, Math.round(totalEggsInItem / newEggsPerUnit));
+
+          // Other eggs in cart for this product
+          const otherEggsInCart = prev
+            .filter(i => String(i.product._id || i.product.id) === String(productId) && !(String(i.selectedUnit || 'tray') === String(currentUnit)))
+            .reduce((sum, i) => {
+              const u = i.selectedUnit || 'tray';
+              const mult = u === 'peti' ? ePerP : u === 'tray' ? ePerT : 1;
+              return sum + (Number(i.quantity) || 0) * mult;
+            }, 0);
+
+          const maxAllowedUnits = Math.floor(Math.max(0, availableStock - otherEggsInCart) / newEggsPerUnit);
+          if (convertedQty > maxAllowedUnits) {
+            convertedQty = Math.max(1, maxAllowedUnits);
+            toast.error(`Stock limit! Capped to maximum available: ${convertedQty} ${newUnit.toUpperCase()} (${availableStock} eggs in stock).`);
+          }
+
+          let newUnitPrice = getProductUnitPrice(liveProduct, newUnit);
           if ((!newUnitPrice || newUnitPrice === 0) && item.unitPrice && Number(item.unitPrice) > 0) {
             const currentP = Number(item.unitPrice);
             if (currentUnit === 'peti') {
@@ -2671,6 +2741,7 @@ function StoreContent({ shopId }) {
 
           return {
             ...item,
+            quantity: convertedQty,
             selectedUnit: newUnit,
             unitPrice: newUnitPrice
           };
@@ -2682,16 +2753,46 @@ function StoreContent({ shopId }) {
 
   const updateWalkInQty = (productId, unit, delta) => {
     if (!isActionAllowed('walkin')) return;
-    setWalkInCart(prev =>
-      prev.map(item => {
-        if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+    setWalkInCart(prev => {
+      const targetItem = prev.find(i => String(i.product._id || i.product.id) === String(productId) && (i.selectedUnit || 'tray') === unit);
+      if (!targetItem) return prev;
+
+      const liveProduct = (items || []).find(p => String(p._id || p.id) === String(productId)) || targetItem.product;
+      const availableStock = Number(liveProduct?.stock) || 0;
+      const tPerP = Number(liveProduct?.traysPerPeti) || 12;
+      const ePerT = Number(liveProduct?.eggsPerTray) || 30;
+      const ePerP = tPerP * ePerT || 360;
+      const eggsPerUnit = unit === 'peti' ? ePerP : unit === 'tray' ? ePerT : 1;
+
+      if (delta > 0) {
+        const otherEggsInCart = prev
+          .filter(i => String(i.product._id || i.product.id) === String(productId) && !((i.selectedUnit || 'tray') === unit))
+          .reduce((sum, i) => {
+            const u = i.selectedUnit || 'tray';
+            const mult = u === 'peti' ? ePerP : u === 'tray' ? ePerT : 1;
+            return sum + (Number(i.quantity) || 0) * mult;
+          }, 0);
+
+        const currentQty = Number(targetItem.quantity) || 0;
+        const requestedTotalEggs = otherEggsInCart + (currentQty + delta) * eggsPerUnit;
+
+        if (requestedTotalEggs > availableStock) {
+          const remainingEggs = Math.max(0, availableStock - otherEggsInCart);
+          const maxAllowed = Math.floor(remainingEggs / eggsPerUnit);
+          toast.error(`Low stock! Only ${maxAllowed} ${unit.toUpperCase()} (${availableStock} eggs) available in stock. Cannot add more.`);
+          return prev;
+        }
+      }
+
+      return prev.map(item => {
+        if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
           const current = Number(item.quantity) || 0;
           const newQty = Math.max(1, current + delta);
           return { ...item, quantity: newQty };
         }
         return item;
-      })
-    );
+      });
+    });
   };
 
   const setWalkInDirectQty = (productId, unit, directVal) => {
@@ -2699,7 +2800,7 @@ function StoreContent({ shopId }) {
     if (directVal === '') {
       setWalkInCart(prev =>
         prev.map(item => {
-          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+          if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
             return { ...item, quantity: '' };
           }
           return item;
@@ -2709,9 +2810,41 @@ function StoreContent({ shopId }) {
     }
     const parsed = parseFloat(directVal);
     if (!isNaN(parsed) && parsed >= 0) {
+      const liveProduct = (items || []).find(p => String(p._id || p.id) === String(productId));
+      const availableStock = Number(liveProduct?.stock) || 0;
+      const tPerP = Number(liveProduct?.traysPerPeti) || 12;
+      const ePerT = Number(liveProduct?.eggsPerTray) || 30;
+      const ePerP = tPerP * ePerT || 360;
+      const eggsPerUnit = unit === 'peti' ? ePerP : unit === 'tray' ? ePerT : 1;
+
+      const otherEggsInCart = walkInCart
+        .filter(i => String(i.product._id || i.product.id) === String(productId) && !((i.selectedUnit || 'tray') === unit))
+        .reduce((sum, i) => {
+          const u = i.selectedUnit || 'tray';
+          const mult = u === 'peti' ? ePerP : u === 'tray' ? ePerT : 1;
+          return sum + (Number(i.quantity) || 0) * mult;
+        }, 0);
+
+      const remainingEggsForThisItem = Math.max(0, availableStock - otherEggsInCart);
+      const maxUnitsPossible = Math.floor(remainingEggsForThisItem / eggsPerUnit);
+
+      if (parsed * eggsPerUnit > remainingEggsForThisItem) {
+        toast.error(`Cannot sell ${parsed} ${unit.toUpperCase()}! Available stock is only ${maxUnitsPossible} ${unit.toUpperCase()} (${availableStock} eggs). Capped to maximum.`);
+        const cappedQty = Math.max(1, maxUnitsPossible);
+        setWalkInCart(prev =>
+          prev.map(item => {
+            if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
+              return { ...item, quantity: cappedQty };
+            }
+            return item;
+          })
+        );
+        return;
+      }
+
       setWalkInCart(prev =>
         prev.map(item => {
-          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+          if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
             return { ...item, quantity: parsed };
           }
           return item;
@@ -2725,7 +2858,7 @@ function StoreContent({ shopId }) {
     if (directVal === '') {
       setWalkInCart(prev =>
         prev.map(item => {
-          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+          if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
             return { ...item, unitPrice: '' };
           }
           return item;
@@ -2737,7 +2870,7 @@ function StoreContent({ shopId }) {
     if (!isNaN(parsed) && parsed >= 0) {
       setWalkInCart(prev =>
         prev.map(item => {
-          if (item.product._id === productId && (item.selectedUnit || 'tray') === unit) {
+          if (String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit) {
             return { ...item, unitPrice: parsed };
           }
           return item;
@@ -2748,7 +2881,7 @@ function StoreContent({ shopId }) {
 
   const removeFromWalkInCart = (productId, unit) => {
     if (!isActionAllowed('walkin')) return;
-    setWalkInCart(prev => prev.filter(item => !(item.product._id === productId && (item.selectedUnit || 'tray') === unit)));
+    setWalkInCart(prev => prev.filter(item => !(String(item.product._id || item.product.id) === String(productId) && (item.selectedUnit || 'tray') === unit)));
   };
 
   const fetchShopSales = async () => {
@@ -2777,12 +2910,40 @@ function StoreContent({ shopId }) {
       alert('Walk-in cart is empty!');
       return;
     }
+
+    // Strict stock check before generating bill to prevent overselling
+    for (const item of walkInCart) {
+      const prodId = item.product._id || item.product.id;
+      const liveProd = (items || []).find(p => String(p._id || p.id) === String(prodId)) || item.product;
+      const availableStock = Number(liveProd?.stock) || 0;
+      const tPerP = Number(liveProd?.traysPerPeti) || 12;
+      const ePerT = Number(liveProd?.eggsPerTray) || 30;
+      const ePerP = tPerP * ePerT || 360;
+      const unit = item.selectedUnit || 'tray';
+      const mult = unit === 'peti' ? ePerP : unit === 'tray' ? ePerT : 1;
+      const eggsRequired = (Number(item.quantity) || 1) * mult;
+
+      if (availableStock <= 0) {
+        alert(`❌ "${liveProd.name}" is completely Out of Stock (0 Remaining)! Please restock before selling.`);
+        toast.error(`"${liveProd.name}" is Out of Stock.`);
+        return;
+      }
+      if (eggsRequired > availableStock) {
+        const availInUnit = Math.floor(availableStock / mult);
+        alert(`❌ Insufficient stock for "${liveProd.name}"! Available: ${availInUnit} ${unit.toUpperCase()} (${availableStock} eggs), but bill requires ${item.quantity} ${unit.toUpperCase()} (${eggsRequired} eggs).`);
+        toast.error(`Insufficient stock for "${liveProd.name}". Available: ${availInUnit} ${unit.toUpperCase()}.`);
+        return;
+      }
+    }
+
     setIsProcessingWalkIn(true);
     try {
       const saleItems = walkInCart.map(item => {
+        const prodId = item.product._id || item.product.id;
+        const liveProd = (items || []).find(p => String(p._id || p.id) === String(prodId)) || item.product;
         const unit = item.selectedUnit || 'tray';
-        const tPerPeti = item.product?.traysPerPeti || 12;
-        const ePerTray = item.product?.eggsPerTray || 30;
+        const tPerPeti = liveProd?.traysPerPeti || 12;
+        const ePerTray = liveProd?.eggsPerTray || 30;
         const ePerPeti = tPerPeti * ePerTray;
         const qty = Number(item.quantity) || 1;
 
@@ -2803,20 +2964,20 @@ function StoreContent({ shopId }) {
 
         const unitMultiplier = unit === 'peti' ? ePerPeti : unit === 'tray' ? ePerTray : 1;
         const totalEggs = qty * unitMultiplier;
-        const unitPrice = (item.unitPrice !== undefined && item.unitPrice !== '') ? Number(item.unitPrice) : getProductUnitPrice(item.product, unit);
+        const unitPrice = (item.unitPrice !== undefined && item.unitPrice !== '') ? Number(item.unitPrice) : getProductUnitPrice(liveProd, unit);
         const subtotal = Math.round(unitPrice * qty);
 
-        const unitCost = Number(item.product.costPrice) > 0 ? Number(item.product.costPrice) : (Number(item.product.price) || 0) * 0.8;
-        const costPerEgg = item.product.unitType === 'peti' ? unitCost / ePerPeti : item.product.unitType === 'tray' ? unitCost / ePerTray : unitCost;
+        const unitCost = Number(liveProd.costPrice) > 0 ? Number(liveProd.costPrice) : (Number(liveProd.price) || 0) * 0.8;
+        const costPerEgg = liveProd.unitType === 'peti' ? unitCost / ePerPeti : liveProd.unitType === 'tray' ? unitCost / ePerTray : unitCost;
         const itemTotalCost = Math.round(costPerEgg * totalEggs);
         const profit = Math.max(0, subtotal - itemTotalCost);
 
         const unitLabel = unit === 'peti' ? 'Peti' : unit === 'tray' ? 'Tray' : 'Egg';
 
         return {
-          productId: item.product._id,
-          name: `${item.product.name} (${breakdownStr})`,
-          rawProductName: item.product.name,
+          productId: prodId,
+          name: `${liveProd.name} (${breakdownStr})`,
+          rawProductName: liveProd.name,
           quantity: qty,
           unit: unit,
           unitLabel: unitLabel,
@@ -2937,12 +3098,21 @@ function StoreContent({ shopId }) {
 
       // Instantly decrement item stock in memory
       setItems(prev => (prev || []).map(p => {
-        const sold = saleItems.find(si => String(si.productId) === String(p._id));
+        const sold = saleItems.find(si => String(si.productId) === String(p._id || p.id));
         if (!sold) return p;
         const soldQty = Number(sold.quantity) || 0;
+        const u = String(sold.unit || sold.unitLabel || p.unitType || 'egg').toLowerCase();
+        const tPerP = Number(p.traysPerPeti) || 12;
+        const ePerT = Number(p.eggsPerTray) || 30;
+        const ePerP = tPerP * ePerT || 360;
+        const eggsSold = Number(sold.totalEggs) > 0 ? Number(sold.totalEggs) : (u.includes('peti') ? soldQty * ePerP : (u.includes('tray') ? soldQty * ePerT : soldQty));
+        const newStk = Math.max(0, (Number(p.stock) || 0) - eggsSold);
         return {
           ...p,
-          stock: Math.max(0, (Number(p.stock) || 0) - soldQty)
+          stock: newStk,
+          petiQuantity: Math.max(0, Number((newStk / ePerP).toFixed(2))),
+          trayQuantity: Math.max(0, Math.round(newStk / ePerT)),
+          eggQuantity: newStk
         };
       }));
 
@@ -2951,7 +3121,10 @@ function StoreContent({ shopId }) {
       await fetchShopSales();
       await fetchRegisteredCustomers();
     } catch (err) {
-      alert(err.message || 'Failed to complete sale');
+      console.error('Failed to complete sale:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to complete sale';
+      alert(`❌ ${errMsg}`);
+      try { toast.error(errMsg); } catch (_) {}
     } finally {
       setIsProcessingWalkIn(false);
     }
@@ -3012,17 +3185,6 @@ function StoreContent({ shopId }) {
   const [restockDue, setRestockDue] = useState(0);
   const [isRestocking, setIsRestocking] = useState(false);
 
-  const lowStockItems = useMemo(() => {
-    return (items || []).filter(item => {
-      const itemStock = Number(item.stock) || 0;
-      const itemPetiQty = Number(item.petiQuantity) || 0;
-      const effectiveStock = (item.unitType === 'peti' && item.petiQuantity !== undefined && item.petiQuantity !== null)
-        ? itemPetiQty
-        : itemStock;
-      const minThreshold = Number(item.minStock) > 0 ? Number(item.minStock) : 5;
-      return effectiveStock <= minThreshold || effectiveStock <= 5;
-    });
-  }, [items]);
 
   const handleStartRestock = (item) => {
     setRestockingProduct(item);
@@ -3051,17 +3213,22 @@ function StoreContent({ shopId }) {
 
       const isPeti = restockingProduct.unitType === 'peti';
       const isTray = restockingProduct.unitType === 'tray';
-      const eggsToAdd = isPeti ? qty * 360 : (isTray ? qty * 30 : qty);
+      const tPerP = Number(restockingProduct.traysPerPeti) || 12;
+      const ePerT = Number(restockingProduct.eggsPerTray) || 30;
+      const ePerP = tPerP * ePerT || 360;
+      const eggsToAdd = isPeti ? qty * ePerP : (isTray ? qty * ePerT : qty);
 
       const oldStock = Number(restockingProduct.stock) || 0;
       const oldPeti = Number(restockingProduct.petiQuantity) || 0;
       const newStock = oldStock + eggsToAdd;
-      const newPeti = oldPeti + qty;
+      const newPeti = isPeti ? (oldPeti + qty) : Math.max(0, Number((newStock / ePerP).toFixed(2)));
+      const newTray = isTray ? ((Number(restockingProduct.trayQuantity) || 0) + qty) : Math.max(0, Math.round(newStock / ePerT));
 
       const payload = {
         stock: newStock,
-        petiQuantity: isPeti ? newPeti : (restockingProduct.petiQuantity || 0),
-        trayQuantity: isTray ? ((Number(restockingProduct.trayQuantity) || 0) + qty) : (restockingProduct.trayQuantity || 0),
+        petiQuantity: newPeti,
+        trayQuantity: newTray,
+        eggQuantity: newStock,
         costPrice: unitCost,
         supplierName: restockSupplier || restockingProduct.supplierName || 'Farm Vendor',
         supplierPhone: restockPhone || restockingProduct.supplierPhone || '',
@@ -4662,6 +4829,21 @@ function StoreContent({ shopId }) {
     notes: ''
   });
 
+  const [editDamagedModal, setEditDamagedModal] = useState(null);
+  const [editDamagedFormData, setEditDamagedFormData] = useState({
+    productName: '',
+    productId: '',
+    petiQuantity: '',
+    trayQuantity: '',
+    eggQuantity: '',
+    unitType: 'egg',
+    quantity: '',
+    unitPrice: '',
+    reason: 'Egg Breakage / Crack',
+    damageDate: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
+
   const fetchDamagedProducts = async () => {
     if (!shopId) return [];
     try {
@@ -4792,9 +4974,275 @@ function StoreContent({ shopId }) {
     try {
       await fetch(`/api/damaged-products/${id}`, { method: 'DELETE' });
     } catch (e) { }
-    setDamagedProductsList(prev => prev.filter(x => String(x._id) !== String(id)));
+    setDamagedProductsList(prev => prev.filter(x => String(x._id || x.id) !== String(id)));
     await fetchCatalog();
     setTimeout(fetchDashboardStats, 300);
+  };
+
+  const handleStartEditDamaged = (dmg) => {
+    if (isDamagedEditLocked) {
+      toast.error("🔒 Super Admin Approval Required: Editing damaged stock is currently locked by Super Admin.");
+      alert("🔒 Super Admin Approval Required: Editing damaged stock is currently locked for this branch.");
+      return;
+    }
+    setEditDamagedModal(dmg);
+    const dateStr = dmg.damageDate ? new Date(dmg.damageDate).toISOString().split('T')[0] : (dmg.createdAt ? new Date(dmg.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+    setEditDamagedFormData({
+      productName: dmg.productName || '',
+      productId: dmg.productId || '',
+      petiQuantity: dmg.petiQuantity !== undefined && dmg.petiQuantity !== 0 ? dmg.petiQuantity : '',
+      trayQuantity: dmg.trayQuantity !== undefined && dmg.trayQuantity !== 0 ? dmg.trayQuantity : '',
+      eggQuantity: dmg.eggQuantity !== undefined && dmg.eggQuantity !== 0 ? dmg.eggQuantity : '',
+      unitType: dmg.unitType || 'egg',
+      quantity: dmg.quantity || '',
+      unitPrice: dmg.unitPrice || '',
+      reason: dmg.reason || 'Egg Breakage / Crack',
+      damageDate: dateStr,
+      notes: dmg.notes || ''
+    });
+  };
+
+  const handleEditDamagedSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editDamagedModal) return;
+    const dmgId = editDamagedModal._id || editDamagedModal.id;
+
+    const pQty = Number(editDamagedFormData.petiQuantity || 0);
+    const tQty = Number(editDamagedFormData.trayQuantity || 0);
+    const eQty = Number(editDamagedFormData.eggQuantity || 0);
+    const rawQty = Number(editDamagedFormData.quantity || 0);
+
+    if (!editDamagedFormData.productName || (pQty <= 0 && tQty <= 0 && eQty <= 0 && rawQty <= 0)) {
+      alert('Please enter product name and at least one damaged quantity (Petis, Trays, or Eggs)');
+      return;
+    }
+
+    const selectedProduct = (items || []).find(i =>
+      String(i._id || i.id) === String(editDamagedFormData.productId) ||
+      (editDamagedFormData.productName && i.name?.toLowerCase().trim() === editDamagedFormData.productName.toLowerCase().trim())
+    );
+
+    const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
+    const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+    const ePerP = tPerP * ePerT;
+
+    const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
+    const pUnit = selectedProduct?.unitType || 'peti';
+    let eggRate = 0;
+    if (selectedProduct && basePrice > 0) {
+      if (pUnit === 'peti') eggRate = basePrice / ePerP;
+      else if (pUnit === 'tray') eggRate = basePrice / ePerT;
+      else eggRate = basePrice;
+    } else if (Number(editDamagedFormData.unitPrice) > 0) {
+      eggRate = Number(editDamagedFormData.unitPrice);
+    }
+
+    let totalEggsDmg = 0;
+    if (pQty > 0 || tQty > 0 || eQty > 0) {
+      totalEggsDmg = Math.round((pQty * ePerP) + (tQty * ePerT) + eQty);
+    } else {
+      totalEggsDmg = Math.round(rawQty);
+    }
+
+    const calculatedLoss = Math.round(totalEggsDmg * (eggRate || 0));
+
+    const updatedPayload = {
+      productName: editDamagedFormData.productName,
+      productId: editDamagedFormData.productId || (selectedProduct ? String(selectedProduct._id || selectedProduct.id) : ''),
+      petiQuantity: pQty,
+      trayQuantity: tQty,
+      eggQuantity: eQty,
+      quantity: totalEggsDmg,
+      deductedEggs: totalEggsDmg,
+      unitType: pQty > 0 && tQty === 0 && eQty === 0 ? 'peti' : (tQty > 0 && pQty === 0 && eQty === 0 ? 'tray' : 'egg'),
+      unitPrice: Number(editDamagedFormData.unitPrice) || Math.round(eggRate * 10) / 10,
+      totalLoss: calculatedLoss,
+      reason: editDamagedFormData.reason,
+      damageDate: editDamagedFormData.damageDate ? new Date(editDamagedFormData.damageDate) : new Date(),
+      notes: editDamagedFormData.notes || '',
+      reportedBy: editDamagedModal.reportedBy || user?.fullName || 'Shop Admin'
+    };
+
+    try {
+      const res = await fetch(`/api/damaged-products/${dmgId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedPayload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDamagedProductsList(prev => prev.map(d => String(d._id || d.id) === String(dmgId) ? (data.data || { ...d, ...updatedPayload }) : d));
+        if (data.updatedItem) {
+          setItems(prev => prev.map(it => String(it._id || it.id) === String(data.updatedItem._id || data.updatedItem.id) ? data.updatedItem : it));
+        }
+        toast.success("✅ Damaged stock entry updated successfully!");
+      } else {
+        setDamagedProductsList(prev => prev.map(d => String(d._id || d.id) === String(dmgId) ? { ...d, ...updatedPayload } : d));
+        toast.success("Damaged stock entry updated!");
+      }
+    } catch (err) {
+      console.error('Update damaged error:', err);
+      setDamagedProductsList(prev => prev.map(d => String(d._id || d.id) === String(dmgId) ? { ...d, ...updatedPayload } : d));
+      toast.success("Damaged stock entry updated!");
+    }
+
+    setEditDamagedModal(null);
+    await fetchCatalog();
+    setTimeout(fetchDashboardStats, 300);
+  };
+
+  const handlePrintDamagedReport = (damagedList = []) => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow popups to print the damaged stock report statement');
+      return;
+    }
+
+    const itemsToPrint = damagedList.length > 0 ? damagedList : (damagedProductsList || []);
+    const totalLossVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
+    const totalEggsVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.deductedEggs || d.quantity) || 0), 0);
+    const totalPetisVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.petiQuantity) || (Number(d.deductedEggs || d.quantity) || 0) / 360), 0);
+    const totalTraysVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.trayQuantity) || (Number(d.deductedEggs || d.quantity) || 0) / 30), 0);
+    const reportDateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let rowsHtml = itemsToPrint.map((d, idx) => {
+      const dateFormatted = new Date(d.damageDate || d.createdAt || Date.now()).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+      let qtyStr = '';
+      if (d.petiQuantity > 0 || d.trayQuantity > 0 || d.eggQuantity > 0) {
+        const parts = [];
+        if (d.petiQuantity > 0) parts.push(`${d.petiQuantity} Peti${d.petiQuantity > 1 ? 's' : ''}`);
+        if (d.trayQuantity > 0) parts.push(`${d.trayQuantity} Tray${d.trayQuantity > 1 ? 's' : ''}`);
+        if (d.eggQuantity > 0) parts.push(`${d.eggQuantity} Egg${d.eggQuantity > 1 ? 's' : ''}`);
+        qtyStr = parts.join(' • ');
+      } else {
+        const q = Number(d.quantity || d.deductedEggs) || 1;
+        const u = String(d.unitType || d.unit || 'egg').toUpperCase();
+        qtyStr = `${q} ${u}`;
+      }
+
+      return `
+      <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; vertical-align:middle;">${idx + 1}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; vertical-align:middle; font-weight:700; color:#334155;">${dateFormatted}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; vertical-align:middle; font-weight:900; text-transform:uppercase; color:#0f172a;">${d.productName}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; vertical-align:middle;">
+          <span style="background:#fef3c7; color:#92400e; padding:3px 9px; border-radius:6px; font-weight:900; font-size:10px; text-transform:uppercase; border:1px solid #fde68a;">${d.reason || 'Egg Breakage'}</span>
+        </td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:center; font-weight:900; color:#0f172a; vertical-align:middle;">${qtyStr}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:700; color:#475569; vertical-align:middle;">${currency} ${(Number(d.unitPrice) || 0).toLocaleString('en-PK')}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; text-align:right; font-weight:900; color:#b45309; vertical-align:middle;">${currency} ${(Number(d.totalLoss) || 0).toLocaleString('en-PK')}</td>
+        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:600; color:#64748b; font-size:11px; vertical-align:middle;">${d.notes || d.reportedBy || 'Shop Admin'}</td>
+      </tr>
+      `;
+    }).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Damaged Stock &amp; Loss Report - ${shopName}</title>
+          <style>
+            @page { size: A4 landscape; margin: 12mm 15mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 11.5px; margin: 0; }
+            .header-banner { background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #0f172a 100%); color: #ffffff; padding: 20px 26px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+            .header-title h1 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #ffffff; }
+            .header-title p { margin: 4px 0 0; font-size: 11px; font-weight: 800; color: #fde68a; text-transform: uppercase; letter-spacing: 1.5px; }
+            .meta-tag { background: #fef3c7; color: #78350f; padding: 8px 16px; border-radius: 10px; font-weight: 900; font-size: 13px; text-align: right; }
+            .meta-tag span { display: block; font-size: 9px; font-weight: 800; opacity: 0.85; }
+            .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+            .kpi-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; }
+            .kpi-card .lbl { font-size: 9.5px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+            .kpi-card .val { font-size: 18px; font-weight: 900; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; margin-top: 12px; }
+            th { background: #0f172a; color: #ffffff; text-transform: uppercase; font-weight: 900; font-size: 10px; letter-spacing: 0.5px; padding: 10px 12px; border: 1px solid #0f172a; text-align: left; }
+            .total-bar { margin-top: 20px; padding: 16px 22px; background: #fffbeb; border: 2px solid #f59e0b; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .total-bar .lbl { font-size: 13px; font-weight: 900; color: #92400e; text-transform: uppercase; letter-spacing: 0.8px; }
+            .total-bar .val { font-size: 24px; font-weight: 900; color: #b45309; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 40px; padding-top: 20px; border-top: 1.5px dashed #cbd5e1; text-align: center; }
+            .sign-line { border-top: 2px solid #94a3b8; padding-top: 6px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; }
+            .footer-tag { margin-top: 25px; text-align: center; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; }
+            @media print {
+              body { padding: 0; background: #ffffff; }
+              .header-banner, .kpi-card, .total-bar, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-banner">
+            <div class="header-title">
+              <h1>${shopName.toUpperCase()}</h1>
+              <p>OFFICIAL DAMAGED STOCK &amp; INVENTORY LOSS REPORT</p>
+            </div>
+            <div class="meta-tag">
+              <span>REPORT GENERATED</span>
+              ${reportDateStr}
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card" style="border-color:#fde68a; background:#fefce8;">
+              <div class="lbl" style="color:#92400e;">Total Damaged Loss Amount</div>
+              <div class="val" style="color:#b45309;">${currency} ${totalLossVal.toLocaleString('en-PK')}</div>
+            </div>
+            <div class="kpi-card" style="border-color:#fed7aa; background:#fff7ed;">
+              <div class="lbl" style="color:#9a3412;">Total Damaged Eggs Count</div>
+              <div class="val" style="color:#c2410c;">${Math.round(totalEggsVal).toLocaleString('en-PK')} Eggs</div>
+            </div>
+            <div class="kpi-card" style="border-color:#bfdbfe; background:#eff6ff;">
+              <div class="lbl" style="color:#1e40af;">Total Petis Equivalent</div>
+              <div class="val" style="color:#1d4ed8;">${totalPetisVal.toFixed(2)} Petis</div>
+            </div>
+            <div class="kpi-card">
+              <div class="lbl">Total Logged Entries</div>
+              <div class="val" style="color:#0f172a;">${itemsToPrint.length} Records</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center; width:40px;">#</th>
+                <th style="width:110px;">Date</th>
+                <th>Product Name</th>
+                <th style="text-align:center; width:150px;">Reason / Cause</th>
+                <th style="text-align:center; width:160px;">Damaged Quantity</th>
+                <th style="text-align:right; width:100px;">Unit Price</th>
+                <th style="text-align:right; width:120px;">Total Loss</th>
+                <th style="width:160px;">Logged By / Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="total-bar">
+            <div>
+              <div class="lbl">CUMULATIVE DAMAGED STOCK LOSS:</div>
+              <div style="font-size:10px; color:#92400e; font-weight:700; margin-top:2px;">
+                Total ${itemsToPrint.length} Logged Incident${itemsToPrint.length > 1 ? 's' : ''} • ${Math.round(totalEggsVal).toLocaleString('en-PK')} Total Broken / Cracked Eggs
+              </div>
+            </div>
+            <div class="val">${currency} ${totalLossVal.toLocaleString('en-PK')}</div>
+          </div>
+
+          <div class="signatures">
+            <div class="sign-line">Stock Incharge / Cashier Signature</div>
+            <div class="sign-line">${shopName} Authorized Stamp</div>
+          </div>
+
+          <div class="footer-tag">
+            Verified Computer-Generated Loss Statement • Yosafze Egg Traders Management System
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   // ─── Dynamic Live Expenses Calculations (Today, This Month, This Year, All-Time with Cash & Bank Cuts) ───
@@ -8405,16 +8853,106 @@ function StoreContent({ shopId }) {
                     )}
                   </div>
 
+                  {/* ─── DEDICATED LOW STOCK / OUT OF STOCK ALERT DIV ─── */}
+                  <div className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 mb-1 ${
+                    showOnlyLowStock
+                      ? 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-red-500 ring-2 ring-red-400/50 shadow-red-500/20'
+                      : (lowStockItems.length > 0 
+                          ? 'bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border-red-300 text-slate-900 shadow-sm' 
+                          : 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs')
+                  }`}>
+                    <div className="flex items-center gap-3.5 w-full md:w-auto">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                        showOnlyLowStock
+                          ? 'bg-white/20 text-white border border-white/30'
+                          : (lowStockItems.length > 0 ? 'bg-red-600 text-white animate-pulse shadow-red-500/30' : 'bg-emerald-600 text-white')
+                      }`}>
+                        {lowStockItems.length > 0 ? (
+                          <AlertTriangle className="w-6 h-6 text-white" />
+                        ) : (
+                          <Package className="w-6 h-6 text-white" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className={`font-black text-sm uppercase tracking-tight ${showOnlyLowStock ? 'text-white' : 'text-slate-900'}`}>
+                            {lowStockItems.length > 0 
+                              ? '⚠️ Low Stock & Out of Stock Products' 
+                              : '✅ All Products In Stock'}
+                          </h3>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            showOnlyLowStock
+                              ? 'bg-white text-red-700 shadow-xs'
+                              : (lowStockItems.length > 0 ? 'bg-red-600 text-white shadow-xs' : 'bg-emerald-600 text-white')
+                          }`}>
+                            {lowStockItems.length} Products Low / Out
+                          </span>
+                        </div>
+                        <p className={`text-xs font-semibold mt-0.5 ${showOnlyLowStock ? 'text-red-100' : 'text-slate-600'}`}>
+                          {showOnlyLowStock
+                            ? 'Currently viewing low stock items. When restocked or purchased, products automatically return to the main catalog.'
+                            : (lowStockItems.length > 0 
+                                ? 'Low or exhausted items are locked from sale until restocked. Click to view them:' 
+                                : 'All products have healthy inventory levels and are available for sale.')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+                      {lowStockItems.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowOnlyLowStock(prev => !prev)}
+                          className={`w-full md:w-auto px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 ${
+                            showOnlyLowStock
+                              ? 'bg-white text-red-700 hover:bg-red-50 border border-white'
+                              : 'bg-red-600 hover:bg-red-700 text-white border border-red-500 animate-pulse'
+                          }`}
+                        >
+                          {showOnlyLowStock ? (
+                            <>
+                              <Package className="w-4 h-4" />
+                              <span>Show All Products</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-4 h-4" />
+                              <span>⚠️ View Low Stock ({lowStockItems.length})</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300">
+                          100% Healthy Inventory
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Category Pills (Mobile/Quick Filter) */}
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     <div className="flex items-center gap-1.5 text-emerald-700 text-[10px] font-black uppercase tracking-widest pr-2 border-r border-slate-300">
                       <Filter className="w-3.5 h-3.5" /> Filter
                     </div>
+                    {/* Low Stock Filter Tab Pill */}
+                    {lowStockItems.length > 0 && (
+                      <button
+                        onClick={() => setShowOnlyLowStock(prev => !prev)}
+                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
+                          showOnlyLowStock
+                            ? 'bg-red-600 text-white border-t border-t-red-300 border-b-2 border-b-red-900 shadow-md scale-105 ring-2 ring-red-400'
+                            : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 shadow-xs'
+                        }`}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                        <span>Low Stock ({lowStockItems.length})</span>
+                      </button>
+                    )}
                     {categories.map(cat => (
                       <button
                         key={cat}
-                        onClick={() => setActiveCategory(cat)}
-                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${activeCategory === cat
+                        onClick={() => { setActiveCategory(cat); setShowOnlyLowStock(false); }}
+                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${!showOnlyLowStock && activeCategory === cat
                           ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 border-t border-t-amber-200 border-b-2 border-b-amber-800 shadow-md scale-105'
                           : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 shadow-xs hover:border-amber-400'
                           }`}
@@ -8439,14 +8977,24 @@ function StoreContent({ shopId }) {
                       <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
                       <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading Catalog...</p>
                     </div>
-                  ) : items.length === 0 ? (
-                    <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl flex flex-col items-center shadow-sm">
+                  ) : displayedCatalogItems.length === 0 ? (
+                    <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl flex flex-col items-center shadow-sm p-6">
                       <Package className="w-16 h-16 text-slate-400 mb-3" />
-                      <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No products found</p>
+                      <p className="text-slate-900 font-black uppercase tracking-tight text-sm">
+                        {showOnlyLowStock ? 'No Low Stock Items Found' : 'No products found'}
+                      </p>
+                      {showOnlyLowStock && (
+                        <button
+                          onClick={() => setShowOnlyLowStock(false)}
+                          className="mt-4 px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider cursor-pointer shadow-md transition-all active:scale-95"
+                        >
+                          Show All Products
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                      {items.map(item => {
+                      {displayedCatalogItems.map(item => {
                         const itemStock = Number(item.stock) || 0;
                         const itemPetiQty = Number(item.petiQuantity) || 0;
                         const itemMinStock = Number(item.minStock) || 5;
@@ -8456,11 +9004,11 @@ function StoreContent({ shopId }) {
                         return (
                           <div
                             key={item._id}
-                            className={`group bg-white border rounded-[26px] overflow-hidden transition-all duration-300 hover:-translate-y-1 flex flex-col shadow-xs hover:shadow-xl ${itemOutOfStock
-                              ? 'border-red-300/80 bg-red-50/20'
+                            className={`group border rounded-[26px] overflow-hidden transition-all duration-300 hover:-translate-y-1 flex flex-col shadow-xs hover:shadow-xl ${itemOutOfStock
+                              ? 'border-2 border-red-500 bg-red-50/50 ring-2 ring-red-400/40 shadow-lg shadow-red-500/20'
                               : itemLowStock
-                                ? 'border-red-500 bg-red-50/30 ring-2 ring-red-500/50 shadow-md shadow-red-500/10'
-                                : 'border-slate-200/90 hover:border-emerald-500'
+                                ? 'border-red-400 bg-red-50/20 ring-2 ring-red-300/40 shadow-md'
+                                : 'bg-white border-slate-200/90 hover:border-emerald-500'
                               }`}
                           >
                             {/* Image Container with Smooth Rounded Corners & Zoom */}
@@ -8483,8 +9031,8 @@ function StoreContent({ shopId }) {
                               {/* Stock Badge - Top Right */}
                               <div className="absolute top-3 right-3">
                                 {itemOutOfStock ? (
-                                  <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full shadow-md backdrop-blur-md flex items-center gap-1 border border-red-400">
-                                    <Lock className="w-2.5 h-2.5" /> Sold Out (0 Petis)
+                                  <span className="bg-red-600 text-white text-[9.5px] font-black uppercase px-3 py-1 rounded-full shadow-lg border border-red-400 flex items-center gap-1.5 animate-pulse">
+                                    <Lock className="w-3 h-3 text-white" /> 🚫 Out of Stock (0 Petis)
                                   </span>
                                 ) : itemLowStock ? (
                                   <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full border border-red-400 shadow-lg shadow-red-500/30 backdrop-blur-md animate-pulse flex items-center gap-1">
@@ -8510,29 +9058,29 @@ function StoreContent({ shopId }) {
                               </button>
 
                               {/* Low Stock / Out of Stock Banner */}
-                              {itemLowStock && (
+                              {itemOutOfStock ? (
+                                <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-red-600 text-white font-black text-[10px] uppercase justify-center shadow-md border border-red-400 animate-pulse">
+                                  <Lock className="w-3.5 h-3.5 text-white shrink-0" />
+                                  <span>🚫 Stock Finished / Sold Out (0 Available)</span>
+                                </div>
+                              ) : itemLowStock ? (
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-red-600 text-white font-black text-[10px] uppercase justify-center shadow-sm animate-pulse border border-red-400">
                                   <AlertTriangle className="w-3.5 h-3.5 text-white" />
                                   <span>⚠️ Low Stock: Only {itemStock} Left!</span>
                                 </div>
-                              )}
-
-                              {itemOutOfStock && (
-                                <div className="flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 font-bold text-[10px] uppercase justify-center">
-                                  <span>🚫 Sold Out (0 Remaining - Restock Required)</span>
-                                </div>
-                              )}
+                              ) : null}
 
                               {isAdminUser ? (
                                 <div className="flex flex-col gap-2 w-full pt-1">
                                   {itemOutOfStock ? (
                                     <button
-                                      disabled
-                                      className="w-full py-2.5 px-3 rounded-2xl bg-red-600/90 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm border border-red-500 cursor-not-allowed opacity-90"
-                                      title="This product is sold out. Please add new purchase/restock."
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleStartRestock(item); setLowStockModalOpen(true); }}
+                                      className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-500/30 border border-red-400 active:scale-95 transition-all cursor-pointer animate-pulse"
+                                      title="Product is sold out. Click to Purchase / Restock again"
                                     >
-                                      <Lock className="w-3.5 h-3.5 text-red-100" />
-                                      <span>Sold Out (Locked)</span>
+                                      <ShoppingCart className="w-4 h-4 text-white" />
+                                      <span>🔄 + Purchase / Restock Again</span>
                                     </button>
                                   ) : (itemLowStock && isActionAllowed('purchases') && isActionAllowed('store') && !isEditLocked) ? (
                                     <button
@@ -8740,19 +9288,30 @@ function StoreContent({ shopId }) {
                           const petiPrice = getProductUnitPrice(product, 'peti');
                           const trayPrice = getProductUnitPrice(product, 'tray');
                           const eggPrice = getProductUnitPrice(product, 'egg');
+                          const productStock = Number(product.stock) || 0;
+                          const isOutOfStock = productStock <= 0;
 
                           return (
                             <div
                               key={product._id}
-                              className="bg-white border-2 border-gray-200 hover:border-emerald-400 rounded-2xl p-3 flex flex-col justify-between gap-2.5 hover:shadow-md transition-all"
+                              className={`rounded-2xl p-3 flex flex-col justify-between gap-2.5 transition-all ${
+                                isOutOfStock
+                                  ? 'bg-red-50/70 border-2 border-red-500 ring-2 ring-red-400/40 shadow-md shadow-red-500/10'
+                                  : 'bg-white border-2 border-gray-200 hover:border-emerald-400 hover:shadow-md'
+                              }`}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 relative">
                                   {product.images?.[0] ? (
-                                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                                    <img src={product.images[0]} alt={product.name} className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale opacity-60' : ''}`} />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                       <Package className="w-6 h-6 text-gray-300" />
+                                    </div>
+                                  )}
+                                  {isOutOfStock && (
+                                    <div className="absolute inset-0 bg-red-950/40 flex items-center justify-center">
+                                      <Lock className="w-5 h-5 text-red-200" />
                                     </div>
                                   )}
                                 </div>
@@ -8761,59 +9320,83 @@ function StoreContent({ shopId }) {
                                   <p className="text-emerald-700 font-extrabold text-[11px] mt-0.5">
                                     {currency} {trayPrice.toLocaleString()} <span className="text-[9px] font-normal text-gray-400">/ Tray</span>
                                   </p>
-                                  <span className={`text-[9px] font-bold uppercase ${product.stock > 0 ? 'text-gray-400' : 'text-rose-500'}`}>
-                                    Stock: {product.stock} eggs ({(product.stock / 360).toFixed(1)} Petis)
-                                  </span>
+                                  {isOutOfStock ? (
+                                    <span className="text-[9px] font-black uppercase text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5 animate-pulse">
+                                      <Lock className="w-2.5 h-2.5" /> Out of Stock (0 Eggs - Locked)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold uppercase text-gray-400">
+                                      Stock: {productStock} eggs ({(productStock / 360).toFixed(1)} Petis)
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
-                              {/* 3 Direct Unit Add Buttons: Peti, Tray, Egg */}
-                              <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-gray-100">
-                                <button
-                                  type="button"
-                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'peti')}
-                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                    !isActionAllowed('walkin')
-                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
-                                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                  }`}
-                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Peti (${currency} ${petiPrice})`}
-                                >
-                                  <span>📦 Peti</span>
-                                  <span className="text-[8px] font-extrabold text-amber-900">{currency}{petiPrice}</span>
-                                </button>
+                              {/* Action Buttons: If Out of Stock, hide the 3 add buttons and show Purchase/Restock Again */}
+                              {isOutOfStock ? (
+                                <div className="flex flex-col gap-1.5 pt-1 border-t border-red-200">
+                                  <div className="flex items-center justify-center gap-1.5 text-red-700 text-[9.5px] font-black uppercase bg-red-100/90 py-1 px-2 rounded-lg border border-red-200">
+                                    <Lock className="w-3 h-3 text-red-600" />
+                                    <span>Locked (Add to Cart Disabled)</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => { handleStartRestock(product); setLowStockModalOpen(true); }}
+                                    className="w-full py-2 px-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md border border-red-400 active:scale-95 transition-all cursor-pointer animate-pulse"
+                                    title="Product is finished! Click to Purchase / Restock again"
+                                  >
+                                    <ShoppingCart className="w-3.5 h-3.5 text-white" />
+                                    <span>🔄 + Purchase / Restock Again</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-gray-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'peti')}
+                                    disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                      !isActionAllowed('walkin')
+                                        ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                    }`}
+                                    title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Peti (${currency} ${petiPrice})`}
+                                  >
+                                    <span>📦 Peti</span>
+                                    <span className="text-[8px] font-extrabold text-amber-900">{currency}{petiPrice}</span>
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'tray')}
-                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                    !isActionAllowed('walkin')
-                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
-                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                  }`}
-                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Tray (${currency} ${trayPrice})`}
-                                >
-                                  <span>🍱 Tray</span>
-                                  <span className="text-[8px] font-extrabold text-emerald-900">{currency}{trayPrice}</span>
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'tray')}
+                                    disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                      !isActionAllowed('walkin')
+                                        ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                    }`}
+                                    title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Tray (${currency} ${trayPrice})`}
+                                  >
+                                    <span>🍱 Tray</span>
+                                    <span className="text-[8px] font-extrabold text-emerald-900">{currency}{trayPrice}</span>
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'egg')}
-                                  disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                  className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                    !isActionAllowed('walkin')
-                                      ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
-                                      : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                  }`}
-                                  title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Egg (${currency} ${eggPrice})`}
-                                >
-                                  <span>🥚 Egg</span>
-                                  <span className="text-[8px] font-extrabold text-blue-900">{currency}{eggPrice}</span>
-                                </button>
-                              </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'egg')}
+                                    disabled={product.stock <= 0 || !isActionAllowed('walkin')}
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
+                                      !isActionAllowed('walkin')
+                                        ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
+                                        : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer active:scale-95 disabled:opacity-40'
+                                    }`}
+                                    title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Egg (${currency} ${eggPrice})`}
+                                  >
+                                    <span>🥚 Egg</span>
+                                    <span className="text-[8px] font-extrabold text-blue-900">{currency}{eggPrice}</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -9414,6 +9997,7 @@ function StoreContent({ shopId }) {
                               </div>
                             ) : (
                               walkInCart.map(item => {
+                                const prodId = item.product?._id || item.product?.id;
                                 const currentUnit = item.selectedUnit || 'tray';
                                 const rawRate = (item.unitPrice !== undefined && item.unitPrice !== '') ? item.unitPrice : getProductUnitPrice(item.product, currentUnit);
                                 const itemRate = rawRate === '' ? 0 : (Number(rawRate) || 0);
@@ -9421,7 +10005,7 @@ function StoreContent({ shopId }) {
 
                                 return (
                                   <div
-                                    key={`${item.product._id}_${currentUnit}`}
+                                    key={`${prodId}_${currentUnit}`}
                                     className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-2 hover:border-emerald-300 transition-all shadow-sm"
                                   >
                                     <div className="flex items-center justify-between">
@@ -9434,7 +10018,7 @@ function StoreContent({ shopId }) {
                                             step="any"
                                             min="0"
                                             value={item.unitPrice === '' ? '' : (item.unitPrice !== undefined ? item.unitPrice : (rawRate || ''))}
-                                            onChange={(e) => setWalkInDirectPrice(item.product._id, currentUnit, e.target.value)}
+                                            onChange={(e) => setWalkInDirectPrice(prodId, currentUnit, e.target.value)}
                                             placeholder="0"
                                             className="w-24 h-6 px-1.5 font-black text-emerald-800 text-xs bg-white border border-gray-300 rounded focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-xs"
                                             title="Enter sale rate per unit"
@@ -9447,7 +10031,7 @@ function StoreContent({ shopId }) {
                                         <p className="font-black text-gray-900 text-sm">{currency} {itemTotal.toLocaleString()}</p>
                                         <button
                                           type="button"
-                                          onClick={() => removeFromWalkInCart(item.product._id, currentUnit)}
+                                          onClick={() => removeFromWalkInCart(prodId, currentUnit)}
                                           className="text-gray-300 hover:text-red-500 transition-colors p-1 cursor-pointer"
                                           title="Remove from bill"
                                         >
@@ -9468,7 +10052,7 @@ function StoreContent({ shopId }) {
                                           <button
                                             key={u.id}
                                             type="button"
-                                            onClick={() => updateWalkInUnit(item.product._id, currentUnit, u.id)}
+                                            onClick={() => updateWalkInUnit(prodId, currentUnit, u.id)}
                                             className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${currentUnit === u.id
                                               ? 'bg-emerald-600 text-white shadow-sm'
                                               : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -9483,7 +10067,7 @@ function StoreContent({ shopId }) {
                                       <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-300 shadow-sm">
                                         <button
                                           type="button"
-                                          onClick={() => updateWalkInQty(item.product._id, currentUnit, -1)}
+                                          onClick={() => updateWalkInQty(prodId, currentUnit, -1)}
                                           className="w-6 h-6 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 rounded flex items-center justify-center cursor-pointer font-black text-xs transition-all select-none"
                                           title="Decrease"
                                         >
@@ -9494,10 +10078,10 @@ function StoreContent({ shopId }) {
                                           min="1"
                                           step="any"
                                           value={item.quantity === '' ? '' : item.quantity}
-                                          onChange={(e) => setWalkInDirectQty(item.product._id, currentUnit, e.target.value)}
+                                          onChange={(e) => setWalkInDirectQty(prodId, currentUnit, e.target.value)}
                                           onBlur={() => {
                                             if (!item.quantity || Number(item.quantity) <= 0) {
-                                              setWalkInDirectQty(item.product._id, currentUnit, 1);
+                                              setWalkInDirectQty(prodId, currentUnit, 1);
                                             }
                                           }}
                                           className="w-12 h-6 text-center font-black text-gray-900 text-xs bg-gray-50 border border-gray-200 rounded focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -9505,7 +10089,7 @@ function StoreContent({ shopId }) {
                                         />
                                         <button
                                           type="button"
-                                          onClick={() => updateWalkInQty(item.product._id, currentUnit, 1)}
+                                          onClick={() => updateWalkInQty(prodId, currentUnit, 1)}
                                           className="w-6 h-6 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded flex items-center justify-center cursor-pointer font-black text-xs transition-all select-none shadow-sm"
                                           title="Increase"
                                         >
@@ -9751,33 +10335,38 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* Dedicated Today Summary Bar for Customers (Gray & Bigger Size) */}
-                  <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 text-sm sm:text-base font-black text-slate-900 shadow-sm">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-3 w-3 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
+                  {/* Dedicated Today Summary for Customers (Separate Div Below with Cards) */}
+                  <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                        Today's Customer Sales &amp; Inflow Activity (Daily Breakdown)
                       </span>
-                      <span className="text-slate-900 font-black tracking-wide">
-                        TODAY'S CUSTOMER ACTIVITY:
-                      </span>
-                      <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-bold">
+                      <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
                         {todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis Sold
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        💵 Today Cash: Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        🏦 Today Bank: Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        📋 Today Credit: Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black shadow-sm">
-                        💰 Today Total: Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}
-                      </span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Given</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Receivables Due</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Revenue</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
+                      </div>
                     </div>
                   </div>
 
@@ -10421,33 +11010,38 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* Dedicated Today Sales Summary Banner (Gray & Bigger Size) */}
-                  <div className="bg-slate-100 border-2 border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 text-sm sm:text-base font-black text-slate-900 shadow-sm">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-3 w-3 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-600"></span>
+                  {/* Dedicated Today Sales Summary (Separate Div Below with Cards) */}
+                  <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                        Today's Sales &amp; Inflow Activity (Daily Breakdown)
                       </span>
-                      <span className="text-slate-900 font-black tracking-wide">
-                        TODAY'S SALES BREAKDOWN:
-                      </span>
-                      <span className="text-xs bg-slate-200 text-slate-800 px-2.5 py-1 rounded-full font-bold">
+                      <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
                         {todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis ({todayMasterMetrics.todaySalesEggs.toLocaleString('en-PK')} Eggs)
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 flex-wrap text-xs sm:text-sm">
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        💵 Cash: Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        🏦 Bank: Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl border-2 border-slate-300 text-slate-900 font-black shadow-xs">
-                        📋 Credit: Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}
-                      </span>
-                      <span className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black shadow-sm">
-                        💰 Total: Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}
-                      </span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Sales</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash Received in Drawer</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Sales</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Sales</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Customer Credit Due</span>
+                      </div>
+                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Sales</span>
+                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</div>
+                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Combined Today Revenue</span>
+                      </div>
                     </div>
                   </div>
 
@@ -10985,19 +11579,19 @@ function StoreContent({ shopId }) {
 
                         {/* Desktop Table for Customer Groups */}
                         <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-xs">
-                          <table className="w-full text-left text-xs text-gray-800 border-collapse border border-gray-300">
-                            <thead className="bg-gray-100/90 text-[10px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-300">
+                          <table className="w-full text-left text-[11px] text-gray-800 border-collapse border border-gray-300">
+                            <thead className="bg-gray-100 text-[9px] font-black text-gray-700 uppercase tracking-wider border-b border-gray-300">
                               <tr>
-                                <th className="py-2 px-2 text-center w-10 border border-gray-300">#</th>
-                                <th className="py-2 px-2 text-center w-[9%] whitespace-nowrap border border-gray-300">Date</th>
-                                <th className="py-2 px-2.5 text-left w-[18%] border border-gray-300">Customer &amp; Email ID</th>
-                                <th className="py-2 px-2 text-center w-[10%] border border-gray-300">Contact Phone</th>
-                                <th className="py-2 px-2 text-center w-[8%] border border-gray-300">Invoices / Bills</th>
-                                <th className="py-2 px-2.5 text-center w-[21%] border border-gray-300">Items (Peti • Tray • Egg)</th>
-                                <th className="py-2 px-2 text-center w-[12%] border border-gray-300">Payment Breakdown</th>
-                                <th className="py-2 px-2 text-center w-[9%] border border-gray-300">Credit Due</th>
-                                <th className="py-2 px-2.5 text-right w-[10%] border border-gray-300">Total Purchases</th>
-                                <th className="py-2 px-2 text-center w-[85px] whitespace-nowrap border border-gray-300">Actions</th>
+                                <th className="py-1 px-1 text-center w-7 border border-gray-300">#</th>
+                                <th className="py-1 px-1 text-center w-[72px] whitespace-nowrap border border-gray-300">Date</th>
+                                <th className="py-1 px-1.5 text-left w-[17%] border border-gray-300">Customer &amp; Email ID</th>
+                                <th className="py-1 px-1 text-center w-[85px] border border-gray-300">Contact Phone</th>
+                                <th className="py-1 px-1 text-center w-[60px] border border-gray-300">Invoices / Bills</th>
+                                <th className="py-1 px-1.5 text-center border border-gray-300">Items (Peti • Tray • Egg)</th>
+                                <th className="py-1 px-1 text-center w-[95px] border border-gray-300">Payment Breakdown</th>
+                                <th className="py-1 px-1 text-center w-[75px] border border-gray-300">Credit Due</th>
+                                <th className="py-1 px-1.5 text-right w-[85px] whitespace-nowrap border border-gray-300">Total Purchases</th>
+                                <th className="py-1 px-1 text-center w-[65px] whitespace-nowrap border border-gray-300 sticky right-0 bg-gray-100 z-10 shadow-[-3px_0_5px_-2px_rgba(0,0,0,0.08)]">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-300">
@@ -11013,35 +11607,35 @@ function StoreContent({ shopId }) {
                                   const custDate = custGroup.lastPurchaseDate || (custGroup.invoices && custGroup.invoices[0] ? (custGroup.invoices[0].saleDate || custGroup.invoices[0].createdAt) : null);
                                   return (
                                     <React.Fragment key={custGroup.id || idx}>
-                                      <tr className={`hover:bg-gray-50/70 transition-colors border-b border-gray-300 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
-                                        <td className="py-1.5 px-2 text-center font-bold text-gray-400 align-middle border border-gray-300">{idx + 1}</td>
-                                        <td className="py-1.5 px-2 text-center whitespace-nowrap font-bold text-gray-800 text-[11px] align-middle border border-gray-300">
+                                      <tr className={`hover:bg-gray-50/70 transition-colors border-b border-gray-300 ${isExpanded ? 'bg-blue-50/40' : 'bg-white'}`}>
+                                        <td className="py-1 px-1 text-center font-bold text-gray-400 align-middle border border-gray-300 text-[10px]">{idx + 1}</td>
+                                        <td className="py-1 px-1 text-center whitespace-nowrap font-bold text-gray-800 text-[10px] align-middle border border-gray-300">
                                           {custDate ? new Date(custDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                                         </td>
-                                        <td className="py-1.5 px-2.5 align-middle border border-gray-300">
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-[11px] flex items-center justify-center shadow-xs shrink-0">
+                                        <td className="py-1 px-1.5 align-middle border border-gray-300">
+                                          <div className="flex items-center gap-1.5">
+                                            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-[10px] flex items-center justify-center shadow-xs shrink-0">
                                               {(custGroup.customerName || 'C').charAt(0).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                              <div className="font-extrabold text-gray-900 text-xs truncate max-w-[200px]">
+                                              <div className="font-extrabold text-gray-900 text-[11px] truncate max-w-[140px]">
                                                 {custGroup.customerName}
                                               </div>
                                               {custGroup.aliasNames && custGroup.aliasNames.length > 1 && (
-                                                <div className="text-[9px] text-gray-500 font-semibold italic truncate max-w-[200px]">
+                                                <div className="text-[8px] text-gray-500 font-semibold italic truncate max-w-[140px]">
                                                   Names on bills: {custGroup.aliasNames.join(', ')}
                                                 </div>
                                               )}
-                                              <div className="text-[10px] font-bold text-blue-700 truncate max-w-[200px]" title={custGroup.customerEmail || 'No Email'}>
+                                              <div className="text-[9px] font-bold text-blue-700 truncate max-w-[140px]" title={custGroup.customerEmail || 'No Email'}>
                                                 {custGroup.customerEmail ? `✉️ ${custGroup.customerEmail}` : <span className="text-gray-400 italic">No Email Provided</span>}
                                               </div>
                                               <div>
                                                 {custGroup.isOnline ? (
-                                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[7.5px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300">
+                                                  <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[7px] font-black uppercase bg-teal-100 text-teal-800 border border-teal-300">
                                                     🌐 Online Account
                                                   </span>
                                                 ) : (
-                                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[7.5px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                                                  <span className="inline-flex items-center gap-1 px-1 py-0.2 rounded text-[7px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
                                                     🏪 Physical POS
                                                   </span>
                                                 )}
@@ -11049,16 +11643,16 @@ function StoreContent({ shopId }) {
                                             </div>
                                           </div>
                                         </td>
-                                        <td className="py-1.5 px-2 text-center text-[10.5px] font-bold text-teal-700 align-middle border border-gray-300">
+                                        <td className="py-1 px-1 text-center text-[10px] font-bold text-teal-700 align-middle border border-gray-300 whitespace-nowrap">
                                           {custGroup.customerPhone ? `📞 ${custGroup.customerPhone}` : '—'}
                                         </td>
-                                        <td className="py-1.5 px-2 text-center align-middle border border-gray-300">
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                                        <td className="py-1 px-1 text-center align-middle border border-gray-300 whitespace-nowrap">
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-black bg-blue-50 text-blue-800 border border-blue-200">
                                             <Receipt className="w-2.5 h-2.5" />
                                             <span>{custGroup.invoices.length} {custGroup.invoices.length === 1 ? 'Bill' : 'Bills'}</span>
                                           </span>
                                         </td>
-                                        <td className="py-1.5 px-2.5 align-middle border border-gray-300">
+                                        <td className="py-1 px-1.5 align-middle border border-gray-300">
                                           {(() => {
                                             const customerItems = [];
                                             let totalPetis = 0;
@@ -11128,21 +11722,21 @@ function StoreContent({ shopId }) {
                                             });
 
                                             if (customerItems.length === 0) {
-                                              return <div className="text-center text-gray-400 italic text-[10.5px]">No items recorded</div>;
+                                              return <div className="text-center text-gray-400 italic text-[10px]">No items recorded</div>;
                                             }
 
                                             return (
-                                              <div className="flex items-center justify-center gap-1.5 flex-nowrap whitespace-nowrap">
+                                              <div className="flex items-center justify-center gap-1 flex-nowrap whitespace-nowrap">
                                                 {/* Product Pills - Simple Neutral */}
-                                                <div className="flex items-center gap-1 shrink-0">
+                                                <div className="flex items-center gap-0.5 shrink-0">
                                                   {customerItems.map((it, itIdx) => (
                                                     <span
                                                       key={itIdx}
-                                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold bg-gray-50 text-gray-800 border border-gray-300"
+                                                      className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[7.5px] font-bold bg-gray-50 text-gray-800 border border-gray-300"
                                                       title={`${it.name} (Qty: ${it.quantity} ${it.unit})`}
                                                     >
-                                                      <span className="truncate max-w-[70px] font-bold">{it.name}</span>
-                                                      <span className="font-black px-0.5 rounded text-[7px] bg-gray-200 text-gray-900">
+                                                      <span className="truncate max-w-[55px] font-bold">{it.name}</span>
+                                                      <span className="font-black px-0.5 rounded text-[6.5px] bg-gray-200 text-gray-900">
                                                         x{it.quantity} {it.unit || ''}
                                                       </span>
                                                     </span>
@@ -11151,24 +11745,24 @@ function StoreContent({ shopId }) {
 
                                                 {/* Compact Simple 3-Box strip for Peti • Tray • Egg on the same line */}
                                                 <div className="flex items-center gap-0.5 shrink-0">
-                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[34px]">
-                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Peti</span>
-                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalPetis > 0 ? totalPetis : '0'}</span>
+                                                  <div className="px-0.5 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[28px]">
+                                                    <span className="text-[6px] font-black text-gray-500 uppercase block leading-none">Peti</span>
+                                                    <span className="text-[8px] font-black text-gray-900 leading-tight block mt-0.5">{totalPetis > 0 ? totalPetis : '0'}</span>
                                                   </div>
-                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[34px]">
-                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Tray</span>
-                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalTrays > 0 ? totalTrays : '0'}</span>
+                                                  <div className="px-0.5 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[28px]">
+                                                    <span className="text-[6px] font-black text-gray-500 uppercase block leading-none">Tray</span>
+                                                    <span className="text-[8px] font-black text-gray-900 leading-tight block mt-0.5">{totalTrays > 0 ? totalTrays : '0'}</span>
                                                   </div>
-                                                  <div className="px-1 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[42px]">
-                                                    <span className="text-[6.5px] font-black text-gray-500 uppercase block leading-none">Egg</span>
-                                                    <span className="text-[8.5px] font-black text-gray-900 leading-tight block mt-0.5">{totalEggsCount > 0 ? totalEggsCount.toLocaleString('en-PK') : '0'}</span>
+                                                  <div className="px-0.5 py-0.5 bg-gray-50 border border-gray-300 rounded text-center min-w-[34px]">
+                                                    <span className="text-[6px] font-black text-gray-500 uppercase block leading-none">Egg</span>
+                                                    <span className="text-[8px] font-black text-gray-900 leading-tight block mt-0.5">{totalEggsCount > 0 ? totalEggsCount.toLocaleString('en-PK') : '0'}</span>
                                                   </div>
                                                 </div>
                                               </div>
                                             );
                                           })()}
                                         </td>
-                                        <td className="py-1.5 px-2 text-center text-[10px] font-bold space-y-0.5 align-middle border border-gray-300">
+                                        <td className="py-1 px-1 text-center text-[9px] font-bold space-y-0.5 align-middle border border-gray-300 whitespace-nowrap">
                                           {custGroup.totalCash > 0 && (
                                             <div className="text-emerald-700">💵 Cash: {currency} {custGroup.totalCash.toLocaleString('en-PK')}</div>
                                           )}
@@ -11179,10 +11773,10 @@ function StoreContent({ shopId }) {
                                             <div className="text-gray-400">—</div>
                                           )}
                                         </td>
-                                        <td className="py-1.5 px-2 text-center align-middle border border-gray-300">
+                                        <td className="py-1 px-1 text-center align-middle border border-gray-300 whitespace-nowrap">
                                           {custGroup.totalDue > 0 ? (
-                                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                                              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-full text-[7.5px] font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
                                                 <FileText className="w-2.5 h-2.5" /> Due: {currency} {custGroup.totalDue.toLocaleString('en-PK')}
                                               </span>
                                               <button
@@ -11195,7 +11789,7 @@ function StoreContent({ shopId }) {
                                                     handleOpenCustomerCredit(custGroup);
                                                   }
                                                 }}
-                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8.5px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md text-[7.5px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
                                                 title="Pay Customer Credit"
                                               >
                                                 <CreditCard className="w-2.5 h-2.5" />
@@ -11203,16 +11797,16 @@ function StoreContent({ shopId }) {
                                               </button>
                                             </div>
                                           ) : (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
                                               ✓ Paid
                                             </span>
                                           )}
                                         </td>
-                                        <td className="py-1.5 px-2.5 text-right font-black text-emerald-700 text-xs align-middle border border-gray-300">
+                                        <td className="py-1 px-1.5 text-right font-black text-emerald-700 text-[11px] align-middle border border-gray-300 whitespace-nowrap">
                                           {currency} {custGroup.totalSpent.toLocaleString('en-PK')}
                                         </td>
-                                        <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap border border-gray-300">
-                                          <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                        <td className={`py-1 px-1 text-center align-middle whitespace-nowrap border border-gray-300 sticky right-0 z-10 shadow-[-3px_0_5px_-2px_rgba(0,0,0,0.08)] ${isExpanded ? 'bg-blue-50' : 'bg-white'}`}>
+                                          <div className="flex items-center justify-center gap-1 whitespace-nowrap">
                                             <button
                                               type="button"
                                               onClick={(e) => {
@@ -11220,16 +11814,16 @@ function StoreContent({ shopId }) {
                                                 e.stopPropagation();
                                                 setExpandedCustomerSalesId(isExpanded ? null : custGroup.id);
                                               }}
-                                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${isExpanded
+                                              className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${isExpanded
                                                 ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
                                                 : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
                                                 }`}
                                               title={isExpanded ? "Close Bills" : `View Invoices (${custGroup.invoices.length})`}
                                             >
                                               {isExpanded ? (
-                                                <ChevronUp className="w-4 h-4 text-white shrink-0" />
+                                                <ChevronUp className="w-3.5 h-3.5 text-white shrink-0" />
                                               ) : (
-                                                <ChevronDown className="w-4 h-4 text-emerald-700 shrink-0" />
+                                                <ChevronDown className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                                               )}
                                             </button>
 
@@ -11241,7 +11835,7 @@ function StoreContent({ shopId }) {
                                                   e.stopPropagation();
                                                   setActiveCustGroupMenuId(activeCustGroupMenuId === custGroup.id ? null : custGroup.id);
                                                 }}
-                                                className={`w-7 h-7 rounded-lg border transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 ${activeCustGroupMenuId === custGroup.id
+                                                className={`w-6 h-6 rounded-md border transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 ${activeCustGroupMenuId === custGroup.id
                                                   ? 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-500/20'
                                                   : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
                                                   }`}
@@ -11995,6 +12589,7 @@ function StoreContent({ shopId }) {
                     shop={shop}
                     currency={currency}
                     initialTab="customers"
+                    todayMasterMetrics={todayMasterMetrics}
                     onRefresh={async () => {
                       if (fetchCatalog) await fetchCatalog();
                       if (fetchShopSales) await fetchShopSales();
@@ -12017,6 +12612,7 @@ function StoreContent({ shopId }) {
                     shop={shop}
                     currency={currency}
                     initialTab="purchases"
+                    todayMasterMetrics={todayMasterMetrics}
                     onRefresh={async () => {
                       if (fetchCatalog) await fetchCatalog();
                       if (fetchShopSales) await fetchShopSales();
@@ -13665,12 +14261,22 @@ function StoreContent({ shopId }) {
                               <PackageX className="w-4 h-4 text-amber-600" />
                               Damaged Products List ({filteredDamagedForTable.length})
                             </h4>
-                            <button
-                              onClick={() => setShowAddDamagedModal(true)}
-                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" /> Log Damaged Entry
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handlePrintDamagedReport(filteredDamagedForTable)}
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-400/50 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                                title="Print Damaged Stock & Loss Report"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-amber-400" /> Print Report
+                              </button>
+                              <button
+                                onClick={() => setShowAddDamagedModal(true)}
+                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Log Damaged Entry
+                              </button>
+                            </div>
                           </div>
 
                           {filteredDamagedForTable.length === 0 ? (
@@ -13774,10 +14380,19 @@ function StoreContent({ shopId }) {
                                     </div>
 
                                     {/* Action Buttons */}
-                                    <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+                                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                                       <button
                                         type="button"
-                                        onClick={() => handleDeleteDamaged(dmg._id)}
+                                        onClick={() => handleStartEditDamaged(dmg)}
+                                        className="px-3 py-1.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200 hover:border-amber-500 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
+                                        title="Edit Entry"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        <span>Edit</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteDamaged(dmg._id || dmg.id)}
                                         className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
                                         title="Delete Entry"
                                       >
@@ -13859,13 +14474,24 @@ function StoreContent({ shopId }) {
                                           {dmg.notes || dmg.reportedBy || 'Shop Admin'}
                                         </td>
                                         <td className="p-3.5 text-center">
-                                          <button
-                                            onClick={() => handleDeleteDamaged(dmg._id)}
-                                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer"
-                                            title="Delete Entry"
-                                          >
-                                            Delete
-                                          </button>
+                                          <div className="flex items-center justify-center gap-1.5">
+                                            <button
+                                              onClick={() => handleStartEditDamaged(dmg)}
+                                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200 hover:border-amber-500 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 transition-all cursor-pointer"
+                                              title="Edit Entry"
+                                            >
+                                              <Edit2 className="w-3 h-3" />
+                                              <span>Edit</span>
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteDamaged(dmg._id || dmg.id)}
+                                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 transition-all cursor-pointer"
+                                              title="Delete Entry"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              <span>Delete</span>
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     ))}
@@ -14944,6 +15570,255 @@ function StoreContent({ shopId }) {
                       className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" /> Save Damaged Log
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ─── EDIT DAMAGED PRODUCT MODAL ─── */}
+      {editDamagedModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2 text-amber-600 font-black text-sm uppercase tracking-wider">
+                <Edit2 className="w-5 h-5" /> Edit Damaged Stock Entry
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditDamagedModal(null)}
+                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {(() => {
+              const selectedProduct = (items || []).find(i =>
+                String(i._id || i.id) === String(editDamagedFormData.productId) ||
+                (editDamagedFormData.productName && i.name?.toLowerCase().trim() === editDamagedFormData.productName.toLowerCase().trim())
+              );
+
+              const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
+              const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+              const ePerP = tPerP * ePerT;
+
+              const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
+              const pUnit = selectedProduct?.unitType || 'peti';
+
+              let petiPrice = 0;
+              let trayPrice = 0;
+              let eggPrice = 0;
+
+              if (selectedProduct && basePrice > 0) {
+                if (pUnit === 'peti') {
+                  petiPrice = basePrice;
+                  trayPrice = Math.round((basePrice / tPerP) * 10) / 10;
+                  eggPrice = Math.round((basePrice / ePerP) * 10) / 10;
+                } else if (pUnit === 'tray') {
+                  petiPrice = Math.round(basePrice * tPerP);
+                  trayPrice = basePrice;
+                  eggPrice = Math.round((basePrice / ePerT) * 10) / 10;
+                } else {
+                  petiPrice = Math.round(basePrice * ePerP);
+                  trayPrice = Math.round(basePrice * ePerT);
+                  eggPrice = basePrice;
+                }
+              } else if (Number(editDamagedFormData.unitPrice) > 0) {
+                eggPrice = Number(editDamagedFormData.unitPrice);
+                trayPrice = eggPrice * ePerT;
+                petiPrice = eggPrice * ePerP;
+              }
+
+              return (
+                <form onSubmit={handleEditDamagedSubmit} className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
+                    <select
+                      value={editDamagedFormData.productId || ''}
+                      onChange={e => {
+                        const selected = items.find(i => String(i._id || i.id) === String(e.target.value));
+                        if (selected) {
+                          const sTPerP = Number(selected.traysPerPeti) || 12;
+                          const sEPerT = Number(selected.eggsPerTray) || 30;
+                          const sEPerP = sTPerP * sEPerT;
+                          const sBasePrice = Number(selected.price || selected.costPrice || selected.salePrice || 0);
+                          const sUnit = selected.unitType || 'peti';
+
+                          let defaultPrice = sBasePrice;
+                          if (sUnit === 'peti') {
+                            defaultPrice = (editDamagedFormData.unitType === 'egg')
+                              ? Math.round((sBasePrice / sEPerP) * 10) / 10
+                              : (editDamagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 10) / 10 : sBasePrice);
+                          }
+
+                          setEditDamagedFormData(prev => ({
+                            ...prev,
+                            productId: selected._id || selected.id,
+                            productName: selected.name,
+                            unitPrice: defaultPrice || ''
+                          }));
+                        } else if (e.target.value === 'CUSTOM') {
+                          setEditDamagedFormData(prev => ({ ...prev, productId: '', productName: '', unitType: 'egg', unitPrice: '' }));
+                        }
+                      }}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
+                    >
+                      <option value="">-- Select Catalog Item (Optional) --</option>
+                      {(items || []).map(i => (
+                        <option key={i._id || i.id} value={i._id || i.id}>
+                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} Petis / {i.eggQuantity || i.stock || 0} Eggs)
+                        </option>
+                      ))}
+                      <option value="CUSTOM">Custom Product Name</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Loman Brown Eggs, Golden Eggs..."
+                      value={editDamagedFormData.productName}
+                      onChange={e => setEditDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* ─── 3 SEPARATE DAMAGED QUANTITY INPUTS: PETI, TRAY, EGG ─── */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600 block mb-1.5">
+                      Damaged Quantities (Petis / Trays / Eggs) *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {/* Petis Damaged */}
+                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 text-center focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={editDamagedFormData.petiQuantity}
+                          onChange={e => setEditDamagedFormData(prev => ({ ...prev, petiQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-amber-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-amber-700 font-bold block mt-0.5">
+                          {petiPrice > 0 ? `Rs. ${petiPrice}/Peti` : '360 Eggs'}
+                        </span>
+                      </div>
+
+                      {/* Trays Damaged */}
+                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-2.5 text-center focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={editDamagedFormData.trayQuantity}
+                          onChange={e => setEditDamagedFormData(prev => ({ ...prev, trayQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-sky-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-sky-700 font-bold block mt-0.5">
+                          {trayPrice > 0 ? `Rs. ${trayPrice}/Tray` : '30 Eggs'}
+                        </span>
+                      </div>
+
+                      {/* Eggs Damaged */}
+                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-2.5 text-center focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
+                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          value={editDamagedFormData.eggQuantity}
+                          onChange={e => setEditDamagedFormData(prev => ({ ...prev, eggQuantity: e.target.value }))}
+                          className="w-full text-center text-sm font-black text-emerald-950 bg-transparent focus:outline-none mt-1"
+                        />
+                        <span className="text-[8.5px] text-emerald-700 font-bold block mt-0.5">
+                          {eggPrice > 0 ? `Rs. ${eggPrice}/Egg` : '1 Egg'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
+                    <select
+                      value={editDamagedFormData.reason}
+                      onChange={e => setEditDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
+                      <option value="Spoiled / Expired">Spoiled / Expired</option>
+                      <option value="Transport Damage">Transport Damage</option>
+                      <option value="Storage Loss">Storage Loss</option>
+                      <option value="Other">Other Cause</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
+                    {(() => {
+                      const pQ = Number(editDamagedFormData.petiQuantity || 0);
+                      const tQ = Number(editDamagedFormData.trayQuantity || 0);
+                      const eQ = Number(editDamagedFormData.eggQuantity || 0);
+                      const totalDmgE = Math.round((pQ * ePerP) + (tQ * ePerT) + eQ);
+                      const totalLossCalc = Math.round((pQ * petiPrice) + (tQ * trayPrice) + (eQ * eggPrice));
+
+                      return (
+                        <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700 flex items-center justify-between">
+                          <div>
+                            <span className="text-sm">RS {totalLossCalc.toLocaleString('en-PK')}</span>
+                            {totalDmgE > 0 && (
+                              <span className="text-[9.5px] text-amber-900 font-bold block">
+                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} Petis / {(totalDmgE / ePerT).toFixed(1)} Trays)
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-amber-800 font-bold">⚠️ Stock adjusts dynamically</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
+                    <input
+                      type="date"
+                      value={editDamagedFormData.damageDate}
+                      onChange={e => setEditDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                    <textarea
+                      rows="2"
+                      placeholder="e.g. Cracked during transport tray unloading..."
+                      value={editDamagedFormData.notes}
+                      onChange={e => setEditDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
+                    ></textarea>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditDamagedModal(null)}
+                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Save Changes
                     </button>
                   </div>
                 </form>
