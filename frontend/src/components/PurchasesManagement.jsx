@@ -534,18 +534,25 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     let bankPaid = 0;
     let totalDue = 0;
     let totalPetisPurchased = 0;
+    let totalEggsPurchased = 0;
+    let totalEggsRemaining = 0;
 
     filteredByTimeframeProducts.forEach((p) => {
-      const stockEggs = Number(p.stock) || 0;
+      const stockEggs = Number(p.stock !== undefined ? p.stock : (p.eggQuantity || 0));
+      totalEggsRemaining += stockEggs;
+
       const petiQty = Number(p.petiQuantity) || 0;
       const trayQty = Number(p.trayQuantity) || 0;
       const eggQty = Number(p.eggQuantity) || 0;
 
+      let itemPurchasedEggs = 0;
       if (petiQty > 0 || trayQty > 0 || eggQty > 0) {
-        totalPetisPurchased += petiQty + (trayQty / 12) + (eggQty / 360);
-      } else if (stockEggs > 0) {
-        totalPetisPurchased += stockEggs / 360;
+        itemPurchasedEggs = Math.max(stockEggs, (petiQty * 360) + (trayQty * 30) + (eggQty > 0 && petiQty === 0 && trayQty === 0 ? eggQty : 0));
+      } else {
+        itemPurchasedEggs = stockEggs;
       }
+      totalEggsPurchased += itemPurchasedEggs;
+      totalPetisPurchased += itemPurchasedEggs / 360;
 
       const unitCost = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
       const unitDivisor = p.unitType === 'egg' ? 1 : p.unitType === 'tray' ? 30 : 360;
@@ -626,6 +633,11 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       bankPaid += isNaN(itemBankPaid) ? 0 : itemBankPaid;
     });
 
+    const totalEggsSold = Math.max(0, totalEggsPurchased - totalEggsRemaining);
+    const totalPetisSold = Number((totalEggsSold / 360).toFixed(1));
+    const totalPetisRemaining = Number((totalEggsRemaining / 360).toFixed(1));
+    const totalTraysRemaining = Math.round(totalEggsRemaining / 30);
+
     return {
       totalPurchasesCost: isNaN(totalPurchasesCost) ? 0 : Math.round(totalPurchasesCost),
       cashPaid: isNaN(cashPaid) ? 0 : Math.round(cashPaid),
@@ -633,7 +645,12 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       totalDue: isNaN(totalDue) ? 0 : Math.round(totalDue),
       totalPetis: isNaN(totalPetisPurchased) ? 0 : Number(totalPetisPurchased.toFixed(1)),
       totalTrays: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 12),
-      totalEggs: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 360)
+      totalEggs: isNaN(totalEggsPurchased) ? 0 : Math.round(totalEggsPurchased),
+      remainingPetis: isNaN(totalPetisRemaining) ? 0 : totalPetisRemaining,
+      remainingTrays: isNaN(totalTraysRemaining) ? 0 : totalTraysRemaining,
+      remainingEggs: isNaN(totalEggsRemaining) ? 0 : Math.round(totalEggsRemaining),
+      soldPetis: isNaN(totalPetisSold) ? 0 : totalPetisSold,
+      soldEggs: isNaN(totalEggsSold) ? 0 : Math.round(totalEggsSold)
     };
   }, [filteredByTimeframeProducts]);
 
@@ -660,18 +677,25 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     let bankPaid = 0;
     let totalDue = 0;
     let totalPetisPurchased = 0;
+    let totalEggsPurchased = 0;
+    let totalEggsRemaining = 0;
 
     todayProducts.forEach((p) => {
-      const stockEggs = Number(p.stock) || 0;
+      const stockEggs = Number(p.stock !== undefined ? p.stock : (p.eggQuantity || 0));
+      totalEggsRemaining += stockEggs;
+
       const petiQty = Number(p.petiQuantity) || 0;
       const trayQty = Number(p.trayQuantity) || 0;
       const eggQty = Number(p.eggQuantity) || 0;
 
+      let itemPurchasedEggs = 0;
       if (petiQty > 0 || trayQty > 0 || eggQty > 0) {
-        totalPetisPurchased += petiQty + (trayQty / 12) + (eggQty / 360);
-      } else if (stockEggs > 0) {
-        totalPetisPurchased += stockEggs / 360;
+        itemPurchasedEggs = Math.max(stockEggs, (petiQty * 360) + (trayQty * 30) + (eggQty > 0 && petiQty === 0 && trayQty === 0 ? eggQty : 0));
+      } else {
+        itemPurchasedEggs = stockEggs;
       }
+      totalEggsPurchased += itemPurchasedEggs;
+      totalPetisPurchased += itemPurchasedEggs / 360;
 
       const unitCost = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
       const unitDivisor = p.unitType === 'egg' ? 1 : p.unitType === 'tray' ? 30 : 360;
@@ -743,6 +767,11 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       bankPaid += isNaN(itemBankPaid) ? 0 : itemBankPaid;
     });
 
+    const totalEggsSold = Math.max(0, totalEggsPurchased - totalEggsRemaining);
+    const totalPetisSold = Number((totalEggsSold / 360).toFixed(1));
+    const totalPetisRemaining = Number((totalEggsRemaining / 360).toFixed(1));
+    const totalTraysRemaining = Math.round(totalEggsRemaining / 30);
+
     return {
       count: todayProducts.length,
       totalPurchasesCost: isNaN(totalPurchasesCost) ? 0 : Math.round(totalPurchasesCost),
@@ -751,7 +780,12 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       totalDue: isNaN(totalDue) ? 0 : Math.round(totalDue),
       totalPetis: isNaN(totalPetisPurchased) ? 0 : Number(totalPetisPurchased.toFixed(1)),
       totalTrays: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 12),
-      totalEggs: isNaN(totalPetisPurchased) ? 0 : Math.round(totalPetisPurchased * 360)
+      totalEggs: isNaN(totalEggsPurchased) ? 0 : Math.round(totalEggsPurchased),
+      remainingPetis: isNaN(totalPetisRemaining) ? 0 : totalPetisRemaining,
+      remainingTrays: isNaN(totalTraysRemaining) ? 0 : totalTraysRemaining,
+      remainingEggs: isNaN(totalEggsRemaining) ? 0 : Math.round(totalEggsRemaining),
+      soldPetis: isNaN(totalPetisSold) ? 0 : totalPetisSold,
+      soldEggs: isNaN(totalEggsSold) ? 0 : Math.round(totalEggsSold)
     };
   }, [products]);
 
@@ -1638,20 +1672,22 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
       {/* Top 5 Dynamic Stat Cards (Cash & Bank Separated) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Stock Purchased */}
+        {/* Card 1: Stock In Hand / Net Stock */}
         <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
-                {timeframe === 'DAY' ? 'Today Stock' : timeframe === 'MONTH' ? 'Month Stock' : timeframe === 'YEAR' ? 'Year Stock' : 'Stock Purchased'}
+                {timeframe === 'DAY' ? 'Today Stock In Hand' : timeframe === 'MONTH' ? 'Month Stock In Hand' : timeframe === 'YEAR' ? 'Year Stock In Hand' : 'Stock In Hand'}
               </span>
               <div className="p-1.5 bg-amber-100 rounded-lg">
                 <Box className="w-3.5 h-3.5 text-amber-600" />
               </div>
             </div>
-            <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.totalPetis} <span className="text-base text-amber-600">Petis</span></h4>
+            <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.remainingPetis} <span className="text-base text-amber-600">Petis</span></h4>
             <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-              {stats.totalTrays} Trays • {fmt(stats.totalEggs)} Eggs
+              {stats.soldPetis > 0
+                ? `${stats.totalPetis}P Buy - ${stats.soldPetis}P Sold = ${stats.remainingPetis}P (${fmt(stats.remainingEggs)} Eggs)`
+                : `${stats.totalTrays} Trays • ${fmt(stats.totalEggs)} Eggs`}
             </span>
           </div>
         </div>
@@ -1730,9 +1766,13 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Stock</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayStats.totalPetis} Petis</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">({todayStats.totalEggs.toLocaleString('en-PK')} Eggs)</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Stock In Hand</span>
+            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayStats.remainingPetis} Petis</div>
+            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+              {todayStats.soldPetis > 0
+                ? `Buy ${todayStats.totalPetis}P - Sold ${todayStats.soldPetis}P (${todayStats.remainingEggs.toLocaleString('en-PK')} Eggs)`
+                : `(${todayStats.totalEggs.toLocaleString('en-PK')} Eggs)`}
+            </span>
           </div>
           <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Cash Paid</span>
@@ -1809,9 +1849,13 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       {/* Purchases Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {purchaseItems.map((item) => {
-          const itemPetis = item.petiQuantity || (item.stock ? (item.stock / 360).toFixed(1) : 0);
-          const itemTrays = item.trayQuantity || (item.stock ? Math.round(item.stock / 30) : 0);
-          const itemEggs = item.stock || 0;
+          const itemEggs = Number(item.stock !== undefined ? item.stock : (item.eggQuantity || 0));
+          const itemPetis = Number((itemEggs / 360).toFixed(1));
+          const itemTrays = Math.round(itemEggs / 30);
+          const initialEggs = Math.max(itemEggs, Number(item.initialStock || item.eggQuantity || 0), (Number(item.petiQuantity || 0) * 360));
+          const initialPetis = Number((initialEggs / 360).toFixed(1));
+          const soldEggs = Math.max(0, initialEggs - itemEggs);
+          const soldPetis = Number((soldEggs / 360).toFixed(1));
           const pMethod = String(item.paymentMethod || 'Cash').trim();
           
           const unitCost = Number(item.costPrice) > 0 ? Number(item.costPrice) : Number(item.price || 0);
@@ -1984,11 +2028,20 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                 </div>
 
                 {/* Stock Quantity Badge */}
-                <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs">
-                  <span className="text-[10px] font-black text-gray-400 uppercase">Available Stock:</span>
-                  <span className="font-black text-amber-700">
-                    📦 {itemPetis} Petis <span className="text-gray-400 font-medium">({itemTrays} Trays • {Number(itemEggs).toLocaleString()} Eggs)</span>
-                  </span>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-gray-400 uppercase">Available Stock:</span>
+                    <span className="font-black text-amber-700">
+                      📦 {itemPetis} Petis <span className="text-gray-400 font-medium">({itemTrays} Trays • {Number(itemEggs).toLocaleString()} Eggs)</span>
+                    </span>
+                  </div>
+                  {soldEggs > 0 && (
+                    <div className="flex items-center justify-between text-[9px] font-black pt-1 border-t border-gray-200 text-gray-500">
+                      <span>Purchased: {initialPetis}P</span>
+                      <span className="text-rose-600 font-bold">Sold: -{soldPetis}P</span>
+                      <span className="text-emerald-700 font-bold">In-Hand: {itemPetis}P</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Price & Cost Breakdown */}
@@ -2983,9 +3036,12 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-bold text-slate-800">
                         {selectedVendor.products.map((p, idx) => {
-                          const petis = p.petiQuantity || (p.stock ? (p.stock / 360).toFixed(1) : 0);
-                          const trays = p.trayQuantity || (p.stock ? Math.round(p.stock / 30) : 0);
-                          const eggs = p.eggQuantity || p.stock || 0;
+                          const eggs = Number(p.stock !== undefined ? p.stock : (p.eggQuantity || 0));
+                          const petis = Number((eggs / 360).toFixed(1));
+                          const trays = Math.round(eggs / 30);
+                          const initialEggs = Math.max(eggs, Number(p.initialStock || p.eggQuantity || 0), (Number(p.petiQuantity || 0) * 360));
+                          const soldEggs = Math.max(0, initialEggs - eggs);
+                          const soldPetis = Number((soldEggs / 360).toFixed(1));
                           const rate = Number(p.costPrice) > 0 ? Number(p.costPrice) : Number(p.price || 0);
                           const cost = Number(p.costVal) || Number(p.totalPurchaseCost) || 0;
                           const paid = Number(p.paidVal) !== undefined ? Number(p.paidVal) : (Number(p.amountPaidToSupplier) || 0);
@@ -3012,9 +3068,16 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
                                 </div>
                               </td>
                               <td className="py-2 px-2 text-center text-[10.5px]">
-                                <span className="text-amber-700 font-black">{petis}P</span> •{' '}
-                                <span className="text-teal-700 font-black">{trays}T</span> •{' '}
-                                <span className="text-slate-500">{fmt(eggs)}E</span>
+                                <div>
+                                  <span className="text-amber-700 font-black">{petis}P</span> •{' '}
+                                  <span className="text-teal-700 font-black">{trays}T</span> •{' '}
+                                  <span className="text-slate-500">{fmt(eggs)}E</span>
+                                </div>
+                                {soldEggs > 0 && (
+                                  <div className="text-[8.5px] font-bold text-rose-600 mt-0.5">
+                                    (-{soldPetis}P Sold)
+                                  </div>
+                                )}
                               </td>
                               <td className="py-2 px-2 text-right font-black text-slate-700 text-xs">
                                 Rs. {fmt(rate)}

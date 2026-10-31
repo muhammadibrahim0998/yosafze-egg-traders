@@ -133,8 +133,14 @@ export function OrdersManagement({ shopId = null }) {
       if (statusFilter !== 'ALL') params.orderStatus = statusFilter;
       const data = await getShopOrders(params);
       let list = data.orders || [];
-      if (shopId) {
-        list = list.filter(o => String(o.shopId?._id || o.shopId) === String(shopId) || String(o.shopId?.name || '').toLowerCase() === String(shopId).toLowerCase());
+      if (shopId && Array.isArray(list)) {
+        list = list.filter(o => {
+          const sid = String(o.shopId?.id || o.shopId?._id || (typeof o.shopId === 'object' ? '' : o.shopId) || '');
+          const sname = String(o.shopId?.name || '').toLowerCase();
+          const target = String(shopId).toLowerCase();
+          if (!sid && !sname) return true;
+          return sid === target || sname === target;
+        });
       }
       setOrders(list);
     } catch (err) {

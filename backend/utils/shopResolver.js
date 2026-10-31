@@ -13,7 +13,10 @@ export async function resolveShopId(inputShopId) {
   const sByName = await Shop.findOne({ name: { $regex: raw }, status: 'active' });
   if (sByName) return String(sByName.id);
 
-  // 3. Fallback to first active shop in database
+  // 3. If raw is a numeric ID (e.g. '6'), return it dynamically to preserve online branch context
+  if (/^\d+$/.test(raw)) return raw;
+
+  // 4. Fallback to first active shop in database
   const first = await Shop.findOne({ status: 'active' });
   return first ? String(first.id) : raw;
 }

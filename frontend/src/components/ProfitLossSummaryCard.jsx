@@ -40,7 +40,12 @@ export function ProfitLossSummaryCard({ sales = [], products = [], checkoutOrder
 
     // 3. Expenses & Damage Losses
     const totalExpensesAmount = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    const totalDamageAmount = damagedProducts.reduce((sum, d) => sum + (Number(d.lossAmount || d.costPrice || 0) * Number(d.quantity || 1)), 0);
+    const totalDamageAmount = damagedProducts.reduce((sum, d) => {
+      const loss = Number(d.totalLoss) > 0
+        ? Number(d.totalLoss)
+        : (Number(d.lossAmount) || (Number(d.costPrice || d.unitPrice || 0) * (Number(d.quantity || d.deductedEggs || 1))) || 0);
+      return sum + loss;
+    }, 0);
 
     const totalDeductions = totalExpensesAmount + totalDamageAmount;
 

@@ -11,8 +11,8 @@ async function getTableColumns(tableName) {
     const [rows] = await pool.query(`DESCRIBE \`${tableName}\``);
     const cols = new Set(rows.map(r => r.Field));
 
-    // Auto-ensure required columns on sales tables
-    if (tableName.includes('sales')) {
+    // Auto-ensure required columns on sales and ledger tables
+    if (tableName.includes('sales') || tableName.includes('customer_payment_ledger')) {
       if (!cols.has('items')) {
         try {
           await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`items\` LONGTEXT NULL`);
@@ -88,6 +88,10 @@ export const BRANCH_TABLE_PREFIXES = new Proxy(rawBranchPrefixes, {
       if (s.includes('mardan')) return 'mardan_branch';
       if (s.includes('attock')) return 'attock_branch';
       if (s.includes('peshawar') || s.includes('peshware')) return 'peshawar_branch';
+    }
+    if (!target._isRefreshing) {
+      target._isRefreshing = true;
+      refreshBranchPrefixes().finally(() => { target._isRefreshing = false; });
     }
     return target[prop] || 'peshawar_branch';
   }

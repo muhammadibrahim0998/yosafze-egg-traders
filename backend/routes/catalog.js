@@ -115,18 +115,21 @@ router.get('/:shopId', async (req, res) => {
     const existingCats = allItems.map(i => i.category).filter(Boolean);
     const categories = ['All', ...new Set(existingCats)];
 
+    const isLocked = shop.approvalStatus === 'LOCKED';
     const safeAllowedPages = (() => {
       let pages = shop.allowedPages;
       if (typeof pages === 'string') {
         try { pages = JSON.parse(pages); } catch { pages = null; }
       }
-      if (Array.isArray(pages) && pages.length > 0) {
-        return pages;
-      }
-      if (Array.isArray(pages) && pages.length === 0 && (Number(shop.isEditApproved) === 0 || Number(shop.isDeleteApproved) === 0 || shop.approvalStatus === 'LOCKED')) {
+      if (isLocked) {
         return [];
       }
-      return shop.approvalStatus === 'LOCKED' ? [] : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
+      if (Array.isArray(pages)) {
+        return pages;
+      }
+      return (Number(shop.isEditApproved) === 0 && Number(shop.isDeleteApproved) === 0)
+        ? []
+        : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
     })();
 
     res.json({
@@ -142,8 +145,8 @@ router.get('/:shopId', async (req, res) => {
         bankAccountNumber: settings?.bankAccountNumber || shop.bankAccountNumber || '',
         bankAccountTitle: settings?.bankAccountTitle || shop.bankAccountTitle || '',
         easypaisaNumber: settings?.easypaisaNumber || shop.easypaisaNumber || '',
-        isEditApproved: shop.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
-        isDeleteApproved: shop.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
+        isEditApproved: isLocked ? 0 : ((shop.isEditApproved !== undefined && shop.isEditApproved !== null) ? (shop.isEditApproved ? 1 : 0) : 1),
+        isDeleteApproved: isLocked ? 0 : ((shop.isDeleteApproved !== undefined && shop.isDeleteApproved !== null) ? (shop.isDeleteApproved ? 1 : 0) : 1),
         approvalStatus: shop.approvalStatus || 'APPROVED',
         approvalNotes: shop.approvalNotes || '',
         allowedPages: safeAllowedPages
@@ -162,16 +165,24 @@ router.get('/', async (req, res) => {
     const shops = await Shop.find({ status: 'active' }).select('name address contactNumber logoUrl bankName bankAccountNumber bankAccountTitle easypaisaNumber isEditApproved isDeleteApproved approvalStatus approvalNotes allowedPages');
     const safeShops = shops.map(s => {
       const raw = typeof s.toObject === 'function' ? s.toObject() : { ...s };
+      const branchLocked = raw.approvalStatus === 'LOCKED';
       let pages = raw.allowedPages;
       if (typeof pages === 'string') {
         try { pages = JSON.parse(pages); } catch { pages = null; }
       }
-      if (Array.isArray(pages) && pages.length > 0) {
-        raw.allowedPages = pages;
-      } else if (Array.isArray(pages) && pages.length === 0 && (Number(raw.isEditApproved) === 0 || Number(raw.isDeleteApproved) === 0 || raw.approvalStatus === 'LOCKED')) {
+      if (branchLocked) {
         raw.allowedPages = [];
+        raw.isEditApproved = 0;
+        raw.isDeleteApproved = 0;
+      } else if (Array.isArray(pages)) {
+        raw.allowedPages = pages;
+        raw.isEditApproved = raw.isEditApproved !== undefined ? (raw.isEditApproved ? 1 : 0) : 1;
+        raw.isDeleteApproved = raw.isDeleteApproved !== undefined ? (raw.isDeleteApproved ? 1 : 0) : 1;
       } else {
-        raw.allowedPages = raw.approvalStatus === 'LOCKED' ? [] : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
+        const noneApproved = Number(raw.isEditApproved) === 0 && Number(raw.isDeleteApproved) === 0;
+        raw.allowedPages = noneApproved ? [] : [...ALL_DEFAULT_BRANCH_PAGES, ...ALL_OPERATION_KEYS];
+        raw.isEditApproved = noneApproved ? 0 : 1;
+        raw.isDeleteApproved = noneApproved ? 0 : 1;
       }
       return raw;
     });

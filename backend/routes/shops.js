@@ -339,9 +339,15 @@ export async function ensureShopApprovalColumns() {
     if (!shopSet.has('banksJson')) await pool.query('ALTER TABLE `shops` ADD COLUMN `banksJson` LONGTEXT NULL');
     if (!shopSet.has('isEditApproved')) await pool.query('ALTER TABLE `shops` ADD COLUMN `isEditApproved` TINYINT(1) DEFAULT 1');
     if (!shopSet.has('isDeleteApproved')) await pool.query('ALTER TABLE `shops` ADD COLUMN `isDeleteApproved` TINYINT(1) DEFAULT 1');
-    if (!shopSet.has('approvalStatus')) await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(50) DEFAULT 'APPROVED'");
+    if (!shopSet.has('approvalStatus')) await pool.query("ALTER TABLE `shops` ADD COLUMN `approvalStatus` VARCHAR(100) DEFAULT 'APPROVED'");
     if (!shopSet.has('approvalNotes')) await pool.query('ALTER TABLE `shops` ADD COLUMN `approvalNotes` TEXT NULL');
     if (!shopSet.has('allowedPages')) await pool.query('ALTER TABLE `shops` ADD COLUMN `allowedPages` LONGTEXT NULL');
+
+    // Auto-fix column types in case production database has restrictive ENUM or short VARCHAR lengths
+    try { await pool.query("ALTER TABLE `shops` MODIFY COLUMN `approvalStatus` VARCHAR(100) NOT NULL DEFAULT 'APPROVED'"); } catch (_) {}
+    try { await pool.query("ALTER TABLE `shops` MODIFY COLUMN `allowedPages` LONGTEXT NULL"); } catch (_) {}
+    try { await pool.query("ALTER TABLE `shops` MODIFY COLUMN `isEditApproved` TINYINT(1) NOT NULL DEFAULT 1"); } catch (_) {}
+    try { await pool.query("ALTER TABLE `shops` MODIFY COLUMN `isDeleteApproved` TINYINT(1) NOT NULL DEFAULT 1"); } catch (_) {}
     if (!shopSet.has('ownerFullName')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerFullName` VARCHAR(255) NULL');
     if (!shopSet.has('ownerEmail')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerEmail` VARCHAR(255) NULL');
     if (!shopSet.has('ownerPhone')) await pool.query('ALTER TABLE `shops` ADD COLUMN `ownerPhone` VARCHAR(100) NULL');
@@ -579,23 +585,25 @@ const handleShopApprovalUpdate = async (req, res) => {
     }
 
     const resolvedId = await resolveShopId(targetId);
-    const shop = await Shop.findById(resolvedId || targetId);
+    const shop = await Shop.findById(resolvedId || targetId) || await Shop.findOne({ name: targetId });
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
+
+    const actualShopId = shop.id || shop._id || resolvedId || targetId;
 
     // Direct SQL update to ensure immediate persistence across all caching mechanisms
     await pool.query(
-      'UPDATE `shops` SET `isEditApproved` = ?, `isDeleteApproved` = ?, `approvalStatus` = ?, `approvalNotes` = ?, `allowedPages` = ? WHERE `id` = ?',
-      [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson, resolvedId || targetId]
+      'UPDATE `shops` SET `isEditApproved` = ?, `isDeleteApproved` = ?, `approvalStatus` = ?, `approvalNotes` = ?, `allowedPages` = ? WHERE `id` = ? OR `name` = ?',
+      [newEditApproved, newDeleteApproved, newStatus, newNotes, pagesJson, actualShopId, shop.name]
     );
 
-    const updatedShop = await Shop.findById(resolvedId || targetId);
+    const updatedShop = await Shop.findById(actualShopId);
     res.json({
       success: true,
       message: 'Branch approval status updated successfully',
       shop: updatedShop || {
         ...shop,
-        id: resolvedId || targetId,
-        _id: resolvedId || targetId,
+        id: actualShopId,
+        _id: actualShopId,
         isEditApproved: newEditApproved,
         isDeleteApproved: newDeleteApproved,
         approvalStatus: newStatus,
@@ -612,6 +620,8 @@ const handleShopApprovalUpdate = async (req, res) => {
 router.patch('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
 router.put('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
 router.post('/:id/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
+router.post('/approval/:id', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
+router.post('/approval', authenticate, requireSuperAdmin, handleShopApprovalUpdate);
 
 // Delete shop (Super Admin only)
 const handleShopDelete = async (req, res) => {

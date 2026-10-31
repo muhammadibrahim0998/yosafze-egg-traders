@@ -43,8 +43,9 @@ router.get("/me", authenticate, async (req, res) => {
     if (user.shopId) {
       shop = await Shop.findById(user.shopId);
     }
+    const isLocked = shop?.approvalStatus === 'LOCKED';
     let shopPages = [];
-    if (shop?.allowedPages) {
+    if (!isLocked && shop?.allowedPages) {
       if (Array.isArray(shop.allowedPages)) shopPages = shop.allowedPages;
       else if (typeof shop.allowedPages === 'string') {
         try { shopPages = JSON.parse(shop.allowedPages); } catch { shopPages = []; }
@@ -59,10 +60,10 @@ router.get("/me", authenticate, async (req, res) => {
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
-        isEditApproved: shop?.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
-        isDeleteApproved: shop?.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
+        isEditApproved: isLocked ? 0 : (shop?.isEditApproved !== undefined ? (shop.isEditApproved ? 1 : 0) : 1),
+        isDeleteApproved: isLocked ? 0 : (shop?.isDeleteApproved !== undefined ? (shop.isDeleteApproved ? 1 : 0) : 1),
         approvalStatus: shop?.approvalStatus || 'APPROVED',
-        allowedPages: shopPages
+        allowedPages: isLocked ? [] : shopPages
       }
     });
   } catch (error) {
@@ -162,8 +163,9 @@ router.post("/login", validateLogin, async (req, res) => {
       shop = await Shop.findById(user.shopId);
     }
 
+    const isLocked = shop?.approvalStatus === 'LOCKED';
     let shopPages = [];
-    if (shop?.allowedPages) {
+    if (!isLocked && shop?.allowedPages) {
       if (Array.isArray(shop.allowedPages)) shopPages = shop.allowedPages;
       else if (typeof shop.allowedPages === 'string') {
         try { shopPages = JSON.parse(shop.allowedPages); } catch { shopPages = []; }
@@ -181,10 +183,10 @@ router.post("/login", validateLogin, async (req, res) => {
         fullName: user.fullName,
         role: user.role,
         shopId: user.shopId,
-        isEditApproved: shop?.isEditApproved !== undefined ? Number(shop.isEditApproved) : 1,
-        isDeleteApproved: shop?.isDeleteApproved !== undefined ? Number(shop.isDeleteApproved) : 1,
+        isEditApproved: isLocked ? 0 : (shop?.isEditApproved !== undefined ? (shop.isEditApproved ? 1 : 0) : 1),
+        isDeleteApproved: isLocked ? 0 : (shop?.isDeleteApproved !== undefined ? (shop.isDeleteApproved ? 1 : 0) : 1),
         approvalStatus: shop?.approvalStatus || 'APPROVED',
-        allowedPages: shopPages
+        allowedPages: isLocked ? [] : shopPages
       }
     });
   } catch (error) {

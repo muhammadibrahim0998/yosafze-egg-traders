@@ -8,6 +8,7 @@ import Settings from '../models/Settings.js';
 import EasyPaisa from '../models/EasyPaisa.js';
 import crypto from 'crypto';
 import { authenticate, requireShopAdmin } from '../middleware/auth.js';
+import pool from '../config/db.js';
 
 const router = express.Router();
 // Initialize stripe with dummy key if not present in env
@@ -199,6 +200,16 @@ const handleCheckoutProcess = async (req, res) => {
               eggQuantity: newStock,
               lastUpdated: new Date().toISOString().split('T')[0]
             });
+
+            try {
+              const pIdVal = Number(product.id || product._id);
+              if (pIdVal) {
+                await pool.query(
+                  'UPDATE purchases SET petiQuantity = ?, trayQuantity = ?, eggQuantity = ? WHERE itemId = ?',
+                  [newPetis, newTrays, newStock, pIdVal]
+                );
+              }
+            } catch (_) {}
           }
         }
       }
@@ -484,7 +495,28 @@ router.patch('/order/:orderId/status', authenticate, requireShopAdmin, async (re
             dbItem.petiQuantity = Math.max(0, dbItem.petiQuantity - (unit === 'peti' ? qty : (totalEggs / ePerPeti)));
           }
           dbItem.lastUpdated = new Date().toISOString().split('T')[0];
-          await dbItem.save();
+          const updatedFields = {
+            stock: dbItem.stock,
+            petiQuantity: dbItem.petiQuantity,
+            trayQuantity: dbItem.trayQuantity,
+            eggQuantity: dbItem.eggQuantity,
+            lastUpdated: dbItem.lastUpdated
+          };
+          if (typeof dbItem.save === 'function') {
+            await dbItem.save();
+          } else {
+            await Item.findByIdAndUpdate(dbItem.id || dbItem._id, updatedFields);
+          }
+
+          try {
+            const pIdVal = Number(dbItem.id || dbItem._id);
+            if (pIdVal) {
+              await pool.query(
+                'UPDATE purchases SET petiQuantity = ?, trayQuantity = ?, eggQuantity = ? WHERE itemId = ?',
+                [dbItem.petiQuantity, dbItem.trayQuantity, dbItem.stock, pIdVal]
+              );
+            }
+          } catch (_) {}
 
           if (order.shopId) {
             try {

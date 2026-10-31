@@ -156,7 +156,7 @@ export function ShopAdminCharts({
 
     // 4. Damaged Loss
     let totalDamagedLoss = (damaged || []).reduce((sum, d) => {
-      const loss = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || Number(d.amount) || 0);
+      const loss = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || Number(d.amount) || ((Number(d.quantity || d.deductedEggs || 0)) * (Number(d.unitPrice || 0))) || 0);
       return sum + loss;
     }, 0);
     if (profitReportStats && Number(profitReportStats.totalDamagedLoss) > 0) {

@@ -548,11 +548,15 @@ function StoreContent({ shopId }) {
 
     // Direct edit / delete toggle flags on shop
     if (opType === 'edit') {
-      const editFlag = targetShop?.isEditApproved !== undefined ? Number(targetShop.isEditApproved) : (user?.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
+      const editFlag = targetShop?.isEditApproved !== undefined 
+        ? (targetShop.isEditApproved ? 1 : 0) 
+        : (user?.isEditApproved !== undefined ? (user.isEditApproved ? 1 : 0) : 1);
       if (editFlag === 0) return false;
     }
     if (opType === 'delete') {
-      const deleteFlag = targetShop?.isDeleteApproved !== undefined ? Number(targetShop.isDeleteApproved) : (user?.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
+      const deleteFlag = targetShop?.isDeleteApproved !== undefined 
+        ? (targetShop.isDeleteApproved ? 1 : 0) 
+        : (user?.isDeleteApproved !== undefined ? (user.isDeleteApproved ? 1 : 0) : 1);
       if (deleteFlag === 0) return false;
     }
 
@@ -566,7 +570,7 @@ function StoreContent({ shopId }) {
       if (hasGranularOps) {
         return list.includes(`${pageKey}_${opType}`);
       }
-      if (list.length === 0 && (Number(targetShop?.isEditApproved) === 0 || Number(targetShop?.isDeleteApproved) === 0)) {
+      if (list.length === 0) {
         return false;
       }
     }
@@ -657,48 +661,13 @@ function StoreContent({ shopId }) {
   }, [shopId]);
 
   const isActionAllowed = (actionKey) => {
-    // 1. If branch is explicitly locked by Master Approval
-    if (shop?.approvalStatus === 'LOCKED') return false;
-
-    // 2. Mapping view keys to branch permission keys
-    const mapping = {
-      'dashboard': 'dashboard',
-      'products': 'store',
-      'store': 'store',
-      'walkin': 'walkin',
-      'pos': 'walkin',
-      'orders': 'walkin',
-      'report-sales': 'sales',
-      'sales': 'sales',
-      'purchases': 'purchases',
-      'purchase-credits': 'purchases',
-      'vendors': 'vendors',
-      'vendor-directory': 'vendorDirectory',
-      'vendorDirectory': 'vendorDirectory',
-      'registered-customers': 'customerPaymentLedger',
-      'customer-payment-ledger': 'customerPaymentLedger',
-      'customer-credits': 'customerPaymentLedger',
-      'payment-ledger': 'customerPaymentLedger',
-      'vendor-payment-ledger': 'vendorPaymentLedger',
-      'vendorPaymentLedger': 'vendorPaymentLedger',
-      'report-expenses': 'expenses',
-      'report-fuel': 'expenses',
-      'expenses': 'expenses',
-      'report-profit': 'reports',
-      'analytics-charts': 'reports',
-      'reports': 'reports',
-      'damaged-products': 'store',
-      'team': 'team',
-      'settings': 'settings'
-    };
-    const key = mapping[actionKey] || actionKey;
-
-    // 3. Dynamic check: Allow all branch pages to show so shop admin can view all reports/ledgers
+    // All branch pages, menus, ledgers, and reports remain 100% accessible to view.
+    // Super Admin approval restrictions apply strictly to Edit and Delete buttons.
     return true;
   };
 
   const isViewAllowed = (viewKey) => {
-    return isActionAllowed(viewKey);
+    return true;
   };
   const [items, setItems] = useState(() => {
     try {
@@ -733,11 +702,11 @@ function StoreContent({ shopId }) {
   }, [items]);
 
   const displayedCatalogItems = useMemo(() => {
-    if (showOnlyLowStock) {
+    if (isAdminUser && showOnlyLowStock) {
       return lowStockItems;
     }
     return items || [];
-  }, [items, showOnlyLowStock, lowStockItems]);
+  }, [items, showOnlyLowStock, lowStockItems, isAdminUser]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editModalProduct, setEditModalProduct] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, item: null });
@@ -756,6 +725,7 @@ function StoreContent({ shopId }) {
       const urlView = urlParams.get('tab') || urlParams.get('view');
       if (urlView) return urlView;
       const saved = sessionStorage.getItem('yosafze_active_view') || localStorage.getItem('yosafze_active_view');
+      if (saved === 'orders') return 'dashboard';
       if (saved) return saved;
     } catch (e) { }
     return 'dashboard';
@@ -4321,13 +4291,36 @@ function StoreContent({ shopId }) {
         sItems = s.items;
       } else if (typeof s.items === 'string' && s.items.trim()) {
         try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch {}
+      } else if (Array.isArray(s.orderItems)) {
+        sItems = s.orderItems;
+      } else if (Array.isArray(s.saleItems)) {
+        sItems = s.saleItems;
       }
       if (!Array.isArray(sItems)) sItems = [];
 
       if (sItems.length > 0) {
+        let eggsFromItems = 0;
         sItems.forEach(i => {
-          totalEggs += Number(i.totalEggs || i.quantity || 0);
+          const q = Number(i.quantity) || 1;
+          const u = String(i.unitLabel || i.unit || '').toLowerCase();
+          const n = String(i.name || i.rawProductName || '').toLowerCase();
+          let itemEggs = 0;
+          if (Number(i.totalEggs) > 0) itemEggs = Number(i.totalEggs);
+          else if (u.includes('peti') || (!u && n.includes('peti'))) itemEggs = q * 360;
+          else if (u.includes('tray') || (!u && n.includes('tray'))) itemEggs = q * 30;
+          else itemEggs = q;
+          eggsFromItems += itemEggs;
         });
+        if (eggsFromItems > 0) {
+          totalEggs += eggsFromItems;
+        } else if (Number(s.eggsBought) > 0) {
+          totalEggs += Number(s.eggsBought);
+        } else if (Number(s.petisBought) > 0) {
+          totalEggs += Number(s.petisBought) * 360;
+        } else if (amount > 0) {
+          const estPetis = Number((amount / 1050).toFixed(1)) || 1;
+          totalEggs += Math.round(estPetis * 360);
+        }
       } else if (Number(s.eggsBought) > 0) {
         totalEggs += Number(s.eggsBought);
       } else if (Number(s.petisBought) > 0) {
@@ -4877,47 +4870,89 @@ function StoreContent({ shopId }) {
     }
 
     const selectedProduct = (items || []).find(i =>
-      String(i._id) === String(damagedFormData.productId) ||
+      String(i._id || i.id) === String(damagedFormData.productId) ||
       (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
     );
 
-    const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
-    const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+    const tPerP = Math.max(1, Number(selectedProduct?.traysPerPeti) || 12);
+    const ePerT = Math.max(1, Number(selectedProduct?.eggsPerTray) || 30);
     const ePerP = tPerP * ePerT;
 
-    const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
-    const pUnit = selectedProduct?.unitType || 'peti';
+    const basePrice = Number(
+      selectedProduct?.costPrice ||
+      selectedProduct?.buyCost ||
+      selectedProduct?.purchasePrice ||
+      selectedProduct?.price ||
+      selectedProduct?.salePrice ||
+      selectedProduct?.unitPrice ||
+      Number(damagedFormData.unitPrice) ||
+      0
+    );
+    const pUnit = String(selectedProduct?.unitType || damagedFormData.unitType || 'peti').toLowerCase().trim();
 
-    let eggRate = 0;
-    if (selectedProduct && basePrice > 0) {
-      if (pUnit === 'peti') eggRate = basePrice / ePerP;
-      else if (pUnit === 'tray') eggRate = basePrice / ePerT;
-      else eggRate = basePrice;
-    } else if (Number(damagedFormData.unitPrice) > 0) {
-      eggRate = Number(damagedFormData.unitPrice);
+    let petiPrice = Number(selectedProduct?.pricePerPeti) || 0;
+    let trayPrice = Number(selectedProduct?.pricePerTray) || 0;
+    let eggPrice = Number(selectedProduct?.pricePerEgg) || 0;
+
+    if (petiPrice <= 0 || trayPrice <= 0 || eggPrice <= 0) {
+      if (basePrice > 0) {
+        if (pUnit === 'peti') {
+          petiPrice = basePrice;
+          trayPrice = Math.round((basePrice / tPerP) * 100) / 100;
+          eggPrice = Math.round((basePrice / ePerP) * 100) / 100;
+        } else if (pUnit === 'tray') {
+          petiPrice = Math.round((basePrice * tPerP) * 100) / 100;
+          trayPrice = basePrice;
+          eggPrice = Math.round((basePrice / ePerT) * 100) / 100;
+        } else {
+          petiPrice = Math.round((basePrice * ePerP) * 100) / 100;
+          trayPrice = Math.round((basePrice * ePerT) * 100) / 100;
+          eggPrice = basePrice;
+        }
+      } else if (Number(damagedFormData.unitPrice) > 0) {
+        const uVal = Number(damagedFormData.unitPrice);
+        petiPrice = uVal;
+        trayPrice = Math.round((uVal / tPerP) * 100) / 100;
+        eggPrice = Math.round((uVal / ePerP) * 100) / 100;
+      }
     }
 
     let totalEggsDmg = 0;
     if (pQty > 0 || tQty > 0 || eQty > 0) {
       totalEggsDmg = Math.round((pQty * ePerP) + (tQty * ePerT) + eQty);
+    } else if (pUnit === 'peti') {
+      totalEggsDmg = Math.round(rawQty * ePerP);
+    } else if (pUnit === 'tray') {
+      totalEggsDmg = Math.round(rawQty * ePerT);
     } else {
       totalEggsDmg = Math.round(rawQty);
     }
 
-    const calculatedLoss = Math.round(totalEggsDmg * (eggRate || 0));
+    let calculatedLoss = 0;
+    if (pQty > 0 || tQty > 0 || eQty > 0) {
+      calculatedLoss = Math.round((pQty * petiPrice) + (tQty * trayPrice) + (eQty * eggPrice));
+    } else if (pUnit === 'peti') {
+      calculatedLoss = Math.round(rawQty * petiPrice);
+    } else if (pUnit === 'tray') {
+      calculatedLoss = Math.round(rawQty * trayPrice);
+    } else {
+      calculatedLoss = Math.round(rawQty * eggPrice);
+    }
+
+    const safeProdId = selectedProduct ? (selectedProduct.id || selectedProduct._id) : (Number(damagedFormData.productId) || null);
 
     const newDamagedItem = {
       _id: 'dmg_' + Date.now(),
       shopId,
-      productName: damagedFormData.productName,
-      productId: damagedFormData.productId || '',
+      productName: String(damagedFormData.productName).trim(),
+      productId: safeProdId,
       petiQuantity: pQty,
       trayQuantity: tQty,
       eggQuantity: eQty,
-      quantity: totalEggsDmg,
+      quantity: rawQty > 0 ? rawQty : (pQty > 0 ? pQty : (tQty > 0 ? tQty : eQty)),
       deductedEggs: totalEggsDmg,
       unitType: pQty > 0 && tQty === 0 && eQty === 0 ? 'peti' : (tQty > 0 && pQty === 0 && eQty === 0 ? 'tray' : 'egg'),
-      unitPrice: Number(damagedFormData.unitPrice) || Math.round(eggRate * 10) / 10,
+      unitPrice: Math.round(petiPrice || (eggPrice * ePerP) || basePrice || 0),
       totalLoss: calculatedLoss,
       reason: damagedFormData.reason,
       damageDate: damagedFormData.damageDate ? new Date(damagedFormData.damageDate) : new Date(),
@@ -4937,7 +4972,7 @@ function StoreContent({ shopId }) {
           setDamagedProductsList(prev => [data.data, ...prev]);
         }
         if (data.updatedItem) {
-          setItems(prev => prev.map(it => String(it._id) === String(data.updatedItem._id) ? data.updatedItem : it));
+          setItems(prev => prev.map(it => String(it._id || it.id) === String(data.updatedItem._id || data.updatedItem.id) ? data.updatedItem : it));
         }
       } else {
         setDamagedProductsList(prev => [newDamagedItem, ...prev]);
@@ -5022,40 +5057,83 @@ function StoreContent({ shopId }) {
       (editDamagedFormData.productName && i.name?.toLowerCase().trim() === editDamagedFormData.productName.toLowerCase().trim())
     );
 
-    const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
-    const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+    const tPerP = Math.max(1, Number(selectedProduct?.traysPerPeti) || 12);
+    const ePerT = Math.max(1, Number(selectedProduct?.eggsPerTray) || 30);
     const ePerP = tPerP * ePerT;
 
-    const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
-    const pUnit = selectedProduct?.unitType || 'peti';
-    let eggRate = 0;
-    if (selectedProduct && basePrice > 0) {
-      if (pUnit === 'peti') eggRate = basePrice / ePerP;
-      else if (pUnit === 'tray') eggRate = basePrice / ePerT;
-      else eggRate = basePrice;
-    } else if (Number(editDamagedFormData.unitPrice) > 0) {
-      eggRate = Number(editDamagedFormData.unitPrice);
+    const basePrice = Number(
+      selectedProduct?.costPrice ||
+      selectedProduct?.buyCost ||
+      selectedProduct?.purchasePrice ||
+      selectedProduct?.price ||
+      selectedProduct?.salePrice ||
+      selectedProduct?.unitPrice ||
+      Number(editDamagedFormData.unitPrice) ||
+      0
+    );
+    const pUnit = String(selectedProduct?.unitType || editDamagedFormData.unitType || 'peti').toLowerCase().trim();
+
+    let petiPrice = Number(selectedProduct?.pricePerPeti) || 0;
+    let trayPrice = Number(selectedProduct?.pricePerTray) || 0;
+    let eggPrice = Number(selectedProduct?.pricePerEgg) || 0;
+
+    if (petiPrice <= 0 || trayPrice <= 0 || eggPrice <= 0) {
+      if (basePrice > 0) {
+        if (pUnit === 'peti') {
+          petiPrice = basePrice;
+          trayPrice = Math.round((basePrice / tPerP) * 100) / 100;
+          eggPrice = Math.round((basePrice / ePerP) * 100) / 100;
+        } else if (pUnit === 'tray') {
+          petiPrice = Math.round((basePrice * tPerP) * 100) / 100;
+          trayPrice = basePrice;
+          eggPrice = Math.round((basePrice / ePerT) * 100) / 100;
+        } else {
+          petiPrice = Math.round((basePrice * ePerP) * 100) / 100;
+          trayPrice = Math.round((basePrice * ePerT) * 100) / 100;
+          eggPrice = basePrice;
+        }
+      } else if (Number(editDamagedFormData.unitPrice) > 0) {
+        const uVal = Number(editDamagedFormData.unitPrice);
+        petiPrice = uVal;
+        trayPrice = Math.round((uVal / tPerP) * 100) / 100;
+        eggPrice = Math.round((uVal / ePerP) * 100) / 100;
+      }
     }
 
     let totalEggsDmg = 0;
     if (pQty > 0 || tQty > 0 || eQty > 0) {
       totalEggsDmg = Math.round((pQty * ePerP) + (tQty * ePerT) + eQty);
+    } else if (pUnit === 'peti') {
+      totalEggsDmg = Math.round(rawQty * ePerP);
+    } else if (pUnit === 'tray') {
+      totalEggsDmg = Math.round(rawQty * ePerT);
     } else {
       totalEggsDmg = Math.round(rawQty);
     }
 
-    const calculatedLoss = Math.round(totalEggsDmg * (eggRate || 0));
+    let calculatedLoss = 0;
+    if (pQty > 0 || tQty > 0 || eQty > 0) {
+      calculatedLoss = Math.round((pQty * petiPrice) + (tQty * trayPrice) + (eQty * eggPrice));
+    } else if (pUnit === 'peti') {
+      calculatedLoss = Math.round(rawQty * petiPrice);
+    } else if (pUnit === 'tray') {
+      calculatedLoss = Math.round(rawQty * trayPrice);
+    } else {
+      calculatedLoss = Math.round(rawQty * eggPrice);
+    }
+
+    const safeProdId = selectedProduct ? (selectedProduct.id || selectedProduct._id) : (Number(editDamagedFormData.productId) || null);
 
     const updatedPayload = {
-      productName: editDamagedFormData.productName,
-      productId: editDamagedFormData.productId || (selectedProduct ? String(selectedProduct._id || selectedProduct.id) : ''),
+      productName: String(editDamagedFormData.productName).trim(),
+      productId: safeProdId,
       petiQuantity: pQty,
       trayQuantity: tQty,
       eggQuantity: eQty,
-      quantity: totalEggsDmg,
+      quantity: rawQty > 0 ? rawQty : (pQty > 0 ? pQty : (tQty > 0 ? tQty : eQty)),
       deductedEggs: totalEggsDmg,
       unitType: pQty > 0 && tQty === 0 && eQty === 0 ? 'peti' : (tQty > 0 && pQty === 0 && eQty === 0 ? 'tray' : 'egg'),
-      unitPrice: Number(editDamagedFormData.unitPrice) || Math.round(eggRate * 10) / 10,
+      unitPrice: Math.round(petiPrice || (eggPrice * ePerP) || basePrice || 0),
       totalLoss: calculatedLoss,
       reason: editDamagedFormData.reason,
       damageDate: editDamagedFormData.damageDate ? new Date(editDamagedFormData.damageDate) : new Date(),
@@ -5099,10 +5177,13 @@ function StoreContent({ shopId }) {
     }
 
     const itemsToPrint = damagedList.length > 0 ? damagedList : (damagedProductsList || []);
-    const totalLossVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.totalLoss) || 0), 0);
-    const totalEggsVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.deductedEggs || d.quantity) || 0), 0);
-    const totalPetisVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.petiQuantity) || (Number(d.deductedEggs || d.quantity) || 0) / 360), 0);
-    const totalTraysVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.trayQuantity) || (Number(d.deductedEggs || d.quantity) || 0) / 30), 0);
+    const totalEggsVal = itemsToPrint.reduce((sum, d) => sum + (Number(d.deductedEggs) > 0 ? Number(d.deductedEggs) : (Number(d.eggQuantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30) || Number(d.quantity) || 0)), 0);
+    const totalLossVal = itemsToPrint.reduce((sum, d) => {
+      const loss = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+      return sum + loss;
+    }, 0);
+    const totalPetisVal = Number((totalEggsVal / 360).toFixed(1));
+    const totalTraysVal = Number((totalEggsVal / 30).toFixed(1));
     const reportDateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     let rowsHtml = itemsToPrint.map((d, idx) => {
@@ -5457,7 +5538,13 @@ function StoreContent({ shopId }) {
       const e = Number(p.eggQuantity || 0);
       const peti = Number(p.petiQuantity || 0);
       const tray = Number(p.trayQuantity || 0);
-      const totalItemEggs = (peti * 360) + (tray * 30) + e;
+      const stock = Number(p.stock !== undefined ? p.stock : 0);
+      let totalItemEggs = 0;
+      if (peti > 0 || tray > 0 || e > 0) {
+        totalItemEggs = Math.max(stock, (peti * 360) + (tray * 30) + (e > 0 && peti === 0 && tray === 0 ? e : 0));
+      } else {
+        totalItemEggs = stock;
+      }
       totalPurchasesEggs += totalItemEggs;
 
       const cost = Number(p.totalPurchaseCost || p.purchaseCost || p.totalCost) ||
@@ -5496,8 +5583,14 @@ function StoreContent({ shopId }) {
     let totalDamagedLoss = 0;
     let totalDamagedEggs = 0;
     filteredDamaged.forEach(d => {
-      totalDamagedLoss += Number(d.totalLoss) > 0 ? Number(d.totalLoss) : ((Number(d.quantity) || 0) * (Number(d.unitPrice) || 0));
-      totalDamagedEggs += Number(d.quantity) || 1;
+      const loss = Number(d.totalLoss) > 0
+        ? Number(d.totalLoss)
+        : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+      const eggs = Number(d.deductedEggs) > 0
+        ? Number(d.deductedEggs)
+        : (Number(d.eggQuantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30) || Number(d.quantity) || 0);
+      totalDamagedLoss += loss;
+      totalDamagedEggs += eggs;
     });
 
     // Gross Sales Revenue (pure realized sales from invoices & orders)
@@ -5607,7 +5700,13 @@ function StoreContent({ shopId }) {
       const e = Number(p.eggQuantity || 0);
       const peti = Number(p.petiQuantity || 0);
       const tray = Number(p.trayQuantity || 0);
-      const totalItemEggs = (peti * 360) + (tray * 30) + e;
+      const stock = Number(p.stock !== undefined ? p.stock : 0);
+      let totalItemEggs = 0;
+      if (peti > 0 || tray > 0 || e > 0) {
+        totalItemEggs = Math.max(stock, (peti * 360) + (tray * 30) + (e > 0 && peti === 0 && tray === 0 ? e : 0));
+      } else {
+        totalItemEggs = stock;
+      }
       totalPurchasesEggs += totalItemEggs;
 
       const cost = Number(p.totalPurchaseCost || p.purchaseCost || p.totalCost) ||
@@ -5642,8 +5741,13 @@ function StoreContent({ shopId }) {
       const e = Number(item.eggQuantity || 0);
       const peti = Number(item.petiQuantity || 0);
       const tray = Number(item.trayQuantity || 0);
-      const itemStock = Number(item.stock || 0);
-      const totalItemEggs = (peti * 360) + (tray * 30) + e || (itemStock * 30);
+      const itemStock = Number(item.stock !== undefined ? item.stock : 0);
+      let totalItemEggs = 0;
+      if (itemStock > 0) {
+        totalItemEggs = itemStock;
+      } else if (peti > 0 || tray > 0 || e > 0) {
+        totalItemEggs = (peti * 360) + (tray * 30) + (e > 0 && peti === 0 && tray === 0 ? e : 0);
+      }
       totalEggs += totalItemEggs;
 
       const price = Number(item.price || item.costPrice || 0);
@@ -5780,10 +5884,17 @@ function StoreContent({ shopId }) {
     let todayDamagedLoss = 0;
     let todayDamagedEggs = 0;
     todayDamagedList.forEach(d => {
-      todayDamagedLoss += Number(d.totalLoss) > 0 ? Number(d.totalLoss) : ((Number(d.quantity) || 0) * (Number(d.unitPrice) || 0));
-      todayDamagedEggs += Number(d.quantity) || 1;
+      const loss = Number(d.totalLoss) > 0
+        ? Number(d.totalLoss)
+        : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+      const eggs = Number(d.deductedEggs) > 0
+        ? Number(d.deductedEggs)
+        : (Number(d.eggQuantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30) || Number(d.quantity) || 0);
+      todayDamagedLoss += loss;
+      todayDamagedEggs += eggs;
     });
     const todayDamagedPetis = Number((todayDamagedEggs / 360).toFixed(1));
+
     const todayDamagedCount = todayDamagedList.length;
 
     // 5. Purchases & Restocks for Today
@@ -7999,19 +8110,6 @@ function StoreContent({ shopId }) {
                   </button>
                   )}
 
-                  {isActionAllowed('walkin') && (
-                  <button
-                    onClick={() => { setActiveView('orders'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'orders'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'orders' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'orders' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>EasyPaisa & Orders</span>
-                  </button>
-                  )}
-
                   {isActionAllowed('purchases') && (
                   <button
                     onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
@@ -8267,7 +8365,7 @@ function StoreContent({ shopId }) {
                         </span>
                       </div>
                       <p className="text-[11px] text-amber-900 font-bold mt-0.5">
-                        د سوپراډمین له خوا د دې شاخ ایډیټ او ډیلیټ بند (Locked) دی. ریکارډونه یوازې لیدلی شئ، د تغیر یا حذف لپاره سوپراډمین تایید (Approval) ته اړتیا ده.
+                        Branch record modification is locked by Super Admin. Records can be viewed, but editing and deleting require Super Admin approval.
                       </p>
                     </div>
                   </div>
@@ -8278,7 +8376,6 @@ function StoreContent({ shopId }) {
                   </div>
                 </div>
               )}
-
               {/* ─── Header Banner (visible only on Dashboard & Products) ─── */}
               {(activeView === 'dashboard' || activeView === 'products') && (
                 <div className="relative border rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-4 shadow-sm flex items-center justify-between gap-4 overflow-hidden w-full bg-white border-zinc-200 text-zinc-900">
@@ -8295,8 +8392,8 @@ function StoreContent({ shopId }) {
                       </h1>
                     </div>
 
-                    {/* Low Stock Alert Message Button (Target Area Circled by User) */}
-                    {lowStockItems.length > 0 && (
+                    {/* Low Stock Alert Message Button */}
+                    {isAdminUser && lowStockItems.length > 0 && (
                       <button
                         type="button"
                         onClick={() => setLowStockModalOpen(true)}
@@ -8313,29 +8410,25 @@ function StoreContent({ shopId }) {
                     <div className="flex items-center gap-2 ml-auto flex-wrap">
                       {/* View Switcher Tabs */}
                       <div className="flex items-center p-1 bg-zinc-100 rounded-2xl border border-zinc-200">
-                        {(isCustomerAccount || isActionAllowed('dashboard')) && (
-                          <button
-                            onClick={() => setActiveView('dashboard')}
-                            className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
-                              ? 'bg-zinc-900 text-white shadow-md'
-                              : 'text-zinc-600 hover:text-zinc-950'
-                              }`}
-                          >
-                            <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
-                          </button>
-                        )}
-                        {(isCustomerAccount || isActionAllowed('store')) && (
-                          <button
-                            onClick={() => setActiveView('products')}
-                            className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
-                              ? 'bg-zinc-900 text-white shadow-md'
-                              : 'text-zinc-600 hover:text-zinc-950'
-                              }`}
-                          >
-                            <ShoppingBag className="w-3.5 h-3.5" /> Products
-                          </button>
-                        )}
-                        {isAdminUser && isActionAllowed('vendors') && (
+                        <button
+                          onClick={() => setActiveView('dashboard')}
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'dashboard'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                            }`}
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                        </button>
+                        <button
+                          onClick={() => setActiveView('products')}
+                          className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'products'
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : 'text-zinc-600 hover:text-zinc-950'
+                            }`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" /> Products
+                        </button>
+                        {isAdminUser && (
                           <button
                             onClick={() => setActiveView('vendors')}
                             className={`px-3.5 py-1.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${activeView === 'vendors'
@@ -8348,7 +8441,7 @@ function StoreContent({ shopId }) {
                         )}
                       </div>
 
-                      {isAdminUser && isActionAllowed('store') && !isEditLocked && (
+                      {isAdminUser && !isEditLocked && (
                         <button
                           onClick={() => setAddProductModal(true)}
                           className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black uppercase tracking-wider transition-all shadow-md border-b-2 border-amber-800 cursor-pointer"
@@ -8362,28 +8455,8 @@ function StoreContent({ shopId }) {
                 </div>
               )}
 
-              {/* ─── PAGE-LEVEL ACCESS RESTRICTION BANNER ─── */}
-              {isAdminUser && !isViewAllowed(activeView) && (
-                <div className="p-8 my-6 bg-white border-2 border-rose-300 rounded-3xl text-center space-y-4 shadow-xl animate-in fade-in">
-                  <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
-                    <Lock className="w-8 h-8" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-xl font-black uppercase text-zinc-900 tracking-tight">
-                      Page Access Restricted by Super Admin
-                    </h3>
-                    <p className="text-xs font-bold text-zinc-500 max-w-md mx-auto">
-                      This page is currently locked by the Super Admin for this branch. The Shop Admin cannot view, edit, delete, or perform operations here.
-                    </p>
-                  </div>
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 border border-rose-200 rounded-full text-[10px] font-black text-rose-700 uppercase tracking-wider">
-                    🔒 Awaiting Super Admin Checkbox Approval
-                  </div>
-                </div>
-              )}
-
               {/* ─── DASHBOARD VIEW ─── */}
-              {activeView === 'dashboard' && isViewAllowed('dashboard') && (
+              {activeView === 'dashboard' && (
                 <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                   {/* ─── SHOP ADMIN DASHBOARD (CLEAN THEME) ─── */}
@@ -8667,6 +8740,11 @@ function StoreContent({ shopId }) {
                           endDate={appliedEndDate}
                         />
                       </div>
+
+                      {/* ─── COMPLETE EASYPAISA & CUSTOMER ORDERS VERIFICATION (EMBEDDED IN DASHBOARD) ─── */}
+                      <div className="pt-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <OrdersManagement shopId={shopId} />
+                      </div>
                     </div>
                   ) : (
                     /* ─── CUSTOMER DASHBOARD ─── */
@@ -8767,6 +8845,7 @@ function StoreContent({ shopId }) {
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-xl text-zinc-900">
                   <PurchasesManagement
                     products={items}
+                    sales={shopSalesList}
                     shopId={shopId}
                     onAddProduct={() => setAddProductModal(true)}
                     onEditProduct={(p) => setEditModalProduct(p)}
@@ -8853,89 +8932,91 @@ function StoreContent({ shopId }) {
                     )}
                   </div>
 
-                  {/* ─── DEDICATED LOW STOCK / OUT OF STOCK ALERT DIV ─── */}
-                  <div className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 mb-1 ${
-                    showOnlyLowStock
-                      ? 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-red-500 ring-2 ring-red-400/50 shadow-red-500/20'
-                      : (lowStockItems.length > 0 
-                          ? 'bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border-red-300 text-slate-900 shadow-sm' 
-                          : 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs')
-                  }`}>
-                    <div className="flex items-center gap-3.5 w-full md:w-auto">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
-                        showOnlyLowStock
-                          ? 'bg-white/20 text-white border border-white/30'
-                          : (lowStockItems.length > 0 ? 'bg-red-600 text-white animate-pulse shadow-red-500/30' : 'bg-emerald-600 text-white')
-                      }`}>
+                  {/* ─── DEDICATED LOW STOCK / OUT OF STOCK ALERT DIV (ADMIN ONLY) ─── */}
+                  {isAdminUser && (
+                    <div className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 mb-1 ${
+                      showOnlyLowStock
+                        ? 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-red-500 ring-2 ring-red-400/50 shadow-red-500/20'
+                        : (lowStockItems.length > 0 
+                            ? 'bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border-red-300 text-slate-900 shadow-sm' 
+                            : 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs')
+                    }`}>
+                      <div className="flex items-center gap-3.5 w-full md:w-auto">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                          showOnlyLowStock
+                            ? 'bg-white/20 text-white border border-white/30'
+                            : (lowStockItems.length > 0 ? 'bg-red-600 text-white animate-pulse shadow-red-500/30' : 'bg-emerald-600 text-white')
+                        }`}>
+                          {lowStockItems.length > 0 ? (
+                            <AlertTriangle className="w-6 h-6 text-white" />
+                          ) : (
+                            <Package className="w-6 h-6 text-white" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className={`font-black text-sm uppercase tracking-tight ${showOnlyLowStock ? 'text-white' : 'text-slate-900'}`}>
+                              {lowStockItems.length > 0 
+                                ? '⚠️ Low Stock & Out of Stock Products' 
+                                : '✅ All Products In Stock'}
+                            </h3>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              showOnlyLowStock
+                                ? 'bg-white text-red-700 shadow-xs'
+                                : (lowStockItems.length > 0 ? 'bg-red-600 text-white shadow-xs' : 'bg-emerald-600 text-white')
+                            }`}>
+                              {lowStockItems.length} Products Low / Out
+                            </span>
+                          </div>
+                          <p className={`text-xs font-semibold mt-0.5 ${showOnlyLowStock ? 'text-red-100' : 'text-slate-600'}`}>
+                            {showOnlyLowStock
+                              ? 'Currently viewing low stock items. When restocked or purchased, products automatically return to the main catalog.'
+                              : (lowStockItems.length > 0 
+                                  ? 'Low or exhausted items are locked from sale until restocked. Click to view them:' 
+                                  : 'All products have healthy inventory levels and are available for sale.')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
                         {lowStockItems.length > 0 ? (
-                          <AlertTriangle className="w-6 h-6 text-white" />
+                          <button
+                            type="button"
+                            onClick={() => setShowOnlyLowStock(prev => !prev)}
+                            className={`w-full md:w-auto px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 ${
+                              showOnlyLowStock
+                                ? 'bg-white text-red-700 hover:bg-red-50 border border-white'
+                                : 'bg-red-600 hover:bg-red-700 text-white border border-red-500 animate-pulse'
+                            }`}
+                          >
+                            {showOnlyLowStock ? (
+                              <>
+                                <Package className="w-4 h-4" />
+                                <span>Show All Products</span>
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-4 h-4" />
+                                <span>⚠️ View Low Stock ({lowStockItems.length})</span>
+                              </>
+                            )}
+                          </button>
                         ) : (
-                          <Package className="w-6 h-6 text-white" />
+                          <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300">
+                            100% Healthy Inventory
+                          </span>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className={`font-black text-sm uppercase tracking-tight ${showOnlyLowStock ? 'text-white' : 'text-slate-900'}`}>
-                            {lowStockItems.length > 0 
-                              ? '⚠️ Low Stock & Out of Stock Products' 
-                              : '✅ All Products In Stock'}
-                          </h3>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                            showOnlyLowStock
-                              ? 'bg-white text-red-700 shadow-xs'
-                              : (lowStockItems.length > 0 ? 'bg-red-600 text-white shadow-xs' : 'bg-emerald-600 text-white')
-                          }`}>
-                            {lowStockItems.length} Products Low / Out
-                          </span>
-                        </div>
-                        <p className={`text-xs font-semibold mt-0.5 ${showOnlyLowStock ? 'text-red-100' : 'text-slate-600'}`}>
-                          {showOnlyLowStock
-                            ? 'Currently viewing low stock items. When restocked or purchased, products automatically return to the main catalog.'
-                            : (lowStockItems.length > 0 
-                                ? 'Low or exhausted items are locked from sale until restocked. Click to view them:' 
-                                : 'All products have healthy inventory levels and are available for sale.')}
-                        </p>
-                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
-                      {lowStockItems.length > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowOnlyLowStock(prev => !prev)}
-                          className={`w-full md:w-auto px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 ${
-                            showOnlyLowStock
-                              ? 'bg-white text-red-700 hover:bg-red-50 border border-white'
-                              : 'bg-red-600 hover:bg-red-700 text-white border border-red-500 animate-pulse'
-                          }`}
-                        >
-                          {showOnlyLowStock ? (
-                            <>
-                              <Package className="w-4 h-4" />
-                              <span>Show All Products</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-4 h-4" />
-                              <span>⚠️ View Low Stock ({lowStockItems.length})</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300">
-                          100% Healthy Inventory
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Category Pills (Mobile/Quick Filter) */}
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     <div className="flex items-center gap-1.5 text-emerald-700 text-[10px] font-black uppercase tracking-widest pr-2 border-r border-slate-300">
                       <Filter className="w-3.5 h-3.5" /> Filter
                     </div>
-                    {/* Low Stock Filter Tab Pill */}
-                    {lowStockItems.length > 0 && (
+                    {/* Low Stock Filter Tab Pill (Admin Only) */}
+                    {isAdminUser && lowStockItems.length > 0 && (
                       <button
                         onClick={() => setShowOnlyLowStock(prev => !prev)}
                         className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
@@ -9006,7 +9087,7 @@ function StoreContent({ shopId }) {
                             key={item._id}
                             className={`group border rounded-[26px] overflow-hidden transition-all duration-300 hover:-translate-y-1 flex flex-col shadow-xs hover:shadow-xl ${itemOutOfStock
                               ? 'border-2 border-red-500 bg-red-50/50 ring-2 ring-red-400/40 shadow-lg shadow-red-500/20'
-                              : itemLowStock
+                              : (isAdminUser && itemLowStock)
                                 ? 'border-red-400 bg-red-50/20 ring-2 ring-red-300/40 shadow-md'
                                 : 'bg-white border-slate-200/90 hover:border-emerald-500'
                               }`}
@@ -9034,7 +9115,7 @@ function StoreContent({ shopId }) {
                                   <span className="bg-red-600 text-white text-[9.5px] font-black uppercase px-3 py-1 rounded-full shadow-lg border border-red-400 flex items-center gap-1.5 animate-pulse">
                                     <Lock className="w-3 h-3 text-white" /> 🚫 Out of Stock (0 Petis)
                                   </span>
-                                ) : itemLowStock ? (
+                                ) : (isAdminUser && itemLowStock) ? (
                                   <span className="bg-red-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full border border-red-400 shadow-lg shadow-red-500/30 backdrop-blur-md animate-pulse flex items-center gap-1">
                                     <AlertTriangle className="w-2.5 h-2.5 text-white" /> Low Stock: {itemStock}
                                   </span>
@@ -9063,7 +9144,7 @@ function StoreContent({ shopId }) {
                                   <Lock className="w-3.5 h-3.5 text-white shrink-0" />
                                   <span>🚫 Stock Finished / Sold Out (0 Available)</span>
                                 </div>
-                              ) : itemLowStock ? (
+                              ) : (isAdminUser && itemLowStock) ? (
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-red-600 text-white font-black text-[10px] uppercase justify-center shadow-sm animate-pulse border border-red-400">
                                   <AlertTriangle className="w-3.5 h-3.5 text-white" />
                                   <span>⚠️ Low Stock: Only {itemStock} Left!</span>
@@ -9101,47 +9182,38 @@ function StoreContent({ shopId }) {
                                       <span>+ Add to Bill</span>
                                     </button>
                                   ) : null}
-                                  {(isActionAllowed('store') && !isEditLocked && !isDeleteLocked) ? (
-                                    <div className="grid grid-cols-3 gap-2 w-full">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                        className="py-2 px-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
-                                        title="View Product Details"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 text-cyan-600" />
-                                        <span>View</span>
-                                      </button>
+                                  <div className="flex items-center gap-2 w-full">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                      className="flex-1 py-2 px-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                      title="View Product Details"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-cyan-600" />
+                                      <span>View</span>
+                                    </button>
 
+                                    {!isEditLocked && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setEditModalProduct(item); }}
-                                        className="py-2 px-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-blue-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        className="flex-1 py-2 px-1.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-blue-200 shadow-xs active:scale-95 transition-all cursor-pointer"
                                         title="Edit Product"
                                       >
                                         <Edit2 className="w-3.5 h-3.5" />
                                         <span>Edit</span>
                                       </button>
+                                    )}
 
+                                    {!isDeleteLocked && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); handleDirectDeleteProduct(item); }}
-                                        className="py-2 px-1.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-xs active:scale-95 transition-all cursor-pointer"
+                                        className="flex-1 py-2 px-1.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-xs active:scale-95 transition-all cursor-pointer"
                                         title="Delete Product"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                         <span>Delete</span>
                                       </button>
-                                    </div>
-                                  ) : (
-                                    <div className="w-full">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                        className="w-full py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-200 shadow-xs active:scale-95 transition-all cursor-pointer"
-                                        title="View Product Details (Read-Only Mode)"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 text-cyan-600" />
-                                        <span>View Details (Read-Only)</span>
-                                      </button>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
                               ) : canBuy ? (
                                 itemOutOfStock ? (
@@ -10861,8 +10933,8 @@ function StoreContent({ shopId }) {
                     </div>
                   </div>
 
-                  {/* Top 5 Dynamic Stat Cards (Yellow, Dark Green, Blue, Indigo Today Sales, Total Sales) */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {/* Top 4 Dynamic Stat Cards (Yellow, Dark Green, Blue, Total Sales) */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
                     {/* Card 1: Yellow - 💵 Cash Sales (In Drawer) */}
                     <div
                       onClick={() => setSalesReportPaymentFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH')}
@@ -10941,42 +11013,7 @@ function StoreContent({ shopId }) {
                       </span>
                     </div>
 
-                    {/* Card 4: Indigo / Purple - 📅 Today Sales (beside Credit Due) */}
-                    <div
-                      onClick={() => {
-                        if (reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL') {
-                          setReportTimeframe('ALL');
-                        } else {
-                          setReportTimeframe('DAY');
-                          setAppliedStartDate('');
-                          setAppliedEndDate('');
-                          setSalesReportPaymentFilter('ALL');
-                        }
-                      }}
-                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL'
-                          ? 'border-indigo-500 ring-4 ring-indigo-400/50 shadow-lg scale-[1.02] bg-indigo-50/40'
-                          : 'border-indigo-400/80 hover:shadow-md hover:border-indigo-500 hover:scale-[1.01]'
-                      }`}
-                      title="Click to view Today's Sales & customers"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9.5px] font-black text-indigo-800 uppercase tracking-widest flex items-center gap-1">
-                          📅 Today Sales
-                        </span>
-                        <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'DAY' && salesReportPaymentFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-indigo-100 text-indigo-700'}`}>
-                          <Calendar className="w-3.5 h-3.5" />
-                        </div>
-                      </div>
-                      <h4 className="text-xl sm:text-2xl font-black tracking-tight text-indigo-700">
-                        {currency} {Number(salesLiveBreakdown?.todayRevenue || todayMasterMetrics.todaySalesRevenue || 0).toLocaleString('en-PK')}
-                      </h4>
-                      <span className="text-[10px] font-black text-indigo-600 uppercase mt-1 block">
-                        {todayMasterMetrics.todaySalesCount} Bills &bull; {todayMasterMetrics.todaySalesPetis} Petis Today
-                      </span>
-                    </div>
-
-                    {/* Card 5: Green - Total Gross Sales (Right Side) */}
+                    {/* Card 4: Green - Total Gross Sales (Right Side) */}
                     <div
                       onClick={() => {
                         setReportTimeframe('ALL');
@@ -11666,14 +11703,22 @@ function StoreContent({ shopId }) {
                                                 invItems = inv.items;
                                               } else if (typeof inv.items === 'string' && inv.items.trim()) {
                                                 try { invItems = JSON.parse(inv.items); if (typeof invItems === 'string') invItems = JSON.parse(invItems); } catch {}
+                                              } else if (Array.isArray(inv.orderItems)) {
+                                                invItems = inv.orderItems;
+                                              } else if (Array.isArray(inv.saleItems)) {
+                                                invItems = inv.saleItems;
                                               }
                                               if (!Array.isArray(invItems)) invItems = [];
 
                                               invItems.forEach(it => {
-                                                const itemName = it.rawProductName || it.name || it.title || 'Product';
+                                                if (!it) return;
+                                                const rawName = (it.rawProductName || it.name || it.title || 'Eggs').trim();
+                                                const itemName = rawName.replace(/\s*\(.*?\)/g, '').trim() || 'Eggs';
                                                 const qty = Number(it.quantity) || 1;
-                                                const unit = (it.unitLabel || it.unit || '').trim();
-                                                const existing = customerItems.find(x => x.name === itemName && x.unit.toLowerCase() === unit.toLowerCase());
+                                                const rawUnit = (it.unitLabel || it.unit || 'peti').trim().toLowerCase();
+                                                const unit = rawUnit.includes('peti') ? 'Peti' : (rawUnit.includes('tray') ? 'Tray' : 'Egg');
+
+                                                const existing = customerItems.find(x => x.name.toLowerCase() === itemName.toLowerCase() && x.unit.toLowerCase() === unit.toLowerCase());
                                                 if (existing) {
                                                   existing.quantity += qty;
                                                 } else {
@@ -11681,53 +11726,99 @@ function StoreContent({ shopId }) {
                                                 }
 
                                                 const u = unit.toLowerCase();
-                                                const n = itemName.toLowerCase();
-                                                if (u.includes('peti') || (!u && n.includes('peti'))) {
+                                                if (u.includes('peti')) {
                                                   totalPetis += qty;
                                                   totalEggsCount += qty * 360;
-                                                } else if (u.includes('tray') || (!u && n.includes('tray'))) {
+                                                } else if (u.includes('tray')) {
                                                   totalTrays += qty;
                                                   totalEggsCount += qty * 30;
-                                                } else if (u.includes('egg') || u.includes('piece') || (!u && n.includes('egg'))) {
+                                                } else {
                                                   totalLooseEggs += qty;
                                                   totalEggsCount += qty;
-                                                } else {
-                                                  if (it.totalEggs) totalEggsCount += Number(it.totalEggs) || 0;
-                                                  else totalEggsCount += qty;
                                                 }
                                               });
 
-                                              // Fallback for bills where items array is empty (legacy or online unparsed bills)
-                                              if (invItems.length === 0) {
+                                              // Fallback 1: Parse from itemsDescription (e.g. "egg (10 peti)", "Golden (4 peti)", "egg x4 Peti")
+                                              if (customerItems.length === 0 && inv.itemsDescription) {
+                                                const descParts = String(inv.itemsDescription).split(',').map(s => s.trim()).filter(Boolean);
+                                                descParts.forEach(desc => {
+                                                  const match = desc.match(/^([^(x]+?)(?:\s*(?:x|\()\s*([\d\.]+)\s*([a-zA-Z]+))?/i);
+                                                  if (match) {
+                                                    const pName = (match[1] || 'Eggs').trim().replace(/\s*\(.*?\)/g, '') || 'Eggs';
+                                                    const pQty = Number(match[2]) || Number(inv.petisBought) || 1;
+                                                    const pUnitRaw = (match[3] || 'Peti').toLowerCase();
+                                                    const pUnit = pUnitRaw.includes('peti') ? 'Peti' : (pUnitRaw.includes('tray') ? 'Tray' : 'Egg');
+
+                                                    const existing = customerItems.find(x => x.name.toLowerCase() === pName.toLowerCase() && x.unit.toLowerCase() === pUnit.toLowerCase());
+                                                    if (existing) {
+                                                      existing.quantity += pQty;
+                                                    } else {
+                                                      customerItems.push({ name: pName, quantity: pQty, unit: pUnit });
+                                                    }
+                                                    if (pUnit === 'Peti') { totalPetis += pQty; totalEggsCount += pQty * 360; }
+                                                    else if (pUnit === 'Tray') { totalTrays += pQty; totalEggsCount += pQty * 30; }
+                                                    else { totalLooseEggs += pQty; totalEggsCount += pQty; }
+                                                  }
+                                                });
+                                              }
+
+                                              // Fallback 2: Parse from petisBought or eggsBought
+                                              if (customerItems.length === 0) {
                                                 const pBought = Number(inv.petisBought) || 0;
                                                 const eBought = Number(inv.eggsBought) || 0;
-                                                const desc = inv.itemsDescription || '';
-                                                const totAmt = Number(inv.totalAmount) || 0;
+                                                const fallbackName = inv.category || 'Eggs';
 
                                                 if (pBought > 0) {
                                                   totalPetis += pBought;
                                                   totalEggsCount += pBought * 360;
-                                                  customerItems.push({ name: desc || 'Eggs', quantity: pBought, unit: 'Peti' });
+                                                  customerItems.push({ name: fallbackName, quantity: pBought, unit: 'Peti' });
                                                 } else if (eBought > 0) {
-                                                  totalLooseEggs += eBought;
-                                                  totalEggsCount += eBought;
-                                                  customerItems.push({ name: desc || 'Eggs', quantity: eBought, unit: 'Egg' });
-                                                } else if (totAmt > 0) {
-                                                  const calcPetis = Number((totAmt / 1050).toFixed(1)) || 1;
-                                                  totalPetis += calcPetis;
-                                                  totalEggsCount += calcPetis * 360;
-                                                  customerItems.push({ name: desc || 'Eggs', quantity: calcPetis, unit: 'Peti' });
+                                                  const petisFromEggs = Number((eBought / 360).toFixed(1));
+                                                  if (petisFromEggs >= 1) {
+                                                    totalPetis += petisFromEggs;
+                                                    totalEggsCount += eBought;
+                                                    customerItems.push({ name: fallbackName, quantity: petisFromEggs, unit: 'Peti' });
+                                                  } else {
+                                                    totalLooseEggs += eBought;
+                                                    totalEggsCount += eBought;
+                                                    customerItems.push({ name: fallbackName, quantity: eBought, unit: 'Egg' });
+                                                  }
                                                 }
                                               }
+
+                                              // Fallback 3: Parse from inv.totalAmount
+                                              if (customerItems.length === 0 && Number(inv.totalAmount) > 0) {
+                                                const totAmt = Number(inv.totalAmount);
+                                                const calcPetis = Math.max(1, Number((totAmt / 1050).toFixed(1)));
+                                                totalPetis += calcPetis;
+                                                totalEggsCount += Math.round(calcPetis * 360);
+                                                customerItems.push({ name: 'Eggs', quantity: calcPetis, unit: 'Peti' });
+                                              }
                                             });
+
+                                            // Fallback 4: If STILL empty after all invoices, but customer has totalSpent > 0
+                                            if (customerItems.length === 0 && Number(custGroup.totalSpent) > 0) {
+                                              const spent = Number(custGroup.totalSpent);
+                                              const calcPetis = Math.max(1, Number((spent / 1050).toFixed(1)));
+                                              totalPetis += calcPetis;
+                                              totalEggsCount += Math.round(calcPetis * 360);
+                                              customerItems.push({ name: 'Eggs', quantity: calcPetis, unit: 'Peti' });
+                                            }
 
                                             if (customerItems.length === 0) {
                                               return <div className="text-center text-gray-400 italic text-[10px]">No items recorded</div>;
                                             }
 
+                                            if (totalPetis === 0 && totalEggsCount >= 360) {
+                                              totalPetis = Number((totalEggsCount / 360).toFixed(1));
+                                            }
+                                            if (totalTrays === 0 && totalEggsCount >= 30) {
+                                              totalTrays = Math.round(totalEggsCount / 30);
+                                            }
+
                                             return (
                                               <div className="flex items-center justify-center gap-1 flex-nowrap whitespace-nowrap">
-                                                {/* Product Pills - Simple Neutral */}
+                                                {/* Product Pills - Identical to Localhost */}
                                                 <div className="flex items-center gap-0.5 shrink-0">
                                                   {customerItems.map((it, itIdx) => (
                                                     <span
@@ -14317,7 +14408,7 @@ function StoreContent({ shopId }) {
                                       <div className="text-right">
                                         <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Loss</span>
                                         <span className="text-base font-black text-amber-700 block mt-0.5">
-                                          {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                          {currency} {(Number(dmg.totalLoss) > 0 ? Number(dmg.totalLoss) : (Number(dmg.lossAmount) || (Number(dmg.quantity || dmg.deductedEggs || 0) * (Number(dmg.unitPrice) || 0)) || 0)).toLocaleString('en-PK')}
                                         </span>
                                       </div>
                                     </div>
@@ -14468,7 +14559,7 @@ function StoreContent({ shopId }) {
                                           {currency} {(Number(dmg.unitPrice) || 0).toLocaleString('en-PK')}
                                         </td>
                                         <td className="p-3.5 font-black text-amber-700 text-sm">
-                                          {currency} {(Number(dmg.totalLoss) || 0).toLocaleString('en-PK')}
+                                          {currency} {(Number(dmg.totalLoss) > 0 ? Number(dmg.totalLoss) : (Number(dmg.lossAmount) || (Number(dmg.quantity || dmg.deductedEggs || 0) * (Number(dmg.unitPrice) || 0)) || 0)).toLocaleString('en-PK')}
                                         </td>
                                         <td className="p-3.5 text-slate-500 text-[11px]">
                                           {dmg.notes || dmg.reportedBy || 'Shop Admin'}
@@ -14607,60 +14698,110 @@ function StoreContent({ shopId }) {
               </div>
 
               {/* Highlight Box: Price & Stock */}
-              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs">
-                <div>
-                  <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Price per unit</p>
-                  <p className="text-xl font-black text-emerald-600 tracking-tight mt-0.5">
-                    {currency} {Number(selectedItem.price || 0).toLocaleString()}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Stock Status</p>
-                  <p className={`text-xs font-black px-2 py-0.5 rounded-lg inline-block mt-0.5 ${(Number(selectedItem.stock) || 0) <= 0
-                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                    : (Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5)
-                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    }`}>
-                    {(Number(selectedItem.stock) || 0) <= 0 ? 'Out of Stock' : `${selectedItem.stock} units`}
-                  </p>
-                </div>
-              </div>
-
-              {/* Units Breakdown Pills (Peti • Tray • Egg) */}
               {(() => {
+                const totalEggs = Number(selectedItem.stock || selectedItem.eggQuantity || 0);
                 const tPerPeti = Number(selectedItem.traysPerPeti) || 12;
                 const ePerTray = Number(selectedItem.eggsPerTray) || 30;
-                const ePerPeti = Number(selectedItem.eggsPerPeti) || (tPerPeti * ePerTray);
+                const ePerPeti = Number(selectedItem.eggsPerPeti) || (tPerPeti * ePerTray) || 360;
                 const pPrice = Number(selectedItem.price) || 0;
                 const tPrice = selectedItem.trayPrice || (pPrice > 0 ? Math.round(pPrice / tPerPeti) : 0);
                 const ePrice = selectedItem.eggPrice || (pPrice > 0 ? Math.round((pPrice / ePerPeti) * 10) / 10 : 0);
 
+                let stockPetis = 0;
+                if (selectedItem.petiQuantity !== undefined && selectedItem.petiQuantity !== null && Number(selectedItem.petiQuantity) > 0) {
+                  stockPetis = Number(selectedItem.petiQuantity);
+                } else if (ePerPeti > 0) {
+                  const pVal = totalEggs / ePerPeti;
+                  stockPetis = pVal % 1 === 0 ? pVal : Number(pVal.toFixed(1));
+                }
+
+                let stockTrays = 0;
+                if (selectedItem.trayQuantity !== undefined && selectedItem.trayQuantity !== null && Number(selectedItem.trayQuantity) > 0) {
+                  stockTrays = Number(selectedItem.trayQuantity);
+                } else if (ePerTray > 0) {
+                  const tVal = totalEggs / ePerTray;
+                  stockTrays = tVal % 1 === 0 ? tVal : Number(tVal.toFixed(1));
+                }
+
+                const stockEggs = totalEggs;
+
                 return (
-                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-amber-700 block uppercase">📦 1 Peti</span>
-                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {pPrice.toLocaleString()}</span>
+                  <>
+                    <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs">
+                      <div>
+                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Price per unit</p>
+                        <p className="text-xl font-black text-emerald-600 tracking-tight mt-0.5">
+                          {currency} {Number(selectedItem.price || 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider">Total Stock Status</p>
+                        <p className={`text-xs font-black px-2.5 py-1 rounded-lg inline-block mt-0.5 ${totalEggs <= 0
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : (isAdminUser && totalEggs <= (Number(selectedItem.minStock) || 5))
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          }`}>
+                          {totalEggs <= 0 ? 'Out of Stock' : `${stockPetis} Petis (${stockEggs.toLocaleString('en-PK')} units)`}
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-sky-700 block uppercase">🍱 1 Tray</span>
-                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {tPrice.toLocaleString()}</span>
+
+                    {/* Units Breakdown Pills (Peti • Tray • Egg) with Available Stock */}
+                    <div className="grid grid-cols-3 gap-2 pt-0.5">
+                      {/* Peti Box */}
+                      <div className="bg-amber-50/70 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-2.5 text-center flex flex-col justify-between shadow-xs transition-all">
+                        <div>
+                          <span className="text-[9.5px] font-black text-amber-800 block uppercase tracking-wider">📦 1 Peti</span>
+                          <span className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 block">{currency} {pPrice.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 pt-1.5 border-t border-amber-200/90">
+                          <span className="text-[8px] font-black text-amber-700/80 uppercase block tracking-wider">Available Stock</span>
+                          <span className="text-[11px] sm:text-xs font-black text-amber-900 block mt-0.5 tracking-tight">
+                            {stockPetis.toLocaleString('en-PK')} {stockPetis === 1 ? 'Peti' : 'Petis'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tray Box */}
+                      <div className="bg-sky-50/70 border-2 border-sky-200 hover:border-sky-400 rounded-2xl p-2.5 text-center flex flex-col justify-between shadow-xs transition-all">
+                        <div>
+                          <span className="text-[9.5px] font-black text-sky-800 block uppercase tracking-wider">🍱 1 Tray</span>
+                          <span className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 block">{currency} {tPrice.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 pt-1.5 border-t border-sky-200/90">
+                          <span className="text-[8px] font-black text-sky-700/80 uppercase block tracking-wider">Available Stock</span>
+                          <span className="text-[11px] sm:text-xs font-black text-sky-900 block mt-0.5 tracking-tight">
+                            {stockTrays.toLocaleString('en-PK')} {stockTrays === 1 ? 'Tray' : 'Trays'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Egg Box */}
+                      <div className="bg-emerald-50/70 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-2.5 text-center flex flex-col justify-between shadow-xs transition-all">
+                        <div>
+                          <span className="text-[9.5px] font-black text-emerald-800 block uppercase tracking-wider">🥚 1 Egg</span>
+                          <span className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 block">{currency} {ePrice}</span>
+                        </div>
+                        <div className="mt-2 pt-1.5 border-t border-emerald-200/90">
+                          <span className="text-[8px] font-black text-emerald-700/80 uppercase block tracking-wider">Available Stock</span>
+                          <span className="text-[11px] sm:text-xs font-black text-emerald-900 block mt-0.5 tracking-tight">
+                            {stockEggs.toLocaleString('en-PK')} Eggs
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-1.5 text-center">
-                      <span className="text-[8.5px] font-bold text-emerald-700 block uppercase">🥚 1 Egg</span>
-                      <span className="text-[11px] font-black text-slate-900 mt-0.5 block">{currency} {ePrice}</span>
-                    </div>
-                  </div>
+
+                    {/* Low Stock Alert (Admin Only) */}
+                    {(isAdminUser && totalEggs > 0 && (totalEggs <= (Number(selectedItem.minStock) || 5) || totalEggs <= 5)) && (
+                      <div className="p-2.5 bg-red-600 border border-red-400 rounded-xl text-white font-black text-[11px] uppercase flex items-center justify-center gap-1.5 shadow-sm animate-pulse">
+                        <AlertTriangle className="w-3.5 h-3.5 text-white" />
+                        <span>⚠️ Low Stock: Only {totalEggs} eggs left in stock!</span>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
-
-              {/* Low Stock or Out of Stock Alert */}
-              {((Number(selectedItem.stock) || 0) > 0 && ((Number(selectedItem.stock) || 0) <= (Number(selectedItem.minStock) || 5) || (Number(selectedItem.stock) || 0) <= 5)) && (
-                <div className="p-2.5 bg-red-600 border border-red-400 rounded-xl text-white font-black text-[11px] uppercase flex items-center justify-center gap-1.5 shadow-sm animate-pulse">
-                  <AlertTriangle className="w-3.5 h-3.5 text-white" />
-                  <span>⚠️ Low Stock: Only {selectedItem.stock} left in stock!</span>
-                </div>
-              )}
 
               {(Number(selectedItem.stock) || 0) <= 0 && (
                 <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-red-700 font-bold text-[10.5px] flex items-center gap-1.5">
@@ -14773,7 +14914,7 @@ function StoreContent({ shopId }) {
       />
 
       {/* ─── LOW STOCK ALERT & QUICK PURCHASE MODAL ─── */}
-      {lowStockModalOpen && (
+      {isAdminUser && lowStockModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white border border-rose-200 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Header */}
@@ -15337,15 +15478,16 @@ function StoreContent({ shopId }) {
 
       {/* ─── ADD DAMAGED PRODUCT MODAL ─── */}
       {showAddDamagedModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-600 font-black text-sm uppercase tracking-wider">
-                <PackageX className="w-5 h-5" /> Log Damaged Product / Stock Loss
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-[420px] max-h-[92vh] flex flex-col rounded-2xl p-3.5 sm:p-4 shadow-2xl border border-zinc-200 text-zinc-900 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2 mb-2 shrink-0">
+              <div className="flex items-center gap-1.5 text-amber-600 font-black text-xs uppercase tracking-wider">
+                <PackageX className="w-4 h-4" /> Log Damaged Product / Stock Loss
               </div>
               <button
+                type="button"
                 onClick={() => setShowAddDamagedModal(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-xs transition-all cursor-pointer"
               >
                 ✕
               </button>
@@ -15353,62 +15495,86 @@ function StoreContent({ shopId }) {
 
             {(() => {
               const selectedProduct = (items || []).find(i =>
-                String(i._id) === String(damagedFormData.productId) ||
+                String(i._id || i.id) === String(damagedFormData.productId) ||
                 (damagedFormData.productName && i.name?.toLowerCase().trim() === damagedFormData.productName.toLowerCase().trim())
               );
 
-              const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
-              const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+              const tPerP = Math.max(1, Number(selectedProduct?.traysPerPeti) || 12);
+              const ePerT = Math.max(1, Number(selectedProduct?.eggsPerTray) || 30);
               const ePerP = tPerP * ePerT;
 
-              const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
-              const pUnit = selectedProduct?.unitType || 'peti';
+              const basePrice = Number(
+                selectedProduct?.costPrice ||
+                selectedProduct?.buyCost ||
+                selectedProduct?.purchasePrice ||
+                selectedProduct?.price ||
+                selectedProduct?.salePrice ||
+                selectedProduct?.unitPrice ||
+                Number(damagedFormData.unitPrice) ||
+                0
+              );
+              const pUnit = String(selectedProduct?.unitType || 'peti').toLowerCase().trim();
 
-              let petiPrice = 0;
-              let trayPrice = 0;
-              let eggPrice = 0;
+              let petiPrice = Number(selectedProduct?.pricePerPeti) || 0;
+              let trayPrice = Number(selectedProduct?.pricePerTray) || 0;
+              let eggPrice = Number(selectedProduct?.pricePerEgg) || 0;
 
-              if (selectedProduct && basePrice > 0) {
-                if (pUnit === 'peti') {
-                  petiPrice = basePrice;
-                  trayPrice = Math.round((basePrice / tPerP) * 10) / 10;
-                  eggPrice = Math.round((basePrice / ePerP) * 10) / 10;
-                } else if (pUnit === 'tray') {
-                  petiPrice = Math.round(basePrice * tPerP);
-                  trayPrice = basePrice;
-                  eggPrice = Math.round((basePrice / ePerT) * 10) / 10;
-                } else {
-                  petiPrice = Math.round(basePrice * ePerP);
-                  trayPrice = Math.round(basePrice * ePerT);
-                  eggPrice = basePrice;
+              if (petiPrice <= 0 || trayPrice <= 0 || eggPrice <= 0) {
+                if (basePrice > 0) {
+                  if (pUnit === 'peti') {
+                    petiPrice = basePrice;
+                    trayPrice = Math.round((basePrice / tPerP) * 100) / 100;
+                    eggPrice = Math.round((basePrice / ePerP) * 100) / 100;
+                  } else if (pUnit === 'tray') {
+                    petiPrice = Math.round((basePrice * tPerP) * 100) / 100;
+                    trayPrice = basePrice;
+                    eggPrice = Math.round((basePrice / ePerT) * 100) / 100;
+                  } else {
+                    petiPrice = Math.round((basePrice * ePerP) * 100) / 100;
+                    trayPrice = Math.round((basePrice * ePerT) * 100) / 100;
+                    eggPrice = basePrice;
+                  }
+                } else if (Number(damagedFormData.unitPrice) > 0) {
+                  const uVal = Number(damagedFormData.unitPrice);
+                  petiPrice = uVal;
+                  trayPrice = Math.round((uVal / tPerP) * 100) / 100;
+                  eggPrice = Math.round((uVal / ePerP) * 100) / 100;
                 }
               }
 
               return (
-                <form onSubmit={handleAddDamagedSubmit} className="space-y-4">
+                <form onSubmit={handleAddDamagedSubmit} className="space-y-2 overflow-y-auto pr-1 flex-1">
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Product Name *</label>
                     <select
                       value={damagedFormData.productId || ''}
                       onChange={e => {
-                        const selected = items.find(i => String(i._id) === String(e.target.value));
+                        const selected = items.find(i => String(i._id || i.id) === String(e.target.value));
                         if (selected) {
-                          const sTPerP = Number(selected.traysPerPeti) || 12;
-                          const sEPerT = Number(selected.eggsPerTray) || 30;
+                          const sTPerP = Math.max(1, Number(selected.traysPerPeti) || 12);
+                          const sEPerT = Math.max(1, Number(selected.eggsPerTray) || 30);
                           const sEPerP = sTPerP * sEPerT;
-                          const sBasePrice = Number(selected.price || selected.costPrice || selected.salePrice || 0);
-                          const sUnit = selected.unitType || 'peti';
+                          const sBasePrice = Number(
+                            selected.costPrice ||
+                            selected.buyCost ||
+                            selected.purchasePrice ||
+                            selected.price ||
+                            selected.salePrice ||
+                            selected.unitPrice ||
+                            0
+                          );
+                          const sUnit = String(selected.unitType || 'peti').toLowerCase().trim();
 
                           let defaultPrice = sBasePrice;
                           if (sUnit === 'peti') {
                             defaultPrice = (damagedFormData.unitType === 'egg')
-                              ? Math.round((sBasePrice / sEPerP) * 10) / 10
-                              : (damagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 10) / 10 : sBasePrice);
+                              ? Math.round((sBasePrice / sEPerP) * 100) / 100
+                              : (damagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 100) / 100 : sBasePrice);
                           }
 
                           setDamagedFormData(prev => ({
                             ...prev,
-                            productId: selected._id,
+                            productId: selected._id || selected.id,
                             productName: selected.name,
                             unitPrice: defaultPrice || ''
                           }));
@@ -15416,12 +15582,12 @@ function StoreContent({ shopId }) {
                           setDamagedFormData(prev => ({ ...prev, productId: '', productName: '', unitType: 'egg', unitPrice: '' }));
                         }
                       }}
-                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-1.5"
                     >
                       <option value="">-- Select Catalog Item (Optional) --</option>
                       {(items || []).map(i => (
-                        <option key={i._id} value={i._id}>
-                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} Petis / {i.eggQuantity || i.stock || 0} Eggs)
+                        <option key={i._id || i.id} value={i._id || i.id}>
+                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} P / {i.eggQuantity || i.stock || 0} Eggs)
                         </option>
                       ))}
                       <option value="CUSTOM">Custom Product Name</option>
@@ -15433,19 +15599,36 @@ function StoreContent({ shopId }) {
                       placeholder="e.g. Loman Brown Eggs, Golden Eggs..."
                       value={damagedFormData.productName}
                       onChange={e => setDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     />
+
+                    {(!selectedProduct || basePrice === 0) && (
+                      <div className="mt-1">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-amber-700 block mb-0.5">
+                          Cost / Rate per Peti (RS)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="e.g. 7200"
+                          value={damagedFormData.unitPrice}
+                          onChange={e => setDamagedFormData(prev => ({ ...prev, unitPrice: e.target.value }))}
+                          className="w-full px-2.5 py-1 bg-amber-50/70 border border-amber-300 rounded-lg text-xs font-bold text-amber-950 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* ─── 3 SEPARATE DAMAGED QUANTITY INPUTS: PETI, TRAY, EGG ─── */}
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600 block mb-1.5">
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-600 block mb-1">
                       Damaged Quantities (Petis / Trays / Eggs) *
                     </label>
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-3 gap-2">
                       {/* Petis Damaged */}
-                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 text-center focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
+                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-1.5 text-center focus-within:border-amber-500 transition-all">
+                        <span className="text-[8.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
                         <input
                           type="number"
                           min="0"
@@ -15453,16 +15636,16 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={damagedFormData.petiQuantity}
                           onChange={e => setDamagedFormData(prev => ({ ...prev, petiQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-amber-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-amber-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-amber-700 font-bold block mt-0.5">
-                          {petiPrice > 0 ? `Rs. ${petiPrice}/Peti` : '360 Eggs'}
+                        <span className="text-[8px] text-amber-700 font-bold block mt-0.5">
+                          {petiPrice > 0 ? `Rs. ${petiPrice}/P` : '360 Eggs'}
                         </span>
                       </div>
 
                       {/* Trays Damaged */}
-                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-2.5 text-center focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
+                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-xl p-1.5 text-center focus-within:border-sky-500 transition-all">
+                        <span className="text-[8.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
                         <input
                           type="number"
                           min="0"
@@ -15470,16 +15653,16 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={damagedFormData.trayQuantity}
                           onChange={e => setDamagedFormData(prev => ({ ...prev, trayQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-sky-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-sky-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-sky-700 font-bold block mt-0.5">
-                          {trayPrice > 0 ? `Rs. ${trayPrice}/Tray` : '30 Eggs'}
+                        <span className="text-[8px] text-sky-700 font-bold block mt-0.5">
+                          {trayPrice > 0 ? `Rs. ${trayPrice}/T` : '30 Eggs'}
                         </span>
                       </div>
 
                       {/* Eggs Damaged */}
-                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-2.5 text-center focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
+                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-1.5 text-center focus-within:border-emerald-500 transition-all">
+                        <span className="text-[8.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
                         <input
                           type="number"
                           min="0"
@@ -15487,21 +15670,21 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={damagedFormData.eggQuantity}
                           onChange={e => setDamagedFormData(prev => ({ ...prev, eggQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-emerald-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-emerald-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-emerald-700 font-bold block mt-0.5">
-                          {eggPrice > 0 ? `Rs. ${eggPrice}/Egg` : '1 Egg'}
+                        <span className="text-[8px] text-emerald-700 font-bold block mt-0.5">
+                          {eggPrice > 0 ? `Rs. ${eggPrice}/E` : '1 Egg'}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Reason / Cause</label>
                     <select
                       value={damagedFormData.reason}
                       onChange={e => setDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     >
                       <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
                       <option value="Spoiled / Expired">Spoiled / Expired</option>
@@ -15512,7 +15695,7 @@ function StoreContent({ shopId }) {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Total Loss Amount (RS)</label>
                     {(() => {
                       const pQ = Number(damagedFormData.petiQuantity || 0);
                       const tQ = Number(damagedFormData.trayQuantity || 0);
@@ -15521,55 +15704,55 @@ function StoreContent({ shopId }) {
                       const totalLossCalc = Math.round((pQ * petiPrice) + (tQ * trayPrice) + (eQ * eggPrice));
 
                       return (
-                        <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700 flex items-center justify-between">
+                        <div className="w-full px-2.5 py-1.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-black text-amber-700 flex items-center justify-between">
                           <div>
-                            <span className="text-sm">RS {totalLossCalc.toLocaleString('en-PK')}</span>
+                            <span className="text-xs">RS {totalLossCalc.toLocaleString('en-PK')}</span>
                             {totalDmgE > 0 && (
-                              <span className="text-[9.5px] text-amber-900 font-bold block">
-                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} Petis / {(totalDmgE / ePerT).toFixed(1)} Trays)
+                              <span className="text-[8.5px] text-amber-900 font-bold block">
+                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} P / {(totalDmgE / ePerT).toFixed(1)} T)
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-amber-800 font-bold">⚠️ Deducted automatically from product stock</span>
+                          <span className="text-[8.5px] text-amber-800 font-bold">⚠️ Deducted from stock</span>
                         </div>
                       );
                     })()}
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Damage Date</label>
                     <input
                       type="date"
                       value={damagedFormData.damageDate}
                       onChange={e => setDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Notes / Remarks (Optional)</label>
                     <textarea
-                      rows="2"
+                      rows="1"
                       placeholder="e.g. Cracked during transport tray unloading..."
                       value={damagedFormData.notes}
                       onChange={e => setDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
-                      className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
                     ></textarea>
                   </div>
 
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowAddDamagedModal(false)}
-                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                      className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-md shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
                     >
-                      <Plus className="w-4 h-4" /> Save Damaged Log
+                      <Plus className="w-3.5 h-3.5" /> Save Damaged Log
                     </button>
                   </div>
                 </form>
@@ -15581,16 +15764,16 @@ function StoreContent({ shopId }) {
 
       {/* ─── EDIT DAMAGED PRODUCT MODAL ─── */}
       {editDamagedModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-zinc-200 text-zinc-900 space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-600 font-black text-sm uppercase tracking-wider">
-                <Edit2 className="w-5 h-5" /> Edit Damaged Stock Entry
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-[420px] max-h-[92vh] flex flex-col rounded-2xl p-3.5 sm:p-4 shadow-2xl border border-zinc-200 text-zinc-900 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-2 mb-2 shrink-0">
+              <div className="flex items-center gap-1.5 text-amber-600 font-black text-xs uppercase tracking-wider">
+                <Edit2 className="w-4 h-4" /> Edit Damaged Stock Entry
               </div>
               <button
                 type="button"
                 onClick={() => setEditDamagedModal(null)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-amber-100 text-zinc-500 hover:text-amber-600 flex items-center justify-center font-bold text-xs transition-all cursor-pointer"
               >
                 ✕
               </button>
@@ -15602,57 +15785,77 @@ function StoreContent({ shopId }) {
                 (editDamagedFormData.productName && i.name?.toLowerCase().trim() === editDamagedFormData.productName.toLowerCase().trim())
               );
 
-              const tPerP = Number(selectedProduct?.traysPerPeti) || 12;
-              const ePerT = Number(selectedProduct?.eggsPerTray) || 30;
+              const tPerP = Math.max(1, Number(selectedProduct?.traysPerPeti) || 12);
+              const ePerT = Math.max(1, Number(selectedProduct?.eggsPerTray) || 30);
               const ePerP = tPerP * ePerT;
 
-              const basePrice = Number(selectedProduct?.price || selectedProduct?.costPrice || selectedProduct?.salePrice || 0);
-              const pUnit = selectedProduct?.unitType || 'peti';
+              const basePrice = Number(
+                selectedProduct?.costPrice ||
+                selectedProduct?.buyCost ||
+                selectedProduct?.purchasePrice ||
+                selectedProduct?.price ||
+                selectedProduct?.salePrice ||
+                selectedProduct?.unitPrice ||
+                Number(editDamagedFormData.unitPrice) ||
+                0
+              );
+              const pUnit = String(selectedProduct?.unitType || 'peti').toLowerCase().trim();
 
-              let petiPrice = 0;
-              let trayPrice = 0;
-              let eggPrice = 0;
+              let petiPrice = Number(selectedProduct?.pricePerPeti) || 0;
+              let trayPrice = Number(selectedProduct?.pricePerTray) || 0;
+              let eggPrice = Number(selectedProduct?.pricePerEgg) || 0;
 
-              if (selectedProduct && basePrice > 0) {
-                if (pUnit === 'peti') {
-                  petiPrice = basePrice;
-                  trayPrice = Math.round((basePrice / tPerP) * 10) / 10;
-                  eggPrice = Math.round((basePrice / ePerP) * 10) / 10;
-                } else if (pUnit === 'tray') {
-                  petiPrice = Math.round(basePrice * tPerP);
-                  trayPrice = basePrice;
-                  eggPrice = Math.round((basePrice / ePerT) * 10) / 10;
-                } else {
-                  petiPrice = Math.round(basePrice * ePerP);
-                  trayPrice = Math.round(basePrice * ePerT);
-                  eggPrice = basePrice;
+              if (petiPrice <= 0 || trayPrice <= 0 || eggPrice <= 0) {
+                if (basePrice > 0) {
+                  if (pUnit === 'peti') {
+                    petiPrice = basePrice;
+                    trayPrice = Math.round((basePrice / tPerP) * 100) / 100;
+                    eggPrice = Math.round((basePrice / ePerP) * 100) / 100;
+                  } else if (pUnit === 'tray') {
+                    petiPrice = Math.round((basePrice * tPerP) * 100) / 100;
+                    trayPrice = basePrice;
+                    eggPrice = Math.round((basePrice / ePerT) * 100) / 100;
+                  } else {
+                    petiPrice = Math.round((basePrice * ePerP) * 100) / 100;
+                    trayPrice = Math.round((basePrice * ePerT) * 100) / 100;
+                    eggPrice = basePrice;
+                  }
+                } else if (Number(editDamagedFormData.unitPrice) > 0) {
+                  const uVal = Number(editDamagedFormData.unitPrice);
+                  petiPrice = uVal;
+                  trayPrice = Math.round((uVal / tPerP) * 100) / 100;
+                  eggPrice = Math.round((uVal / ePerP) * 100) / 100;
                 }
-              } else if (Number(editDamagedFormData.unitPrice) > 0) {
-                eggPrice = Number(editDamagedFormData.unitPrice);
-                trayPrice = eggPrice * ePerT;
-                petiPrice = eggPrice * ePerP;
               }
 
               return (
-                <form onSubmit={handleEditDamagedSubmit} className="space-y-4">
+                <form onSubmit={handleEditDamagedSubmit} className="space-y-2 overflow-y-auto pr-1 flex-1">
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Product Name *</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Product Name *</label>
                     <select
                       value={editDamagedFormData.productId || ''}
                       onChange={e => {
                         const selected = items.find(i => String(i._id || i.id) === String(e.target.value));
                         if (selected) {
-                          const sTPerP = Number(selected.traysPerPeti) || 12;
-                          const sEPerT = Number(selected.eggsPerTray) || 30;
+                          const sTPerP = Math.max(1, Number(selected.traysPerPeti) || 12);
+                          const sEPerT = Math.max(1, Number(selected.eggsPerTray) || 30);
                           const sEPerP = sTPerP * sEPerT;
-                          const sBasePrice = Number(selected.price || selected.costPrice || selected.salePrice || 0);
-                          const sUnit = selected.unitType || 'peti';
+                          const sBasePrice = Number(
+                            selected.costPrice ||
+                            selected.buyCost ||
+                            selected.purchasePrice ||
+                            selected.price ||
+                            selected.salePrice ||
+                            selected.unitPrice ||
+                            0
+                          );
+                          const sUnit = String(selected.unitType || 'peti').toLowerCase().trim();
 
                           let defaultPrice = sBasePrice;
                           if (sUnit === 'peti') {
                             defaultPrice = (editDamagedFormData.unitType === 'egg')
-                              ? Math.round((sBasePrice / sEPerP) * 10) / 10
-                              : (editDamagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 10) / 10 : sBasePrice);
+                              ? Math.round((sBasePrice / sEPerP) * 100) / 100
+                              : (editDamagedFormData.unitType === 'tray' ? Math.round((sBasePrice / sTPerP) * 100) / 100 : sBasePrice);
                           }
 
                           setEditDamagedFormData(prev => ({
@@ -15665,12 +15868,12 @@ function StoreContent({ shopId }) {
                           setEditDamagedFormData(prev => ({ ...prev, productId: '', productName: '', unitType: 'egg', unitPrice: '' }));
                         }
                       }}
-                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-2"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500 mb-1.5"
                     >
                       <option value="">-- Select Catalog Item (Optional) --</option>
                       {(items || []).map(i => (
                         <option key={i._id || i.id} value={i._id || i.id}>
-                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} Petis / {i.eggQuantity || i.stock || 0} Eggs)
+                          {i.name} (Stock: {(Number(i.petiQuantity) || 0).toFixed(1)} P / {i.eggQuantity || i.stock || 0} Eggs)
                         </option>
                       ))}
                       <option value="CUSTOM">Custom Product Name</option>
@@ -15682,19 +15885,36 @@ function StoreContent({ shopId }) {
                       placeholder="e.g. Loman Brown Eggs, Golden Eggs..."
                       value={editDamagedFormData.productName}
                       onChange={e => setEditDamagedFormData(prev => ({ ...prev, productName: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     />
+
+                    {(!selectedProduct || basePrice === 0) && (
+                      <div className="mt-1">
+                        <label className="text-[9px] font-black uppercase tracking-wider text-amber-700 block mb-0.5">
+                          Cost / Rate per Peti (RS)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="e.g. 7200"
+                          value={editDamagedFormData.unitPrice}
+                          onChange={e => setEditDamagedFormData(prev => ({ ...prev, unitPrice: e.target.value }))}
+                          className="w-full px-2.5 py-1 bg-amber-50/70 border border-amber-300 rounded-lg text-xs font-bold text-amber-950 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* ─── 3 SEPARATE DAMAGED QUANTITY INPUTS: PETI, TRAY, EGG ─── */}
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600 block mb-1.5">
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-600 block mb-1">
                       Damaged Quantities (Petis / Trays / Eggs) *
                     </label>
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-3 gap-2">
                       {/* Petis Damaged */}
-                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 text-center focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
+                      <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-1.5 text-center focus-within:border-amber-500 transition-all">
+                        <span className="text-[8.5px] font-black text-amber-900 uppercase block tracking-wider">Petis</span>
                         <input
                           type="number"
                           min="0"
@@ -15702,16 +15922,16 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={editDamagedFormData.petiQuantity}
                           onChange={e => setEditDamagedFormData(prev => ({ ...prev, petiQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-amber-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-amber-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-amber-700 font-bold block mt-0.5">
-                          {petiPrice > 0 ? `Rs. ${petiPrice}/Peti` : '360 Eggs'}
+                        <span className="text-[8px] text-amber-700 font-bold block mt-0.5">
+                          {petiPrice > 0 ? `Rs. ${petiPrice}/P` : '360 Eggs'}
                         </span>
                       </div>
 
                       {/* Trays Damaged */}
-                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-2xl p-2.5 text-center focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
+                      <div className="bg-sky-50/70 border border-sky-200/90 rounded-xl p-1.5 text-center focus-within:border-sky-500 transition-all">
+                        <span className="text-[8.5px] font-black text-sky-900 uppercase block tracking-wider">Trays</span>
                         <input
                           type="number"
                           min="0"
@@ -15719,16 +15939,16 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={editDamagedFormData.trayQuantity}
                           onChange={e => setEditDamagedFormData(prev => ({ ...prev, trayQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-sky-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-sky-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-sky-700 font-bold block mt-0.5">
-                          {trayPrice > 0 ? `Rs. ${trayPrice}/Tray` : '30 Eggs'}
+                        <span className="text-[8px] text-sky-700 font-bold block mt-0.5">
+                          {trayPrice > 0 ? `Rs. ${trayPrice}/T` : '30 Eggs'}
                         </span>
                       </div>
 
                       {/* Eggs Damaged */}
-                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-2.5 text-center focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
-                        <span className="text-[9.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
+                      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-1.5 text-center focus-within:border-emerald-500 transition-all">
+                        <span className="text-[8.5px] font-black text-emerald-900 uppercase block tracking-wider">Eggs</span>
                         <input
                           type="number"
                           min="0"
@@ -15736,21 +15956,21 @@ function StoreContent({ shopId }) {
                           placeholder="0"
                           value={editDamagedFormData.eggQuantity}
                           onChange={e => setEditDamagedFormData(prev => ({ ...prev, eggQuantity: e.target.value }))}
-                          className="w-full text-center text-sm font-black text-emerald-950 bg-transparent focus:outline-none mt-1"
+                          className="w-full text-center text-xs font-black text-emerald-950 bg-transparent focus:outline-none mt-0.5"
                         />
-                        <span className="text-[8.5px] text-emerald-700 font-bold block mt-0.5">
-                          {eggPrice > 0 ? `Rs. ${eggPrice}/Egg` : '1 Egg'}
+                        <span className="text-[8px] text-emerald-700 font-bold block mt-0.5">
+                          {eggPrice > 0 ? `Rs. ${eggPrice}/E` : '1 Egg'}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Reason / Cause</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Reason / Cause</label>
                     <select
                       value={editDamagedFormData.reason}
                       onChange={e => setEditDamagedFormData(prev => ({ ...prev, reason: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     >
                       <option value="Egg Breakage / Crack">Egg Breakage / Crack</option>
                       <option value="Spoiled / Expired">Spoiled / Expired</option>
@@ -15761,7 +15981,7 @@ function StoreContent({ shopId }) {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Total Loss Amount (RS)</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Total Loss Amount (RS)</label>
                     {(() => {
                       const pQ = Number(editDamagedFormData.petiQuantity || 0);
                       const tQ = Number(editDamagedFormData.trayQuantity || 0);
@@ -15770,55 +15990,55 @@ function StoreContent({ shopId }) {
                       const totalLossCalc = Math.round((pQ * petiPrice) + (tQ * trayPrice) + (eQ * eggPrice));
 
                       return (
-                        <div className="w-full px-4 py-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs font-black text-amber-700 flex items-center justify-between">
+                        <div className="w-full px-2.5 py-1.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-black text-amber-700 flex items-center justify-between">
                           <div>
-                            <span className="text-sm">RS {totalLossCalc.toLocaleString('en-PK')}</span>
+                            <span className="text-xs">RS {totalLossCalc.toLocaleString('en-PK')}</span>
                             {totalDmgE > 0 && (
-                              <span className="text-[9.5px] text-amber-900 font-bold block">
-                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} Petis / {(totalDmgE / ePerT).toFixed(1)} Trays)
+                              <span className="text-[8.5px] text-amber-900 font-bold block">
+                                Total {totalDmgE} Eggs ({(totalDmgE / ePerP).toFixed(1)} P / {(totalDmgE / ePerT).toFixed(1)} T)
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-amber-800 font-bold">⚠️ Stock adjusts dynamically</span>
+                          <span className="text-[8.5px] text-amber-800 font-bold">⚠️ Stock adjusts dynamically</span>
                         </div>
                       );
                     })()}
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Damage Date</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Damage Date</label>
                     <input
                       type="date"
                       value={editDamagedFormData.damageDate}
                       onChange={e => setEditDamagedFormData(prev => ({ ...prev, damageDate: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-bold text-zinc-900 focus:outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500 block mb-1">Notes / Remarks (Optional)</label>
+                    <label className="text-[9.5px] font-black uppercase tracking-wider text-zinc-500 block mb-0.5">Notes / Remarks (Optional)</label>
                     <textarea
-                      rows="2"
+                      rows="1"
                       placeholder="e.g. Cracked during transport tray unloading..."
                       value={editDamagedFormData.notes}
                       onChange={e => setEditDamagedFormData(prev => ({ ...prev, notes: e.target.value }))}
-                      className="w-full px-4 py-2 bg-zinc-50 border border-zinc-300 rounded-xl text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
+                      className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-900 focus:outline-none focus:border-amber-500"
                     ></textarea>
                   </div>
 
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100">
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 shrink-0">
                     <button
                       type="button"
                       onClick={() => setEditDamagedModal(null)}
-                      className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                      className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-md shadow-amber-600/30 transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4" /> Save Changes
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Save Changes
                     </button>
                   </div>
                 </form>

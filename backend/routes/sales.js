@@ -21,6 +21,190 @@ import Settings from '../models/Settings.js';
 import Shop from '../models/Shop.js';
 import { authenticate, requireShopAdmin, preventSuperAdmin } from '../middleware/auth.js';
 import { resolveShopId } from '../utils/shopResolver.js';
+import pool from '../config/mysql.js';
+import { BRANCH_TABLE_PREFIXES } from '../models/dbHelper.js';
+
+// Helper to dynamically hydrate items on any sale record (online & local branches)
+const hydrateSaleItems = async (s, branchPrefix = 'peshawar_branch') => {
+  if (!s) return s;
+
+  let items = [];
+  if (Array.isArray(s.items)) {
+    items = s.items;
+  } else if (typeof s.items === 'string' && s.items.trim()) {
+    try {
+      items = JSON.parse(s.items);
+      if (typeof items === 'string') items = JSON.parse(items);
+    } catch (_) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+
+  // 1. If items is empty, try querying sale_items table
+  if (items.length === 0 && (s.id || s._id)) {
+    const saleId = s.id || s._id;
+    try {
+      let [rows] = await pool.query(
+        `SELECT * FROM \`${branchPrefix}__sale_items\` WHERE saleId = ?`,
+        [saleId]
+      ).catch(() => [[]]);
+
+      if (!rows || rows.length === 0) {
+        [rows] = await pool.query(
+          `SELECT * FROM \`sale_items\` WHERE saleId = ?`,
+          [saleId]
+        ).catch(() => [[]]);
+      }
+
+      if (rows && rows.length > 0) {
+        items = rows.map(r => {
+          const qty = Number(r.quantity) || 1;
+          const rawUnit = (r.unit || r.unitType || 'peti').toLowerCase();
+          const unit = rawUnit.includes('peti') ? 'peti' : (rawUnit.includes('tray') ? 'tray' : 'egg');
+          const unitLabel = unit === 'peti' ? 'Peti' : (unit === 'tray' ? 'Tray' : 'Egg');
+          const tEggs = Number(r.totalEggs) > 0 ? Number(r.totalEggs) : (unit === 'peti' ? qty * 360 : (unit === 'tray' ? qty * 30 : qty));
+          const name = r.name || 'Eggs';
+          return {
+            productId: r.productId,
+            name,
+            rawProductName: name,
+            quantity: qty,
+            unit,
+            unitLabel,
+            totalEggs: tEggs,
+            price: Number(r.price) || 0,
+            costPrice: Number(r.costPrice) || 0,
+            subtotal: Number(r.subtotal) || 0,
+            profit: Number(r.profit) || 0
+          };
+        });
+      }
+    } catch (_) {}
+  }
+
+  // 2. If items is still empty, look up in customer_payment_ledger
+  if (items.length === 0 && (s.id || s.invoiceNumber)) {
+    try {
+      let [cplRows] = await pool.query(
+        `SELECT * FROM \`${branchPrefix}__customer_payment_ledger\` WHERE saleId = ? OR invoiceNumber = ? LIMIT 1`,
+        [String(s.id || s._id), String(s.invoiceNumber || '')]
+      ).catch(() => [[]]);
+
+      if (!cplRows || cplRows.length === 0) {
+        [cplRows] = await pool.query(
+          `SELECT * FROM \`customer_payment_ledger\` WHERE saleId = ? OR invoiceNumber = ? LIMIT 1`,
+          [String(s.id || s._id), String(s.invoiceNumber || '')]
+        ).catch(() => [[]]);
+      }
+
+      if (cplRows && cplRows.length > 0) {
+        const c = cplRows[0];
+        if (c.items) {
+          try {
+            const parsed = typeof c.items === 'string' ? JSON.parse(c.items) : c.items;
+            if (Array.isArray(parsed) && parsed.length > 0) items = parsed;
+          } catch (_) {}
+        }
+        if (items.length === 0 && c.itemsDescription) {
+          s.itemsDescription = c.itemsDescription;
+        }
+        if (!s.petisBought && Number(c.petisBought) > 0) s.petisBought = Number(c.petisBought);
+        if (!s.eggsBought && Number(c.eggsBought) > 0) s.eggsBought = Number(c.eggsBought);
+      }
+    } catch (_) {}
+  }
+
+  // 3. Parse items from itemsDescription (e.g. "egg x4 Peti", "Golden (4 peti)", "Breeder (1 Peti)", "egg (10 peti)")
+  if (items.length === 0 && s.itemsDescription && typeof s.itemsDescription === 'string') {
+    const parts = s.itemsDescription.split(',').map(p => p.trim()).filter(Boolean);
+    parts.forEach(part => {
+      const match = part.match(/^([^(x]+?)(?:\s*(?:x|\()\s*([\d\.]+)\s*([a-zA-Z]+))?/i);
+      if (match) {
+        const rawName = (match[1] || 'Eggs').trim();
+        const cleanName = rawName.replace(/\s*\(.*?\)/g, '').trim() || 'Eggs';
+        const qty = Number(match[2]) || (Number(s.petisBought) > 0 ? Number(s.petisBought) : 1);
+        const rawUnit = (match[3] || 'Peti').toLowerCase();
+        const unit = rawUnit.includes('peti') ? 'peti' : (rawUnit.includes('tray') ? 'tray' : 'egg');
+        const unitLabel = unit === 'peti' ? 'Peti' : (unit === 'tray' ? 'Tray' : 'Egg');
+        const tEggs = unit === 'peti' ? qty * 360 : (unit === 'tray' ? qty * 30 : qty);
+        items.push({
+          name: cleanName,
+          rawProductName: cleanName,
+          quantity: qty,
+          unit,
+          unitLabel,
+          totalEggs: tEggs,
+          subtotal: Number(s.totalAmount) || 0
+        });
+      }
+    });
+  }
+
+  // 4. Construct from petisBought / eggsBought / category
+  if (items.length === 0) {
+    const pBought = Number(s.petisBought) || 0;
+    const eBought = Number(s.eggsBought) || 0;
+    const totAmt = Number(s.totalAmount) || 0;
+    const prodName = s.category || 'Eggs';
+
+    if (pBought > 0) {
+      items.push({
+        name: prodName,
+        rawProductName: prodName,
+        quantity: pBought,
+        unit: 'peti',
+        unitLabel: 'Peti',
+        totalEggs: pBought * 360,
+        subtotal: totAmt
+      });
+    } else if (eBought > 0) {
+      const petisFromEggs = Number((eBought / 360).toFixed(1));
+      items.push({
+        name: prodName,
+        rawProductName: prodName,
+        quantity: petisFromEggs >= 1 ? petisFromEggs : eBought,
+        unit: petisFromEggs >= 1 ? 'peti' : 'egg',
+        unitLabel: petisFromEggs >= 1 ? 'Peti' : 'Egg',
+        totalEggs: eBought,
+        subtotal: totAmt
+      });
+    } else if (totAmt > 0) {
+      const calcPetis = Math.max(1, Number((totAmt / 1050).toFixed(1)));
+      items.push({
+        name: prodName,
+        rawProductName: prodName,
+        quantity: calcPetis,
+        unit: 'peti',
+        unitLabel: 'Peti',
+        totalEggs: Math.round(calcPetis * 360),
+        subtotal: totAmt
+      });
+    }
+  }
+
+  // 5. Standardize every item object
+  s.items = items.map(it => {
+    const q = Number(it.quantity) || 1;
+    const rawU = String(it.unitLabel || it.unit || 'peti').toLowerCase().trim();
+    const u = rawU.includes('peti') ? 'peti' : (rawU.includes('tray') ? 'tray' : 'egg');
+    const uLabel = u === 'peti' ? 'Peti' : (u === 'tray' ? 'Tray' : 'Egg');
+    let tEggs = Number(it.totalEggs);
+    if (!tEggs || isNaN(tEggs)) {
+      tEggs = u === 'peti' ? q * 360 : (u === 'tray' ? q * 30 : q);
+    }
+    const cleanName = (it.rawProductName || it.name || it.title || 'Eggs').replace(/\s*\(.*?\)/g, '').trim() || 'Eggs';
+    return {
+      ...it,
+      name: cleanName,
+      rawProductName: cleanName,
+      quantity: q,
+      unit: u,
+      unitLabel: uLabel,
+      totalEggs: tEggs
+    };
+  });
+
+  return s;
+};
 
 // Helper to check Super Admin approval for branch edit/delete/page permission
 const checkBranchApproval = async (req, actionType = 'edit', requiredPage = 'sales') => {
@@ -87,7 +271,11 @@ router.get('/all', authenticate, async (req, res) => {
   }
   try {
     const sales = await Sale.find({}).sort({ saleDate: -1 });
-    res.json(sales);
+    const hydratedSales = await Promise.all((sales || []).map(s => {
+      const pfx = (s && s.shopId && BRANCH_TABLE_PREFIXES[s.shopId]) || 'peshawar_branch';
+      return hydrateSaleItems(s, pfx);
+    }));
+    res.json(hydratedSales);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -441,6 +629,13 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
         if (eggQty > 0 && petiQty === 0) petiQty = Number((eggQty / 360).toFixed(2));
         if (eggQty > 0 && trayQty === 0) trayQty = Math.round(eggQty / 30);
 
+        // Deduct sold stock from purchase volume to get net in-hand remaining stock
+        const currentEggs = matchingItem && matchingItem.stock !== undefined ? Number(matchingItem.stock) : eggQty;
+        const remainingPetis = matchingItem && matchingItem.petiQuantity !== undefined ? Number(matchingItem.petiQuantity) : Number((currentEggs / 360).toFixed(2));
+        const remainingTrays = matchingItem && matchingItem.trayQuantity !== undefined ? Number(matchingItem.trayQuantity) : Math.round(currentEggs / 30);
+        const soldEggs = Math.max(0, eggQty - currentEggs);
+        const soldPetis = Number((soldEggs / 360).toFixed(2));
+
         purchasesList.push({
           id: pId,
           shopId: p.shopId,
@@ -452,12 +647,19 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
           productName: p.productName || matchingItem?.name || 'Eggs Stock',
           category: p.category || matchingItem?.category || 'Eggs',
           petisPurchased: Number(petiQty) || 0,
-          petiQuantity: Number(petiQty) || 0,
-          petisCount: Number(petiQty) || 0,
-          trayQuantity: Number(trayQty) || 0,
-          traysCount: Number(trayQty) || 0,
-          eggQuantity: Number(eggQty) || 0,
-          totalEggsCount: Number(eggQty) || 0,
+          totalPurchasedEggs: Number(eggQty) || 0,
+          petiQuantity: remainingPetis, // Net purchase product minus sold product
+          petisCount: remainingPetis,
+          trayQuantity: remainingTrays,
+          traysCount: remainingTrays,
+          eggQuantity: currentEggs,
+          stock: currentEggs,
+          remainingStock: currentEggs,
+          remainingPetis,
+          remainingTrays,
+          soldQuantity: soldPetis,
+          soldEggs,
+          totalEggsCount: currentEggs,
           quantityText: p.quantityText || matchingItem?.quantityText || '',
           unitType: p.unitType || 'peti',
           buyCost: Number(p.buyCost) || Number(matchingItem?.costPrice) || 0,
@@ -497,6 +699,13 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
           if (eggQty > 0 && petiQty === 0) petiQty = Number((eggQty / 360).toFixed(2));
           if (eggQty > 0 && trayQty === 0) trayQty = Math.round(eggQty / 30);
 
+          const currentEggs = Number(it.stock !== undefined ? it.stock : it.eggQuantity) || 0;
+          const remainingPetis = Number(it.petiQuantity) || Number((currentEggs / 360).toFixed(2));
+          const remainingTrays = Number(it.trayQuantity) || Math.round(currentEggs / 30);
+          const initialEggs = Math.max(currentEggs, Number(it.eggQuantity || 0), (Number(petiQty) * 360));
+          const soldEggs = Math.max(0, initialEggs - currentEggs);
+          const soldPetis = Number((soldEggs / 360).toFixed(2));
+
           purchasesList.push({
             id: `item-${itId}`,
             shopId: it.shopId,
@@ -508,12 +717,19 @@ router.get('/payment-ledger', authenticate, async (req, res) => {
             productName: it.name || 'Eggs Stock',
             category: it.category || 'Eggs',
             petisPurchased: Number(petiQty) || 0,
-            petiQuantity: Number(petiQty) || 0,
-            petisCount: Number(petiQty) || 0,
-            trayQuantity: Number(trayQty) || 0,
-            traysCount: Number(trayQty) || 0,
-            eggQuantity: Number(eggQty) || 0,
-            totalEggsCount: Number(eggQty) || 0,
+            totalPurchasedEggs: initialEggs,
+            petiQuantity: remainingPetis, // Subtracted sold product from purchase product
+            petisCount: remainingPetis,
+            trayQuantity: remainingTrays,
+            traysCount: remainingTrays,
+            eggQuantity: currentEggs,
+            stock: currentEggs,
+            remainingStock: currentEggs,
+            remainingPetis,
+            remainingTrays,
+            soldQuantity: soldPetis,
+            soldEggs,
+            totalEggsCount: currentEggs,
             quantityText: it.quantityText || '',
             unitType: it.unitType || 'peti',
             buyCost: Number(it.costPrice) || 0,
@@ -588,14 +804,17 @@ router.get('/', authenticate, requireShopAdmin, async (req, res) => {
   try {
     const rawShopId = req.query.shopId || (req.user && req.user.shopId);
     let filter = {};
+    let targetShopId = null;
     if (rawShopId) {
-      const targetShopId = await resolveShopId(rawShopId);
+      targetShopId = await resolveShopId(rawShopId);
       if (targetShopId) {
         filter = { shopId: targetShopId };
       }
     }
     const sales = await Sale.find(filter).sort({ saleDate: -1 });
-    res.json(sales);
+    const pfx = (targetShopId && BRANCH_TABLE_PREFIXES[targetShopId]) || (rawShopId && BRANCH_TABLE_PREFIXES[rawShopId]) || 'peshawar_branch';
+    const hydratedSales = await Promise.all((sales || []).map(s => hydrateSaleItems(s, pfx)));
+    res.json(hydratedSales);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -844,6 +1063,17 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
             };
 
             await Item.findByIdAndUpdate(product.id || product._id, itemUpdate);
+
+            // Also update purchases table if a purchase row exists for this itemId
+            try {
+              const pIdVal = Number(product.id || product._id);
+              if (pIdVal) {
+                await pool.query(
+                  'UPDATE purchases SET petiQuantity = ?, trayQuantity = ?, eggQuantity = ? WHERE itemId = ?',
+                  [newPetis, newTrays, newStock, pIdVal]
+                );
+              }
+            } catch (_) {}
           }
         }
       }
@@ -875,9 +1105,35 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
           petisBought: Number(computedPetis.toFixed(2)),
           eggsBought: Math.round(computedEggs),
           itemsDescription: itemsDesc,
+          items: saleItems,
           category: mainCategory,
           status: cplStatus
         });
+
+        // Also insert into sale_items table if present for multi-table compatibility
+        const sIdNum = Number(newSale.id || newSale._id);
+        if (sIdNum && Array.isArray(saleItems) && saleItems.length > 0) {
+          const branchPfx = (targetShopId && BRANCH_TABLE_PREFIXES[targetShopId]) || 'peshawar_branch';
+          for (const item of saleItems) {
+            const pId = Number(item.productId || item.itemId || item.id) || null;
+            const qty = Number(item.quantity) || 1;
+            const pr = Number(item.price) || 0;
+            const cp = Number(item.costPrice) || 0;
+            const sub = Number(item.subtotal) || (qty * pr);
+            const prof = Number(item.profit) || Math.max(0, sub - (qty * cp));
+            const itemName = item.rawProductName || item.name || 'Eggs';
+
+            await pool.query(
+              `INSERT INTO \`${branchPfx}__sale_items\` (saleId, productId, name, quantity, price, costPrice, subtotal, profit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [sIdNum, pId, itemName, qty, pr, cp, sub, prof]
+            ).catch(async () => {
+              await pool.query(
+                `INSERT INTO \`sale_items\` (saleId, productId, name, quantity, price, costPrice, subtotal, profit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [sIdNum, pId, itemName, qty, pr, cp, sub, prof]
+              ).catch(() => {});
+            });
+          }
+        }
       } catch (cplErr) {
         console.warn('[createSaleRecord] CustomerPaymentLedger creation notice:', cplErr.message);
       }

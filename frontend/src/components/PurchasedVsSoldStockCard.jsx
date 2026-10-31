@@ -60,13 +60,20 @@ export function PurchasedVsSoldStockCard({ products = [], sales = [], checkoutOr
 
     const totalPurchasedEggsEstimated = totalEggsStock + totalSoldEggs;
     const totalPurchasedPetisEstimated = totalPurchasedEggsEstimated / 360;
+    const totalPurchasedTraysEstimated = totalPurchasedEggsEstimated / 30;
     const soldPercentage = totalPurchasedEggsEstimated > 0 ? Math.min(100, (totalSoldEggs / totalPurchasedEggsEstimated) * 100) : 0;
 
     return {
       totalPurchasedCost,
+      totalPurchasedPetis: Number(totalPurchasedPetisEstimated.toFixed(1)),
+      totalPurchasedTrays: Math.round(totalPurchasedTraysEstimated),
+      totalPurchasedEggs: totalPurchasedEggsEstimated,
       totalPetisStock: Number(totalPetisStock.toFixed(1)),
       totalTraysStock: Math.round(totalTraysStock),
       totalEggsStock,
+      netRemainingPetis: Number(totalPetisStock.toFixed(1)),
+      netRemainingTrays: Math.round(totalTraysStock),
+      netRemainingEggs: totalEggsStock,
       totalSoldPetis: Number(totalSoldPetis.toFixed(1)),
       totalSoldTrays: Math.round(totalSoldTrays),
       totalSoldEggs,
@@ -91,7 +98,7 @@ export function PurchasedVsSoldStockCard({ products = [], sales = [], checkoutOr
               Purchased vs Sold Inventory &amp; Price Breakdown
             </h3>
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-              Peti (Box), Tray &amp; Revenue Analytics
+              Peti (Box), Tray &amp; Revenue Analytics • Purchased Minus Sold Stock
             </p>
           </div>
         </div>
@@ -99,6 +106,9 @@ export function PurchasedVsSoldStockCard({ products = [], sales = [], checkoutOr
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {stats.soldPercentage}% Stock Sold
+          </span>
+          <span className="text-[10px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+            📦 In-Hand: {stats.netRemainingPetis} Petis
           </span>
         </div>
       </div>
@@ -113,21 +123,31 @@ export function PurchasedVsSoldStockCard({ products = [], sales = [], checkoutOr
               <Truck className="w-4 h-4" /> Purchased Inventory Stock &amp; Cost
             </span>
             <span className="text-[9px] font-black bg-zinc-950 text-amber-400 px-2.5 py-0.5 rounded-full uppercase">
-              Supplier Stock
+              Purchased - Sold = In Hand
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 bg-zinc-950/15 p-3 rounded-xl border border-zinc-950/10">
             <div>
-              <span className="text-[8px] font-black text-zinc-900 uppercase block">Total Petis &amp; Trays</span>
-              <h4 className="text-2xl font-black text-zinc-950">{stats.totalPetisStock} Petis</h4>
-              <span className="text-[9px] font-bold text-zinc-900">{stats.totalTraysStock.toLocaleString()} Trays ({stats.totalEggsStock.toLocaleString()} Eggs)</span>
+              <span className="text-[8px] font-black text-zinc-900 uppercase block">Total Purchased Volume</span>
+              <h4 className="text-2xl font-black text-zinc-950">{stats.totalPurchasedPetis} Petis</h4>
+              <span className="text-[9px] font-bold text-zinc-900">{stats.totalPurchasedTrays.toLocaleString()} Trays ({stats.totalPurchasedEggs.toLocaleString()} Eggs)</span>
+              
+              <div className="mt-2 pt-2 border-t border-zinc-950/20 text-[9px] font-black text-zinc-900 flex flex-col">
+                <span className="text-zinc-950">📦 Remaining In-Hand: {stats.netRemainingPetis} Petis</span>
+                <span className="text-zinc-800 font-bold">({stats.totalPurchasedPetis}P Purchased - {stats.totalSoldPetis}P Sold)</span>
+              </div>
             </div>
 
             <div>
               <span className="text-[8px] font-black text-zinc-900 uppercase block">Total Purchase Cost Spent</span>
               <h4 className="text-2xl font-black text-zinc-950">Rs. {fmt(stats.totalPurchasedCost)}</h4>
               <span className="text-[9px] font-bold text-zinc-900">Supplier Stock Valuation</span>
+              
+              <div className="mt-2 pt-2 border-t border-zinc-950/20 text-[9px] font-black text-zinc-900 flex flex-col">
+                <span className="text-zinc-950">🛒 Net In-Stock Eggs: {stats.netRemainingEggs.toLocaleString()}</span>
+                <span className="text-zinc-800 font-bold">({stats.netRemainingTrays.toLocaleString()} Trays Available)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -148,23 +168,36 @@ export function PurchasedVsSoldStockCard({ products = [], sales = [], checkoutOr
               <span className="text-[8px] font-black text-white/80 uppercase block">Total Sold Petis &amp; Trays</span>
               <h4 className="text-2xl font-black text-white">{stats.totalSoldPetis} Petis</h4>
               <span className="text-[9px] font-bold text-white/90">{stats.totalSoldTrays.toLocaleString()} Trays ({stats.totalSoldEggs.toLocaleString()} Eggs)</span>
+
+              <div className="mt-2 pt-2 border-t border-white/20 text-[9px] font-black text-emerald-100 flex flex-col">
+                <span>Deducted from Purchases: -{stats.totalSoldPetis} Petis</span>
+                <span className="text-emerald-200 font-bold">(-{stats.totalSoldEggs.toLocaleString()} Total Eggs Sold)</span>
+              </div>
             </div>
 
             <div>
               <span className="text-[8px] font-black text-white/80 uppercase block">Total Sales Revenue Received</span>
               <h4 className="text-2xl font-black text-white">Rs. {fmt(stats.totalSalesRevenue)}</h4>
               <span className="text-[9px] font-bold text-white/90">Gross Revenue Collected</span>
+
+              <div className="mt-2 pt-2 border-t border-white/20 text-[9px] font-black text-emerald-100 flex flex-col">
+                <span>Sales Fulfillment: {stats.soldPercentage}% Complete</span>
+                <span className="text-emerald-200 font-bold">In-Stock Remaining: {(100 - stats.soldPercentage).toFixed(1)}%</span>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
 
-      {/* Stock Sales Progress Bar */}
+      {/* Stock Sales Progress Bar & Calculation Equation */}
       <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl space-y-2">
-        <div className="flex items-center justify-between text-xs font-black">
-          <span className="text-zinc-800 uppercase tracking-wider">Inventory Stock Sales Ratio:</span>
-          <span className="text-emerald-600">{stats.soldPercentage}% Sold ({stats.totalSoldPetis} Petis) • {(100 - stats.soldPercentage).toFixed(1)}% In Hand ({stats.totalPetisStock} Petis)</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-black gap-1">
+          <span className="text-zinc-800 uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="w-4 h-4 text-amber-600" />
+            Stock Equation: Purchased ({stats.totalPurchasedPetis} Petis) - Sold ({stats.totalSoldPetis} Petis) = Remaining ({stats.netRemainingPetis} Petis)
+          </span>
+          <span className="text-emerald-600">{stats.soldPercentage}% Sold ({stats.totalSoldPetis}P) • {(100 - stats.soldPercentage).toFixed(1)}% In Hand ({stats.netRemainingPetis}P)</span>
         </div>
         <div className="w-full h-3 bg-zinc-200 rounded-full overflow-hidden flex">
           <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${stats.soldPercentage}%` }} />

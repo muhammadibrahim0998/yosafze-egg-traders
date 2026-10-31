@@ -25,8 +25,28 @@ export const UserProvider = ({ children }) => {
       try {
         const data = await getMe();
         if (data?.user) {
-          setUser(data.user);
+          setUser(prev => {
+            // Keep object reference if nothing meaningful changed to prevent extra rerenders
+            const isChanged = !prev || 
+              prev.approvalStatus !== data.user.approvalStatus ||
+              prev.isEditApproved !== data.user.isEditApproved ||
+              prev.isDeleteApproved !== data.user.isDeleteApproved ||
+              JSON.stringify(prev.allowedPages) !== JSON.stringify(data.user.allowedPages);
+            return isChanged ? data.user : prev;
+          });
           localStorage.setItem('nexflow_user', JSON.stringify(data.user));
+          if (data.user.shopId) {
+            try {
+              localStorage.setItem(`nexflow_cached_shop_${data.user.shopId}`, JSON.stringify({
+                id: data.user.shopId,
+                _id: data.user.shopId,
+                isEditApproved: data.user.isEditApproved,
+                isDeleteApproved: data.user.isDeleteApproved,
+                approvalStatus: data.user.approvalStatus,
+                allowedPages: data.user.allowedPages
+              }));
+            } catch (_) {}
+          }
         }
       } catch (error) {
         if (error.response?.status === 401) {
@@ -39,6 +59,20 @@ export const UserProvider = ({ children }) => {
       }
     };
     checkSession();
+
+    // Real-time dynamic sync for online production across multiple devices and tabs
+    const syncInterval = setInterval(checkSession, 4000);
+    const handleFocus = () => { checkSession(); };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
+    window.addEventListener('shop_approval_updated', handleFocus);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('shop_approval_updated', handleFocus);
+    };
   }, []);
 
   const login = async (username, password) => {
@@ -137,69 +171,10 @@ export const UserProvider = ({ children }) => {
     };
   }, [user?.shopId]);
 
-  const isPageAllowed = (pageKey) => {
-    if (!user) return false;
-    const role = (user.role || '').toLowerCase();
-    if (role === 'super_admin') return true;
-    if (user.approvalStatus === 'LOCKED') return false;
-
-    const mapping = {
-      'dashboard': 'dashboard',
-      'products': 'store',
-      'store': 'store',
-      'walkin': 'walkin',
-      'pos': 'walkin',
-      'orders': 'walkin',
-      'sales': 'sales',
-      'report-sales': 'sales',
-      'purchases': 'purchases',
-      'purchase-credits': 'purchases',
-      'vendors': 'vendors',
-      'suppliers': 'vendors',
-      'vendorDirectory': 'vendorDirectory',
-      'vendor-directory': 'vendorDirectory',
-      'customerPaymentLedger': 'customerPaymentLedger',
-      'customer-payment-ledger': 'customerPaymentLedger',
-      'registered-customers': 'customerPaymentLedger',
-      'customer-credits': 'customerPaymentLedger',
-      'payment-ledger': 'customerPaymentLedger',
-      'vendorPaymentLedger': 'vendorPaymentLedger',
-      'vendor-payment-ledger': 'vendorPaymentLedger',
-      'expenses': 'expenses',
-      'report-expenses': 'expenses',
-      'report-fuel': 'expenses',
-      'team': 'team',
-      'reports': 'reports',
-      'report-profit': 'reports',
-      'analytics-charts': 'reports',
-      'settings': 'settings'
-    };
-    const key = mapping[pageKey] || pageKey;
-
-    let allowed = user.allowedPages;
-    if ((!allowed || (Array.isArray(allowed) && allowed.length === 0)) && user.shopId) {
-      try {
-        const cached = localStorage.getItem(`nexflow_cached_shop_${user.shopId}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.allowedPages)) {
-            allowed = parsed.allowedPages;
-          }
-        }
-      } catch {
-        // fallback
-      }
-    }
-    if (typeof allowed === 'string') {
-      try { allowed = JSON.parse(allowed); } catch { allowed = []; }
-    }
-    if (!Array.isArray(allowed) || allowed.length === 0) return true;
-
-    // If allowedPages contains granular edit/delete keys, whole-page viewing is allowed
-    const hasGranularOnly = allowed.some(k => typeof k === 'string' && (k.endsWith('_edit') || k.endsWith('_delete')));
-    if (hasGranularOnly) return true;
-
-    return allowed.includes(key);
+  const isPageAllowed = () => {
+    // All pages and reports remain visible and accessible.
+    // Approval restrictions apply exclusively to Edit and Delete action buttons via isPageOpAllowed.
+    return true;
   };
 
   // Helper to check whether an individual Edit or Delete button is allowed for a page
@@ -232,17 +207,21 @@ export const UserProvider = ({ children }) => {
       if (hasGranularOps) {
         return allowed.includes(`${pageKey}_${opType}`);
       }
-      if (allowed.length === 0 && (shopData?.isEditApproved !== undefined || user.isEditApproved !== undefined)) {
+      if (allowed.length === 0) {
         return false;
       }
     }
 
     if (opType === 'edit') {
-      const editFlag = shopData?.isEditApproved !== undefined ? Number(shopData.isEditApproved) : (user.isEditApproved !== undefined ? Number(user.isEditApproved) : 1);
+      const editFlag = shopData?.isEditApproved !== undefined 
+        ? (shopData.isEditApproved ? 1 : 0) 
+        : (user.isEditApproved !== undefined ? (user.isEditApproved ? 1 : 0) : 1);
       if (editFlag === 0) return false;
     }
     if (opType === 'delete') {
-      const deleteFlag = shopData?.isDeleteApproved !== undefined ? Number(shopData.isDeleteApproved) : (user.isDeleteApproved !== undefined ? Number(user.isDeleteApproved) : 1);
+      const deleteFlag = shopData?.isDeleteApproved !== undefined 
+        ? (shopData.isDeleteApproved ? 1 : 0) 
+        : (user.isDeleteApproved !== undefined ? (user.isDeleteApproved ? 1 : 0) : 1);
       if (deleteFlag === 0) return false;
     }
 
