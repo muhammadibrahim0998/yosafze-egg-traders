@@ -51,6 +51,7 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
   const [endDate, setEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [timeframe, setTimeframe] = useState('ALL'); // 'ALL' | 'DAY'
 
   // Secondary search & filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -464,6 +465,24 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
           const inTs = endTs !== null && itemTs <= endTs;
           if (!inStr && !inTs) return false;
         }
+      } else if (timeframe === 'DAY') {
+        const itemDate = parseSafeDate(r.expenseDate || r.createdAt);
+        if (!itemDate) return false;
+        const now = new Date();
+        if (itemDate.toDateString() !== now.toDateString()) {
+          const pad = (n) => String(n).padStart(2, '0');
+          const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+          const itemLocal = `${itemDate.getFullYear()}-${pad(itemDate.getMonth() + 1)}-${pad(itemDate.getDate())}`;
+          if (itemLocal !== todayLocal) {
+            try {
+              const todayUTC = now.toISOString().split('T')[0];
+              const itemUTC = itemDate.toISOString().split('T')[0];
+              if (itemUTC !== todayUTC) return false;
+            } catch (e) {
+              return false;
+            }
+          }
+        }
       }
 
       // Fuel type filter
@@ -502,7 +521,7 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
 
       return true;
     });
-  }, [fuelRecords, appliedStartDate, appliedEndDate, selectedFuelType, selectedPaymentMethod, selectedVehicle, searchTerm]);
+  }, [fuelRecords, appliedStartDate, appliedEndDate, startDate, endDate, timeframe, selectedFuelType, selectedPaymentMethod, selectedVehicle, searchTerm]);
 
   // Computed summary metrics
   const stats = useMemo(() => {
@@ -619,7 +638,9 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
     setEndDate('');
     setAppliedStartDate('');
     setAppliedEndDate('');
-    toast.info('Date filter reset');
+    setTimeframe('ALL');
+    setSelectedPaymentMethod('ALL');
+    toast.info('Filter reset to All records');
   };
 
   // Print Complete Fuel Report
@@ -1052,148 +1073,325 @@ export const FuelReportManagement = ({ shopId = '1', shop = null, user = null, o
       </div>
 
       {/* ─── SUMMARY STATS CARDS ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Total Expense */}
-        <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">Total Cost</span>
-              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 border border-emerald-100">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-xl font-black text-slate-900 mt-2">
-              RS {stats.totalExpense.toLocaleString('en-PK')}
-            </div>
-            <div className="text-[10.5px] text-slate-500 mt-1 flex justify-between font-medium">
-              <span>{stats.tripsCount} Trips</span>
-              <span className="text-emerald-700 font-bold">{stats.totalLiters.toFixed(1)} L</span>
-            </div>
-          </div>
-        </div>
+      {(() => {
+        const isAllPeriod = timeframe === 'ALL' && !appliedStartDate && !appliedEndDate;
+        const isCostActive = isAllPeriod && selectedPaymentMethod === 'ALL';
+        const isCashActive = isAllPeriod && selectedPaymentMethod === 'CASH';
+        const isBankActive = isAllPeriod && selectedPaymentMethod === 'BANK';
+        const isCreditActive = isAllPeriod && selectedPaymentMethod === 'CREDIT';
 
-        {/* Liters Consumed */}
-        <div className="bg-white p-4 rounded-xl border border-sky-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-sky-800 uppercase tracking-wider">Total Liters</span>
-              <div className="p-2 bg-sky-50 rounded-lg text-sky-600 border border-sky-100">
-                <Gauge className="w-4 h-4" />
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* Total Expense */}
+            <div
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setSelectedPaymentMethod('ALL');
+              }}
+              className={`bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                isCostActive ? 'border-emerald-500 ring-2 ring-emerald-500/50 scale-[1.01]' : 'border-emerald-200'
+              }`}
+              title="Click to view All Fuel Expense Records"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider">Total Cost</span>
+                  <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 border border-emerald-100">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-xl font-black text-slate-900 mt-2">
+                  RS {stats.totalExpense.toLocaleString('en-PK')}
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-1 flex justify-between font-medium">
+                  <span>{stats.tripsCount} Trips</span>
+                  <span className="text-emerald-700 font-bold">{stats.totalLiters.toFixed(1)} L</span>
+                </div>
               </div>
             </div>
-            <div className="text-xl font-black text-slate-900 mt-2">
-              {stats.totalLiters.toFixed(1)} <span className="text-xs text-sky-700 font-bold">L</span>
-            </div>
-            <div className="text-[10.5px] text-slate-500 mt-1 flex justify-between font-medium">
-              <span>Diesel: <strong className="text-amber-700">{stats.dieselLiters.toFixed(1)}L</strong></span>
-              <span>Petrol: <strong className="text-sky-700">{stats.petrolLiters.toFixed(1)}L</strong></span>
-            </div>
-          </div>
-        </div>
 
-        {/* Paid Cash */}
-        <div className="bg-white p-4 rounded-xl border border-teal-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-teal-800 uppercase tracking-wider">Cash Paid</span>
-              <div className="p-2 bg-teal-50 rounded-lg text-teal-600 border border-teal-100">
-                <DollarSign className="w-4 h-4" />
+            {/* Liters Consumed */}
+            <div
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setSelectedPaymentMethod('ALL');
+              }}
+              className={`bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                isCostActive ? 'border-sky-500 ring-2 ring-sky-500/50 scale-[1.01]' : 'border-sky-200'
+              }`}
+              title="Click to view All Fuel Expense Records"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-sky-800 uppercase tracking-wider">Total Liters</span>
+                  <div className="p-2 bg-sky-50 rounded-lg text-sky-600 border border-sky-100">
+                    <Gauge className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-xl font-black text-slate-900 mt-2">
+                  {stats.totalLiters.toFixed(1)} <span className="text-xs text-sky-700 font-bold">L</span>
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-1 flex justify-between font-medium">
+                  <span>Diesel: <strong className="text-amber-700">{stats.dieselLiters.toFixed(1)}L</strong></span>
+                  <span>Petrol: <strong className="text-sky-700">{stats.petrolLiters.toFixed(1)}L</strong></span>
+                </div>
               </div>
             </div>
-            <div className="text-xl font-black text-teal-700 mt-2">
-              RS {stats.totalPaidCash.toLocaleString('en-PK')}
-            </div>
-            <div className="text-[10.5px] text-slate-500 mt-1 font-medium">
-              Cash Settled
-            </div>
-          </div>
-        </div>
 
-        {/* Paid Bank */}
-        <div className="bg-white p-4 rounded-xl border border-purple-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-purple-800 uppercase tracking-wider">Bank Paid</span>
-              <div className="p-2 bg-purple-50 rounded-lg text-purple-600 border border-purple-100">
-                <CreditCard className="w-4 h-4" />
+            {/* Paid Cash */}
+            <div
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setSelectedPaymentMethod(selectedPaymentMethod === 'CASH' && timeframe === 'ALL' ? 'ALL' : 'CASH');
+              }}
+              className={`bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                isCashActive ? 'border-teal-500 ring-2 ring-teal-500/50 bg-teal-50/20 scale-[1.01]' : 'border-teal-200'
+              }`}
+              title="Click to filter All Fuel paid in Cash"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-teal-800 uppercase tracking-wider">Cash Paid</span>
+                  <div className="p-2 bg-teal-50 rounded-lg text-teal-600 border border-teal-100">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-xl font-black text-teal-700 mt-2">
+                  RS {stats.totalPaidCash.toLocaleString('en-PK')}
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-1 font-medium flex justify-between items-center">
+                  <span>Cash Settled</span>
+                  {isCashActive && <span className="text-[9px] bg-teal-600 text-white px-1.5 py-0.2 rounded font-black">✓ Active</span>}
+                </div>
               </div>
             </div>
-            <div className="text-xl font-black text-purple-700 mt-2">
-              RS {stats.totalPaidBank.toLocaleString('en-PK')}
-            </div>
-            <div className="text-[10.5px] text-slate-500 mt-1 font-medium">
-              Bank Transfer
-            </div>
-          </div>
-        </div>
 
-        {/* Remaining Credit Due */}
-        <div className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between ${stats.totalCreditDue > 0 ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200'}`}>
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-rose-800 uppercase tracking-wider">Credit Due</span>
-              <div className="p-2 bg-rose-100 rounded-lg text-rose-600 border border-rose-200">
-                <AlertCircle className="w-4 h-4" />
+            {/* Paid Bank */}
+            <div
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setSelectedPaymentMethod(selectedPaymentMethod === 'BANK' && timeframe === 'ALL' ? 'ALL' : 'BANK');
+              }}
+              className={`bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                isBankActive ? 'border-purple-500 ring-2 ring-purple-500/50 bg-purple-50/20 scale-[1.01]' : 'border-purple-200'
+              }`}
+              title="Click to filter All Fuel paid via Bank"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-purple-800 uppercase tracking-wider">Bank Paid</span>
+                  <div className="p-2 bg-purple-50 rounded-lg text-purple-600 border border-purple-100">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-xl font-black text-purple-700 mt-2">
+                  RS {stats.totalPaidBank.toLocaleString('en-PK')}
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-1 font-medium flex justify-between items-center">
+                  <span>Bank Transfer</span>
+                  {isBankActive && <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.2 rounded font-black">✓ Active</span>}
+                </div>
               </div>
             </div>
-            <div className={`text-xl font-black mt-2 ${stats.totalCreditDue > 0 ? 'text-rose-700' : 'text-slate-400'}`}>
-              RS {stats.totalCreditDue.toLocaleString('en-PK')}
-            </div>
-            <div className="text-[10.5px] text-slate-500 mt-1 font-medium">
-              {stats.totalCreditDue > 0 ? 'Due Debt' : 'Paid'}
+
+            {/* Remaining Credit Due */}
+            <div
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setSelectedPaymentMethod(selectedPaymentMethod === 'CREDIT' && timeframe === 'ALL' ? 'ALL' : 'CREDIT');
+              }}
+              className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                isCreditActive
+                  ? 'border-rose-500 ring-2 ring-rose-500/50 bg-rose-50 scale-[1.01]'
+                  : (stats.totalCreditDue > 0 ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200')
+              }`}
+              title="Click to filter All Fuel on Credit / Due"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-rose-800 uppercase tracking-wider">Credit Due</span>
+                  <div className="p-2 bg-rose-100 rounded-lg text-rose-600 border border-rose-200">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className={`text-xl font-black mt-2 ${stats.totalCreditDue > 0 ? 'text-rose-700' : 'text-slate-400'}`}>
+                  RS {stats.totalCreditDue.toLocaleString('en-PK')}
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-1 font-medium flex justify-between items-center">
+                  <span>{stats.totalCreditDue > 0 ? 'Due Debt' : 'Paid'}</span>
+                  {isCreditActive && <span className="text-[9px] bg-rose-600 text-white px-1.5 py-0.2 rounded font-black">✓ Active</span>}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ─── DEDICATED TODAY'S FUEL & VEHICLE SUMMARY (GRAY & BIGGER SIZE) ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-            Today's Vehicle Fuel &amp; Transport Activity (Daily Breakdown)
-          </span>
-          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-            {todayFuelStats.tripsCount} Trips &bull; {todayFuelStats.totalLiters.toFixed(1)} Liters Today
-          </span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {/* Card 1: Today Fuel Expense */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Fuel Expense</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayFuelStats.tripsCount} Trips Recorded</span>
-          </div>
+      {(() => {
+        const isTodayPeriod = timeframe === 'DAY' && !appliedStartDate && !appliedEndDate;
+        const isTodayTotalActive = isTodayPeriod && selectedPaymentMethod === 'ALL';
+        const isTodayCashActive = isTodayPeriod && selectedPaymentMethod === 'CASH';
+        const isTodayBankActive = isTodayPeriod && selectedPaymentMethod === 'BANK';
+        const isTodayCreditActive = isTodayPeriod && selectedPaymentMethod === 'CREDIT';
 
-          {/* Card 2: Today Fuel Liters */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-sky-800">2. Today Fuel Liters</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayFuelStats.totalLiters.toFixed(1)} L</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Fuel Consumed</span>
-          </div>
+        return (
+          <div className={`border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${isTodayPeriod ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/20' : 'bg-slate-100 border-slate-300'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                Today's Vehicle Fuel &amp; Transport Activity (Daily Breakdown)
+              </span>
+              <div className="flex items-center gap-2">
+                {isTodayPeriod && (
+                  <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                    {selectedPaymentMethod === 'ALL' ? 'TODAY ALL' : `TODAY ${selectedPaymentMethod}`}
+                  </span>
+                )}
+                <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+                  {todayFuelStats.tripsCount} Trips &bull; {todayFuelStats.totalLiters.toFixed(1)} Liters Today
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Card 1: Today Fuel Expense */}
+              <div
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setSelectedPaymentMethod('ALL');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayTotalActive ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-50/20 scale-[1.01]' : 'border-slate-300 hover:border-emerald-400'
+                }`}
+                title="Click to filter list for Today's Fuel Expenses"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Fuel Expense</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalExpense.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-emerald-700 truncate mt-1 flex justify-between items-center">
+                  <span>{todayFuelStats.tripsCount} Trips Recorded</span>
+                  {isTodayTotalActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
 
-          {/* Card 3: Today Cash */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">3. Today Cash Paid</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash Settled</span>
-          </div>
+              {/* Card 2: Today Fuel Liters */}
+              <div
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setSelectedPaymentMethod('ALL');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayTotalActive ? 'border-sky-500 ring-2 ring-sky-500/40 bg-sky-50/20 scale-[1.01]' : 'border-slate-300 hover:border-sky-400'
+                }`}
+                title="Click to filter list for Today's Fuel Liters"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-sky-800">2. Today Fuel Liters</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayFuelStats.totalLiters.toFixed(1)} L</div>
+                <span className="text-[10px] font-bold text-sky-700 truncate mt-1 flex justify-between items-center">
+                  <span>Total Fuel Consumed</span>
+                  {isTodayTotalActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
 
-          {/* Card 4: Today Bank */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">4. Today Bank Paid</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank Transfer</span>
-          </div>
+              {/* Card 3: Today Cash */}
+              <div
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setSelectedPaymentMethod(selectedPaymentMethod === 'CASH' && timeframe === 'DAY' ? 'ALL' : 'CASH');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayCashActive ? 'border-teal-500 ring-2 ring-teal-500/40 bg-teal-50/20 scale-[1.01]' : 'border-slate-300 hover:border-teal-400'
+                }`}
+                title="Click to filter list for Today's Cash Fuel"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">3. Today Cash Paid</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidCash.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-teal-700 truncate mt-1 flex justify-between items-center">
+                  <span>Cash Settled</span>
+                  {isTodayCashActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
 
-          {/* Card 5: Today Credit Due */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">5. Today Credit Due</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayFuelStats.totalCreditDue > 0 ? 'Unsettled Fuel Due' : 'All Settled'}</span>
+              {/* Card 4: Today Bank */}
+              <div
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setSelectedPaymentMethod(selectedPaymentMethod === 'BANK' && timeframe === 'DAY' ? 'ALL' : 'BANK');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayBankActive ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/20 scale-[1.01]' : 'border-slate-300 hover:border-purple-400'
+                }`}
+                title="Click to filter list for Today's Bank Fuel"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">4. Today Bank Paid</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalPaidBank.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-purple-700 truncate mt-1 flex justify-between items-center">
+                  <span>Bank Transfer</span>
+                  {isTodayBankActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
+
+              {/* Card 5: Today Credit Due */}
+              <div
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setSelectedPaymentMethod(selectedPaymentMethod === 'CREDIT' && timeframe === 'DAY' ? 'ALL' : 'CREDIT');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1 cursor-pointer active:scale-95 transition-all ${
+                  isTodayCreditActive ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50/20 scale-[1.01]' : 'border-slate-300 hover:border-rose-400'
+                }`}
+                title="Click to filter list for Today's Credit Fuel"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">5. Today Credit Due</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">RS {todayFuelStats.totalCreditDue.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-rose-700 truncate mt-1 flex justify-between items-center">
+                  <span>{todayFuelStats.totalCreditDue > 0 ? 'Unsettled Fuel Due' : 'All Settled'}</span>
+                  {isTodayCreditActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ─── SECONDARY FILTER & SEARCH BAR ─── */}
       <div className="flex flex-col sm:flex-row gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 shadow-sm">

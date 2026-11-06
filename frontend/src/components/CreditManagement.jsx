@@ -53,10 +53,31 @@ export function CreditManagement({
   }, [initialTab]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'UNPAID' | 'PARTIAL'
+  const [creditPaymentFilter, setCreditPaymentFilter] = useState('ALL'); // 'ALL' | 'CASH' | 'BANK' | 'CREDIT'
   const [creditStartDate, setCreditStartDate] = useState('');
   const [creditEndDate, setCreditEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
+
+  const handlePresetDate = (preset) => {
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (preset === 'today') {
+      const str = toYMD(today);
+      setCreditStartDate(str);
+      setCreditEndDate(str);
+      setAppliedStartDate(str);
+      setAppliedEndDate(str);
+    } else if (preset === 'all') {
+      setCreditStartDate('');
+      setCreditEndDate('');
+      setAppliedStartDate('');
+      setAppliedEndDate('');
+      setCreditPaymentFilter('ALL');
+    }
+  };
 
   const handleApplyDateFilter = (startVal = creditStartDate, endVal = creditEndDate) => {
     setAppliedStartDate(startVal);
@@ -68,7 +89,15 @@ export function CreditManagement({
     setCreditEndDate('');
     setAppliedStartDate('');
     setAppliedEndDate('');
+    setCreditPaymentFilter('ALL');
   };
+
+  const isTodayPeriod = useMemo(() => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const todayYMD = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    return Boolean(appliedStartDate && appliedEndDate && (appliedStartDate === appliedEndDate || appliedStartDate === todayYMD));
+  }, [appliedStartDate, appliedEndDate]);
 
   const parseSafeDate = (val) => {
     if (!val) return null;
@@ -371,11 +400,25 @@ export function CreditManagement({
         (item.supplierName || item.supplier || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
       if (!matchSearch) return false;
-      if (filterStatus === 'UNPAID') return item.calculatedDue > 0 && item.calculatedPaid === 0;
-      if (filterStatus === 'PARTIAL') return item.calculatedDue > 0 && item.calculatedPaid > 0;
+      if (filterStatus === 'UNPAID') return Number(item.calculatedDue || 0) > 0;
+      if (filterStatus === 'PARTIAL') return Number(item.calculatedDue || 0) > 0 && Number(item.calculatedPaid || 0) > 0;
+      if (filterStatus === 'SETTLED') return Number(item.calculatedDue || 0) === 0;
+      if (creditPaymentFilter === 'CASH') {
+        const pMethod = String(item.paymentMethod || '').toUpperCase();
+        const cash = Number(item.cashPaid || 0);
+        return cash > 0 || pMethod === 'CASH';
+      }
+      if (creditPaymentFilter === 'BANK') {
+        const pMethod = String(item.paymentMethod || '').toUpperCase();
+        const bank = Number(item.bankPaid || 0);
+        return bank > 0 || pMethod.includes('BANK') || pMethod.includes('ONLINE');
+      }
+      if (creditPaymentFilter === 'CREDIT') {
+        return Number(item.calculatedDue || 0) > 0;
+      }
       return true;
     });
-  }, [purchaseCreditList, searchTerm, filterStatus, appliedStartDate, appliedEndDate]);
+  }, [purchaseCreditList, searchTerm, filterStatus, creditPaymentFilter, appliedStartDate, appliedEndDate]);
 
   const filteredCustomerSales = useMemo(() => {
     return customerCreditList.filter(sale => {
@@ -388,11 +431,76 @@ export function CreditManagement({
         (sale.invoiceNumber || sale.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
       if (!matchSearch) return false;
-      if (filterStatus === 'UNPAID') return sale.calculatedDue > 0 && sale.calculatedPaid === 0;
-      if (filterStatus === 'PARTIAL') return sale.calculatedDue > 0 && sale.calculatedPaid > 0;
+      if (filterStatus === 'UNPAID') return Number(sale.calculatedDue || 0) > 0;
+      if (filterStatus === 'PARTIAL') return Number(sale.calculatedDue || 0) > 0 && Number(sale.calculatedPaid || 0) > 0;
+      if (filterStatus === 'SETTLED') return Number(sale.calculatedDue || 0) === 0;
+      if (creditPaymentFilter === 'CASH') {
+        const pMethod = String(sale.paymentMethod || '').toUpperCase();
+        const cash = Number(sale.cashPaid || 0);
+        return cash > 0 || (pMethod === 'CASH' && (Number(sale.calculatedTotal) || 0) > 0);
+      }
+      if (creditPaymentFilter === 'BANK') {
+        const pMethod = String(sale.paymentMethod || '').toUpperCase();
+        const bank = Number(sale.bankPaid || 0);
+        return bank > 0 || pMethod.includes('BANK') || pMethod.includes('ONLINE');
+      }
+      if (creditPaymentFilter === 'CREDIT') {
+        return Number(sale.calculatedDue || 0) > 0 || sale.status !== 'SETTLED';
+      }
       return true;
     });
-  }, [customerCreditList, searchTerm, filterStatus, appliedStartDate, appliedEndDate]);
+  }, [customerCreditList, searchTerm, filterStatus, creditPaymentFilter, appliedStartDate, appliedEndDate]);
+
+  const customerSalesToDisplay = useMemo(() => {
+    if (creditPaymentFilter === 'CASH' || creditPaymentFilter === 'BANK' || (isTodayPeriod && creditPaymentFilter === 'ALL')) {
+      return (shopSalesList || []).filter(sale => {
+        if (!sale || sale.status === 'cancelled') return false;
+        if (appliedStartDate || appliedEndDate) {
+          if (!isDateInSelectedRange(sale.createdAt || sale.saleDate || sale.date)) return false;
+        }
+        const matchSearch = (
+          (sale.customerName || sale.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (sale.customerPhone || sale.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (sale.invoiceNumber || sale.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        if (!matchSearch) return false;
+        const pMethod = String(sale.paymentMethod || '').toUpperCase();
+        const cash = Number(sale.cashPaid || 0);
+        const bank = Number(sale.bankPaid || 0);
+        const total = Number(sale.totalAmount || 0);
+
+        if (creditPaymentFilter === 'CASH') {
+          return cash > 0 || (pMethod === 'CASH' && total > 0);
+        }
+        if (creditPaymentFilter === 'BANK') {
+          return bank > 0 || pMethod.includes('BANK') || pMethod.includes('ONLINE');
+        }
+        return true;
+      }).map((sale, idx) => {
+        const total = Number(sale.totalAmount || 0);
+        const due = Number(sale.dueAmount !== undefined ? sale.dueAmount : (sale.isCredit ? total : 0));
+        const cashPaid = Number(sale.cashPaid || 0);
+        const bankPaid = Number(sale.bankPaid || 0);
+        const totalPaid = (cashPaid + bankPaid) > 0 ? (cashPaid + bankPaid) : Math.max(0, total - due);
+        return {
+          ...sale,
+          customerName: sale.customerName || sale.name || 'Walk-in Customer',
+          customerPhone: sale.customerPhone || sale.phone || '',
+          invoiceNumber: sale.invoiceNumber || sale.orderNumber || `BILL-${idx + 1}`,
+          calculatedTotal: total,
+          calculatedPaid: totalPaid,
+          calculatedDue: due,
+          status: due === 0 ? 'SETTLED' : (totalPaid > 0 ? 'PARTIAL' : 'UNPAID')
+        };
+      });
+    }
+
+    return filteredCustomerSales;
+  }, [creditPaymentFilter, isTodayPeriod, shopSalesList, filteredCustomerSales, appliedStartDate, appliedEndDate, searchTerm]);
+
+  const purchasesToDisplay = useMemo(() => {
+    return filteredPurchases;
+  }, [filteredPurchases]);
 
   // Open Settle Supplier Credit Modal
   const handleOpenSettleSupplier = (item) => {
@@ -716,7 +824,20 @@ export function CreditManagement({
       {/* ─── Overview KPI Metric Cards ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Purchases Credit Owed */}
-        <div className="bg-white border border-rose-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div
+          onClick={() => {
+            setActiveTab('purchases');
+            handlePresetDate('all');
+            setCreditPaymentFilter('ALL');
+            setFilterStatus(filterStatus === 'UNPAID' && activeTab === 'purchases' ? 'ALL' : 'UNPAID');
+          }}
+          className={`border rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+            activeTab === 'purchases' && !appliedStartDate && !appliedEndDate
+              ? 'bg-rose-50/70 border-rose-500 ring-2 ring-rose-500/20'
+              : 'bg-white border-rose-200/80 hover:border-rose-400'
+          }`}
+          title="Click to view Supplier Debt / Purchase Credits"
+        >
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
@@ -731,13 +852,31 @@ export function CreditManagement({
             </div>
             <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
               <span>Paid: {currency} {totalPurchasePaid.toLocaleString('en-PK')}</span>
-              <span className="text-rose-500">{purchaseCreditList.filter(p => p.calculatedDue > 0).length} Unsettled</span>
+              <span className="text-rose-500 flex items-center gap-1">
+                <span>{purchaseCreditList.filter(p => p.calculatedDue > 0).length} Unsettled</span>
+                {activeTab === 'purchases' && !appliedStartDate && !appliedEndDate && (
+                  <span className="font-black text-[9px] text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded-full">✓ Active</span>
+                )}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Total Customer Credit Due */}
-        <div className="bg-white border border-emerald-200/80 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div
+          onClick={() => {
+            setActiveTab('customers');
+            handlePresetDate('all');
+            setCreditPaymentFilter('ALL');
+            setFilterStatus(filterStatus === 'UNPAID' && activeTab === 'customers' ? 'ALL' : 'UNPAID');
+          }}
+          className={`border rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+            activeTab === 'customers' && !appliedStartDate && !appliedEndDate
+              ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20'
+              : 'bg-white border-emerald-200/80 hover:border-emerald-400'
+          }`}
+          title="Click to view Customer Receivables / Customer Credits"
+        >
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
@@ -752,13 +891,26 @@ export function CreditManagement({
             </div>
             <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold mt-2 pt-2 border-t border-zinc-100">
               <span>Collected: {currency} {totalCustomerPaid.toLocaleString('en-PK')}</span>
-              <span className="text-emerald-600">{customerCreditList.filter(c => c.calculatedDue > 0).length} Invoices</span>
+              <span className="text-emerald-600 flex items-center gap-1">
+                <span>{customerCreditList.filter(c => c.calculatedDue > 0).length} Invoices</span>
+                {activeTab === 'customers' && !appliedStartDate && !appliedEndDate && (
+                  <span className="font-black text-[9px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded-full">✓ Active</span>
+                )}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Net Credit Status */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div
+          onClick={() => {
+            handlePresetDate('all');
+            setCreditPaymentFilter('ALL');
+            setFilterStatus('ALL');
+          }}
+          className="bg-white border border-zinc-200 hover:border-zinc-400 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+          title="Click to reset and view all records"
+        >
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-black uppercase tracking-wider text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-full border border-zinc-200">
@@ -780,7 +932,19 @@ export function CreditManagement({
         </div>
 
         {/* Total Active Credit Cases */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+        <div
+          onClick={() => {
+            handlePresetDate('all');
+            setCreditPaymentFilter('ALL');
+            setFilterStatus('UNPAID');
+          }}
+          className={`border rounded-3xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+            filterStatus === 'UNPAID' && !appliedStartDate && !appliedEndDate
+              ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-500/20'
+              : 'bg-white border-zinc-200 hover:border-amber-400'
+          }`}
+          title="Click to show All Active Credit Accounts"
+        >
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
@@ -802,43 +966,116 @@ export function CreditManagement({
       </div>
 
       {/* ─── DEDICATED TODAY'S PERFORMANCE & INFLOW (CASH, BANK, CREDIT, TOTAL) ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-            Today's Sales &amp; Inflow Activity (Daily Breakdown)
-          </span>
+      <div className={`border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${
+        isTodayPeriod ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/20' : 'bg-slate-100 border-slate-300'
+      }`}>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+              Today's Sales &amp; Inflow Activity (Daily Breakdown)
+            </span>
+            {isTodayPeriod && (
+              <span className="text-[10px] bg-slate-900 text-white font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                {creditPaymentFilter === 'ALL' ? 'TODAY ALL' : `TODAY ${creditPaymentFilter}`} ACTIVE
+              </span>
+            )}
+          </div>
           <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
             {todayInflow.count} Invoices &bull; {todayInflow.petis} Petis Sold
           </span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {/* Card 1: Today Cash Inflow */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+          <div
+            onClick={() => {
+              setActiveTab('customers');
+              setFilterStatus('ALL');
+              handlePresetDate('today');
+              setCreditPaymentFilter(creditPaymentFilter === 'CASH' && isTodayPeriod ? 'ALL' : 'CASH');
+            }}
+            className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+              isTodayPeriod && creditPaymentFilter === 'CASH'
+                ? 'bg-emerald-50 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                : 'bg-white border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30'
+            }`}
+            title="Click to view Today's Cash Inflow Transactions"
+          >
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
             <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.cash.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
+            <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+              <span className="truncate">Direct Cash Received</span>
+              {isTodayPeriod && creditPaymentFilter === 'CASH' && <span className="font-black text-[9px] text-emerald-700">✓ Active</span>}
+            </div>
           </div>
 
           {/* Card 2: Today Bank Inflow */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+          <div
+            onClick={() => {
+              setActiveTab('customers');
+              setFilterStatus('ALL');
+              handlePresetDate('today');
+              setCreditPaymentFilter(creditPaymentFilter === 'BANK' && isTodayPeriod ? 'ALL' : 'BANK');
+            }}
+            className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+              isTodayPeriod && creditPaymentFilter === 'BANK'
+                ? 'bg-blue-50 border-2 border-blue-600 ring-2 ring-blue-500/20'
+                : 'bg-white border-2 border-slate-300 hover:border-blue-500 hover:bg-blue-50/30'
+            }`}
+            title="Click to view Today's Bank Inflow Transactions"
+          >
             <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
             <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.bank.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+            <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+              <span className="truncate">Transferred to Bank</span>
+              {isTodayPeriod && creditPaymentFilter === 'BANK' && <span className="font-black text-[9px] text-blue-700">✓ Active</span>}
+            </div>
           </div>
 
           {/* Card 3: Today Credit Given */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+          <div
+            onClick={() => {
+              setActiveTab('customers');
+              setFilterStatus('ALL');
+              handlePresetDate('today');
+              setCreditPaymentFilter(creditPaymentFilter === 'CREDIT' && isTodayPeriod ? 'ALL' : 'CREDIT');
+            }}
+            className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+              isTodayPeriod && creditPaymentFilter === 'CREDIT'
+                ? 'bg-amber-50 border-2 border-amber-600 ring-2 ring-amber-500/20'
+                : 'bg-white border-2 border-slate-300 hover:border-amber-500 hover:bg-amber-50/30'
+            }`}
+            title="Click to view Today's Credit Given Transactions"
+          >
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Given</span>
             <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.credit.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Receivables Due</span>
+            <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+              <span className="truncate">Receivables Due</span>
+              {isTodayPeriod && creditPaymentFilter === 'CREDIT' && <span className="font-black text-[9px] text-amber-700">✓ Active</span>}
+            </div>
           </div>
 
           {/* Card 4: Total Today Revenue */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+          <div
+            onClick={() => {
+              setActiveTab('customers');
+              setFilterStatus('ALL');
+              handlePresetDate('today');
+              setCreditPaymentFilter('ALL');
+            }}
+            className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+              isTodayPeriod && creditPaymentFilter === 'ALL'
+                ? 'bg-indigo-50 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
+                : 'bg-white border-2 border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/30'
+            }`}
+            title="Click to view All Today's Inflow Transactions"
+          >
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Revenue</span>
             <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{currency} {todayInflow.total.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
+            <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+              <span className="truncate">All Sales Combined</span>
+              {isTodayPeriod && creditPaymentFilter === 'ALL' && <span className="font-black text-[9px] text-indigo-700">✓ Active</span>}
+            </div>
           </div>
         </div>
       </div>
@@ -848,7 +1085,7 @@ export function CreditManagement({
         <div className="flex items-center bg-zinc-100 p-1 rounded-xl gap-1.5 w-full sm:w-auto">
           {/* Branch 1: Purchase Credit */}
           <button
-            onClick={() => { setActiveTab('purchases'); setSearchTerm(''); }}
+            onClick={() => { setActiveTab('purchases'); setSearchTerm(''); setFilterStatus('ALL'); setCreditPaymentFilter('ALL'); }}
             className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'purchases'
                 ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'
@@ -866,7 +1103,7 @@ export function CreditManagement({
 
           {/* Branch 2: Customer Credit */}
           <button
-            onClick={() => { setActiveTab('customers'); setSearchTerm(''); }}
+            onClick={() => { setActiveTab('customers'); setSearchTerm(''); setFilterStatus('ALL'); setCreditPaymentFilter('ALL'); }}
             className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'customers'
                 ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'
@@ -935,6 +1172,12 @@ export function CreditManagement({
               Active: {appliedStartDate && appliedEndDate ? `${appliedStartDate} to ${appliedEndDate}` : (appliedStartDate ? `From ${appliedStartDate}` : `Up to ${appliedEndDate}`)}
             </span>
           )}
+          {creditPaymentFilter !== 'ALL' && (
+            <span className="px-1.5 py-0.2 rounded-full text-[8.5px] font-black tracking-wider uppercase bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap flex items-center gap-1">
+              <span>Payment: {creditPaymentFilter}</span>
+              <button onClick={() => setCreditPaymentFilter('ALL')} className="hover:text-red-600 font-bold cursor-pointer">&times;</button>
+            </span>
+          )}
         </div>
 
         {/* Filter / Search Bar */}
@@ -977,7 +1220,7 @@ export function CreditManagement({
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-amber-600" />
               <h3 className="text-xs sm:text-sm font-black text-zinc-900 uppercase tracking-wider">
-                Purchases &amp; Supplier Credit Ledger ({filteredPurchases.length})
+                Purchases &amp; Supplier Credit Ledger ({purchasesToDisplay.length})
               </h3>
             </div>
             <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full">
@@ -985,9 +1228,26 @@ export function CreditManagement({
             </div>
           </div>
 
-          {filteredPurchases.length === 0 ? (
-            <div className="p-12 text-center text-zinc-400 text-xs font-bold uppercase tracking-widest">
-              No purchase credit records found matching your filters.
+          {purchasesToDisplay.length === 0 ? (
+            <div className="p-10 text-center space-y-3">
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">
+                {isTodayPeriod ? 'No purchase records found for today.' : 'No purchase credit records found matching your filters.'}
+              </p>
+              {(creditPaymentFilter !== 'ALL' || filterStatus !== 'ALL' || appliedStartDate || appliedEndDate || searchTerm) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setCreditPaymentFilter('ALL');
+                    setFilterStatus('ALL');
+                    setSearchTerm('');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Show All Purchases ({purchaseCreditList.length})</span>
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -1008,7 +1268,7 @@ export function CreditManagement({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {filteredPurchases.map((item, idx) => {
+                    {purchasesToDisplay.map((item, idx) => {
                       const isDue = item.calculatedDue > 0;
                       return (
                         <tr key={item._id || item.id || idx} className="hover:bg-zinc-50/80 transition-colors">
@@ -1082,7 +1342,7 @@ export function CreditManagement({
 
               {/* Mobile Cards View */}
               <div className="block md:hidden p-3 space-y-3">
-                {filteredPurchases.map((item, idx) => {
+                {purchasesToDisplay.map((item, idx) => {
                   const isDue = item.calculatedDue > 0;
                   return (
                     <div key={`mob_p_${item._id || idx}`} className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 space-y-3">
@@ -1153,7 +1413,7 @@ export function CreditManagement({
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-emerald-600" />
               <h3 className="text-xs sm:text-sm font-black text-zinc-900 uppercase tracking-wider">
-                Customer Receivables &amp; Due Balances ({filteredCustomerSales.length})
+                Customer Receivables &amp; Due Balances ({customerSalesToDisplay.length})
               </h3>
             </div>
             <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
@@ -1161,9 +1421,26 @@ export function CreditManagement({
             </div>
           </div>
 
-          {filteredCustomerSales.length === 0 ? (
-            <div className="p-12 text-center text-zinc-400 text-xs font-bold uppercase tracking-widest">
-              No customer credit records found matching your filters.
+          {customerSalesToDisplay.length === 0 ? (
+            <div className="p-10 text-center space-y-3">
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">
+                {isTodayPeriod ? 'No customer credit records found for today.' : 'No customer credit records found matching your filters.'}
+              </p>
+              {(creditPaymentFilter !== 'ALL' || filterStatus !== 'ALL' || appliedStartDate || appliedEndDate || searchTerm) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setCreditPaymentFilter('ALL');
+                    setFilterStatus('ALL');
+                    setSearchTerm('');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Show All Customer Credits ({customerCreditList.length})</span>
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -1184,7 +1461,7 @@ export function CreditManagement({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {filteredCustomerSales.map((sale, idx) => {
+                    {customerSalesToDisplay.map((sale, idx) => {
                       const isDue = sale.calculatedDue > 0;
                       return (
                         <tr key={sale._id || sale.id || idx} className="hover:bg-zinc-50/80 transition-colors">
@@ -1249,7 +1526,7 @@ export function CreditManagement({
 
               {/* Mobile Cards View */}
               <div className="block md:hidden p-3 space-y-3">
-                {filteredCustomerSales.map((sale, idx) => {
+                {customerSalesToDisplay.map((sale, idx) => {
                   const isDue = sale.calculatedDue > 0;
                   return (
                     <div key={`mob_c_${sale._id || idx}`} className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 space-y-3">

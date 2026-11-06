@@ -195,6 +195,7 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
       setEndDate('');
     }
   };
+  const handlePresetDate = applyPreset;
 
   // Date filter helper
   const parseSafeDate = (val) => {
@@ -946,216 +947,325 @@ export function CustomerPaymentLedger({ shopId: propShopId }) {
           </span>
         </div>
 
-        <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          
-          {/* 1. Cash Card */}
-          <div
-            onClick={() => setPaymentMethodFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH')}
-            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
-              paymentMethodFilter === 'CASH'
-                ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-400/40 shadow-sm'
-                : 'bg-white border-emerald-200/90 hover:border-emerald-400 hover:shadow-xs'
-            }`}
-            title="Click to view Cash Inflow transactions & ledger"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1 truncate">
-                  💵 Cash Inflow
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrintSummaryReport('CASH');
+        {(() => {
+          const todayYMD = (() => {
+            const t = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+          })();
+          const isTodayPeriod = Boolean(startDate && endDate && (startDate === endDate || startDate === todayYMD));
+          const isAllPeriod = !startDate && !endDate;
+
+          return (
+            <>
+              <div className="w-full grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* 1. Cash Card */}
+                <div
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setPaymentMethodFilter(prev => (prev === 'CASH' && isAllPeriod ? 'ALL' : 'CASH'));
+                  }}
+                  className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+                    isAllPeriod && paymentMethodFilter === 'CASH'
+                      ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-400/50 shadow-sm scale-[1.01]'
+                      : 'bg-white border-emerald-200/90 hover:border-emerald-400 hover:shadow-xs'
+                  }`}
+                  title="Click to view All Cash Inflow transactions & ledger"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1 truncate">
+                        💵 Cash Inflow
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintSummaryReport('CASH');
+                          }}
+                          className="p-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Print Total Cash Record"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                          isAllPeriod && paymentMethodFilter === 'CASH'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        }`}>
+                          <Banknote className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight leading-tight">
+                      Rs. {fmt(stats.totalCashReceived)}
+                    </div>
+                    <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate flex items-center justify-between">
+                      <span>Direct Cash Inflow</span>
+                      {isAllPeriod && paymentMethodFilter === 'CASH' && <span className="text-emerald-700 font-black">✓ Active</span>}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Bank Card */}
+                <div
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setPaymentMethodFilter(prev => (prev === 'BANK' && isAllPeriod ? 'ALL' : 'BANK'));
+                  }}
+                  className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+                    isAllPeriod && paymentMethodFilter === 'BANK'
+                      ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-400/50 shadow-sm scale-[1.01]'
+                      : 'bg-white border-blue-200/90 hover:border-blue-400 hover:shadow-xs'
+                  }`}
+                  title="Click to view All Bank / Online transactions & ledger"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1 truncate">
+                        🏦 Bank / Online
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintSummaryReport('BANK');
+                          }}
+                          className="p-1 rounded-md border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Print Total Bank Record"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                          isAllPeriod && paymentMethodFilter === 'BANK'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-blue-50 text-blue-600 border-blue-200'
+                        }`}>
+                          <Building2 className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight leading-tight">
+                      Rs. {fmt(stats.totalBankReceived)}
+                    </div>
+                    <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate flex items-center justify-between">
+                      <span>Transferred to Bank</span>
+                      {isAllPeriod && paymentMethodFilter === 'BANK' && <span className="text-blue-700 font-black">✓ Active</span>}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Credit Card */}
+                <div
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setPaymentMethodFilter(prev => (prev === 'CREDIT' && isAllPeriod ? 'ALL' : 'CREDIT'));
+                  }}
+                  className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+                    isAllPeriod && paymentMethodFilter === 'CREDIT'
+                      ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-400/50 shadow-sm scale-[1.01]'
+                      : 'bg-white border-amber-200/90 hover:border-amber-400 hover:shadow-xs'
+                  }`}
+                  title="Click to view All Credit / Receivable Due ledger"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1 truncate">
+                        📋 Credit (Due)
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintSummaryReport('CREDIT');
+                          }}
+                          className="p-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 hover:text-amber-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Print Total Credit Record"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                          isAllPeriod && paymentMethodFilter === 'CREDIT'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-amber-50 text-amber-600 border-amber-200'
+                        }`}>
+                          <CreditCard className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight leading-tight">
+                      Rs. {fmt(stats.customerCreditDueTotal)}
+                    </div>
+                    <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate flex items-center justify-between">
+                      <span>Outstanding Balance</span>
+                      {isAllPeriod && paymentMethodFilter === 'CREDIT' && <span className="text-amber-700 font-black">✓ Active</span>}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. Total Card */}
+                <div
+                  onClick={() => {
+                    handlePresetDate('all');
+                    setPaymentMethodFilter('ALL');
+                  }}
+                  className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
+                    isAllPeriod && paymentMethodFilter === 'ALL'
+                      ? 'bg-teal-50/90 border-teal-600 ring-2 ring-teal-500/50 shadow-sm scale-[1.01]'
+                      : 'bg-white border-teal-200/90 hover:border-teal-400 hover:shadow-xs'
+                  }`}
+                  title="Click to view Total Gross Revenue transactions & ledger"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 flex items-center gap-1 truncate">
+                        💰 Total Revenue
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintSummaryReport('TOTAL');
+                          }}
+                          className="p-1 rounded-md border border-teal-300 bg-white hover:bg-teal-100 text-teal-700 hover:text-teal-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
+                          title="Print Total Revenue Record"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <div className={`p-1 rounded-md border transition-colors shrink-0 ${
+                          isAllPeriod && paymentMethodFilter === 'ALL'
+                            ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
+                            : 'bg-teal-50 text-teal-700 border-teal-200'
+                        }`}>
+                          <Wallet className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-teal-950 tracking-tight leading-tight">
+                      Rs. {fmt(stats.customerTotalRevenue)}
+                    </div>
+                    <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate flex items-center justify-between">
+                      <span>All Sales Combined</span>
+                      {isAllPeriod && paymentMethodFilter === 'ALL' && <span className="text-teal-700 font-black">✓ Active</span>}
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Dedicated Today Customer Payment Summary (Separate Div Below with Cards) */}
+              <div className={`mt-4 border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${
+                isTodayPeriod ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/20' : 'bg-slate-100 border-slate-300'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                    Today's Customer Inflow &amp; Ledger (Daily Breakdown)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isTodayPeriod && (
+                      <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                        {paymentMethodFilter === 'ALL' ? 'TODAY ALL' : `TODAY ${paymentMethodFilter}`}
+                      </span>
+                    )}
+                    <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+                      {todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Card 1: Today Cash */}
+                  <div
+                    onClick={() => {
+                      handlePresetDate('today');
+                      setPaymentMethodFilter(paymentMethodFilter === 'CASH' && isTodayPeriod ? 'ALL' : 'CASH');
                     }}
-                    className="p-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                    title="Print Total Cash Record"
+                    className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                      isTodayPeriod && paymentMethodFilter === 'CASH'
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-50/30 scale-[1.01]'
+                        : 'border-slate-300 hover:border-emerald-400'
+                    }`}
+                    title="Click to view Today's Cash Inflow Transactions"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
-                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                    paymentMethodFilter === 'CASH'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  }`}>
-                    <Banknote className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
+                    <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalCashReceived)}</div>
+                    <span className="text-[10px] font-bold text-emerald-700 truncate mt-1 flex items-center justify-between">
+                      <span>Direct Cash Received</span>
+                      {isTodayPeriod && paymentMethodFilter === 'CASH' && <span className="font-black text-[9px]">✓ Active</span>}
+                    </span>
+                  </div>
+
+                  {/* Card 2: Today Bank */}
+                  <div
+                    onClick={() => {
+                      handlePresetDate('today');
+                      setPaymentMethodFilter(paymentMethodFilter === 'BANK' && isTodayPeriod ? 'ALL' : 'BANK');
+                    }}
+                    className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                      isTodayPeriod && paymentMethodFilter === 'BANK'
+                        ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/30 scale-[1.01]'
+                        : 'border-slate-300 hover:border-blue-400'
+                    }`}
+                    title="Click to view Today's Bank Transfer Transactions"
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
+                    <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalBankReceived)}</div>
+                    <span className="text-[10px] font-bold text-blue-700 truncate mt-1 flex items-center justify-between">
+                      <span>Transferred to Bank</span>
+                      {isTodayPeriod && paymentMethodFilter === 'BANK' && <span className="font-black text-[9px]">✓ Active</span>}
+                    </span>
+                  </div>
+
+                  {/* Card 3: Today Credit */}
+                  <div
+                    onClick={() => {
+                      handlePresetDate('today');
+                      setPaymentMethodFilter(paymentMethodFilter === 'CREDIT' && isTodayPeriod ? 'ALL' : 'CREDIT');
+                    }}
+                    className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                      isTodayPeriod && paymentMethodFilter === 'CREDIT'
+                        ? 'border-amber-500 ring-2 ring-amber-500/50 bg-amber-50/30 scale-[1.01]'
+                        : 'border-slate-300 hover:border-amber-400'
+                    }`}
+                    title="Click to view Today's Credit Due Transactions"
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Due</span>
+                    <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerCreditDueTotal)}</div>
+                    <span className="text-[10px] font-bold text-amber-700 truncate mt-1 flex items-center justify-between">
+                      <span>Customer Due Balance</span>
+                      {isTodayPeriod && paymentMethodFilter === 'CREDIT' && <span className="font-black text-[9px]">✓ Active</span>}
+                    </span>
+                  </div>
+
+                  {/* Card 4: Total Today */}
+                  <div
+                    onClick={() => {
+                      handlePresetDate('today');
+                      setPaymentMethodFilter('ALL');
+                    }}
+                    className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                      isTodayPeriod && paymentMethodFilter === 'ALL'
+                        ? 'border-teal-500 ring-2 ring-teal-500/50 bg-teal-50/30 scale-[1.01]'
+                        : 'border-slate-300 hover:border-teal-400'
+                    }`}
+                    title="Click to view Today's Combined Sales List"
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-wider text-teal-900">4. Total Today Revenue</span>
+                    <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerTotalRevenue)}</div>
+                    <span className="text-[10px] font-bold text-teal-700 truncate mt-1 flex items-center justify-between">
+                      <span>All Sales Combined</span>
+                      {isTodayPeriod && paymentMethodFilter === 'ALL' && <span className="font-black text-[9px]">✓ Active</span>}
+                    </span>
                   </div>
                 </div>
               </div>
-              <div className="text-base sm:text-lg font-black text-emerald-700 tracking-tight leading-tight">
-                Rs. {fmt(stats.totalCashReceived)}
-              </div>
-              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Direct Cash Inflow</p>
-            </div>
-          </div>
-
-          {/* 2. Bank Card */}
-          <div
-            onClick={() => setPaymentMethodFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK')}
-            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
-              paymentMethodFilter === 'BANK'
-                ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-400/40 shadow-sm'
-                : 'bg-white border-blue-200/90 hover:border-blue-400 hover:shadow-xs'
-            }`}
-            title="Click to view Bank / Online transactions & ledger"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1 truncate">
-                  🏦 Bank / Online
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrintSummaryReport('BANK');
-                    }}
-                    className="p-1 rounded-md border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                    title="Print Total Bank Record"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
-                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                    paymentMethodFilter === 'BANK'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                      : 'bg-blue-50 text-blue-600 border-blue-200'
-                  }`}>
-                    <Building2 className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              </div>
-              <div className="text-base sm:text-lg font-black text-blue-700 tracking-tight leading-tight">
-                Rs. {fmt(stats.totalBankReceived)}
-              </div>
-              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Transferred to Bank</p>
-            </div>
-          </div>
-
-          {/* 3. Credit Card */}
-          <div
-            onClick={() => setPaymentMethodFilter(prev => prev === 'CREDIT' ? 'ALL' : 'CREDIT')}
-            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
-              paymentMethodFilter === 'CREDIT'
-                ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-400/40 shadow-sm'
-                : 'bg-white border-amber-200/90 hover:border-amber-400 hover:shadow-xs'
-            }`}
-            title="Click to view Credit / Receivable Due ledger"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1 truncate">
-                  📋 Credit (Due)
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrintSummaryReport('CREDIT');
-                    }}
-                    className="p-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-700 hover:text-amber-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                    title="Print Total Credit Record"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
-                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                    paymentMethodFilter === 'CREDIT'
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-amber-50 text-amber-600 border-amber-200'
-                  }`}>
-                    <CreditCard className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              </div>
-              <div className="text-base sm:text-lg font-black text-amber-600 tracking-tight leading-tight">
-                Rs. {fmt(stats.customerCreditDueTotal)}
-              </div>
-              <p className="text-[8.5px] font-bold text-zinc-400 uppercase mt-0.5 tracking-tight truncate">Outstanding Balance</p>
-            </div>
-          </div>
-
-          {/* 4. Total Card */}
-          <div
-            onClick={() => setPaymentMethodFilter('ALL')}
-            className={`p-3 rounded-xl border-2 shadow-xs transition-all cursor-pointer active:scale-95 flex flex-col justify-between min-h-[96px] ${
-              paymentMethodFilter === 'ALL'
-                ? 'bg-teal-50/90 border-teal-600 ring-2 ring-teal-500/40 shadow-sm'
-                : 'bg-white border-teal-200/90 hover:border-teal-400 hover:shadow-xs'
-            }`}
-            title="Click to view Total Gross Revenue transactions & ledger"
-          >
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 flex items-center gap-1 truncate">
-                  💰 Total Revenue
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrintSummaryReport('TOTAL');
-                    }}
-                    className="p-1 rounded-md border border-teal-300 bg-white hover:bg-teal-100 text-teal-700 hover:text-teal-900 transition-all cursor-pointer shadow-2xs hover:scale-105"
-                    title="Print Total Revenue Record"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
-                  <div className={`p-1 rounded-md border transition-colors shrink-0 ${
-                    paymentMethodFilter === 'ALL'
-                      ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
-                      : 'bg-teal-50 text-teal-700 border-teal-200'
-                  }`}>
-                    <Wallet className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              </div>
-              <div className="text-base sm:text-lg font-black text-teal-950 tracking-tight leading-tight">
-                Rs. {fmt(stats.customerTotalRevenue)}
-              </div>
-              <p className="text-[8.5px] font-bold text-zinc-500 uppercase mt-0.5 tracking-tight truncate">All Sales Combined</p>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Dedicated Today Customer Payment Summary (Separate Div Below with Cards) */}
-        <div className="mt-4 bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-              Today's Customer Inflow &amp; Ledger (Daily Breakdown)
-            </span>
-            <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-              {todayStats.totalInvoices} Invoices Today &bull; {todayStats.totalPetisSold.toFixed(1)} Petis Sold
-            </span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
-              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalCashReceived)}</div>
-              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
-            </div>
-            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
-              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.totalBankReceived)}</div>
-              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
-            </div>
-            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Due</span>
-              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerCreditDueTotal)}</div>
-              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Customer Due Balance</span>
-            </div>
-            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900">4. Total Today Revenue</span>
-              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {fmt(todayStats.customerTotalRevenue)}</div>
-              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
-            </div>
-          </div>
-        </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────── */}

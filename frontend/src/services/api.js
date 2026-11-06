@@ -494,4 +494,34 @@ export const deleteFuelExpense = async (id) => {
   return response.data;
 };
 
+// --- SHOP OVERHEAD & MANUAL EXPENSES API ---
+export const getExpenses = async (shopId) => {
+  const url = shopId ? `/expenses/shop/${shopId}` : '/expenses';
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const createExpense = async (data, shopId) => {
+  const url = shopId ? `/expenses/shop/${shopId}` : '/expenses';
+  const response = await api.post(url, data);
+  return response.data;
+};
+
+export const updateExpense = async (id, data) => {
+  const response = await api.put(`/expenses/${id}`, data);
+  return response.data;
+};
+
+export const deleteExpense = async (id) => {
+  const response = await api.delete(`/expenses/${id}`);
+  return response.data;
+};
+
+// --- REGISTERED CUSTOMERS API ---
+export const getCustomersAll = async (shopId) => {
+  const url = shopId ? `/customers/all?shopId=${shopId}` : '/customers/all';
+  const response = await api.get(url);
+  return response.data;
+};
+
 export default api;

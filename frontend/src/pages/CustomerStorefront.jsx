@@ -35,7 +35,7 @@ import { SupplierPurchaseSummaryCard } from '../components/SupplierPurchaseSumma
 import { CountUpNumber } from '../components/CountUpNumber.jsx';
 import { ShopAdminCharts } from '../components/ShopAdminCharts.jsx';
 import { CustomerCharts } from '../components/CustomerCharts.jsx';
-import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, updateSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses, getApiUrl } from '../services/api.js';
+import { updateItem, deleteItem as apiDeleteItem, createItem, createSale, updateSale, getSales, getShopOrders, deleteSale, settleCreditSale, getPurchaseCredits, getFuelExpenses, getExpenses, createExpense, updateExpense, deleteExpense, getCustomersAll, getApiUrl } from '../services/api.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -890,10 +890,18 @@ function StoreContent({ shopId }) {
 
     if (reportTimeframe === 'DAY') {
       const now = new Date();
+      if (isNaN(d.getTime())) return false;
+      if (d.toDateString() === now.toDateString()) return true;
       const pad = (n) => String(n).padStart(2, '0');
       const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       const itemLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      return itemLocal === todayLocal || d.toDateString() === now.toDateString();
+      if (itemLocal === todayLocal) return true;
+      try {
+        const todayUTC = now.toISOString().split('T')[0];
+        const itemUTC = d.toISOString().split('T')[0];
+        if (itemUTC === todayUTC) return true;
+      } catch (e) {}
+      return false;
     }
     if (reportTimeframe === 'MONTH') {
       const now = new Date();
@@ -1021,6 +1029,12 @@ function StoreContent({ shopId }) {
       }
       return;
     }
+    // Clean reset of period filters when switching views unless user explicitly picked a calendar range
+    if (!appliedStartDate && !appliedEndDate) {
+      setReportTimeframe('ALL');
+      setSalesReportPaymentFilter('ALL');
+      setExpensePaymentFilter('ALL');
+    }
     if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits') {
       fetchShopSales();
       fetchRegisteredCustomers();
@@ -1048,16 +1062,53 @@ function StoreContent({ shopId }) {
   const [viewingReceiptModal, setViewingReceiptModal] = useState(null);
   const [completedBill, setCompletedBill] = useState(null);
   const [isProcessingWalkIn, setIsProcessingWalkIn] = useState(false);
-  const [shopSalesList, setShopSalesList] = useState([]);
+  const [shopSalesList, setShopSalesList] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const pathShopId = window.location.pathname.match(/\/shop\/(\d+)/)?.[1] || '1';
+        const local = localStorage.getItem(`nexflow_sales_${pathShopId}`) || localStorage.getItem('nexflow_sales_1');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [salesPaymentTab, setSalesPaymentTab] = useState('ALL');
   const [loadingSales, setLoadingSales] = useState(false);
-  const [registeredCustomersList, setRegisteredCustomersList] = useState([]);
+  const [registeredCustomersList, setRegisteredCustomersList] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const pathShopId = window.location.pathname.match(/\/shop\/(\d+)/)?.[1] || '1';
+        const local = localStorage.getItem(`nexflow_customers_${pathShopId}`) || localStorage.getItem('nexflow_customers_1');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerFilterTab, setCustomerFilterTab] = useState('ALL'); // 'ALL' | 'ONLINE' | 'PHYSICAL'
+  const [customerMetricFilter, setCustomerMetricFilter] = useState('ALL'); // 'ALL' | 'SPENT' | 'DUE' | 'ORDERS' | 'CASH' | 'BANK' | 'CREDIT'
   const [activeCustMenuId, setActiveCustMenuId] = useState(null);
   const [activeCustGroupMenuId, setActiveCustGroupMenuId] = useState(null);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [allShopOrders, setAllShopOrders] = useState([]);
+  const [allShopOrders, setAllShopOrders] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const pathShopId = window.location.pathname.match(/\/shop\/(\d+)/)?.[1] || '1';
+        const local = localStorage.getItem(`nexflow_orders_${pathShopId}`) || localStorage.getItem('nexflow_orders_1');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
 
   // ─── Sale Report Edit State & Handlers ───
   const [editingSale, setEditingSale] = useState(null);
@@ -1783,6 +1834,14 @@ function StoreContent({ shopId }) {
       const ordersArr = ordersData?.orders || ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
       const shopFilteredOrders = ordersArr.filter(o => !o.shopId || String(o.shopId?._id || o.shopId) === String(shopId));
       setAllShopOrders(shopFilteredOrders);
+
+      if (shopId) {
+        try {
+          localStorage.setItem(`nexflow_customers_${shopId}`, JSON.stringify(shopFilteredCust));
+          localStorage.setItem(`nexflow_sales_${shopId}`, JSON.stringify(shopFilteredSales));
+          localStorage.setItem(`nexflow_orders_${shopId}`, JSON.stringify(shopFilteredOrders));
+        } catch (e) {}
+      }
     } catch (err) {
       console.error("Fetch registered customers error:", err);
     } finally {
@@ -2028,12 +2087,51 @@ function StoreContent({ shopId }) {
 
   const filteredUnifiedCustomers = useMemo(() => {
     return (unifiedCustomersList || []).filter(cust => {
-      if (appliedStartDate || appliedEndDate) {
-        const stats = getCustomerStats(cust);
+      const stats = getCustomerStats(cust);
+
+      if (appliedStartDate || appliedEndDate || reportTimeframe === 'DAY') {
         const hasSaleInRange = (stats.matchingSales || []).some(s => isDateInSelectedRange(s.saleDate || s.createdAt));
         const regInRange = isDateInSelectedRange(cust.createdAt);
         if (!regInRange && !hasSaleInRange) return false;
       }
+
+      if (customerMetricFilter === 'SPENT' && (stats.totalSpent || 0) <= 0) return false;
+      if (customerMetricFilter === 'DUE' && (stats.totalCreditDue || 0) <= 0) return false;
+      if (customerMetricFilter === 'ORDERS' && (stats.ordersCount || 0) <= 0) return false;
+
+      if (customerMetricFilter === 'CASH') {
+        const hasCash = (stats.matchingSales || []).some(s => {
+          const inRange = (appliedStartDate || appliedEndDate || reportTimeframe === 'DAY') ? isDateInSelectedRange(s.saleDate || s.createdAt) : true;
+          if (!inRange) return false;
+          const cash = Number(s.cashPaid) || 0;
+          const pMethod = String(s.paymentMethod || '').toUpperCase();
+          return cash > 0 || (pMethod === 'CASH' && (Number(s.totalAmount) || 0) > 0);
+        });
+        if (!hasCash) return false;
+      }
+
+      if (customerMetricFilter === 'BANK') {
+        const hasBank = (stats.matchingSales || []).some(s => {
+          const inRange = (appliedStartDate || appliedEndDate || reportTimeframe === 'DAY') ? isDateInSelectedRange(s.saleDate || s.createdAt) : true;
+          if (!inRange) return false;
+          const bank = Number(s.bankPaid) || 0;
+          const pMethod = String(s.paymentMethod || '').toUpperCase();
+          return bank > 0 || pMethod.includes('BANK') || pMethod.includes('ONLINE');
+        });
+        if (!hasBank) return false;
+      }
+
+      if (customerMetricFilter === 'CREDIT') {
+        const hasCredit = (stats.matchingSales || []).some(s => {
+          const inRange = (appliedStartDate || appliedEndDate || reportTimeframe === 'DAY') ? isDateInSelectedRange(s.saleDate || s.createdAt) : true;
+          if (!inRange) return false;
+          const due = Number(s.dueAmount) || 0;
+          const pMethod = String(s.paymentMethod || '').toUpperCase();
+          return due > 0 || s.isCredit || pMethod.includes('CREDIT') || pMethod.includes('DUE');
+        });
+        if (!hasCredit) return false;
+      }
+
       if (customerFilterTab === 'ONLINE' && !cust.isOnline) return false;
       if (customerFilterTab === 'PHYSICAL' && cust.isOnline) return false;
       if (customerSearch.trim()) {
@@ -2045,7 +2143,7 @@ function StoreContent({ shopId }) {
       }
       return true;
     });
-  }, [unifiedCustomersList, customerFilterTab, customerSearch, appliedStartDate, appliedEndDate, shopSalesList]);
+  }, [unifiedCustomersList, customerFilterTab, customerSearch, customerMetricFilter, appliedStartDate, appliedEndDate, reportTimeframe, shopSalesList, allShopOrders]);
 
   // ─── Directory Overall Cumulative Summary (All Customers Grand Total) ───
   const directorySummaryStats = useMemo(() => {
@@ -2855,15 +2953,40 @@ function StoreContent({ shopId }) {
   };
 
   const fetchShopSales = async () => {
+    const activeShopId = shopId || (typeof window !== 'undefined' ? window.location.pathname.match(/\/shop\/(\d+)/)?.[1] : null) || '1';
     setLoadingSales(true);
     try {
-      const sales = await getSales(shopId);
-      setShopSalesList(sales || []);
+      const [salesData, ordersData] = await Promise.all([
+        getSales(activeShopId).catch(() => []),
+        getShopOrders({ shopId: activeShopId }).catch(() => ({ orders: [] }))
+      ]);
+      const salesArr = Array.isArray(salesData) ? salesData : (salesData?.sales || salesData?.data || []);
+      const shopFilteredSales = salesArr.filter(s => !s.shopId || String(s.shopId?._id || s.shopId) === String(activeShopId));
+      setShopSalesList(shopFilteredSales);
+      try {
+        localStorage.setItem(`nexflow_sales_${activeShopId}`, JSON.stringify(shopFilteredSales));
+      } catch (e) {}
+
+      const ordersArr = ordersData?.orders || ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
+      const shopFilteredOrders = ordersArr.filter(o => !o.shopId || String(o.shopId?._id || o.shopId) === String(activeShopId));
+      setAllShopOrders(shopFilteredOrders);
+      try {
+        localStorage.setItem(`nexflow_orders_${activeShopId}`, JSON.stringify(shopFilteredOrders));
+      } catch (e) {}
+
       if (typeof fetchRegisteredCustomers === 'function') {
         fetchRegisteredCustomers();
       }
+      return shopFilteredSales;
     } catch (err) {
       console.error("Failed to load sales:", err);
+      try {
+        const local = localStorage.getItem(`nexflow_sales_${activeShopId}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) setShopSalesList(parsed);
+        }
+      } catch (e) {}
     } finally {
       setLoadingSales(false);
     }
@@ -3426,8 +3549,10 @@ function StoreContent({ shopId }) {
       if (rawName && !isGenericName(rawName)) nameToGroup.set(rawName.toLowerCase(), newGroup);
     });
 
-    // 2. Attach matching sales from filteredSalesForReport (or fallback to unifiedSalesList)
-    const salesToGroup = (filteredSalesForReport && filteredSalesForReport.length > 0) ? filteredSalesForReport : (unifiedSalesList || []);
+    // 2. Attach matching sales from filteredSalesForReport (or fallback to unifiedSalesList if viewing all-time)
+    const salesToGroup = (reportTimeframe !== 'ALL' || appliedStartDate || appliedEndDate)
+      ? (filteredSalesForReport || [])
+      : ((filteredSalesForReport && filteredSalesForReport.length > 0) ? filteredSalesForReport : (unifiedSalesList || []));
     (salesToGroup || []).forEach((s) => {
       if (!s) return;
       const rawEmail = (s.customerEmail || s.email || '').trim().toLowerCase();
@@ -4351,8 +4476,125 @@ function StoreContent({ shopId }) {
     };
   }, [filteredSalesForReport, reportTimeframe, dashStats]);
 
-  // Dynamic Manual Expenses Tracking State
-  const [expensesList, setExpensesList] = useState([]);
+  // Overall / All-Time Summary Stats for Top 4 Cards in Sales Report View
+  const overallSalesReportStats = useMemo(() => {
+    const sourceList = (appliedStartDate || appliedEndDate) ? filteredSalesForReport : (unifiedSalesList || []);
+    let totalRevenue = 0;
+    let totalProfit = 0;
+    let totalEggs = 0;
+    let cashSales = 0;
+    let bankSales = 0;
+    let creditSales = 0;
+
+    sourceList.forEach(s => {
+      if (!s) return;
+      const amount = Number(s.totalAmount) || 0;
+      const profit = Number(s.totalProfit) || 0;
+      totalRevenue += amount;
+      totalProfit += profit;
+
+      const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
+      const hasDetailedBreakdown = s.cashPaid !== undefined || s.bankPaid !== undefined || s.dueAmount !== undefined;
+
+      if (hasDetailedBreakdown) {
+        cashSales += (Number(s.cashPaid) || 0);
+        bankSales += (Number(s.bankPaid) || 0);
+        creditSales += (Number(s.dueAmount) || 0);
+      } else {
+        const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA';
+        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || s.isCredit;
+
+        if (isCredit) {
+          creditSales += amount;
+        } else if (isBank) {
+          bankSales += amount;
+        } else {
+          cashSales += amount;
+        }
+      }
+
+      let sItems = [];
+      if (Array.isArray(s.items)) {
+        sItems = s.items;
+      } else if (typeof s.items === 'string' && s.items.trim()) {
+        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch {}
+      } else if (Array.isArray(s.orderItems)) {
+        sItems = s.orderItems;
+      } else if (Array.isArray(s.saleItems)) {
+        sItems = s.saleItems;
+      }
+      if (!Array.isArray(sItems)) sItems = [];
+
+      if (sItems.length > 0) {
+        let eggsFromItems = 0;
+        sItems.forEach(i => {
+          const q = Number(i.quantity) || 1;
+          const u = String(i.unitLabel || i.unit || '').toLowerCase();
+          const n = String(i.name || i.rawProductName || '').toLowerCase();
+          let itemEggs = 0;
+          if (Number(i.totalEggs) > 0) itemEggs = Number(i.totalEggs);
+          else if (u.includes('peti') || (!u && n.includes('peti'))) itemEggs = q * 360;
+          else if (u.includes('tray') || (!u && n.includes('tray'))) itemEggs = q * 30;
+          else itemEggs = q;
+          eggsFromItems += itemEggs;
+        });
+        if (eggsFromItems > 0) {
+          totalEggs += eggsFromItems;
+        } else if (Number(s.eggsBought) > 0) {
+          totalEggs += Number(s.eggsBought);
+        } else if (Number(s.petisBought) > 0) {
+          totalEggs += Number(s.petisBought) * 360;
+        } else if (amount > 0) {
+          const estPetis = Number((amount / 1050).toFixed(1)) || 1;
+          totalEggs += Math.round(estPetis * 360);
+        }
+      } else if (Number(s.eggsBought) > 0) {
+        totalEggs += Number(s.eggsBought);
+      } else if (Number(s.petisBought) > 0) {
+        totalEggs += Number(s.petisBought) * 360;
+      } else if (amount > 0) {
+        const estPetis = Number((amount / 1050).toFixed(1)) || 1;
+        totalEggs += Math.round(estPetis * 360);
+      }
+    });
+
+    const totalPetis = (totalEggs / 360).toFixed(1);
+    const totalTrays = Math.round(totalEggs / 30);
+    const totalBills = sourceList.length;
+
+    return {
+      totalRevenue: totalRevenue || Number(dashStats.totalRevenue || 0),
+      totalProfit: totalProfit || Number(dashStats.totalProfit || 0),
+      totalEggs,
+      totalPetis,
+      totalTrays,
+      totalBills,
+      cashSales,
+      bankSales,
+      onlineSales: bankSales,
+      creditSales
+    };
+  }, [appliedStartDate, appliedEndDate, filteredSalesForReport, unifiedSalesList, dashStats]);
+
+  // Dynamic Manual Expenses Tracking State with Instant Cache-First Loading
+  const [expensesList, setExpensesList] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const pathShopId = window.location.pathname.match(/\/shop\/(\d+)/)?.[1] || '1';
+        const local = localStorage.getItem(`nexflow_expenses_${pathShopId}`) || localStorage.getItem('nexflow_expenses_1');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter(exp => {
+              const t = String(exp.title || '').trim().toLowerCase();
+              return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
+            });
+          }
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [expensePaymentFilter, setExpensePaymentFilter] = useState('ALL');
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
@@ -4368,31 +4610,35 @@ function StoreContent({ shopId }) {
   });
 
   const fetchExpenses = async () => {
-    if (!shopId) return [];
+    const activeShopId = shopId || (typeof window !== 'undefined' ? window.location.pathname.match(/\/shop\/(\d+)/)?.[1] : null) || '1';
     try {
-      const res = await fetch(`/api/expenses/shop/${shopId}`);
-      if (res.ok) {
-        const data = await res.json();
-        const rawList = data.data || [];
-        const list = rawList.filter(exp => {
-          const t = String(exp.title || '').trim().toLowerCase();
-          return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
-        });
-        setExpensesList(list);
-        localStorage.setItem(`nexflow_expenses_${shopId}`, JSON.stringify(list));
-        return list;
-      }
+      const res = await getExpenses(activeShopId);
+      const rawList = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      const list = rawList.filter(exp => {
+        const t = String(exp.title || '').trim().toLowerCase();
+        return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
+      });
+      setExpensesList(list);
+      try {
+        localStorage.setItem(`nexflow_expenses_${activeShopId}`, JSON.stringify(list));
+      } catch (e) {}
+      return list;
     } catch (e) {
-      console.error('Fetch expenses error:', e);
+      console.warn('API fetch expenses fallback to local:', e);
+      try {
+        const local = localStorage.getItem(`nexflow_expenses_${activeShopId}`);
+        if (local) {
+          const parsed = JSON.parse(local);
+          const list = parsed.filter(exp => {
+            const t = String(exp.title || '').trim().toLowerCase();
+            return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
+          });
+          setExpensesList(list);
+          return list;
+        }
+      } catch (err) {}
     }
-    const local = localStorage.getItem(`nexflow_expenses_${shopId}`);
-    const parsed = local ? JSON.parse(local) : [];
-    const list = parsed.filter(exp => {
-      const t = String(exp.title || '').trim().toLowerCase();
-      return !t.startsWith('supplier payment') && !t.startsWith('supplier credit paid') && !t.startsWith('vendor payment');
-    });
-    setExpensesList(list);
-    return list;
+    return [];
   };
 
   // ─── Dynamic Vehicle & Transport Fuel Expenses State ───
@@ -4474,11 +4720,7 @@ function StoreContent({ shopId }) {
 
       setExpensesList(prev => prev.map(item => String(item._id || item.id) === String(editingExpenseId) ? { ...item, ...updatedExpenseItem } : item));
       try {
-        await fetch(`/api/expenses/${editingExpenseId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedExpenseItem)
-        });
+        await updateExpense(editingExpenseId, updatedExpenseItem);
         await fetchExpenses();
       } catch (err) { }
 
@@ -4510,20 +4752,11 @@ function StoreContent({ shopId }) {
     };
 
     try {
-      const res = await fetch(`/api/expenses/shop/${shopId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newExpenseItem)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data) {
-          setExpensesList(prev => [data.data, ...prev.filter(x => String(x._id || x.id) !== String(data.data._id || data.data.id))]);
-        }
-        await fetchExpenses();
-      } else {
-        setExpensesList(prev => [{ ...newExpenseItem, _id: 'exp_' + Date.now() }, ...prev]);
+      const data = await createExpense(newExpenseItem, shopId);
+      if (data?.data) {
+        setExpensesList(prev => [data.data, ...prev.filter(x => String(x._id || x.id) !== String(data.data._id || data.data.id))]);
       }
+      await fetchExpenses();
     } catch (err) {
       setExpensesList(prev => [{ ...newExpenseItem, _id: 'exp_' + Date.now() }, ...prev]);
     }
@@ -4799,9 +5032,9 @@ function StoreContent({ shopId }) {
     }
     if (!window.confirm('Are you sure you want to delete this expense entry?')) return;
     try {
-      await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+      await deleteExpense(id);
     } catch (e) { }
-    setExpensesList(prev => prev.filter(x => String(x._id) !== String(id)));
+    setExpensesList(prev => prev.filter(x => String(x._id || x.id) !== String(id)));
     setTimeout(fetchDashboardStats, 300);
   };
 
@@ -8059,7 +8292,19 @@ function StoreContent({ shopId }) {
               </p>
               <div className="space-y-1.5">
                 <button
-                  onClick={() => { setActiveView('dashboard'); setIsMobileOpen(false); }}
+                  onClick={() => {
+                    setActiveView('dashboard');
+                    setIsMobileOpen(false);
+                    setReportTimeframe('ALL');
+                    setAppliedStartDate('');
+                    setAppliedEndDate('');
+                    setReportStartDate('');
+                    setReportEndDate('');
+                    fetchShopSales();
+                    fetchExpenses();
+                    fetchFuelExpenses();
+                    fetchDamagedProducts();
+                  }}
                   className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'dashboard'
                     ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                     : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8112,7 +8357,15 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('purchases') && (
                   <button
-                    onClick={() => { setActiveView('purchases'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('purchases');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchases'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8125,7 +8378,15 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('vendors') && (
                   <button
-                    onClick={() => { setActiveView('vendors'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('vendors');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendors'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8138,7 +8399,15 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('customerPaymentLedger') && (
                   <button
-                    onClick={() => { setActiveView('customer-payment-ledger'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('customer-payment-ledger');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-payment-ledger'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8151,7 +8420,15 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('vendorPaymentLedger') && (
                   <button
-                    onClick={() => { setActiveView('vendor-payment-ledger'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('vendor-payment-ledger');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendor-payment-ledger'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8164,7 +8441,16 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('customerPaymentLedger') && (
                   <button
-                    onClick={() => { setActiveView('registered-customers'); fetchRegisteredCustomers(); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('registered-customers');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchRegisteredCustomers();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8177,7 +8463,18 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('sales') && (
                   <button
-                    onClick={() => { setActiveView('report-sales'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('report-sales');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setSalesReportPaymentFilter('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchRegisteredCustomers();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-sales'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8190,7 +8487,17 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('customerPaymentLedger') && (
                   <button
-                    onClick={() => { setActiveView('customer-credits'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('customer-credits');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchRegisteredCustomers();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-credits'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8203,7 +8510,17 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('purchases') && (
                   <button
-                    onClick={() => { setActiveView('purchase-credits'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('purchase-credits');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchExpenses();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchase-credits'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8216,7 +8533,19 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('reports') && (
                   <button
-                    onClick={() => { setActiveView('report-profit'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('report-profit');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchExpenses();
+                      fetchFuelExpenses();
+                      fetchDamagedProducts();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-profit'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8229,7 +8558,17 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('expenses') && (
                   <button
-                    onClick={() => { setActiveView('report-expenses'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('report-expenses');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setExpensePaymentFilter('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchExpenses();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-expenses'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8242,7 +8581,16 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('store') && (
                   <button
-                    onClick={() => { setActiveView('damaged-products'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('damaged-products');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchDamagedProducts();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'damaged-products'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8255,7 +8603,16 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('expenses') && (
                   <button
-                    onClick={() => { setActiveView('report-fuel'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('report-fuel');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchFuelExpenses();
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-fuel'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8268,7 +8625,15 @@ function StoreContent({ shopId }) {
 
                   {isActionAllowed('reports') && (
                   <button
-                    onClick={() => { setActiveView('analytics-charts'); setIsMobileOpen(false); }}
+                    onClick={() => {
+                      setActiveView('analytics-charts');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                    }}
                     className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'analytics-charts'
                       ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
                       : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
@@ -8496,13 +8861,25 @@ function StoreContent({ shopId }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 relative z-10">
 
                           {/* 1. TOTAL SALE (PURE SALES ONLY - NO FUEL DEDUCTION) */}
-                          <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setSalesReportPaymentFilter('ALL');
+                              setActiveView('report-sales');
+                            }}
+                            className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border-2 border-emerald-200 hover:border-emerald-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Total Sales list & report"
+                          >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-1.5">
                                 <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
                                 1. Total Sale
                               </span>
-                              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 group-hover:bg-emerald-200 transition-colors">
                                 <DollarSign className="w-4 h-4" />
                               </div>
                             </div>
@@ -8518,7 +8895,14 @@ function StoreContent({ shopId }) {
 
                           {/* 2. TOTAL FUEL EXPENSE (FROM FUEL REPORT PAGE) */}
                           <div
-                            onClick={() => setActiveView('report-fuel')}
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setActiveView('report-fuel');
+                            }}
                             className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
                             title="Click to view Vehicle Fuel Management"
                           >
@@ -8542,13 +8926,25 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* 3. TOTAL EXPENSE */}
-                          <div className="bg-gradient-to-br from-white via-slate-50 to-rose-50/50 border-2 border-rose-200 hover:border-rose-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setExpensePaymentFilter('ALL');
+                              setActiveView('report-expenses');
+                            }}
+                            className="bg-gradient-to-br from-white via-slate-50 to-rose-50/50 border-2 border-rose-200 hover:border-rose-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Shop Operating Expenses list"
+                          >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-rose-700 flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5 text-rose-600" />
                                 3. Shop Expense
                               </span>
-                              <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 shrink-0">
+                              <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 shrink-0 group-hover:bg-rose-200 transition-colors">
                                 <TrendingDown className="w-4 h-4" />
                               </div>
                             </div>
@@ -8563,13 +8959,24 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* 4. TOTAL DAMAGED PRODUCT */}
-                          <div className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setActiveView('damaged-products');
+                            }}
+                            className="bg-gradient-to-br from-white via-slate-50 to-amber-50/50 border-2 border-amber-200 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Total Damaged Products list"
+                          >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1.5">
                                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                                 4. Total Damaged
                               </span>
-                              <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+                              <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0 group-hover:bg-amber-200 transition-colors">
                                 <AlertCircle className="w-4 h-4" />
                               </div>
                             </div>
@@ -8584,13 +8991,19 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* 5. TOTAL PROFIT */}
-                          <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-100/70 border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                          <div
+                            onClick={() => {
+                              setActiveView('report-profit');
+                            }}
+                            className="bg-gradient-to-br from-white via-slate-50 to-emerald-100/70 border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Pure Net Profit statement"
+                          >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 flex items-center gap-1.5">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                                 5. Total Profit
                               </span>
-                              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                                 <TrendingUp className="w-4 h-4" />
                               </div>
                             </div>
@@ -8605,13 +9018,19 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* 6. TOTAL LOSS */}
-                          <div className="bg-gradient-to-br from-white via-slate-50 to-rose-100/70 border-2 border-rose-300 hover:border-rose-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02]">
+                          <div
+                            onClick={() => {
+                              setActiveView('report-profit');
+                            }}
+                            className="bg-gradient-to-br from-white via-slate-50 to-rose-100/70 border-2 border-rose-300 hover:border-rose-500 rounded-2xl p-4 shadow-sm hover:shadow-md flex flex-col justify-between space-y-3 transition-all hover:scale-[1.02] cursor-pointer group"
+                            title="Click to view Total Loss breakdown"
+                          >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-widest text-rose-800 flex items-center gap-1.5">
                                 <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
                                 6. Total Loss
                               </span>
-                              <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                              <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                                 <AlertTriangle className="w-4 h-4" />
                               </div>
                             </div>
@@ -8640,10 +9059,22 @@ function StoreContent({ shopId }) {
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
                             {/* 1. Today Sale */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setSalesReportPaymentFilter('ALL');
+                                setActiveView('report-sales');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Sales list & report"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-800">
                                 <span>1. Today Sale</span>
-                                <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                                <ShoppingBag className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}
@@ -8654,24 +9085,47 @@ function StoreContent({ shopId }) {
                             </div>
 
                             {/* 2. Today Fuel */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setActiveView('report-fuel');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-amber-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Fuel Expenses"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-800">
                                 <span>2. Today Fuel</span>
-                                <Fuel className="w-4 h-4 text-amber-600" />
+                                <Fuel className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todayFuelExpense.toLocaleString('en-PK')}
                               </div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
-                                {todayMasterMetrics.todayFuelCount} Logs &bull; {todayMasterMetrics.todayFuelLiters.toFixed(1)} L
+                                {todayMasterMetrics.todayFuelLiters > 0 ? `${todayMasterMetrics.todayFuelCount} Logs • ${todayMasterMetrics.todayFuelLiters.toFixed(1)} L` : `${todayMasterMetrics.todayFuelCount} Logs`}
                               </span>
                             </div>
 
                             {/* 3. Today Shop Expense */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setExpensePaymentFilter('ALL');
+                                setActiveView('report-expenses');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-rose-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Shop Expenses list"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-rose-800">
                                 <span>3. Today Expense</span>
-                                <FileText className="w-4 h-4 text-rose-600" />
+                                <FileText className="w-4 h-4 text-rose-600 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}
@@ -8682,10 +9136,21 @@ function StoreContent({ shopId }) {
                             </div>
 
                             {/* 4. Today Damaged */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setActiveView('damaged-products');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-amber-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Damaged Products list"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-800">
                                 <span>4. Today Damaged</span>
-                                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                <AlertTriangle className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}
@@ -8696,10 +9161,21 @@ function StoreContent({ shopId }) {
                             </div>
 
                             {/* 5. Today Profit */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setActiveView('report-profit');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Realized Net Profit"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-900">
                                 <span>5. Today Profit</span>
-                                <TrendingUp className="w-4 h-4 text-emerald-700" />
+                                <TrendingUp className="w-4 h-4 text-emerald-700 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todayNetProfit.toLocaleString('en-PK')}
@@ -8710,10 +9186,21 @@ function StoreContent({ shopId }) {
                             </div>
 
                             {/* 6. Today Loss */}
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-400 transition-all">
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setActiveView('report-profit');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-rose-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Total Loss statement"
+                            >
                               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-rose-900">
                                 <span>6. Today Loss</span>
-                                <AlertCircle className="w-4 h-4 text-rose-700" />
+                                <AlertCircle className="w-4 h-4 text-rose-700 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
                                 Rs. {todayMasterMetrics.todayTotalLoss.toLocaleString('en-PK')}
@@ -10346,7 +10833,20 @@ function StoreContent({ shopId }) {
 
                   {/* ─── Overall Cumulative Summary Metrics Banner (All Customers Grand Total) ─── */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                    <div
+                      onClick={() => {
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setCustomerMetricFilter('ALL');
+                      }}
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
+                        reportTimeframe === 'ALL' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                          ? 'bg-indigo-50/70 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
+                          : 'bg-white border border-gray-200 hover:border-indigo-400'
+                      }`}
+                      title="Click to view All Registered and Walk-in Customers"
+                    >
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Total Directory</span>
@@ -10355,13 +10855,29 @@ function StoreContent({ shopId }) {
                         <div className="text-xl sm:text-2xl font-black text-gray-900">
                           {directorySummaryStats.totalCustomers} Accounts
                         </div>
-                        <div className="text-[10.5px] font-bold text-gray-400 mt-1">
-                          🌐 {unifiedCustomersList.filter(c => c.isOnline).length} Online &bull; 🏬 {unifiedCustomersList.filter(c => !c.isOnline).length} Physical
+                        <div className="text-[10.5px] font-bold text-gray-400 mt-1 flex items-center justify-between">
+                          <span>🌐 {unifiedCustomersList.filter(c => c.isOnline).length} Online &bull; 🏬 {unifiedCustomersList.filter(c => !c.isOnline).length} Physical</span>
+                          {reportTimeframe === 'ALL' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-indigo-600">✓ Active</span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-emerald-50/40 to-white flex flex-col justify-between">
+                    <div
+                      onClick={() => {
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setCustomerMetricFilter(prev => prev === 'SPENT' ? 'ALL' : 'SPENT');
+                      }}
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
+                        reportTimeframe === 'ALL' && customerMetricFilter === 'SPENT' && !appliedStartDate && !appliedEndDate
+                          ? 'bg-emerald-100/70 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                          : 'bg-white border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 to-white hover:border-emerald-400'
+                      }`}
+                      title="Click to filter customers who have spent / purchased"
+                    >
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">All Customers Spent</span>
@@ -10370,13 +10886,29 @@ function StoreContent({ shopId }) {
                         <div className="text-xl sm:text-2xl font-black text-emerald-700">
                           {currency} {directorySummaryStats.totalSpent.toLocaleString('en-PK')}
                         </div>
-                        <div className="text-[10.5px] font-bold text-emerald-600 mt-1">
-                          Total Lifetime Cumulative Sales
+                        <div className="text-[10.5px] font-bold text-emerald-600 mt-1 flex items-center justify-between">
+                          <span>Total Lifetime Cumulative Sales</span>
+                          {reportTimeframe === 'ALL' && customerMetricFilter === 'SPENT' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-emerald-700">✓ Active</span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-rose-50/40 to-white flex flex-col justify-between">
+                    <div
+                      onClick={() => {
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setCustomerMetricFilter(prev => prev === 'DUE' ? 'ALL' : 'DUE');
+                      }}
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
+                        reportTimeframe === 'ALL' && customerMetricFilter === 'DUE' && !appliedStartDate && !appliedEndDate
+                          ? 'bg-rose-100/70 border-2 border-rose-600 ring-2 ring-rose-500/20'
+                          : 'bg-white border border-rose-200/80 bg-gradient-to-br from-rose-50/40 to-white hover:border-rose-400'
+                      }`}
+                      title="Click to filter customers who have outstanding credit / balance due"
+                    >
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase tracking-wider text-rose-700">Total Credit Due (All)</span>
@@ -10385,13 +10917,29 @@ function StoreContent({ shopId }) {
                         <div className="text-xl sm:text-2xl font-black text-rose-600">
                           {currency} {directorySummaryStats.totalDue.toLocaleString('en-PK')}
                         </div>
-                        <div className="text-[10.5px] font-bold text-rose-500 mt-1">
-                          Total Outstanding Receivables
+                        <div className="text-[10.5px] font-bold text-rose-500 mt-1 flex items-center justify-between">
+                          <span>Total Outstanding Receivables</span>
+                          {reportTimeframe === 'ALL' && customerMetricFilter === 'DUE' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-rose-700">✓ Active</span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm bg-gradient-to-br from-amber-50/40 to-white flex flex-col justify-between">
+                    <div
+                      onClick={() => {
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setCustomerMetricFilter(prev => prev === 'ORDERS' ? 'ALL' : 'ORDERS');
+                      }}
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
+                        reportTimeframe === 'ALL' && customerMetricFilter === 'ORDERS' && !appliedStartDate && !appliedEndDate
+                          ? 'bg-amber-100/70 border-2 border-amber-600 ring-2 ring-amber-500/20'
+                          : 'bg-white border border-amber-200/80 bg-gradient-to-br from-amber-50/40 to-white hover:border-amber-400'
+                      }`}
+                      title="Click to filter customers who have placed orders/invoices"
+                    >
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">All Orders Placed</span>
@@ -10400,44 +10948,133 @@ function StoreContent({ shopId }) {
                         <div className="text-xl sm:text-2xl font-black text-amber-800">
                           {directorySummaryStats.totalOrders} Orders
                         </div>
-                        <div className="text-[10.5px] font-bold text-amber-700 mt-1">
-                          Combined Total Bills &amp; Invoices
+                        <div className="text-[10.5px] font-bold text-amber-700 mt-1 flex items-center justify-between">
+                          <span>Combined Total Bills &amp; Invoices</span>
+                          {reportTimeframe === 'ALL' && customerMetricFilter === 'ORDERS' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-amber-800">✓ Active</span>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Dedicated Today Summary for Customers (Separate Div Below with Cards) */}
-                  <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-                        Today's Customer Sales &amp; Inflow Activity (Daily Breakdown)
-                      </span>
+                  <div className={`rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${
+                    reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                      ? 'bg-slate-100 border-2 border-slate-800 ring-2 ring-slate-800/20'
+                      : 'bg-slate-100 border-2 border-slate-300'
+                  }`}>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                          Today's Customer Sales &amp; Inflow Activity (Daily Breakdown)
+                        </span>
+                        {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate && (
+                          <span className="text-[10px] bg-slate-900 text-white font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                            {customerMetricFilter === 'ALL' ? 'TODAY ALL' : `TODAY ${customerMetricFilter}`} ACTIVE
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
                         {todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis Sold
                       </span>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+                      <div
+                        onClick={() => {
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                          setReportTimeframe('DAY');
+                          setCustomerMetricFilter(prev => prev === 'CASH' && reportTimeframe === 'DAY' ? 'ALL' : 'CASH');
+                        }}
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                          reportTimeframe === 'DAY' && customerMetricFilter === 'CASH' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-emerald-50 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                            : 'bg-white border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30'
+                        }`}
+                        title="Click to view customers who made cash purchases today"
+                      >
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
                         <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Received</span>
+                        <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+                          <span className="truncate">Direct Cash Received</span>
+                          {reportTimeframe === 'DAY' && customerMetricFilter === 'CASH' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-emerald-700">✓ Active</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+
+                      <div
+                        onClick={() => {
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                          setReportTimeframe('DAY');
+                          setCustomerMetricFilter(prev => prev === 'BANK' && reportTimeframe === 'DAY' ? 'ALL' : 'BANK');
+                        }}
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                          reportTimeframe === 'DAY' && customerMetricFilter === 'BANK' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-blue-50 border-2 border-blue-600 ring-2 ring-blue-500/20'
+                            : 'bg-white border-2 border-slate-300 hover:border-blue-500 hover:bg-blue-50/30'
+                        }`}
+                        title="Click to view customers who made bank/online payments today"
+                      >
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
                         <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
+                        <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+                          <span className="truncate">Transferred to Bank</span>
+                          {reportTimeframe === 'DAY' && customerMetricFilter === 'BANK' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-blue-700">✓ Active</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+
+                      <div
+                        onClick={() => {
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                          setReportTimeframe('DAY');
+                          setCustomerMetricFilter(prev => prev === 'CREDIT' && reportTimeframe === 'DAY' ? 'ALL' : 'CREDIT');
+                        }}
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                          reportTimeframe === 'DAY' && customerMetricFilter === 'CREDIT' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-amber-50 border-2 border-amber-600 ring-2 ring-amber-500/20'
+                            : 'bg-white border-2 border-slate-300 hover:border-amber-500 hover:bg-amber-50/30'
+                        }`}
+                        title="Click to view customers who took credit/due purchases today"
+                      >
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Given</span>
                         <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Receivables Due</span>
+                        <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+                          <span className="truncate">Receivables Due</span>
+                          {reportTimeframe === 'DAY' && customerMetricFilter === 'CREDIT' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-amber-700">✓ Active</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+
+                      <div
+                        onClick={() => {
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                          setReportTimeframe('DAY');
+                          setCustomerMetricFilter('ALL');
+                        }}
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                          reportTimeframe === 'DAY' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-indigo-50 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
+                            : 'bg-white border-2 border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/30'
+                        }`}
+                        title="Click to view all customers active today"
+                      >
                         <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Revenue</span>
                         <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">All Sales Combined</span>
+                        <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-slate-600">
+                          <span className="truncate">All Sales Combined</span>
+                          {reportTimeframe === 'DAY' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate && (
+                            <span className="font-black text-[9px] text-indigo-700">✓ Active</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -10503,10 +11140,32 @@ function StoreContent({ shopId }) {
 
                   <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl overflow-visible shadow-sm">
                     <div className="p-3.5 sm:p-5 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
-                      <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                        <Users className="w-4 h-4 text-indigo-600" />
-                        Customer Accounts List ({filteredUnifiedCustomers.length})
-                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          Customer Accounts List ({filteredUnifiedCustomers.length})
+                        </h3>
+                        {customerMetricFilter !== 'ALL' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-indigo-100 text-indigo-800 border border-indigo-200 shadow-xs">
+                            Filter: {customerMetricFilter}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCustomerMetricFilter('ALL'); }}
+                              className="hover:text-red-600 ml-0.5 cursor-pointer text-xs"
+                              title="Clear metric filter"
+                            >&times;</button>
+                          </span>
+                        )}
+                        {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-xs">
+                            Period: Today Only
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setReportTimeframe('ALL'); }}
+                              className="hover:text-red-600 ml-0.5 cursor-pointer text-xs"
+                              title="Clear today period"
+                            >&times;</button>
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[9.5px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full uppercase tracking-widest">
                         {shop?.name || 'Shop'} Portal
                       </span>
@@ -10937,9 +11596,16 @@ function StoreContent({ shopId }) {
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
                     {/* Card 1: Yellow - 💵 Cash Sales (In Drawer) */}
                     <div
-                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH')}
+                      onClick={() => {
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        setReportTimeframe('ALL');
+                        setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'CASH') ? 'ALL' : 'CASH');
+                      }}
                       className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        salesReportPaymentFilter === 'CASH'
+                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CASH'
                           ? 'border-amber-500 ring-4 ring-amber-400/50 shadow-lg scale-[1.02] bg-amber-50/40'
                           : 'border-amber-400/80 hover:shadow-md hover:border-amber-500 hover:scale-[1.01]'
                       }`}
@@ -10949,12 +11615,12 @@ function StoreContent({ shopId }) {
                         <span className="text-[9.5px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1">
                           💵 Cash Sales (In Drawer)
                         </span>
-                        <div className={`p-1.5 rounded-lg transition-colors ${salesReportPaymentFilter === 'CASH' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-100 text-amber-700'}`}>
+                        <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CASH' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-100 text-amber-700'}`}>
                           <DollarSign className="w-3.5 h-3.5" />
                         </div>
                       </div>
                       <h4 className="text-xl sm:text-2xl font-black tracking-tight text-amber-700">
-                        {currency} {Number(salesReportStats.cashSales || 0).toLocaleString('en-PK')}
+                        {currency} {Number(overallSalesReportStats.cashSales || 0).toLocaleString('en-PK')}
                       </h4>
                       <span className="text-[10px] font-black text-amber-600 uppercase mt-1 block">
                         Direct Cash in Hand
@@ -10963,9 +11629,16 @@ function StoreContent({ shopId }) {
 
                     {/* Card 2: Dark Forest Green - 🏦 Bank / Online Sales */}
                     <div
-                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK')}
+                      onClick={() => {
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        setReportTimeframe('ALL');
+                        setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'BANK') ? 'ALL' : 'BANK');
+                      }}
                       className={`bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 text-white rounded-2xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        salesReportPaymentFilter === 'BANK'
+                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'BANK'
                           ? 'border-emerald-400 ring-4 ring-emerald-400/50 shadow-xl scale-[1.02]'
                           : 'border-[#1E4D1A] hover:shadow-lg hover:border-emerald-500 hover:scale-[1.01]'
                       }`}
@@ -10975,12 +11648,12 @@ function StoreContent({ shopId }) {
                         <span className="text-[9.5px] font-black text-emerald-300 uppercase tracking-widest flex items-center gap-1">
                           🏦 Bank / Online Sales
                         </span>
-                        <div className={`p-1.5 rounded-lg transition-colors border ${salesReportPaymentFilter === 'BANK' ? 'bg-emerald-500 text-white border-emerald-300 shadow-xs' : 'bg-[#152F12] text-emerald-300 border-[#2E6F28]/50'}`}>
+                        <div className={`p-1.5 rounded-lg transition-colors border ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'BANK' ? 'bg-emerald-500 text-white border-emerald-300 shadow-xs' : 'bg-[#152F12] text-emerald-300 border-[#2E6F28]/50'}`}>
                           <Building2 className="w-3.5 h-3.5" />
                         </div>
                       </div>
                       <h4 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                        {currency} {Number(salesReportStats.bankSales || 0).toLocaleString('en-PK')}
+                        {currency} {Number(overallSalesReportStats.bankSales || 0).toLocaleString('en-PK')}
                       </h4>
                       <span className="text-[10px] font-bold text-emerald-200/80 uppercase mt-1 block">
                         Transferred to Bank Account
@@ -10989,9 +11662,16 @@ function StoreContent({ shopId }) {
 
                     {/* Card 3: Blue - 📋 Credit Sales */}
                     <div
-                      onClick={() => setSalesReportPaymentFilter(prev => prev === 'CREDIT' ? 'ALL' : 'CREDIT')}
+                      onClick={() => {
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        setReportTimeframe('ALL');
+                        setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'CREDIT') ? 'ALL' : 'CREDIT');
+                      }}
                       className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        salesReportPaymentFilter === 'CREDIT'
+                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CREDIT'
                           ? 'border-blue-500 ring-4 ring-blue-400/50 shadow-lg scale-[1.02] bg-blue-50/40'
                           : 'border-blue-400/80 hover:shadow-md hover:border-blue-500 hover:scale-[1.01]'
                       }`}
@@ -11001,12 +11681,12 @@ function StoreContent({ shopId }) {
                         <span className="text-[9.5px] font-black text-blue-800 uppercase tracking-widest flex items-center gap-1">
                           📋 Credit (Due)
                         </span>
-                        <div className={`p-1.5 rounded-lg transition-colors ${salesReportPaymentFilter === 'CREDIT' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-100 text-blue-700'}`}>
+                        <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CREDIT' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-100 text-blue-700'}`}>
                           <FileText className="w-3.5 h-3.5" />
                         </div>
                       </div>
                       <h4 className="text-xl sm:text-2xl font-black tracking-tight text-blue-700">
-                        {currency} {Number(salesReportStats.creditSales || 0).toLocaleString('en-PK')}
+                        {currency} {Number(overallSalesReportStats.creditSales || 0).toLocaleString('en-PK')}
                       </h4>
                       <span className="text-[10px] font-black text-blue-600 uppercase mt-1 block">
                         Customer Outstanding Credit
@@ -11019,6 +11699,8 @@ function StoreContent({ shopId }) {
                         setReportTimeframe('ALL');
                         setAppliedStartDate('');
                         setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
                         setSalesReportPaymentFilter('ALL');
                       }}
                       className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
@@ -11031,56 +11713,202 @@ function StoreContent({ shopId }) {
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[9.5px] font-black text-emerald-800 uppercase tracking-widest">
-                            {(appliedStartDate || appliedEndDate) ? `${getActivePeriodLabel()} Sales` : (reportTimeframe === 'DAY' ? 'Today Total Sales' : reportTimeframe === 'MONTH' ? 'Month Total Sales' : reportTimeframe === 'YEAR' ? 'Year Total Sales' : 'Total Gross Sales')}
+                            {(appliedStartDate || appliedEndDate) ? `${getActivePeriodLabel()} Sales` : 'Total Gross Sales'}
                           </span>
                           <div className={`p-1.5 rounded-lg transition-colors ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-700'}`}>
                             <Receipt className="w-3.5 h-3.5" />
                           </div>
                         </div>
                         <h4 className="text-xl sm:text-2xl font-black tracking-tight text-emerald-700">
-                          {currency} {Number(salesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
+                          {currency} {Number(overallSalesReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                         </h4>
                         <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-                          {salesReportStats.totalBills} Bills • {salesReportStats.totalPetis} Petis ({Number(salesReportStats.totalEggs || 0).toLocaleString('en-PK')} Eggs)
+                          {overallSalesReportStats.totalBills} Bills • {overallSalesReportStats.totalPetis} Petis ({Number(overallSalesReportStats.totalEggs || 0).toLocaleString('en-PK')} Eggs)
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Dedicated Today Sales Summary (Separate Div Below with Cards) */}
-                  <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-                        Today's Sales &amp; Inflow Activity (Daily Breakdown)
-                      </span>
-                      <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-                        {todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis ({todayMasterMetrics.todaySalesEggs.toLocaleString('en-PK')} Eggs)
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Sales</span>
-                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash Received in Drawer</span>
+                  {(() => {
+                    const isTodayReportActive = reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate;
+                    return (
+                      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                            Today's Sales &amp; Inflow Activity (Daily Breakdown)
+                          </span>
+                          <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${
+                            isTodayReportActive
+                              ? 'bg-emerald-700 text-white border-emerald-800'
+                              : 'bg-white text-slate-800 border-slate-300'
+                          }`}>
+                            {isTodayReportActive ? '● TODAY FILTER ACTIVE • ' : ''}{todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis ({todayMasterMetrics.todaySalesEggs.toLocaleString('en-PK')} Eggs)
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {/* 1. Today Cash Sales */}
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('DAY');
+                              setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'CASH') ? 'ALL' : 'CASH');
+                            }}
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'CASH'
+                                ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-slate-300 hover:border-amber-400 hover:shadow-sm hover:scale-[1.01]'
+                            }`}
+                            title="Click to view Today's Cash Sales invoices & customers"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                                💵 1. Today Cash Sales
+                              </span>
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                isTodayReportActive && salesReportPaymentFilter === 'CASH'
+                                  ? 'bg-amber-500 text-slate-950 font-black'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                CASH
+                              </span>
+                            </div>
+                            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
+                              Rs. {todayMasterMetrics.todaySalesCash.toLocaleString('en-PK')}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+                              Cash Received in Drawer
+                            </span>
+                          </div>
+
+                          {/* 2. Today Bank Sales */}
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('DAY');
+                              setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'BANK') ? 'ALL' : 'BANK');
+                            }}
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'BANK'
+                                ? 'bg-emerald-950 text-white border-emerald-400 ring-4 ring-emerald-500/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-slate-300 hover:border-emerald-600 hover:shadow-sm hover:scale-[1.01]'
+                            }`}
+                            title="Click to view Today's Bank / Online Sales invoices & customers"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                                isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-300' : 'text-emerald-900'
+                              }`}>
+                                🏦 2. Today Bank Sales
+                              </span>
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                isTodayReportActive && salesReportPaymentFilter === 'BANK'
+                                  ? 'bg-emerald-500 text-white'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                BANK
+                              </span>
+                            </div>
+                            <div className={`text-lg sm:text-xl font-black mt-2 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-white' : 'text-slate-900'
+                            }`}>
+                              Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}
+                            </div>
+                            <span className={`text-[10px] font-bold truncate mt-1 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-200/80' : 'text-slate-600'
+                            }`}>
+                              Transferred to Bank
+                            </span>
+                          </div>
+
+                          {/* 3. Today Credit Sales */}
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('DAY');
+                              setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'CREDIT') ? 'ALL' : 'CREDIT');
+                            }}
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
+                                ? 'bg-blue-50 border-blue-500 ring-4 ring-blue-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-sm hover:scale-[1.01]'
+                            }`}
+                            title="Click to view Today's Credit Sales & customers"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                                📋 3. Today Credit Sales
+                              </span>
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                CREDIT
+                              </span>
+                            </div>
+                            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
+                              Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+                              Customer Credit Due
+                            </span>
+                          </div>
+
+                          {/* 4. Total Today Sales */}
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              if (isTodayReportActive && salesReportPaymentFilter === 'ALL') {
+                                setReportTimeframe('ALL');
+                              } else {
+                                setReportTimeframe('DAY');
+                                setSalesReportPaymentFilter('ALL');
+                              }
+                            }}
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                              isTodayReportActive && salesReportPaymentFilter === 'ALL'
+                                ? 'bg-emerald-50 border-emerald-500 ring-4 ring-emerald-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-slate-300 hover:border-emerald-500 hover:shadow-sm hover:scale-[1.01]'
+                            }`}
+                            title="Click to view all Today Sales (combined revenue)"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1">
+                                🌟 4. Total Today Sales
+                              </span>
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                isTodayReportActive && salesReportPaymentFilter === 'ALL'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                TODAY ALL
+                              </span>
+                            </div>
+                            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
+                              Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+                              Combined Today Revenue
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Sales</span>
-                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Transferred to Bank</span>
-                      </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Sales</span>
-                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesCredit.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Customer Credit Due</span>
-                      </div>
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Sales</span>
-                        <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todaySalesRevenue.toLocaleString('en-PK')}</div>
-                        <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Combined Today Revenue</span>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Search, View Mode Selector, Payment Filter Tabs and Invoices Section */}
                   <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4">
@@ -11141,7 +11969,7 @@ function StoreContent({ shopId }) {
                             : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-400'
                             }`}
                         >
-                          💵 Cash ({filteredSalesForReport.filter(s => s.paymentMethod === 'CASH' || (Number(s.cashPaid) > 0 && !s.isCredit && s.paymentMethod !== 'CREDIT')).length})
+                          💵 Cash ({filteredSalesForReport.filter(s => s.paymentMethod === 'CASH' || Number(s.cashPaid) > 0).length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('BANK')}
@@ -11161,7 +11989,7 @@ function StoreContent({ shopId }) {
                             : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border-blue-400'
                             }`}
                         >
-                          📋 Credit ({filteredSalesForReport.filter(s => s.paymentMethod === 'CREDIT' || Number(s.dueAmount) > 0 || s.isCredit).length})
+                          📋 Credit ({filteredSalesForReport.filter(s => s.paymentMethod === 'CREDIT' || s.paymentMethod === 'DUE' || Number(s.dueAmount) > 0 || s.isCredit || Number(s.creditDue) > 0).length})
                         </button>
                         <button
                           onClick={() => setSalesReportPaymentFilter('ONLINE')}
@@ -12243,8 +13071,8 @@ function StoreContent({ shopId }) {
                       const displayedSalesReportList = filteredSalesForReport.filter(s => {
                         const pMethod = String(s.paymentMethod || 'CASH').toUpperCase();
                         const isBank = pMethod === 'BANK_TRANSFER' || pMethod === 'BANK' || pMethod === 'ONLINE' || pMethod === 'EASYPAISA' || (Number(s.bankPaid) > 0);
-                        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit;
-                        const isCash = pMethod === 'CASH' || (Number(s.cashPaid) > 0 && !isBank && !isCredit);
+                        const isCredit = pMethod === 'CREDIT' || pMethod === 'DUE' || (Number(s.dueAmount) > 0) || s.isCredit || (Number(s.creditDue) > 0);
+                        const isCash = pMethod === 'CASH' || (Number(s.cashPaid) > 0);
                         const isOnline = Boolean(s.isOnlineOrder || s.orderSource === 'ONLINE_STOREFRONT' || s.customerId);
 
                         if (salesReportPaymentFilter === 'CASH') return isCash;
@@ -12259,8 +13087,30 @@ function StoreContent({ shopId }) {
                           {/* ─── MOBILE CARDS VIEW (block md:hidden) ─── */}
                           <div className="block md:hidden p-3 space-y-3">
                             {displayedSalesReportList.length === 0 ? (
-                              <div className="p-8 text-center text-gray-400 font-bold text-xs uppercase tracking-wider">
-                                No sales records found matching the selected filter.
+                              <div className="p-8 text-center space-y-3 bg-white border border-gray-200 rounded-2xl">
+                                <p className="text-gray-500 font-bold text-xs uppercase tracking-wider">
+                                  {reportTimeframe === 'DAY'
+                                    ? 'No sales records found for today.'
+                                    : 'No sales records found matching the selected filter.'}
+                                </p>
+                                {(reportTimeframe !== 'ALL' || salesReportPaymentFilter !== 'ALL' || appliedStartDate || appliedEndDate || salesReportSearchTerm) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReportTimeframe('ALL');
+                                      setSalesReportPaymentFilter('ALL');
+                                      setAppliedStartDate('');
+                                      setAppliedEndDate('');
+                                      setReportStartDate('');
+                                      setReportEndDate('');
+                                      setSalesReportSearchTerm('');
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                    <span>Show All Sales ({unifiedSalesList.length} Invoices)</span>
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               displayedSalesReportList.map((s, idx) => {
@@ -12462,8 +13312,32 @@ function StoreContent({ shopId }) {
                               <tbody className="divide-y divide-gray-100">
                                 {displayedSalesReportList.length === 0 ? (
                                   <tr>
-                                    <td colSpan="8" className="p-8 text-center text-gray-400 font-bold">
-                                      No sales records found matching the selected filter.
+                                    <td colSpan="8" className="p-8 text-center text-gray-500 font-bold">
+                                      <div className="space-y-3">
+                                        <p className="text-xs uppercase tracking-wider">
+                                          {reportTimeframe === 'DAY'
+                                            ? 'No sales records found for today.'
+                                            : 'No sales records found matching the selected filter.'}
+                                        </p>
+                                        {(reportTimeframe !== 'ALL' || salesReportPaymentFilter !== 'ALL' || appliedStartDate || appliedEndDate || salesReportSearchTerm) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setReportTimeframe('ALL');
+                                              setSalesReportPaymentFilter('ALL');
+                                              setAppliedStartDate('');
+                                              setAppliedEndDate('');
+                                              setReportStartDate('');
+                                              setReportEndDate('');
+                                              setSalesReportSearchTerm('');
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                                          >
+                                            <Receipt className="w-3.5 h-3.5" />
+                                            <span>Show All Sales ({unifiedSalesList.length} Invoices)</span>
+                                          </button>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
                                 ) : (
@@ -12772,16 +13646,34 @@ function StoreContent({ shopId }) {
                         1. Sales Revenue &amp; Gross Profit Overview (Day • Month • Year)
                       </h4>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                        Sales Performance
+                        Sales Performance &bull; Click to switch period
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Today's Sales */}
-                      <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm">
+                      <div
+                        onClick={() => {
+                          setReportTimeframe('DAY');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+                          reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-emerald-50/80 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
+                            : 'bg-white border border-emerald-200/80 hover:border-emerald-500'
+                        }`}
+                        title="Click to view Today's Sales & Gross Profit"
+                      >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1.5">
                           <span>Today's Sales</span>
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[9px]">DAILY</span>
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
+                            reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}>
+                            {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? 'DAILY ✓ ACTIVE' : 'DAILY'}
+                          </span>
                         </div>
                         <h4 className="text-xl font-black text-emerald-700 tracking-tight">
                           {currency} {(profitReportStats.todaySalesTotal || 0).toLocaleString('en-PK')}
@@ -12793,10 +13685,28 @@ function StoreContent({ shopId }) {
                       </div>
 
                       {/* This Month's Sales */}
-                      <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-sm">
+                      <div
+                        onClick={() => {
+                          setReportTimeframe('MONTH');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+                          reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-indigo-50/80 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
+                            : 'bg-white border border-indigo-200/80 hover:border-indigo-500'
+                        }`}
+                        title="Click to view This Month's Sales & Gross Profit"
+                      >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-700 mb-1.5">
                           <span>This Month Sales</span>
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-full text-[9px]">MONTHLY</span>
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
+                            reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                          }`}>
+                            {reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate ? 'MONTHLY ✓ ACTIVE' : 'MONTHLY'}
+                          </span>
                         </div>
                         <h4 className="text-xl font-black text-indigo-700 tracking-tight">
                           {currency} {(profitReportStats.monthSalesTotal || 0).toLocaleString('en-PK')}
@@ -12808,10 +13718,28 @@ function StoreContent({ shopId }) {
                       </div>
 
                       {/* This Year's Sales */}
-                      <div className="bg-white border border-purple-200/80 rounded-2xl p-4 shadow-sm">
+                      <div
+                        onClick={() => {
+                          setReportTimeframe('YEAR');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+                          reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-purple-50/80 border-2 border-purple-600 ring-2 ring-purple-500/20'
+                            : 'bg-white border border-purple-200/80 hover:border-purple-500'
+                        }`}
+                        title="Click to view This Year's Sales & Gross Profit"
+                      >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-purple-700 mb-1.5">
                           <span>This Year Sales</span>
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-full text-[9px]">YEARLY</span>
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
+                            reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                              : 'bg-purple-50 text-purple-800 border-purple-200'
+                          }`}>
+                            {reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate ? 'YEARLY ✓ ACTIVE' : 'YEARLY'}
+                          </span>
                         </div>
                         <h4 className="text-xl font-black text-purple-700 tracking-tight">
                           {currency} {(profitReportStats.yearSalesTotal || 0).toLocaleString('en-PK')}
@@ -12823,10 +13751,28 @@ function StoreContent({ shopId }) {
                       </div>
 
                       {/* Lifetime Total Sales */}
-                      <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm">
+                      <div
+                        onClick={() => {
+                          setReportTimeframe('ALL');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
+                          reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
+                            ? 'bg-amber-50/80 border-2 border-amber-600 ring-2 ring-amber-500/20'
+                            : 'bg-white border border-amber-200/80 hover:border-amber-500'
+                        }`}
+                        title="Click to view All-Time Total Sales & Profit"
+                      >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">
                           <span>All-Time Total Sales</span>
-                          <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px]">ALL-TIME</span>
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
+                            reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}>
+                            {reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate ? 'ALL-TIME ✓ ACTIVE' : 'ALL-TIME'}
+                          </span>
                         </div>
                         <h4 className="text-xl font-black text-amber-700 tracking-tight">
                           {currency} {(profitReportStats.allSalesTotal || 0).toLocaleString('en-PK')}
@@ -12847,13 +13793,17 @@ function StoreContent({ shopId }) {
                         2. Net Profit Calculation Flow ({getActivePeriodLabel()})
                       </h4>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                        Revenue - Purchases - Expenses - Damage = Net Profit
+                        Revenue - Purchases - Expenses - Damage = Net Profit &bull; Click to open section
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
                       {/* Card 1: Total Sales Revenue */}
-                      <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div
+                        onClick={() => setActiveView('report-sales')}
+                        className="bg-white border-2 border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/30 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        title="Click to view detailed Sales & Revenue Report"
+                      >
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">
@@ -12867,13 +13817,18 @@ function StoreContent({ shopId }) {
                             + {currency} {Number(profitReportStats.totalRevenue || 0).toLocaleString('en-PK')}
                           </h4>
                         </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500">
-                          {profitReportStats.filteredSalesCount} Invoices
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500 flex items-center justify-between">
+                          <span>{profitReportStats.filteredSalesCount} Invoices</span>
+                          <span className="text-emerald-600 font-bold text-[9.5px]">Open &rarr;</span>
                         </div>
                       </div>
 
                       {/* Card 2: Purchased Products (Cost) */}
-                      <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div
+                        onClick={() => setActiveView('purchases')}
+                        className="bg-white border-2 border-blue-200 hover:border-blue-500 hover:bg-blue-50/30 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        title="Click to view Purchases & Restock Management"
+                      >
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">
@@ -12903,7 +13858,11 @@ function StoreContent({ shopId }) {
                       </div>
 
                       {/* Card 3: Shop Operating Expenses */}
-                      <div className="bg-white border-2 border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div
+                        onClick={() => setActiveView('report-expenses')}
+                        className="bg-white border-2 border-rose-200 hover:border-rose-500 hover:bg-rose-50/30 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        title="Click to view Expenses Management"
+                      >
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[9px] font-black text-rose-700 uppercase tracking-widest">
@@ -12917,13 +13876,18 @@ function StoreContent({ shopId }) {
                             - {currency} {Number(profitReportStats.totalExpenses || 0).toLocaleString('en-PK')}
                           </h4>
                         </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500">
-                          {profitReportStats.filteredExpensesCount} Expense Logs
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-gray-500 flex items-center justify-between">
+                          <span>{profitReportStats.filteredExpensesCount} Expense Logs</span>
+                          <span className="text-rose-600 font-bold text-[9.5px]">Open &rarr;</span>
                         </div>
                       </div>
 
                       {/* Card 4: Damaged Egg Loss */}
-                      <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div
+                        onClick={() => setActiveView('damaged-products')}
+                        className="bg-white border-2 border-amber-200 hover:border-amber-500 hover:bg-amber-50/30 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        title="Click to view Damaged Stock"
+                      >
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
@@ -12937,13 +13901,22 @@ function StoreContent({ shopId }) {
                             - {currency} {Number(profitReportStats.totalDamagedLoss || 0).toLocaleString('en-PK')}
                           </h4>
                         </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-amber-800">
-                          {profitReportStats.filteredDamagedCount} Logs ({profitReportStats.totalDamagedEggs} Eggs)
+                        <div className="mt-3 pt-2 border-t border-gray-100 text-[10px] font-bold text-amber-800 flex items-center justify-between">
+                          <span>{profitReportStats.filteredDamagedCount} Logs ({profitReportStats.totalDamagedEggs} Eggs)</span>
+                          <span className="text-amber-700 font-bold text-[9.5px]">Open &rarr;</span>
                         </div>
                       </div>
 
                       {/* Card 5: Final Pure Realized Net Profit */}
-                      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 border-2 border-emerald-400 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                      <div
+                        onClick={() => {
+                          setReportTimeframe('ALL');
+                          setAppliedStartDate('');
+                          setAppliedEndDate('');
+                        }}
+                        className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 border-2 border-emerald-400 hover:border-emerald-600 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        title="Click to reset to All-Time Net Statement"
+                      >
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[9px] font-black text-emerald-900 uppercase tracking-widest">
@@ -12957,8 +13930,11 @@ function StoreContent({ shopId }) {
                             {currency} {Number(profitReportStats.finalNetProfit || 0).toLocaleString('en-PK')}
                           </h4>
                         </div>
-                        <div className="mt-3 pt-2 border-t border-emerald-200 text-[10px] font-black text-emerald-800 uppercase">
-                          Realized Cash Balance
+                        <div className="mt-3 pt-2 border-t border-emerald-200 text-[10px] font-black text-emerald-800 uppercase flex items-center justify-between">
+                          <span>Realized Cash Balance</span>
+                          {reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate && (
+                            <span className="text-emerald-900 font-black text-[9px]">✓ ALL-TIME</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -13388,11 +14364,21 @@ function StoreContent({ shopId }) {
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           {/* Card 1: Yellow - 💵 Cash in Drawer (Minus Cash Expenses) */}
-                          <div className="bg-white border-2 border-amber-400/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                          <div
+                            onClick={() => {
+                              setExpensePaymentFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH');
+                            }}
+                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
+                              expensePaymentFilter === 'CASH'
+                                ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-amber-400/80 hover:border-amber-500 hover:scale-[1.01]'
+                            }`}
+                            title="Click to filter Cash expenses & cash remaining"
+                          >
                             <div>
                               <div className="flex items-center justify-between text-amber-800 text-[10px] font-black uppercase tracking-widest mb-2">
                                 <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5 text-amber-600" /> Cash in Drawer (Net)</span>
-                                <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[9px] font-black">CASH</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${expensePaymentFilter === 'CASH' ? 'bg-amber-500 text-slate-950' : 'bg-amber-100 text-amber-900 border border-amber-300'}`}>CASH</span>
                               </div>
                               <h4 className="text-2xl font-black text-amber-700 tracking-tight">
                                 {currency} {netCashRemaining.toLocaleString('en-PK')}
@@ -13405,11 +14391,21 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* Card 2: Dark Forest Green - 🏦 Bank Balance (Minus Bank Expenses) */}
-                          <div className="bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 border-[#1E4D1A] text-white rounded-2xl p-5 shadow-md hover:shadow-lg transition-shadow flex flex-col justify-between">
+                          <div
+                            onClick={() => {
+                              setExpensePaymentFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK');
+                            }}
+                            className={`border-2 text-white rounded-2xl p-5 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
+                              expensePaymentFilter === 'BANK'
+                                ? 'bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-emerald-400 ring-4 ring-emerald-500/50 shadow-xl scale-[1.02]'
+                                : 'bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-[#1E4D1A] hover:border-emerald-500 hover:scale-[1.01]'
+                            }`}
+                            title="Click to filter Bank expenses & bank remaining"
+                          >
                             <div>
                               <div className="flex items-center justify-between text-emerald-300 text-[10px] font-black uppercase tracking-widest mb-2">
                                 <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5 text-emerald-400" /> Bank Balance (Net)</span>
-                                <span className="px-2 py-0.5 bg-[#152F12] text-emerald-200 border border-[#2E6F28]/60 rounded-full text-[9px] font-black">BANK</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${expensePaymentFilter === 'BANK' ? 'bg-emerald-500 text-white' : 'bg-[#152F12] text-emerald-200 border border-[#2E6F28]/60'}`}>BANK</span>
                               </div>
                               <h4 className="text-2xl font-black text-white tracking-tight">
                                 {currency} {netBankRemaining.toLocaleString('en-PK')}
@@ -13422,11 +14418,26 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* Card 3: Rose - Total Expenses Logged */}
-                          <div className="bg-white border-2 border-rose-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setExpensePaymentFilter('ALL');
+                            }}
+                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
+                              reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                                ? 'bg-rose-50 border-rose-500 ring-4 ring-rose-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-rose-300 hover:border-rose-500 hover:scale-[1.01]'
+                            }`}
+                            title="Click to view all-time Operating Expenses list"
+                          >
                             <div>
                               <div className="flex items-center justify-between text-rose-700 text-[10px] font-black uppercase tracking-widest mb-2">
-                                <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-rose-600" /> Operating Expenses</span>
-                                <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[9px] font-black">EXPENSES</span>
+                                <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-rose-600" /> Total Expenses</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>ALL-TIME</span>
                               </div>
                               <h4 className="text-2xl font-black text-rose-600 tracking-tight">
                                 {currency} {timeframeTotalExp.toLocaleString('en-PK')}
@@ -13439,10 +14450,21 @@ function StoreContent({ shopId }) {
                           </div>
 
                           {/* Card 4: Orange - Damaged Egg Loss */}
-                          <div className="bg-white border-2 border-orange-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                          <div
+                            onClick={() => {
+                              setAppliedStartDate('');
+                              setAppliedEndDate('');
+                              setReportStartDate('');
+                              setReportEndDate('');
+                              setReportTimeframe('ALL');
+                              setActiveView('damaged-products');
+                            }}
+                            className="bg-white border-2 border-orange-300 hover:border-orange-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between hover:scale-[1.01] group"
+                            title="Click to view Damaged Stock Loss report"
+                          >
                             <div>
                               <div className="flex items-center justify-between text-orange-700 text-[10px] font-black uppercase tracking-widest mb-2">
-                                <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-orange-600" /> Damaged Egg Loss</span>
+                                <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-orange-600 group-hover:scale-110 transition-transform" /> Damaged Egg Loss</span>
                                 <span className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[9px] font-black">BREAKAGE</span>
                               </div>
                               <h4 className="text-2xl font-black text-orange-600 tracking-tight">
@@ -13457,38 +14479,153 @@ function StoreContent({ shopId }) {
 
                         {/* Dedicated Today Expenses Summary (Separate Div Below with Cards) */}
                         <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
                             <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
                               Today's Operating Expenses &amp; Losses (Daily Breakdown)
                             </span>
-                            <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-                              {todayMasterMetrics.todayExpensesCount} Shop Expense Logs &bull; {todayMasterMetrics.todayDamagedCount} Damage Logs
+                            <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${
+                              reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                                ? 'bg-rose-700 text-white border-rose-800'
+                                : 'bg-white text-slate-800 border-slate-300'
+                            }`}>
+                              {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? '● TODAY FILTER ACTIVE • ' : ''}{todayMasterMetrics.todayExpensesCount} Shop Expense Logs &bull; {todayMasterMetrics.todayDamagedCount} Damage Logs
                             </span>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Net Cash</span>
+                            {/* 1. Today Net Cash */}
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setExpensePaymentFilter(prev => (reportTimeframe === 'DAY' && prev === 'CASH' && !appliedStartDate && !appliedEndDate) ? 'ALL' : 'CASH');
+                              }}
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                                reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate
+                                  ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
+                                  : 'bg-white border-slate-300 hover:border-amber-400 hover:shadow-sm hover:scale-[1.01]'
+                              }`}
+                              title="Click to filter Today's Cash expenses"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Net Cash</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-100 text-amber-800'
+                                }`}>CASH</span>
+                              </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todaySalesCash - (dynamicExpenseStats.todayCashExp || 0)).toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash In Hand</span>
                             </div>
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Net Bank</span>
-                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</div>
-                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank Remaining</span>
+
+                            {/* 2. Today Net Bank */}
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setExpensePaymentFilter(prev => (reportTimeframe === 'DAY' && prev === 'BANK' && !appliedStartDate && !appliedEndDate) ? 'ALL' : 'BANK');
+                              }}
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate
+                                  ? 'bg-emerald-950 text-white border-emerald-400 ring-4 ring-emerald-500/50 shadow-md scale-[1.02]'
+                                  : 'bg-white border-slate-300 hover:border-emerald-600 hover:shadow-sm hover:scale-[1.01]'
+                              }`}
+                              title="Click to filter Today's Bank expenses"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-300' : 'text-emerald-800'
+                                }`}>2. Today Net Bank</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'
+                                }`}>BANK</span>
+                              </div>
+                              <div className={`text-lg sm:text-xl font-black mt-2 ${
+                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-white' : 'text-slate-900'
+                              }`}>Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</div>
+                              <span className={`text-[10px] font-bold truncate mt-1 ${
+                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-200/80' : 'text-slate-600'
+                              }`}>Bank Remaining</span>
                             </div>
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">3. Today Expenses</span>
+
+                            {/* 3. Today Expenses */}
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                if (reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate) {
+                                  setReportTimeframe('ALL');
+                                } else {
+                                  setReportTimeframe('DAY');
+                                  setExpensePaymentFilter('ALL');
+                                }
+                              }}
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
+                                reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                                  ? 'bg-rose-50 border-rose-500 ring-4 ring-rose-400/50 shadow-md scale-[1.02]'
+                                  : 'bg-white border-slate-300 hover:border-rose-400 hover:shadow-sm hover:scale-[1.01]'
+                              }`}
+                              title="Click to view Today's Shop Expenses list"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">3. Today Expenses</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
+                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-rose-600 text-white' : 'bg-rose-100 text-rose-800'
+                                }`}>TODAY</span>
+                              </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayExpensesCount} Shop Expense Logs</span>
                             </div>
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-orange-800">4. Today Damaged</span>
+
+                            {/* 4. Today Damaged */}
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setActiveView('damaged-products');
+                              }}
+                              className="bg-white border-2 border-slate-300 hover:border-orange-400 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 hover:scale-[1.01]"
+                              title="Click to view Today's Damaged Stock report"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-orange-800">4. Today Damaged</span>
+                                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-800">BREAKAGE</span>
+                              </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayDamagedEggs} Eggs ({todayMasterMetrics.todayDamagedPetis} Petis)</span>
                             </div>
-                            <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Total Today Outflow</span>
+
+                            {/* 5. Total Today Outflow */}
+                            <div
+                              onClick={() => {
+                                setAppliedStartDate('');
+                                setAppliedEndDate('');
+                                setReportStartDate('');
+                                setReportEndDate('');
+                                setReportTimeframe('DAY');
+                                setExpensePaymentFilter('ALL');
+                              }}
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1 cursor-pointer transition-all active:scale-95 ${
+                                reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                                  ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-400/40 shadow-sm'
+                                  : 'bg-white border-slate-300 hover:border-purple-400 hover:shadow-sm hover:scale-[1.01]'
+                              }`}
+                              title="Click to view Today's Total Outflow"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Total Today Outflow</span>
+                                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800">OUTFLOW</span>
+                              </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todayExpenses + todayMasterMetrics.todayDamagedLoss).toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Expenses + Breakage</span>
                             </div>
@@ -13695,12 +14832,29 @@ function StoreContent({ shopId }) {
                                     'No manual expenses logged for this period.'}
                               </p>
                               <p className="text-[11px] text-slate-400 mt-1">Click "+ Log Entry" above to add shop rent, electricity, packaging, or egg damage expenses.</p>
-                              <button
-                                onClick={() => setShowAddExpenseModal(true)}
-                                className="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
-                              >
-                                <Plus className="w-3.5 h-3.5" /> Add First Expense
-                              </button>
+                              <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                                {(reportTimeframe !== 'ALL' || appliedStartDate || appliedEndDate || expensePaymentFilter !== 'ALL') && (
+                                  <button
+                                    onClick={() => {
+                                      setReportTimeframe('ALL');
+                                      setExpensePaymentFilter('ALL');
+                                      setAppliedStartDate('');
+                                      setAppliedEndDate('');
+                                      setReportStartDate('');
+                                      setReportEndDate('');
+                                    }}
+                                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                                  >
+                                    <FileText className="w-3.5 h-3.5 text-amber-400" /> View All Expenses ({expensesList.length})
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setShowAddExpenseModal(true)}
+                                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer inline-flex items-center gap-1.5"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> Log Entry
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <>
@@ -14140,117 +15294,236 @@ function StoreContent({ shopId }) {
                     </div>
 
                     {/* Total Summary Cards Grid (Total Wala Div) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Card 1: Total Financial Breakage Loss */}
-                      <div className="bg-white border-2 border-amber-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-amber-800 text-[10px] font-black uppercase tracking-widest mb-2">
-                            <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5 text-amber-600" /> Total Breakage Loss</span>
-                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[9px] font-black">FINANCIAL</span>
-                          </div>
-                          <h4 className="text-2xl font-black text-amber-700 tracking-tight">
-                            {currency} {(
-                              (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
-                                reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
-                                  reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
-                                    reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
-                                      (dynamicExpenseStats.totalDamaged || 0)
-                            ).toLocaleString('en-PK')}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-amber-100 font-medium">
-                            {getActivePeriodLabel()} direct revenue write-off
-                          </p>
-                        </div>
-                      </div>
+                    {(() => {
+                      const isTotalDamagedActive = reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate;
+                      const isTodayDamagedActive = reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate;
 
-                      {/* Card 2: Total Cracked / Broken Eggs */}
-                      <div className="bg-white border-2 border-rose-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-rose-700 text-[10px] font-black uppercase tracking-widest mb-2">
-                            <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-rose-600" /> Total Damaged Eggs</span>
-                            <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[9px] font-black">PIECES</span>
-                          </div>
-                          <h4 className="text-2xl font-black text-rose-600 tracking-tight">
-                            {(
-                              (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) :
-                                (dynamicExpenseStats.totalDamagedEggs || 0)
-                            ).toLocaleString('en-PK')}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-rose-100 font-medium">
-                            Physical cracked &amp; broken eggs count
-                          </p>
-                        </div>
-                      </div>
+                      const handleSelectAllDamaged = () => {
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportTimeframe('ALL');
+                      };
 
-                      {/* Card 3: Total Damaged Petis */}
-                      <div className="bg-white border-2 border-purple-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-purple-700 text-[10px] font-black uppercase tracking-widest mb-2">
-                            <span className="flex items-center gap-1"><Layers className="w-3.5 h-3.5 text-purple-600" /> Petis Equivalent</span>
-                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-full text-[9px] font-black">PETIS</span>
-                          </div>
-                          <h4 className="text-2xl font-black text-purple-700 tracking-tight">
-                            {(
-                              ((appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) : (dynamicExpenseStats.totalDamagedEggs || 0)) / 360
-                            ).toFixed(1)}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-purple-100 font-medium">
-                            Calculated at 360 eggs per peti standard
-                          </p>
-                        </div>
-                      </div>
+                      const handleSelectTodayDamaged = () => {
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportTimeframe('DAY');
+                      };
 
-                      {/* Card 4: Total Damaged Incidents / Logs */}
-                      <div className="bg-white border-2 border-slate-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-slate-800 text-[10px] font-black uppercase tracking-widest mb-2">
-                            <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-slate-700" /> Total Damage Logs</span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 rounded-full text-[9px] font-black">RECORDS</span>
-                          </div>
-                          <h4 className="text-2xl font-black text-slate-900 tracking-tight">
-                            {(damagedProductsList || []).length}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-100 font-medium">
-                            Total historical breakage entries recorded
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                      return (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Card 1: Total Financial Breakage Loss */}
+                            <div
+                              onClick={handleSelectAllDamaged}
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                                isTotalDamagedActive
+                                  ? 'border-amber-500 ring-2 ring-amber-500/50 shadow-md scale-[1.01]'
+                                  : 'border-amber-300 hover:border-amber-400'
+                              }`}
+                              title="Click to view All-Time Damaged Products List"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between text-amber-800 text-[10px] font-black uppercase tracking-widest mb-2">
+                                  <span className="flex items-center gap-1"><DollarSign className="w-3.5 h-3.5 text-amber-600" /> Total Breakage Loss</span>
+                                  <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black ${isTotalDamagedActive ? 'bg-amber-500 text-white border-amber-600' : 'bg-amber-100 text-amber-900 border-amber-300'}`}>
+                                    {isTotalDamagedActive ? 'ACTIVE (ALL)' : 'FINANCIAL'}
+                                  </span>
+                                </div>
+                                <h4 className="text-2xl font-black text-amber-700 tracking-tight">
+                                  {currency} {(
+                                    (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamaged || 0) :
+                                      reportTimeframe === 'DAY' ? (dynamicExpenseStats.todayDamaged || 0) :
+                                        reportTimeframe === 'MONTH' ? (dynamicExpenseStats.monthDamaged || 0) :
+                                          reportTimeframe === 'YEAR' ? (dynamicExpenseStats.yearDamaged || 0) :
+                                            (dynamicExpenseStats.totalDamaged || 0)
+                                  ).toLocaleString('en-PK')}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-amber-100 font-medium flex items-center justify-between">
+                                  <span>{getActivePeriodLabel()} direct write-off</span>
+                                  <span className="text-[10px] text-amber-700 font-black">View All &rarr;</span>
+                                </p>
+                              </div>
+                            </div>
 
-                    {/* Dedicated Today Damaged Summary (Separate Div Below with Cards) */}
-                    <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-                          Today's Damaged Stock Activity (Daily Breakdown)
-                        </span>
-                        <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-                          {todayMasterMetrics.todayDamagedCount} Damage Incidents Logged Today
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Breakage Loss</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
-                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Loss Value</span>
-                        </div>
-                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">2. Today Damaged Eggs</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')}</div>
-                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Broken / Cracked</span>
-                        </div>
-                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">3. Today Damaged Petis</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedPetis}</div>
-                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">360 Eggs Standard</span>
-                        </div>
-                        <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">4. Today Damage Logs</span>
-                          <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedCount}</div>
-                          <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Recorded Today</span>
-                        </div>
-                      </div>
-                    </div>
+                            {/* Card 2: Total Cracked / Broken Eggs */}
+                            <div
+                              onClick={handleSelectAllDamaged}
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                                isTotalDamagedActive
+                                  ? 'border-rose-500 ring-2 ring-rose-500/50 shadow-md scale-[1.01]'
+                                  : 'border-rose-300 hover:border-rose-400'
+                              }`}
+                              title="Click to view All-Time Damaged Products List"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between text-rose-700 text-[10px] font-black uppercase tracking-widest mb-2">
+                                  <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-rose-600" /> Total Damaged Eggs</span>
+                                  <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black ${isTotalDamagedActive ? 'bg-rose-500 text-white border-rose-600' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                    {isTotalDamagedActive ? 'ACTIVE (ALL)' : 'PIECES'}
+                                  </span>
+                                </div>
+                                <h4 className="text-2xl font-black text-rose-600 tracking-tight">
+                                  {(
+                                    (appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) :
+                                      (dynamicExpenseStats.totalDamagedEggs || 0)
+                                  ).toLocaleString('en-PK')}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-rose-100 font-medium flex items-center justify-between">
+                                  <span>Physical cracked &amp; broken eggs</span>
+                                  <span className="text-[10px] text-rose-700 font-black">View All &rarr;</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Card 3: Total Damaged Petis */}
+                            <div
+                              onClick={handleSelectAllDamaged}
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                                isTotalDamagedActive
+                                  ? 'border-purple-500 ring-2 ring-purple-500/50 shadow-md scale-[1.01]'
+                                  : 'border-purple-300 hover:border-purple-400'
+                              }`}
+                              title="Click to view All-Time Damaged Products List"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between text-purple-700 text-[10px] font-black uppercase tracking-widest mb-2">
+                                  <span className="flex items-center gap-1"><Layers className="w-3.5 h-3.5 text-purple-600" /> Petis Equivalent</span>
+                                  <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black ${isTotalDamagedActive ? 'bg-purple-500 text-white border-purple-600' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                                    {isTotalDamagedActive ? 'ACTIVE (ALL)' : 'PETIS'}
+                                  </span>
+                                </div>
+                                <h4 className="text-2xl font-black text-purple-700 tracking-tight">
+                                  {(
+                                    ((appliedStartDate || appliedEndDate) ? (dynamicExpenseStats.rangeDamagedEggs || 0) : (dynamicExpenseStats.totalDamagedEggs || 0)) / 360
+                                  ).toFixed(1)}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-purple-100 font-medium flex items-center justify-between">
+                                  <span>Calculated at 360 eggs/peti</span>
+                                  <span className="text-[10px] text-purple-700 font-black">View All &rarr;</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Card 4: Total Damaged Incidents / Logs */}
+                            <div
+                              onClick={handleSelectAllDamaged}
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
+                                isTotalDamagedActive
+                                  ? 'border-slate-800 ring-2 ring-slate-800/50 shadow-md scale-[1.01]'
+                                  : 'border-slate-300 hover:border-slate-400'
+                              }`}
+                              title="Click to view All-Time Damaged Products List"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between text-slate-800 text-[10px] font-black uppercase tracking-widest mb-2">
+                                  <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-slate-700" /> Total Damage Logs</span>
+                                  <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black ${isTotalDamagedActive ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-800 border-slate-300'}`}>
+                                    {isTotalDamagedActive ? 'ACTIVE (ALL)' : 'RECORDS'}
+                                  </span>
+                                </div>
+                                <h4 className="text-2xl font-black text-slate-900 tracking-tight">
+                                  {(damagedProductsList || []).length}
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-slate-100 font-medium flex items-center justify-between">
+                                  <span>Total historical breakage entries</span>
+                                  <span className="text-[10px] text-slate-900 font-black">View All &rarr;</span>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dedicated Today Damaged Summary (Separate Div Below with Cards) */}
+                          <div className={`border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${isTodayDamagedActive ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/30' : 'bg-slate-100 border-slate-300'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                                Today's Damaged Stock Activity (Daily Breakdown)
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {isTodayDamagedActive && (
+                                  <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                                    LIST SHOWING TODAY
+                                  </span>
+                                )}
+                                <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+                                  {todayMasterMetrics.todayDamagedCount} Damage Incidents Logged Today
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              {/* 1. Today Breakage Loss */}
+                              <div
+                                onClick={handleSelectTodayDamaged}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                                  isTodayDamagedActive ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-50/20' : 'border-slate-300 hover:border-amber-400'
+                                }`}
+                                title="Click to filter list for Today's Damaged Stock"
+                              >
+                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Breakage Loss</span>
+                                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
+                                <span className="text-[10px] font-bold text-amber-700 truncate mt-1 flex items-center justify-between">
+                                  <span>Direct Loss Value</span>
+                                  <span>{isTodayDamagedActive ? '✓ Active' : 'Filter →'}</span>
+                                </span>
+                              </div>
+
+                              {/* 2. Today Damaged Eggs */}
+                              <div
+                                onClick={handleSelectTodayDamaged}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                                  isTodayDamagedActive ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50/20' : 'border-slate-300 hover:border-rose-400'
+                                }`}
+                                title="Click to filter list for Today's Damaged Stock"
+                              >
+                                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">2. Today Damaged Eggs</span>
+                                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedEggs.toLocaleString('en-PK')}</div>
+                                <span className="text-[10px] font-bold text-rose-700 truncate mt-1 flex items-center justify-between">
+                                  <span>Broken / Cracked</span>
+                                  <span>{isTodayDamagedActive ? '✓ Active' : 'Filter →'}</span>
+                                </span>
+                              </div>
+
+                              {/* 3. Today Damaged Petis */}
+                              <div
+                                onClick={handleSelectTodayDamaged}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                                  isTodayDamagedActive ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/20' : 'border-slate-300 hover:border-purple-400'
+                                }`}
+                                title="Click to filter list for Today's Damaged Stock"
+                              >
+                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">3. Today Damaged Petis</span>
+                                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedPetis}</div>
+                                <span className="text-[10px] font-bold text-purple-700 truncate mt-1 flex items-center justify-between">
+                                  <span>360 Eggs Standard</span>
+                                  <span>{isTodayDamagedActive ? '✓ Active' : 'Filter →'}</span>
+                                </span>
+                              </div>
+
+                              {/* 4. Today Damage Logs */}
+                              <div
+                                onClick={handleSelectTodayDamaged}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                                  isTodayDamagedActive ? 'border-slate-800 ring-2 ring-slate-800/40 bg-slate-50' : 'border-slate-300 hover:border-slate-500'
+                                }`}
+                                title="Click to filter list for Today's Damaged Stock"
+                              >
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">4. Today Damage Logs</span>
+                                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayDamagedCount}</div>
+                                <span className="text-[10px] font-bold text-slate-800 truncate mt-1 flex items-center justify-between">
+                                  <span>Recorded Today</span>
+                                  <span>{isTodayDamagedActive ? '✓ Active' : 'Filter →'}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
 
                     <div className="space-y-3">
                       <h4 className="text-xs font-black text-zinc-700 uppercase tracking-wider">Filtered Damaged Stock Period Statement</h4>
@@ -14348,10 +15621,21 @@ function StoreContent({ shopId }) {
                       return (
                         <div className="space-y-3 pt-6 border-t border-zinc-100">
                           <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
-                              <PackageX className="w-4 h-4 text-amber-600" />
-                              Damaged Products List ({filteredDamagedForTable.length})
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
+                                <PackageX className="w-4 h-4 text-amber-600" />
+                                Damaged Products List ({filteredDamagedForTable.length})
+                              </h4>
+                              {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? (
+                                <span className="px-2 py-0.5 bg-slate-900 text-amber-300 rounded-md text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                  Showing Today Only
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[9px] font-black uppercase tracking-wider">
+                                  {appliedStartDate || appliedEndDate ? 'Filtered Range' : 'Showing All-Time'}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"

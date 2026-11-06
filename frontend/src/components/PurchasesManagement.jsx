@@ -16,6 +16,48 @@ const getReceiptImg = (p) => {
   return null;
 };
 
+export const isPurchaseInPaymentChannel = (p, filter) => {
+  if (!filter || filter === 'ALL') return true;
+  const pMethod = String(p?.paymentMethod || 'Cash').trim().toLowerCase();
+  const receiptImg = getReceiptImg(p);
+  const isOnline = p?.isOnlinePayment === true || !!receiptImg || (
+    pMethod.includes('bank') ||
+    pMethod.includes('easy') ||
+    pMethod.includes('jazz') ||
+    pMethod.includes('online') ||
+    pMethod.includes('cheque') ||
+    pMethod.includes('transfer') ||
+    pMethod.includes('card')
+  );
+  const isCreditMethod = !isOnline && (
+    pMethod.includes('credit') ||
+    pMethod.includes('due') ||
+    pMethod.includes('udhar') ||
+    pMethod.includes('borrow')
+  );
+
+  const rawDue = p?.dueAmountToSupplier !== undefined && p?.dueAmountToSupplier !== null ? Number(p.dueAmountToSupplier) : (isCreditMethod ? Number(p?.totalPurchaseCost || 0) : 0);
+  const due = Math.max(0, isNaN(rawDue) ? 0 : rawDue);
+  const cashPaid = Number(p?.cashPaidToSupplier || 0);
+  const bankPaid = Number(p?.bankPaidToSupplier || 0);
+  const amountPaid = Number(p?.amountPaidToSupplier || 0);
+
+  if (filter === 'CASH') {
+    if (cashPaid > 0) return true;
+    if (bankPaid === 0 && !isOnline && (amountPaid > 0 || (!isCreditMethod && due === 0) || pMethod.includes('cash'))) return true;
+    return false;
+  }
+  if (filter === 'BANK') {
+    if (bankPaid > 0 || isOnline || pMethod.includes('bank') || pMethod.includes('online') || pMethod.includes('transfer')) return true;
+    return false;
+  }
+  if (filter === 'CREDIT') {
+    if (due > 0 || isCreditMethod || pMethod.includes('credit') || pMethod.includes('due')) return true;
+    return false;
+  }
+  return true;
+};
+
 export function PurchasesManagement({ products: propProducts, shopId: propShopId, onAddProduct, onEditProduct, onDeleteProduct, onViewProduct, onRefresh }) {
   const { user } = useUser?.() || {};
   const activeShopId = propShopId || (user?.shopId ? (typeof user.shopId === 'object' ? (user.shopId._id || user.shopId.id) : String(user.shopId)) : null);
@@ -24,6 +66,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
   const [apiProducts, setApiProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [timeframe, setTimeframe] = useState('ALL');
+  const [purchasePaymentFilter, setPurchasePaymentFilter] = useState('ALL'); // 'ALL' | 'CASH' | 'BANK' | 'CREDIT'
   const [purchaseStartDate, setPurchaseStartDate] = useState('');
   const [purchaseEndDate, setPurchaseEndDate] = useState('');
   const [appliedStartDate, setAppliedStartDate] = useState('');
@@ -41,6 +84,7 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
     setAppliedStartDate('');
     setAppliedEndDate('');
     setTimeframe('ALL');
+    setPurchasePaymentFilter('ALL');
   };
 
   const isPurchaseDateInRange = (rawDate) => {
@@ -62,7 +106,17 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
     if (timeframe === 'DAY') {
       const now = new Date();
-      return d.toDateString() === now.toDateString() || d.toISOString().split('T')[0] === now.toISOString().split('T')[0];
+      if (d.toDateString() === now.toDateString()) return true;
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const itemLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      if (itemLocal === todayLocal) return true;
+      try {
+        const todayUTC = now.toISOString().split('T')[0];
+        const itemUTC = d.toISOString().split('T')[0];
+        if (itemUTC === todayUTC) return true;
+      } catch (e) {}
+      return false;
     }
     if (timeframe === 'MONTH') {
       const now = new Date();
@@ -444,13 +498,14 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
 
   const purchaseItems = useMemo(() => {
     return filteredByTimeframeProducts.filter((p) => {
+      if (!isPurchaseInPaymentChannel(p, purchasePaymentFilter)) return false;
       const matchesSearch =
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.supplierName && p.supplierName.toLowerCase().includes(searchTerm.toLowerCase()));
 
       return matchesSearch;
     });
-  }, [filteredByTimeframeProducts, searchTerm]);
+  }, [filteredByTimeframeProducts, searchTerm, purchasePaymentFilter]);
 
   // Aggregate vendors from purchase items
   const aggregatedVendors = useMemo(() => {
@@ -1671,131 +1726,335 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
       </div>
 
       {/* Top 5 Dynamic Stat Cards (Cash & Bank Separated) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Stock In Hand / Net Stock */}
-        <div className="bg-white border-2 border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
-                {timeframe === 'DAY' ? 'Today Stock In Hand' : timeframe === 'MONTH' ? 'Month Stock In Hand' : timeframe === 'YEAR' ? 'Year Stock In Hand' : 'Stock In Hand'}
-              </span>
-              <div className="p-1.5 bg-amber-100 rounded-lg">
-                <Box className="w-3.5 h-3.5 text-amber-600" />
-              </div>
-            </div>
-            <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.remainingPetis} <span className="text-base text-amber-600">Petis</span></h4>
-            <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
-              {stats.soldPetis > 0
-                ? `${stats.totalPetis}P Buy - ${stats.soldPetis}P Sold = ${stats.remainingPetis}P (${fmt(stats.remainingEggs)} Eggs)`
-                : `${stats.totalTrays} Trays • ${fmt(stats.totalEggs)} Eggs`}
-            </span>
-          </div>
-        </div>
+      {(() => {
+        const isAllPeriod = timeframe === 'ALL' && !appliedStartDate && !appliedEndDate;
+        const isStockActive = isAllPeriod && purchasePaymentFilter === 'ALL';
+        const isCashActive = isAllPeriod && purchasePaymentFilter === 'CASH';
+        const isBankActive = isAllPeriod && purchasePaymentFilter === 'BANK';
+        const isCreditActive = isAllPeriod && purchasePaymentFilter === 'CREDIT';
+        const isInvestActive = isAllPeriod && purchasePaymentFilter === 'ALL';
 
-        {/* Card 2: Cash Paid (Separate) */}
-        <div className="bg-white border-2 border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Cash Paid</span>
-              <div className="p-1.5 bg-emerald-100 rounded-lg">
-                <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Card 1: Stock In Hand / Net Stock */}
+            <div
+              onClick={() => {
+                setPurchaseStartDate('');
+                setPurchaseEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setPurchasePaymentFilter('ALL');
+              }}
+              className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                isStockActive
+                  ? 'border-amber-500 ring-2 ring-amber-500/50 shadow-md scale-[1.01]'
+                  : 'border-amber-200 hover:border-amber-300'
+              }`}
+              title="Click to view All Stock Purchases"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
+                    {timeframe === 'DAY' ? 'Today Stock In Hand' : timeframe === 'MONTH' ? 'Month Stock In Hand' : timeframe === 'YEAR' ? 'Year Stock In Hand' : 'Stock In Hand'}
+                  </span>
+                  <div className="p-1.5 bg-amber-100 rounded-lg">
+                    <Box className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                </div>
+                <h4 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900">{stats.remainingPetis} <span className="text-base text-amber-600">Petis</span></h4>
+                <span className="text-[10px] font-bold text-gray-400 uppercase mt-1 block">
+                  {stats.soldPetis > 0
+                    ? `${stats.totalPetis}P Buy - ${stats.soldPetis}P Sold = ${stats.remainingPetis}P (${fmt(stats.remainingEggs)} Eggs)`
+                    : `${stats.totalTrays} Trays • ${fmt(stats.totalEggs)} Eggs`}
+                </span>
               </div>
             </div>
-            <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
-            <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 block">💵 Total Cash Paid</span>
-          </div>
-        </div>
 
-        {/* Card 3: Bank Transfer Paid (Separate) */}
-        <div className="bg-white border-2 border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Bank Paid</span>
-              <div className="p-1.5 bg-blue-100 rounded-lg">
-                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            {/* Card 2: Cash Paid (Separate) */}
+            <div
+              onClick={() => {
+                setPurchaseStartDate('');
+                setPurchaseEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setPurchasePaymentFilter(purchasePaymentFilter === 'CASH' && timeframe === 'ALL' ? 'ALL' : 'CASH');
+              }}
+              className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                isCashActive
+                  ? 'border-emerald-500 ring-2 ring-emerald-500/50 shadow-md scale-[1.01] bg-emerald-50/20'
+                  : 'border-emerald-200 hover:border-emerald-300'
+              }`}
+              title="Click to filter All Purchases paid in Cash"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Cash Paid</span>
+                  <div className="p-1.5 bg-emerald-100 rounded-lg">
+                    <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                  </div>
+                </div>
+                <h4 className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">Rs. <CountUpNumber value={stats.cashPaid} /></h4>
+                <span className="text-[10px] text-emerald-700 font-bold uppercase mt-1 flex items-center justify-between">
+                  <span>💵 Total Cash Paid</span>
+                  {isCashActive && <span className="font-black text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded">✓ Active</span>}
+                </span>
               </div>
             </div>
-            <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
-            <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 block">🏦 Bank &amp; Online Paid</span>
-          </div>
-        </div>
 
-        {/* Card 4: Due Balance (Credit) */}
-        <div className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between ${stats.totalDue > 0 ? 'border-rose-300 bg-rose-50' : 'border-gray-200'}`}>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
-              <div className="p-1.5 bg-rose-100 rounded-lg">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+            {/* Card 3: Bank Transfer Paid (Separate) */}
+            <div
+              onClick={() => {
+                setPurchaseStartDate('');
+                setPurchaseEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setPurchasePaymentFilter(purchasePaymentFilter === 'BANK' && timeframe === 'ALL' ? 'ALL' : 'BANK');
+              }}
+              className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                isBankActive
+                  ? 'border-blue-500 ring-2 ring-blue-500/50 shadow-md scale-[1.01] bg-blue-50/20'
+                  : 'border-blue-200 hover:border-blue-300'
+              }`}
+              title="Click to filter All Purchases paid via Bank/Online"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Bank Paid</span>
+                  <div className="p-1.5 bg-blue-100 rounded-lg">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                  </div>
+                </div>
+                <h4 className="text-xl sm:text-2xl font-black text-blue-600 tracking-tight">Rs. <CountUpNumber value={stats.bankPaid} /></h4>
+                <span className="text-[10px] text-blue-700 font-bold uppercase mt-1 flex items-center justify-between">
+                  <span>🏦 Bank &amp; Online Paid</span>
+                  {isBankActive && <span className="font-black text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded">✓ Active</span>}
+                </span>
               </div>
             </div>
-            <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${stats.totalDue > 0 ? 'text-rose-600' : 'text-gray-400'}`}>Rs. <CountUpNumber value={stats.totalDue} /></h4>
-            <span className={`text-[10px] font-bold uppercase mt-1 block ${stats.totalDue > 0 ? 'text-rose-500' : 'text-gray-400'}`}>
-              {stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}
-            </span>
-          </div>
-        </div>
 
-        {/* Card 5: Grand Total Purchase Cost */}
-        <div className="bg-white border-2 border-purple-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest">
-                {timeframe === 'DAY' ? 'Today Cost' : timeframe === 'MONTH' ? 'Month Cost' : timeframe === 'YEAR' ? 'Year Cost' : 'Total Investment'}
-              </span>
-              <div className="p-1.5 bg-purple-100 rounded-lg">
-                <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+            {/* Card 4: Due Balance (Credit) */}
+            <div
+              onClick={() => {
+                setPurchaseStartDate('');
+                setPurchaseEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setPurchasePaymentFilter(purchasePaymentFilter === 'CREDIT' && timeframe === 'ALL' ? 'ALL' : 'CREDIT');
+              }}
+              className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                isCreditActive
+                  ? 'border-rose-500 ring-2 ring-rose-500/50 shadow-md scale-[1.01] bg-rose-50/30'
+                  : (stats.totalDue > 0 ? 'border-rose-300 bg-rose-50 hover:border-rose-400' : 'border-gray-200 hover:border-gray-300')
+              }`}
+              title="Click to filter All Purchases on Credit / Debt"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-rose-600 uppercase tracking-widest">⚠️ Credit (Due)</span>
+                  <div className="p-1.5 bg-rose-100 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  </div>
+                </div>
+                <h4 className={`text-xl sm:text-2xl font-black tracking-tight ${stats.totalDue > 0 ? 'text-rose-600' : 'text-gray-400'}`}>Rs. <CountUpNumber value={stats.totalDue} /></h4>
+                <span className={`text-[10px] font-bold uppercase mt-1 flex items-center justify-between ${stats.totalDue > 0 ? 'text-rose-500' : 'text-gray-400'}`}>
+                  <span>{stats.totalDue > 0 ? '🔴 Pending Owed Debt' : '✅ No Pending Debt'}</span>
+                  {isCreditActive && <span className="font-black text-[9px] bg-rose-600 text-white px-1.5 py-0.2 rounded">✓ Active</span>}
+                </span>
               </div>
             </div>
-            <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
-            <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
+
+            {/* Card 5: Grand Total Purchase Cost */}
+            <div
+              onClick={() => {
+                setPurchaseStartDate('');
+                setPurchaseEndDate('');
+                setAppliedStartDate('');
+                setAppliedEndDate('');
+                setTimeframe('ALL');
+                setPurchasePaymentFilter('ALL');
+              }}
+              className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1 cursor-pointer active:scale-95 transition-all ${
+                isInvestActive
+                  ? 'border-purple-500 ring-2 ring-purple-500/50 shadow-md scale-[1.01]'
+                  : 'border-purple-200 hover:border-purple-300'
+              }`}
+              title="Click to view Grand Total All Purchases"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-black text-purple-600 uppercase tracking-widest">
+                    {timeframe === 'DAY' ? 'Today Cost' : timeframe === 'MONTH' ? 'Month Cost' : timeframe === 'YEAR' ? 'Year Cost' : 'Total Investment'}
+                  </span>
+                  <div className="p-1.5 bg-purple-100 rounded-lg">
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                  </div>
+                </div>
+                <h4 className="text-xl sm:text-2xl font-black text-purple-700 tracking-tight">Rs. <CountUpNumber value={stats.totalPurchasesCost} /></h4>
+                <span className="text-[10px] text-gray-400 font-bold uppercase mt-1 block">Total Purchase Value</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Dedicated Today Purchases Summary (Separate Div Below) */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-            <Box className="w-5 h-5 text-slate-700" />
-            Today's Live Purchases &amp; Restocks Summary
-          </span>
-          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-            {todayStats.count} Purchase Batches Recorded Today
-          </span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Stock In Hand</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayStats.remainingPetis} Petis</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
-              {todayStats.soldPetis > 0
-                ? `Buy ${todayStats.totalPetis}P - Sold ${todayStats.soldPetis}P (${todayStats.remainingEggs.toLocaleString('en-PK')} Eggs)`
-                : `(${todayStats.totalEggs.toLocaleString('en-PK')} Eggs)`}
-            </span>
+      {(() => {
+        const isTodayPeriod = timeframe === 'DAY' && !appliedStartDate && !appliedEndDate;
+        const isTodayStockActive = isTodayPeriod && purchasePaymentFilter === 'ALL';
+        const isTodayCashActive = isTodayPeriod && purchasePaymentFilter === 'CASH';
+        const isTodayBankActive = isTodayPeriod && purchasePaymentFilter === 'BANK';
+        const isTodayCreditActive = isTodayPeriod && purchasePaymentFilter === 'CREDIT';
+        const isTodayInvestActive = isTodayPeriod && purchasePaymentFilter === 'ALL';
+
+        return (
+          <div className={`border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${isTodayPeriod ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/20' : 'bg-slate-100 border-slate-300'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <Box className="w-5 h-5 text-slate-700" />
+                Today's Live Purchases &amp; Restocks Summary
+              </span>
+              <div className="flex items-center gap-2">
+                {isTodayPeriod && (
+                  <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                    {purchasePaymentFilter === 'ALL' ? 'TODAY ALL' : `TODAY ${purchasePaymentFilter}`}
+                  </span>
+                )}
+                <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+                  {todayStats.count} Purchase Batches Recorded Today
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Today Card 1: Stock In Hand */}
+              <div
+                onClick={() => {
+                  setPurchaseStartDate('');
+                  setPurchaseEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setPurchasePaymentFilter('ALL');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayStockActive
+                    ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-50/20 scale-[1.01]'
+                    : 'border-slate-300 hover:border-amber-400'
+                }`}
+                title="Click to view Today's Purchases List"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Stock In Hand</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayStats.remainingPetis} Petis</div>
+                <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+                  {todayStats.soldPetis > 0
+                    ? `Buy ${todayStats.totalPetis}P - Sold ${todayStats.soldPetis}P (${todayStats.remainingEggs.toLocaleString('en-PK')} Eggs)`
+                    : `(${todayStats.totalEggs.toLocaleString('en-PK')} Eggs)`}
+                </span>
+              </div>
+
+              {/* Today Card 2: Cash Paid */}
+              <div
+                onClick={() => {
+                  setPurchaseStartDate('');
+                  setPurchaseEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setPurchasePaymentFilter(purchasePaymentFilter === 'CASH' && timeframe === 'DAY' ? 'ALL' : 'CASH');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayCashActive
+                    ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-50/20 scale-[1.01]'
+                    : 'border-slate-300 hover:border-emerald-400'
+                }`}
+                title="Click to view Today's Cash Purchases"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Cash Paid</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-emerald-700 truncate mt-1 flex items-center justify-between">
+                  <span>Direct Cash Inflow</span>
+                  {isTodayCashActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
+
+              {/* Today Card 3: Bank Paid */}
+              <div
+                onClick={() => {
+                  setPurchaseStartDate('');
+                  setPurchaseEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setPurchasePaymentFilter(purchasePaymentFilter === 'BANK' && timeframe === 'DAY' ? 'ALL' : 'BANK');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayBankActive
+                    ? 'border-blue-500 ring-2 ring-blue-500/40 bg-blue-50/20 scale-[1.01]'
+                    : 'border-slate-300 hover:border-blue-400'
+                }`}
+                title="Click to view Today's Bank Purchases"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Today Bank Paid</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-blue-700 truncate mt-1 flex items-center justify-between">
+                  <span>Bank / Online</span>
+                  {isTodayBankActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
+
+              {/* Today Card 4: Credit Due */}
+              <div
+                onClick={() => {
+                  setPurchaseStartDate('');
+                  setPurchaseEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setPurchasePaymentFilter(purchasePaymentFilter === 'CREDIT' && timeframe === 'DAY' ? 'ALL' : 'CREDIT');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                  isTodayCreditActive
+                    ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50/20 scale-[1.01]'
+                    : 'border-slate-300 hover:border-rose-400'
+                }`}
+                title="Click to view Today's Credit Purchases"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">4. Today Credit Due</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalDue.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-rose-700 truncate mt-1 flex items-center justify-between">
+                  <span>Pending Owed Debt</span>
+                  {isTodayCreditActive && <span className="font-black text-[9px]">✓ Active</span>}
+                </span>
+              </div>
+
+              {/* Today Card 5: Investment */}
+              <div
+                onClick={() => {
+                  setPurchaseStartDate('');
+                  setPurchaseEndDate('');
+                  setAppliedStartDate('');
+                  setAppliedEndDate('');
+                  setTimeframe('DAY');
+                  setPurchasePaymentFilter('ALL');
+                }}
+                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1 cursor-pointer active:scale-95 transition-all ${
+                  isTodayInvestActive
+                    ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/20 scale-[1.01]'
+                    : 'border-slate-300 hover:border-purple-400'
+                }`}
+                title="Click to view Today's Purchases List"
+              >
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Today Investment</span>
+                <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</div>
+                <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Today Purchases</span>
+              </div>
+            </div>
           </div>
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Cash Paid</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.cashPaid.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Direct Cash Inflow</span>
-          </div>
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Today Bank Paid</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.bankPaid.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Bank / Online</span>
-          </div>
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">4. Today Credit Due</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalDue.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Pending Owed Debt</span>
-          </div>
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Today Investment</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayStats.totalPurchasesCost.toLocaleString('en-PK')}</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Total Today Purchases</span>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
 
       {/* ─── LOW STOCK ALERT SECTION ─── */}
@@ -1845,6 +2104,26 @@ export function PurchasesManagement({ products: propProducts, shopId: propShopId
           )}
         </div>
       </div>
+
+      {/* Active Filter Pill Status */}
+      {(timeframe !== 'ALL' || purchasePaymentFilter !== 'ALL' || appliedStartDate || appliedEndDate) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-700">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs font-bold">
+              Showing Purchases List: <strong className="text-amber-300 uppercase">{timeframe === 'DAY' ? "Today's Purchases" : timeframe === 'ALL' ? 'All-Time Purchases' : timeframe}</strong>
+              {purchasePaymentFilter !== 'ALL' && <span> &bull; Channel: <strong className="text-emerald-300 uppercase">{purchasePaymentFilter}</strong></span>}
+              {' '}(<strong className="text-white">{purchaseItems.length}</strong> Products Found)
+            </span>
+          </div>
+          <button
+            onClick={handleClearPurchaseDate}
+            className="text-[10.5px] bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white px-3 py-1 rounded-lg uppercase font-black transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+          >
+            <span>&times; Clear Filter (Show All)</span>
+          </button>
+        </div>
+      )}
 
       {/* Purchases Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

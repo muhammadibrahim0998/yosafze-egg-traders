@@ -35,6 +35,7 @@ export function VendorsManagement({ shopId: propShopId }) {
   const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL'); // ALL, WITH_PHONE, WITH_LOCATION
+  const [timeframe, setTimeframe] = useState('ALL'); // 'ALL' | 'DAY'
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [loading, setLoading] = useState(false);
   const [vendorStartDate, setVendorStartDate] = useState('');
@@ -52,6 +53,8 @@ export function VendorsManagement({ shopId: propShopId }) {
     setVendorEndDate('');
     setAppliedStartDate('');
     setAppliedEndDate('');
+    setTimeframe('ALL');
+    setFilterType('ALL');
   };
 
   const parseSafeDate = (val) => {
@@ -343,6 +346,20 @@ export function VendorsManagement({ shopId: propShopId }) {
     return vendors.filter(v => {
       if (appliedStartDate || appliedEndDate) {
         if (!isDateInSelectedRange(v.createdAt)) return false;
+      } else if (timeframe === 'DAY') {
+        const itemDate = parseSafeDate(v.createdAt || v.date);
+        if (!itemDate) return false;
+        const now = new Date();
+        if (itemDate.toDateString() !== now.toDateString()) {
+          const pad = (n) => String(n).padStart(2, '0');
+          const todayLocal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+          const itemLocal = `${itemDate.getFullYear()}-${pad(itemDate.getMonth() + 1)}-${pad(itemDate.getDate())}`;
+          if (itemLocal !== todayLocal) {
+            try {
+              if (itemDate.toISOString().split('T')[0] !== now.toISOString().split('T')[0]) return false;
+            } catch (e) { return false; }
+          }
+        }
       }
       const vName = (v.name || '').toLowerCase();
       const vPhone = (v.phone || '').toLowerCase();
@@ -360,7 +377,7 @@ export function VendorsManagement({ shopId: propShopId }) {
 
       return true;
     });
-  }, [vendors, searchTerm, filterType, appliedStartDate, appliedEndDate]);
+  }, [vendors, searchTerm, filterType, timeframe, appliedStartDate, appliedEndDate]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -406,96 +423,219 @@ export function VendorsManagement({ shopId: propShopId }) {
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-              <span>Total Vendors</span>
-              <Building2 className="w-4 h-4 text-teal-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-              <CountUpNumber value={stats.total} />
-            </div>
-            <p className="text-[9px] font-bold text-slate-400">Registered egg suppliers &amp; farms</p>
-          </div>
-        </div>
+      {(() => {
+        const isAllPeriod = timeframe === 'ALL' && !appliedStartDate && !appliedEndDate;
+        const isTodayPeriod = timeframe === 'DAY' && !appliedStartDate && !appliedEndDate;
 
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-              <span>With Phone Number</span>
-              <Phone className="w-4 h-4 text-emerald-600" />
+        return (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Card 1: Total Vendors */}
+              <div
+                onClick={() => {
+                  handleClearDateFilter();
+                  setTimeframe('ALL');
+                  setFilterType('ALL');
+                }}
+                className={`bg-white border-2 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                  isAllPeriod && filterType === 'ALL'
+                    ? 'border-teal-600 ring-2 ring-teal-500/50 shadow-md scale-[1.01]'
+                    : 'border-slate-200 hover:border-teal-400'
+                }`}
+                title="Click to view All Registered Vendors"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                    <span>Total Vendors</span>
+                    <Building2 className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                    <CountUpNumber value={stats.total} />
+                  </div>
+                  <p className="text-[9px] font-bold text-slate-400 flex items-center justify-between">
+                    <span>Registered egg suppliers &amp; farms</span>
+                    {isAllPeriod && filterType === 'ALL' && <span className="text-teal-700 font-black">✓ Active</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: With Phone Number */}
+              <div
+                onClick={() => {
+                  handleClearDateFilter();
+                  setTimeframe('ALL');
+                  setFilterType(prev => (prev === 'WITH_PHONE' && isAllPeriod ? 'ALL' : 'WITH_PHONE'));
+                }}
+                className={`bg-white border-2 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                  isAllPeriod && filterType === 'WITH_PHONE'
+                    ? 'border-emerald-500 ring-2 ring-emerald-500/50 shadow-md scale-[1.01] bg-emerald-50/20'
+                    : 'border-slate-200 hover:border-emerald-400'
+                }`}
+                title="Click to filter Vendors with Phone Numbers"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                    <span>With Phone Number</span>
+                    <Phone className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
+                    <CountUpNumber value={stats.withPhone} />
+                  </div>
+                  <p className="text-[9px] font-bold text-emerald-600 uppercase flex items-center justify-between">
+                    <span>Available for Direct Contact</span>
+                    {isAllPeriod && filterType === 'WITH_PHONE' && <span className="text-emerald-800 font-black">✓ Active</span>}
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
+                  <span className="text-slate-700">CONNECTIVITY:</span>
+                  <span className="text-slate-900 font-black">{stats.total > 0 ? Math.round((stats.withPhone / stats.total) * 100) : 0}% Verified</span>
+                </div>
+              </div>
+
+              {/* Card 3: Locations / Cities */}
+              <div
+                onClick={() => {
+                  handleClearDateFilter();
+                  setTimeframe('ALL');
+                  setFilterType(prev => (prev === 'WITH_LOCATION' && isAllPeriod ? 'ALL' : 'WITH_LOCATION'));
+                }}
+                className={`bg-white border-2 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between cursor-pointer active:scale-95 transition-all ${
+                  isAllPeriod && filterType === 'WITH_LOCATION'
+                    ? 'border-blue-500 ring-2 ring-blue-500/50 shadow-md scale-[1.01] bg-blue-50/20'
+                    : 'border-slate-200 hover:border-blue-400'
+                }`}
+                title="Click to filter Vendors with Farm/City Locations"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                    <span>Locations / Cities</span>
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-blue-600 mt-1">
+                    <CountUpNumber value={stats.locations} />
+                  </div>
+                  <p className="text-[9px] font-bold text-blue-600 uppercase flex items-center justify-between">
+                    <span>Farms &amp; Supply Regions</span>
+                    {isAllPeriod && filterType === 'WITH_LOCATION' && <span className="text-blue-800 font-black">✓ Active</span>}
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
+                  <span className="text-slate-700">REGIONAL NETWORK:</span>
+                  <span className="text-slate-900 font-black">{stats.locations} Cities Active</span>
+                </div>
+              </div>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
-              <CountUpNumber value={stats.withPhone} />
+
+            {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY (GRAY & BIGGER SIZE) ─── */}
+            <div className={`border-2 rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${
+              isTodayPeriod ? 'bg-slate-100 border-slate-800 ring-2 ring-slate-800/20' : 'bg-slate-100 border-slate-300'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
+                  Today's Vendors &amp; Farm Suppliers Activity (Daily Breakdown)
+                </span>
+                <div className="flex items-center gap-2">
+                  {isTodayPeriod && (
+                    <span className="text-[10px] bg-slate-900 text-amber-300 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                      SHOWING TODAY
+                    </span>
+                  )}
+                  <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
+                    {todayVendorStats.addedToday} Added Today &bull; {todayVendorStats.totalActive} Active Suppliers
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* Card 1: Vendors Added Today */}
+                <div
+                  onClick={() => {
+                    handleClearDateFilter();
+                    setTimeframe('DAY');
+                    setFilterType('ALL');
+                  }}
+                  className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                    isTodayPeriod && filterType === 'ALL'
+                      ? 'border-teal-500 ring-2 ring-teal-500/50 bg-teal-50/20 scale-[1.01]'
+                      : 'border-slate-300 hover:border-teal-400'
+                  }`}
+                  title="Click to view Vendors Added Today"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">1. Vendors Added Today</span>
+                  <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.addedToday} New</div>
+                  <span className="text-[10px] font-bold text-teal-700 truncate mt-1 flex items-center justify-between">
+                    <span>Newly Registered Suppliers</span>
+                    {isTodayPeriod && filterType === 'ALL' && <span className="font-black">✓ Active</span>}
+                  </span>
+                </div>
+
+                {/* Card 2: Today Verified Contacts */}
+                <div
+                  onClick={() => {
+                    handleClearDateFilter();
+                    setTimeframe('DAY');
+                    setFilterType(prev => (prev === 'WITH_PHONE' && isTodayPeriod ? 'ALL' : 'WITH_PHONE'));
+                  }}
+                  className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                    isTodayPeriod && filterType === 'WITH_PHONE'
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/50 bg-emerald-50/20 scale-[1.01]'
+                      : 'border-slate-300 hover:border-emerald-400'
+                  }`}
+                  title="Click to view Today's Verified Contacts"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Verified Contacts</span>
+                  <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.withPhoneToday} Contacts</div>
+                  <span className="text-[10px] font-bold text-emerald-700 truncate mt-1 flex items-center justify-between">
+                    <span>With Phone Number</span>
+                    {isTodayPeriod && filterType === 'WITH_PHONE' && <span className="font-black">✓ Active</span>}
+                  </span>
+                </div>
+
+                {/* Card 3: Active Supplier Farms */}
+                <div
+                  onClick={() => {
+                    handleClearDateFilter();
+                    setTimeframe('DAY');
+                    setFilterType(prev => (prev === 'WITH_LOCATION' && isTodayPeriod ? 'ALL' : 'WITH_LOCATION'));
+                  }}
+                  className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                    isTodayPeriod && filterType === 'WITH_LOCATION'
+                      ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20 scale-[1.01]'
+                      : 'border-slate-300 hover:border-blue-400'
+                  }`}
+                  title="Click to view Today's Active Supply Farms"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Active Supply Farms</span>
+                  <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalLocations} Cities</div>
+                  <span className="text-[10px] font-bold text-blue-700 truncate mt-1 flex items-center justify-between">
+                    <span>Regional Supply Network</span>
+                    {isTodayPeriod && filterType === 'WITH_LOCATION' && <span className="font-black">✓ Active</span>}
+                  </span>
+                </div>
+
+                {/* Card 4: Total Directory Suppliers */}
+                <div
+                  onClick={() => {
+                    handleClearDateFilter();
+                    setTimeframe('ALL');
+                    setFilterType('ALL');
+                  }}
+                  className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
+                    isAllPeriod && filterType === 'ALL'
+                      ? 'border-slate-800 ring-2 ring-slate-800/40 bg-slate-50 scale-[1.01]'
+                      : 'border-slate-300 hover:border-slate-500'
+                  }`}
+                  title="Click to view Total Directory"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Directory</span>
+                  <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalActive} Suppliers</div>
+                  <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Full Vendor Network</span>
+                </div>
+              </div>
             </div>
-            <p className="text-[9px] font-bold text-emerald-600 uppercase">Available for Direct Contact</p>
-          </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
-            <span className="text-slate-700">CONNECTIVITY:</span>
-            <span className="text-slate-900 font-black">{stats.total > 0 ? Math.round((stats.withPhone / stats.total) * 100) : 0}% Verified</span>
-          </div>
-        </div>
-
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-slate-500 text-[10px] font-black uppercase tracking-wider">
-              <span>Locations / Cities</span>
-              <MapPin className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-blue-600 mt-1">
-              <CountUpNumber value={stats.locations} />
-            </div>
-            <p className="text-[9px] font-bold text-blue-600 uppercase">Farms &amp; Supply Regions</p>
-          </div>
-          <div className="mt-3 pt-2 border-t-2 border-slate-200 flex items-center justify-between text-xs sm:text-[13px] font-black bg-slate-100 -mx-3.5 -mb-3.5 px-3.5 py-2.5 rounded-b-2xl text-slate-800">
-            <span className="text-slate-700">REGIONAL NETWORK:</span>
-            <span className="text-slate-900 font-black">{stats.locations} Cities Active</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── DEDICATED TODAY'S VENDOR DIRECTORY SUMMARY (GRAY & BIGGER SIZE) ─── */}
-      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-5 shadow-sm space-y-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-            Today's Vendors &amp; Farm Suppliers Activity (Daily Breakdown)
-          </span>
-          <span className="text-xs bg-white text-slate-800 border-2 border-slate-300 px-3 py-1 rounded-xl font-bold shadow-xs">
-            {todayVendorStats.addedToday} Added Today &bull; {todayVendorStats.totalActive} Active Suppliers
-          </span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {/* Card 1: Vendors Added Today */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-teal-800">1. Vendors Added Today</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.addedToday} New</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Newly Registered Suppliers</span>
-          </div>
-
-          {/* Card 2: Today Verified Contacts */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">2. Today Verified Contacts</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.withPhoneToday} Contacts</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">With Phone Number</span>
-          </div>
-
-          {/* Card 3: Active Supplier Farms */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">3. Active Supply Farms</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalLocations} Cities</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Regional Supply Network</span>
-          </div>
-
-          {/* Card 4: Total Directory Suppliers */}
-          <div className="bg-white border-2 border-slate-300 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Directory</span>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayVendorStats.totalActive} Suppliers</div>
-            <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Full Vendor Network</span>
-          </div>
-        </div>
-      </div>
+          </>
+        );
+      })()}
 
       {/* Search & Filter Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-2.5">
