@@ -326,27 +326,27 @@ export default function TodayHistoryView({
             .header-banner {
               text-align: center;
               padding-bottom: 12px;
-              border-bottom: 3px double #0f172a;
+              border-bottom: 3px double #334155;
               margin-bottom: 14px;
             }
             .org-title {
-              font-size: 20px;
+              font-size: 21px;
               font-weight: 900;
               text-transform: uppercase;
               letter-spacing: 1px;
-              color: #064e3b;
+              color: #0f172a;
               margin: 0;
             }
             .branch-title {
-              font-size: 14px;
+              font-size: 13.5px;
               font-weight: 800;
-              color: #0f172a;
+              color: #334155;
               margin: 2px 0 4px 0;
               text-transform: uppercase;
             }
             .doc-tag {
               display: inline-block;
-              background: #0f172a;
+              background: #1e293b;
               color: #fff;
               font-weight: 800;
               font-size: 10px;
@@ -359,17 +359,18 @@ export default function TodayHistoryView({
             .meta-bar {
               display: flex;
               justify-content: space-between;
-              background: #f8fafc;
+              background: #f1f5f9;
               border: 1px solid #cbd5e1;
               padding: 6px 12px;
               border-radius: 6px;
               margin-bottom: 14px;
-              font-size: 10.5px;
+              font-size: 10px;
               font-weight: 700;
+              color: #334155;
             }
             .formula-card {
-              border: 2px solid #064e3b;
-              background: #f0fdf4;
+              border: 1.5px solid #94a3b8;
+              background: #f1f5f9;
               border-radius: 8px;
               padding: 10px 14px;
               margin-bottom: 16px;
@@ -378,27 +379,29 @@ export default function TodayHistoryView({
               font-size: 11px;
               font-weight: 900;
               text-transform: uppercase;
-              color: #064e3b;
+              letter-spacing: 0.5px;
+              color: #0f172a;
               margin-bottom: 6px;
-              border-bottom: 1px solid #86efac;
-              padding-bottom: 3px;
+              border-bottom: 1px solid #cbd5e1;
+              padding-bottom: 4px;
             }
             .formula-grid {
               display: grid;
               grid-template-columns: 2fr 1fr 1fr 1fr 2fr;
-              gap: 8px;
+              gap: 6px;
               text-align: center;
               font-size: 10px;
             }
             .formula-item {
-              padding: 6px;
+              padding: 6px 4px;
               background: #fff;
               border-radius: 6px;
               border: 1px solid #cbd5e1;
+              box-shadow: 0 1px 2px rgba(0,0,0,0.02);
             }
             .formula-item.highlight {
-              background: ${todayFinancialResult.isProfit ? '#ecfdf5' : '#fef2f2'};
-              border-color: ${todayFinancialResult.isProfit ? '#10b981' : '#f43f5e'};
+              background: ${todayFinancialResult.isProfit ? '#f0fdf4' : '#fef2f2'};
+              border: 1.5px solid ${todayFinancialResult.isProfit ? '#10b981' : '#f43f5e'};
             }
             .formula-item .lbl {
               font-weight: 800;
@@ -413,16 +416,20 @@ export default function TodayHistoryView({
               color: #0f172a;
             }
             .section-title {
-              font-size: 11px;
+              font-size: 10.5px;
               font-weight: 900;
               text-transform: uppercase;
               letter-spacing: 0.5px;
               color: #0f172a;
               background: #e2e8f0;
-              padding: 4px 8px;
-              border-radius: 4px;
+              border-left: 4px solid #475569;
+              border-top: 1px solid #cbd5e1;
+              border-right: 1px solid #cbd5e1;
+              border-bottom: 1px solid #cbd5e1;
+              padding: 5px 8px;
+              border-radius: 4px 4px 0 0;
               margin-top: 14px;
-              margin-bottom: 6px;
+              margin-bottom: 0;
               display: flex;
               justify-content: space-between;
               align-items: center;
@@ -430,15 +437,15 @@ export default function TodayHistoryView({
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 10px;
-              font-size: 10px;
+              margin-bottom: 12px;
+              font-size: 9.5px;
             }
             th {
               background: #f1f5f9;
-              color: #334155;
+              color: #1e293b;
               font-weight: 800;
               text-transform: uppercase;
-              font-size: 9px;
+              font-size: 8.5px;
               padding: 5px 6px;
               border: 1px solid #cbd5e1;
               text-align: left;
@@ -447,6 +454,7 @@ export default function TodayHistoryView({
               padding: 5px 6px;
               border: 1px solid #cbd5e1;
               vertical-align: middle;
+              color: #0f172a;
             }
             tr:nth-child(even) td {
               background: #f8fafc;
@@ -525,10 +533,10 @@ export default function TodayHistoryView({
               </div>
             </div>
 
-            <div style="display:flex; justify-content:space-around; margin-top:8px; padding-top:6px; border-top:1px dashed #86efac; font-size:9.5px; font-weight:800;">
-              <span>💵 Cash in Drawer: <strong>${currency} ${fmtNum(todayFinancialResult.netCashInDrawer)}</strong></span>
-              <span>🏦 Bank Inflow: <strong>${currency} ${fmtNum(todayFinancialResult.bankIn)}</strong></span>
-              <span>📋 Customer Credit Given: <strong>${currency} ${fmtNum(todayFinancialResult.customerCreditGiven)}</strong></span>
+            <div style="display:flex; justify-content:space-around; margin-top:8px; padding-top:6px; border-top:1px dashed #94a3b8; font-size:9.5px; font-weight:800; color:#1e293b;">
+              <span>💵 Cash in Drawer: <strong style="color:#047857;">${currency} ${fmtNum(todayFinancialResult.netCashInDrawer)}</strong></span>
+              <span>🏦 Bank Inflow: <strong style="color:#1d4ed8;">${currency} ${fmtNum(todayFinancialResult.bankIn)}</strong></span>
+              <span>📋 Customer Credit Given: <strong style="color:#b45309;">${currency} ${fmtNum(todayFinancialResult.customerCreditGiven)}</strong></span>
               <span>📦 Eggs Sold: <strong>${salesTotals.petis} Petis (${fmtNum(salesTotals.eggs)} Eggs)</strong></span>
             </div>
           </div>
