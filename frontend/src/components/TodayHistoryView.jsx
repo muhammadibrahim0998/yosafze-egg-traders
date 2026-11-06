@@ -498,7 +498,7 @@ export default function TodayHistoryView({
           <!-- Master Calculation Box -->
           <div class="formula-card">
             <div class="formula-title">
-              TODAY FINANCIAL PERFORMANCE &amp; NET DAILY SETTLEMENT (د نن ورځې خالص حساب)
+              TODAY FINANCIAL PERFORMANCE &amp; NET DAILY SETTLEMENT
             </div>
             <div class="formula-grid">
               <div class="formula-item">
@@ -861,139 +861,145 @@ export default function TodayHistoryView({
         </div>
       </div>
 
-      {/* ─── 2. DEDICATED DAILY FINANCIAL CALCULATION BOX (As Explicitly Demanded by User) ─── */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white border-2 border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-          <History className="w-64 h-64 text-emerald-400" />
+      {/* ─── 2. DEDICATED DAILY FINANCIAL CALCULATION BOX (Gray Theme & Compact Spacing) ─── */}
+      <div className="bg-slate-100 border-2 border-slate-300 rounded-3xl p-4 sm:p-5 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+          <History className="w-64 h-64 text-slate-800" />
         </div>
 
-        <div className="relative z-10 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+        <div className="relative z-10 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-300 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
                 <Sparkles className="w-4 h-4 animate-pulse" />
               </span>
-              <h2 className="text-sm sm:text-base font-black uppercase tracking-wider text-emerald-300">
-                Today Daily Financial Performance &amp; Realized Settlement (د نن ورځې خالص حساب او کتاب)
+              <h2 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900">
+                Today Daily Financial Performance &amp; Realized Settlement
               </h2>
             </div>
-            <span className="text-[11px] font-bold text-gray-300 bg-white/10 px-3 py-1 rounded-full border border-white/15">
+            <span className="text-[11px] font-bold text-slate-700 bg-white px-3 py-1 rounded-full border border-slate-300 shadow-xs">
               📅 {todayDateFormatted}
             </span>
           </div>
 
-          {/* Formula Representation Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Formula Representation Grid - Closely Spaced (yaw bal ta nezde) */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-2.5">
             {/* Step 1: (+) Today Sale */}
-            <div className="bg-white/10 border border-emerald-500/30 rounded-2xl p-3.5 backdrop-blur-xs flex flex-col justify-between">
+            <div className="bg-white border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-3 shadow-xs flex flex-col justify-between transition-all">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
                   (+) 1. Today Gross Sale
                 </span>
-                <span className="w-5 h-5 rounded-full bg-emerald-500/30 text-emerald-300 text-xs font-black flex items-center justify-center">+</span>
+                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black flex items-center justify-center border border-emerald-200">+</span>
               </div>
-              <div className="text-lg sm:text-2xl font-black text-white mt-2">
+              <div className="text-lg sm:text-2xl font-black text-slate-900 mt-1.5">
                 {currency} {todayFinancialResult.grossSale.toLocaleString('en-PK')}
               </div>
-              <span className="text-[10px] font-bold text-emerald-200/70 mt-1">
+              <span className="text-[10px] font-bold text-emerald-700 mt-0.5">
                 {salesTotals.count} Bills • {salesTotals.petis} Petis
               </span>
             </div>
 
             {/* Step 2: (-) Shop Expenses */}
-            <div className="bg-white/10 border border-rose-500/30 rounded-2xl p-3.5 backdrop-blur-xs flex flex-col justify-between">
+            <div className="bg-white border-2 border-rose-300 hover:border-rose-500 rounded-2xl p-3 shadow-xs flex flex-col justify-between transition-all">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-300">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">
                   (-) 2. Shop Expense
                 </span>
-                <span className="w-5 h-5 rounded-full bg-rose-500/30 text-rose-300 text-xs font-black flex items-center justify-center">-</span>
+                <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-800 text-xs font-black flex items-center justify-center border border-rose-200">-</span>
               </div>
-              <div className="text-lg sm:text-2xl font-black text-rose-300 mt-2">
+              <div className="text-lg sm:text-2xl font-black text-rose-700 mt-1.5">
                 {currency} {todayFinancialResult.shopExp.toLocaleString('en-PK')}
               </div>
-              <span className="text-[10px] font-bold text-rose-200/70 mt-1">
+              <span className="text-[10px] font-bold text-rose-600 mt-0.5">
                 {expenseTotals.count} Overhead Logs
               </span>
             </div>
 
             {/* Step 3: (-) Fuel Expense */}
-            <div className="bg-white/10 border border-amber-500/30 rounded-2xl p-3.5 backdrop-blur-xs flex flex-col justify-between">
+            <div className="bg-white border-2 border-amber-300 hover:border-amber-500 rounded-2xl p-3 shadow-xs flex flex-col justify-between transition-all">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">
                   (-) 3. Fuel Expense
                 </span>
-                <span className="w-5 h-5 rounded-full bg-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center">-</span>
+                <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-xs font-black flex items-center justify-center border border-amber-200">-</span>
               </div>
-              <div className="text-lg sm:text-2xl font-black text-amber-300 mt-2">
+              <div className="text-lg sm:text-2xl font-black text-amber-700 mt-1.5">
                 {currency} {todayFinancialResult.fuelExp.toLocaleString('en-PK')}
               </div>
-              <span className="text-[10px] font-bold text-amber-200/70 mt-1">
+              <span className="text-[10px] font-bold text-amber-600 mt-0.5">
                 {fuelTotals.count} Trips • {fuelTotals.liters} L
               </span>
             </div>
 
             {/* Step 4: (-) Damaged Loss */}
-            <div className="bg-white/10 border border-yellow-500/30 rounded-2xl p-3.5 backdrop-blur-xs flex flex-col justify-between">
+            <div className="bg-white border-2 border-yellow-400 hover:border-yellow-500 rounded-2xl p-3 shadow-xs flex flex-col justify-between transition-all">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-yellow-300">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900">
                   (-) 4. Damaged Loss
                 </span>
-                <span className="w-5 h-5 rounded-full bg-yellow-500/30 text-yellow-300 text-xs font-black flex items-center justify-center">-</span>
+                <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-900 text-xs font-black flex items-center justify-center border border-amber-300">-</span>
               </div>
-              <div className="text-lg sm:text-2xl font-black text-yellow-300 mt-2">
+              <div className="text-lg sm:text-2xl font-black text-amber-800 mt-1.5">
                 {currency} {todayFinancialResult.damLoss.toLocaleString('en-PK')}
               </div>
-              <span className="text-[10px] font-bold text-yellow-200/70 mt-1">
+              <span className="text-[10px] font-bold text-amber-700 mt-0.5">
                 {damagedTotals.eggs.toLocaleString('en-PK')} Eggs ({damagedTotals.petis} P)
               </span>
             </div>
 
             {/* Final Step: (=) Net Result */}
-            <div className={`col-span-2 lg:col-span-1 rounded-2xl p-3.5 border-2 flex flex-col justify-between ${
+            <div className={`col-span-2 lg:col-span-1 rounded-2xl p-3 border-2 flex flex-col justify-between shadow-xs transition-all ${
               todayFinancialResult.isProfit
-                ? 'bg-emerald-900/60 border-emerald-400 ring-2 ring-emerald-500/40 shadow-lg'
-                : 'bg-rose-900/60 border-rose-400 ring-2 ring-rose-500/40 shadow-lg'
+                ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20'
+                : 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20'
             }`}>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-white">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-900">
                   (=) Today Net Result
                 </span>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/20">
+                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full text-white shadow-xs ${
+                  todayFinancialResult.isProfit ? 'bg-emerald-600' : 'bg-rose-600'
+                }`}>
                   {todayFinancialResult.isProfit ? 'PROFIT' : 'DEFICIT'}
                 </span>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white mt-2">
+              <div className={`text-xl sm:text-2xl font-black mt-1.5 ${
+                todayFinancialResult.isProfit ? 'text-emerald-700' : 'text-rose-700'
+              }`}>
                 {todayFinancialResult.isProfit ? '+' : '-'}{currency} {Math.abs(todayFinancialResult.netDailyBalance).toLocaleString('en-PK')}
               </div>
-              <span className="text-[10px] font-bold text-emerald-200 mt-1">
+              <span className={`text-[10px] font-bold mt-0.5 ${
+                todayFinancialResult.isProfit ? 'text-emerald-600' : 'text-rose-600'
+              }`}>
                 Sale - Exp - Fuel - Damage
               </span>
             </div>
           </div>
 
-          {/* Cash Drawer & Liquidity Strip */}
-          <div className="bg-black/40 border border-white/10 rounded-2xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold">
+          {/* Cash Drawer & Liquidity Strip (Clean Gray Theme & Compact) */}
+          <div className="bg-white border border-slate-300 rounded-2xl p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold shadow-xs">
             <div>
-              <span className="text-gray-400 uppercase text-[9px] block">💵 Cash In Hand (Drawer):</span>
-              <span className="text-emerald-400 text-sm font-black mt-0.5 block">
+              <span className="text-slate-500 uppercase text-[9px] block">💵 Cash In Hand (Drawer):</span>
+              <span className="text-emerald-700 text-sm font-black mt-0.5 block">
                 {currency} {todayFinancialResult.netCashInDrawer.toLocaleString('en-PK')}
               </span>
             </div>
             <div>
-              <span className="text-gray-400 uppercase text-[9px] block">🏦 Bank Transfers:</span>
-              <span className="text-blue-400 text-sm font-black mt-0.5 block">
+              <span className="text-slate-500 uppercase text-[9px] block">🏦 Bank Transfers:</span>
+              <span className="text-blue-700 text-sm font-black mt-0.5 block">
                 {currency} {todayFinancialResult.bankIn.toLocaleString('en-PK')}
               </span>
             </div>
             <div>
-              <span className="text-gray-400 uppercase text-[9px] block">📋 Customer Credit Given:</span>
-              <span className="text-amber-400 text-sm font-black mt-0.5 block">
+              <span className="text-slate-500 uppercase text-[9px] block">📋 Customer Credit Given:</span>
+              <span className="text-amber-700 text-sm font-black mt-0.5 block">
                 {currency} {todayFinancialResult.customerCreditGiven.toLocaleString('en-PK')}
               </span>
             </div>
             <div>
-              <span className="text-gray-400 uppercase text-[9px] block">🚚 Today Stock Restocks:</span>
-              <span className="text-teal-300 text-sm font-black mt-0.5 block">
+              <span className="text-slate-500 uppercase text-[9px] block">🚚 Today Stock Restocks:</span>
+              <span className="text-teal-700 text-sm font-black mt-0.5 block">
                 {currency} {purchaseTotals.cost.toLocaleString('en-PK')} ({purchaseTotals.petis} P)
               </span>
             </div>
@@ -1443,3 +1449,4 @@ export default function TodayHistoryView({
     </div>
   );
 }
+
