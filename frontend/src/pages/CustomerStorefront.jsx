@@ -8,8 +8,9 @@ import {
   Layers, ShoppingBasket, Shirt, Home, Watch, Smartphone, Footprints,
   Menu, Filter, HelpCircle, LayoutDashboard,
   Truck, Fuel, Edit2, Edit, Receipt, Printer, DollarSign, FileText, Send, TrendingUp, TrendingDown, PackageX, AlertTriangle, FileSpreadsheet, Users, RefreshCw, Building2, Calendar, CreditCard, Banknote, ShieldCheck, Box, MoreVertical,
-  BarChart3, PieChart, Loader2, CheckCircle2
+  BarChart3, PieChart, Loader2, CheckCircle2, History
 } from 'lucide-react';
+import TodayHistoryView from '../components/TodayHistoryView.jsx';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 import companyLogo from '../image/logo.png';
@@ -749,6 +750,7 @@ function StoreContent({ shopId }) {
           'dashboard',
           'products',
           'walkin',
+          'today-history',
           'orders',
           'purchases',
           'vendors',
@@ -768,6 +770,8 @@ function StoreContent({ shopId }) {
           'dashboard': 'dashboard',
           'store': 'products',
           'walkin': 'walkin',
+          'today-history': 'today-history',
+          'todayHistory': 'today-history',
           'sales': 'report-sales',
           'purchases': 'purchases',
           'vendors': 'vendors',
@@ -1023,7 +1027,7 @@ function StoreContent({ shopId }) {
 
   useEffect(() => {
     if (!isAdminUser) {
-      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'report-fuel', 'analytics-charts', 'customer-credits', 'purchase-credits'];
+      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'today-history', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'report-fuel', 'analytics-charts', 'customer-credits', 'purchase-credits'];
       if (adminOnlyViews.includes(activeView)) {
         setActiveView('products');
       }
@@ -1035,12 +1039,12 @@ function StoreContent({ shopId }) {
       setSalesReportPaymentFilter('ALL');
       setExpensePaymentFilter('ALL');
     }
-    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits') {
+    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits' || activeView === 'today-history') {
       fetchShopSales();
       fetchRegisteredCustomers();
       fetchCatalog();
     }
-    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard' || activeView === 'purchase-credits' || activeView === 'report-fuel' || activeView === 'report-profit') {
+    if (activeView === 'report-expenses' || activeView === 'damaged-products' || activeView === 'dashboard' || activeView === 'purchase-credits' || activeView === 'report-fuel' || activeView === 'report-profit' || activeView === 'today-history') {
       fetchExpenses();
       fetchFuelExpenses();
       fetchDamagedProducts();
@@ -8355,6 +8359,34 @@ function StoreContent({ shopId }) {
                   </button>
                   )}
 
+                  {/* Today History Button - Located directly under POS Bill Sale */}
+                  {isActionAllowed('today-history') && (
+                  <button
+                    onClick={() => {
+                      setActiveView('today-history');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('DAY');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchRegisteredCustomers();
+                      fetchExpenses();
+                      fetchFuelExpenses();
+                      fetchDamagedProducts();
+                      fetchCatalog();
+                    }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'today-history'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      }`}
+                  >
+                    <History className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'today-history' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'today-history' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Today History</span>
+                  </button>
+                  )}
+
                   {isActionAllowed('purchases') && (
                   <button
                     onClick={() => {
@@ -9741,6 +9773,35 @@ function StoreContent({ shopId }) {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ─── TODAY HISTORY MASTER CONSOLIDATED REPORT VIEW ─── */}
+              {activeView === 'today-history' && isAdminUser && (
+                <TodayHistoryView
+                  shopId={shopId}
+                  shop={shop}
+                  currency={currency}
+                  todayMasterMetrics={todayMasterMetrics}
+                  unifiedSalesList={unifiedSalesList}
+                  shopSalesList={shopSalesList}
+                  expensesList={expensesList}
+                  fuelExpensesList={fuelExpensesList}
+                  damagedProductsList={damagedProductsList}
+                  items={items}
+                  registeredCustomersList={registeredCustomersList}
+                  onRefresh={async () => {
+                    await Promise.all([
+                      fetchShopSales(),
+                      fetchRegisteredCustomers(),
+                      fetchExpenses(),
+                      fetchFuelExpenses(),
+                      fetchDamagedProducts(),
+                      fetchCatalog()
+                    ]);
+                  }}
+                  setActiveView={setActiveView}
+                  isAdminUser={isAdminUser}
+                />
               )}
 
               {/* ─── WALK-IN POS & BILLING VIEW ─── */}

@@ -1085,7 +1085,13 @@ export function CreditManagement({
         <div className="flex items-center bg-zinc-100 p-1 rounded-xl gap-1.5 w-full sm:w-auto">
           {/* Branch 1: Purchase Credit */}
           <button
-            onClick={() => { setActiveTab('purchases'); setSearchTerm(''); setFilterStatus('ALL'); setCreditPaymentFilter('ALL'); }}
+            onClick={() => { 
+              setActiveTab('purchases'); 
+              setSearchTerm(''); 
+              setFilterStatus('ALL'); 
+              setCreditPaymentFilter('ALL'); 
+              handlePresetDate('all');
+            }}
             className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'purchases'
                 ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'
@@ -1103,7 +1109,13 @@ export function CreditManagement({
 
           {/* Branch 2: Customer Credit */}
           <button
-            onClick={() => { setActiveTab('customers'); setSearchTerm(''); setFilterStatus('ALL'); setCreditPaymentFilter('ALL'); }}
+            onClick={() => { 
+              setActiveTab('customers'); 
+              setSearchTerm(''); 
+              setFilterStatus('ALL'); 
+              setCreditPaymentFilter('ALL'); 
+              handlePresetDate('all');
+            }}
             className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg font-black text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'customers'
                 ? 'bg-amber-500 text-zinc-950 shadow-sm scale-[1.01]'

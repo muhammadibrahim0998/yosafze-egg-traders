@@ -1013,7 +1013,7 @@ const getPurchaseCredits = async (req, res) => {
     }
     let query = {};
     if (targetShopId) query.shopId = targetShopId;
-    const credits = await PurchaseCredit.find(query);
+    const credits = await PurchaseCredit.find(query).lean();
 
     const enriched = (credits || []).map(c => {
       let petis = Number(c.petisPurchased || c.petiQuantity || c.petisCount || 0);

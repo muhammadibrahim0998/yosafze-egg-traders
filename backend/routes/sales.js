@@ -1884,7 +1884,7 @@ router.get('/customer-credits', authenticate, async (req, res) => {
       const targetShopId = await resolveShopId(rawShopId) || rawShopId;
       query.shopId = targetShopId;
     }
-    const credits = await CustomerCredit.find(query);
+    const credits = await CustomerCredit.find(query).lean();
     res.json(credits);
   } catch (error) {
     console.error('[getCustomerCredits error]', error);
