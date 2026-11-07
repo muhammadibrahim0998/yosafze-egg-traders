@@ -1485,7 +1485,7 @@ export function PaymentLedger({ shopId: propShopId }) {
                 <Truck className="w-4 h-4 text-orange-600" />
                 Vendor Payment Ledger
               </h3>
-              <p className="text-[11px] font-bold text-orange-700/70 mt-0.5">Total vendors: {groupedVendorLedger.length} | د هر vendor لپاره summary او products</p>
+              <p className="text-[11px] font-bold text-orange-700/70 mt-0.5">Total vendors: {groupedVendorLedger.length} | Detailed summary and products for all vendors</p>
             </div>
             {/* Grand totals in one line */}
             <div className="flex flex-wrap gap-3 text-xs font-black">
@@ -1632,7 +1632,7 @@ export function PaymentLedger({ shopId: propShopId }) {
                 <Users className="w-4 h-4 text-teal-600" />
                 Customer Payment Ledger
               </h3>
-              <p className="text-[11px] font-bold text-teal-700/70 mt-0.5">Total customers: {groupedCustomerLedger.length} | د هر customer لپاره summary او transactions</p>
+              <p className="text-[11px] font-bold text-teal-700/70 mt-0.5">Total customers: {groupedCustomerLedger.length} | Detailed summary and transactions for all customers</p>
             </div>
             {/* Grand totals in one line */}
             <div className="flex flex-wrap gap-3 text-xs font-black">

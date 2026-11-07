@@ -9,6 +9,7 @@ import compression from 'compression';
 import { testMySQLConnection } from './config/mysql.js';
 import { seedDatabase } from './seed.js';
 import { initPaymentLedgerTables } from './scripts/create_payment_ledger_tables.js';
+import { ensureAllBranchTablesExist } from './utils/branchTableManager.js';
 
 // Import Routes
 import itemsRoutes from './routes/items.js';
@@ -128,6 +129,7 @@ const PORT = process.env.PORT || 5000;
 await testMySQLConnection();
 await seedDatabase();
 await initPaymentLedgerTables();
+await ensureAllBranchTablesExist();
 
 const server = createServer(app);
 

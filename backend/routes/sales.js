@@ -23,6 +23,7 @@ import { authenticate, requireShopAdmin, preventSuperAdmin } from '../middleware
 import { resolveShopId } from '../utils/shopResolver.js';
 import pool from '../config/mysql.js';
 import { BRANCH_TABLE_PREFIXES } from '../models/dbHelper.js';
+import { syncSaleToBranchHistories, removeSaleFromBranchHistories, getBranchTodayFinancialSummary } from '../utils/branchTableManager.js';
 
 // Helper to dynamically hydrate items on any sale record (online & local branches)
 const hydrateSaleItems = async (s, branchPrefix = 'peshawar_branch') => {
@@ -1110,6 +1111,9 @@ const createSaleRecord = async (req, res, explicitPaymentData = {}) => {
           status: cplStatus
         });
 
+        // Automatically sync into branch sale_product_history and today_sales_history tables
+        await syncSaleToBranchHistories(newSale, targetShopId);
+
         // Also insert into sale_items table if present for multi-table compatibility
         const sIdNum = Number(newSale.id || newSale._id);
         if (sIdNum && Array.isArray(saleItems) && saleItems.length > 0) {
@@ -1274,6 +1278,20 @@ router.get('/breakdown/:shopId?', authenticate, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ── TODAY DAILY FINANCIAL SUMMARY ROUTE (Strictly deducts expenses, fuel, damage from Today Sale only) ──
+router.get('/today-financial-summary/:shopId?', authenticate, async (req, res) => {
+  try {
+    const rawShopId = req.params.shopId || req.query.shopId || req.user?.shopId || 1;
+    const targetShopId = await resolveShopId(rawShopId) || 1;
+    const targetDate = req.query.date || null;
+    const summary = await getBranchTodayFinancialSummary(targetShopId, targetDate);
+    return res.json(summary);
+  } catch (err) {
+    console.error('Error fetching today financial summary:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -1597,6 +1615,7 @@ router.delete('/:id', authenticate, requireShopAdmin, async (req, res) => {
 
       // 2. Delete from MySQL sales and sale_items
       await Sale.findByIdAndDelete(sale.id);
+      await removeSaleFromBranchHistories(sale.id, sale.shopId);
 
       // 3. Delete associated Invoice PDF if it exists
       const fileName = `invoice-${sale.id || sale._id}.pdf`;

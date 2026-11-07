@@ -118,59 +118,10 @@ export async function initPaymentLedgerTables() {
     } catch (_) {}
   }
 
-  // Ensure root tables also exist for dynamic fallbacks
+  // Ensure flat legacy tables outside branch folders are removed
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS \`customer_payment_ledger\` (
-        \`id\` VARCHAR(255) PRIMARY KEY,
-        \`shopId\` INT NOT NULL DEFAULT 1,
-        \`saleId\` VARCHAR(255) NULL,
-        \`invoiceNumber\` VARCHAR(100) NULL,
-        \`customerName\` VARCHAR(255) NULL,
-        \`customerPhone\` VARCHAR(50) NULL,
-        \`category\` VARCHAR(100) DEFAULT 'Eggs',
-        \`itemsDescription\` TEXT NULL,
-        \`petisBought\` DECIMAL(10,2) DEFAULT 0.00,
-        \`eggsBought\` INT DEFAULT 0,
-        \`totalAmount\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-        \`cashPaid\` DECIMAL(12,2) DEFAULT 0.00,
-        \`bankPaid\` DECIMAL(12,2) DEFAULT 0.00,
-        \`dueAmount\` DECIMAL(12,2) DEFAULT 0.00,
-        \`paymentMethod\` VARCHAR(50) DEFAULT 'CASH',
-        \`status\` VARCHAR(50) DEFAULT 'PAID',
-        \`date\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        KEY \`idx_cpl_root_shop\` (\`shopId\`)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS \`vendor_payment_ledger\` (
-        \`id\` VARCHAR(255) PRIMARY KEY,
-        \`shopId\` INT NOT NULL DEFAULT 1,
-        \`purchaseId\` VARCHAR(255) NULL,
-        \`supplierName\` VARCHAR(255) NULL,
-        \`supplierPhone\` VARCHAR(50) NULL,
-        \`supplierLocation\` VARCHAR(255) NULL,
-        \`productName\` VARCHAR(255) NULL,
-        \`category\` VARCHAR(100) DEFAULT 'Eggs',
-        \`petisPurchased\` DECIMAL(10,2) DEFAULT 0.00,
-        \`eggQuantity\` INT DEFAULT 0,
-        \`unitType\` VARCHAR(50) DEFAULT 'peti',
-        \`buyCost\` DECIMAL(12,2) DEFAULT 0.00,
-        \`totalCost\` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-        \`amountPaid\` DECIMAL(12,2) DEFAULT 0.00,
-        \`cashPaid\` DECIMAL(12,2) DEFAULT 0.00,
-        \`bankPaid\` DECIMAL(12,2) DEFAULT 0.00,
-        \`dueAmount\` DECIMAL(12,2) DEFAULT 0.00,
-        \`paymentMethod\` VARCHAR(50) DEFAULT 'Cash',
-        \`status\` VARCHAR(50) DEFAULT 'PAID',
-        \`date\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`updatedAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        KEY \`idx_vpl_root_shop\` (\`shopId\`)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
+    await pool.query('DROP TABLE IF EXISTS `customer_payment_ledger`');
+    await pool.query('DROP TABLE IF EXISTS `vendor_payment_ledger`');
   } catch (_) {}
 
   // 4. Populate / Sync Data from Sales and Purchases into Branch Tables

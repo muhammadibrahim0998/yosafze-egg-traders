@@ -68,8 +68,25 @@ const BRANCH_ENTITIES = new Set([
   'vendors',
   'fuel_expenses',
   'customer_payment_ledger',
-  'vendor_payment_ledger'
+  'vendor_payment_ledger',
+  'sale_product_history',
+  'today_sales_history'
 ]);
+
+function deriveBranchPrefix(s) {
+  if (!s) return 'peshawar_branch';
+  const name = (typeof s === 'string' ? s : (s.name || '')).trim().toLowerCase();
+  const id = typeof s === 'object' ? (s.id || s._id) : null;
+  if (name.includes('peshawar') || name.includes('peshware')) return 'peshawar_branch';
+  if (name.includes('mardan')) return 'mardan_branch';
+  if (name.includes('attock')) return 'attock_branch';
+
+  let clean = name.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!clean && id) clean = `shop_${id}`;
+  if (!clean) clean = 'branch';
+  if (!clean.endsWith('_branch')) clean = `${clean}_branch`;
+  return clean;
+}
 
 const rawBranchPrefixes = {
   1: 'peshawar_branch',
@@ -84,10 +101,8 @@ export const BRANCH_TABLE_PREFIXES = new Proxy(rawBranchPrefixes, {
     const num = Number(prop);
     if (!isNaN(num) && num in target) return target[num];
     if (typeof prop === 'string' || typeof prop === 'number') {
-      const s = String(prop).toLowerCase();
-      if (s.includes('mardan')) return 'mardan_branch';
-      if (s.includes('attock')) return 'attock_branch';
-      if (s.includes('peshawar') || s.includes('peshware')) return 'peshawar_branch';
+      const derived = deriveBranchPrefix(prop);
+      if (derived) return derived;
     }
     if (!target._isRefreshing) {
       target._isRefreshing = true;
@@ -102,22 +117,16 @@ export const ALL_BRANCH_PREFIXES = ['peshawar_branch', 'mardan_branch', 'attock_
 export const refreshBranchPrefixes = async () => {
   try {
     const [shops] = await pool.query('SELECT id, name FROM shops');
+    const detectedPrefixes = new Set(['peshawar_branch', 'mardan_branch', 'attock_branch']);
     for (const s of shops) {
-      const name = (s.name || '').toLowerCase();
-      let pfx = 'peshawar_branch';
-      if (name.includes('mardan')) {
-        pfx = 'mardan_branch';
-      } else if (name.includes('attock')) {
-        pfx = 'attock_branch';
-      } else if (name.includes('peshawar') || name.includes('peshware')) {
-        pfx = 'peshawar_branch';
-      } else {
-        pfx = 'peshawar_branch';
-      }
+      const pfx = deriveBranchPrefix(s);
+      detectedPrefixes.add(pfx);
       rawBranchPrefixes[s.id] = pfx;
       rawBranchPrefixes[String(s.id)] = pfx;
       rawBranchPrefixes[Number(s.id)] = pfx;
     }
+    ALL_BRANCH_PREFIXES.length = 0;
+    ALL_BRANCH_PREFIXES.push(...detectedPrefixes);
   } catch (_) {}
 };
 

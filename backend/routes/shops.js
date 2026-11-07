@@ -8,6 +8,7 @@ import Item, { getBranchItemModel } from '../models/Item.js';
 import pool from '../config/mysql.js';
 import { resolveShopId } from '../utils/shopResolver.js';
 import { refreshBranchPrefixes } from '../models/dbHelper.js';
+import { createBranchTablesForShop, dropBranchTablesForShop } from '../utils/branchTableManager.js';
 
 const DEFAULT_EGG_PRODUCTS = [
   { name: 'loman brown',       category: 'loman brown',       price: 25, stock: 500, costPrice: 20 },
@@ -298,6 +299,14 @@ router.post('/', authenticate, requireSuperAdmin, validateShop, async (req, res)
     }
 
     await syncShopBanksToDatabase(shop._id || shop.id, banksList);
+
+    // Automatically create all 18 branch tables for the new shop branch
+    try {
+      await createBranchTablesForShop(shop);
+      await refreshBranchPrefixes();
+    } catch (tblErr) {
+      console.warn('Branch tables auto-creation warning:', tblErr.message);
+    }
 
     res.status(201).json({ shop, adminUser, settings });
   } catch (error) {
@@ -630,7 +639,14 @@ const handleShopDelete = async (req, res) => {
     const shop = await Shop.findById(targetId);
     if (!shop) return res.status(404).json({ message: 'Shop not found' });
 
-    // 1. Delete associated child records first to satisfy MySQL Foreign Key constraints
+    // 1. Drop all 18 branch tables for this shop dynamically from MySQL
+    try {
+      await dropBranchTablesForShop(shop);
+    } catch (dropErr) {
+      console.warn('Branch tables drop warning:', dropErr.message);
+    }
+
+    // 2. Delete associated child records first to satisfy MySQL Foreign Key constraints
     try { await pool.query('DELETE FROM `shop_banks` WHERE `shopId` = ?', [targetId]); } catch (_) {}
     try { await pool.query('DELETE FROM `settings` WHERE `shopId` = ?', [targetId]); } catch (_) {}
     try { await pool.query('DELETE FROM `users` WHERE `shopId` = ?', [targetId]); } catch (_) {}

@@ -11,6 +11,7 @@ import {
   BarChart3, PieChart, Loader2, CheckCircle2, History
 } from 'lucide-react';
 import TodayHistoryView from '../components/TodayHistoryView.jsx';
+import SoldProductsHistoryView from '../components/SoldProductsHistoryView.jsx';
 import { CustomerAuthProvider, useCustomerAuth } from '../contexts/CustomerAuthContext.jsx';
 import { useUser } from '../contexts/UserContext.jsx';
 import companyLogo from '../image/logo.png';
@@ -534,13 +535,13 @@ function StoreContent({ shopId }) {
       try {
         const cached = localStorage.getItem(`nexflow_cached_shop_${shopId}`);
         if (cached) targetShop = JSON.parse(cached);
-      } catch {}
+      } catch { }
       if (!targetShop) {
         try {
           const rawName = String(shopId).toLowerCase().trim().replace(/[\s_]+/g, '-');
           const cached = localStorage.getItem(`nexflow_cached_shop_${rawName}`);
           if (cached) targetShop = JSON.parse(cached);
-        } catch {}
+        } catch { }
       }
     }
 
@@ -549,14 +550,14 @@ function StoreContent({ shopId }) {
 
     // Direct edit / delete toggle flags on shop
     if (opType === 'edit') {
-      const editFlag = targetShop?.isEditApproved !== undefined 
-        ? (targetShop.isEditApproved ? 1 : 0) 
+      const editFlag = targetShop?.isEditApproved !== undefined
+        ? (targetShop.isEditApproved ? 1 : 0)
         : (user?.isEditApproved !== undefined ? (user.isEditApproved ? 1 : 0) : 1);
       if (editFlag === 0) return false;
     }
     if (opType === 'delete') {
-      const deleteFlag = targetShop?.isDeleteApproved !== undefined 
-        ? (targetShop.isDeleteApproved ? 1 : 0) 
+      const deleteFlag = targetShop?.isDeleteApproved !== undefined
+        ? (targetShop.isDeleteApproved ? 1 : 0)
         : (user?.isDeleteApproved !== undefined ? (user.isDeleteApproved ? 1 : 0) : 1);
       if (deleteFlag === 0) return false;
     }
@@ -636,7 +637,7 @@ function StoreContent({ shopId }) {
               return prev;
             });
           }
-        } catch {}
+        } catch { }
       }
     };
     window.addEventListener('shop_approval_updated', handleApprovalUpdate);
@@ -751,6 +752,7 @@ function StoreContent({ shopId }) {
           'products',
           'walkin',
           'today-history',
+          'sold-products-history',
           'orders',
           'purchases',
           'vendors',
@@ -772,6 +774,8 @@ function StoreContent({ shopId }) {
           'walkin': 'walkin',
           'today-history': 'today-history',
           'todayHistory': 'today-history',
+          'sold-products-history': 'sold-products-history',
+          'soldProductsHistory': 'sold-products-history',
           'sales': 'report-sales',
           'purchases': 'purchases',
           'vendors': 'vendors',
@@ -781,8 +785,8 @@ function StoreContent({ shopId }) {
           'reports': 'report-profit',
           'vendorDirectory': 'vendors'
         };
-        const firstAllowed = ALL_VALID_VIEWS.find(v => isActionAllowed(v)) 
-          || PAGE_KEY_TO_VIEW[shopAllowedPages[0]] 
+        const firstAllowed = ALL_VALID_VIEWS.find(v => isActionAllowed(v))
+          || PAGE_KEY_TO_VIEW[shopAllowedPages[0]]
           || 'dashboard';
         if (firstAllowed && firstAllowed !== activeView) {
           setActiveView(firstAllowed);
@@ -872,7 +876,7 @@ function StoreContent({ shopId }) {
 
       if (activeStart && activeEnd) {
         const inStr = (localYMD >= activeStart && localYMD <= activeEnd) ||
-                      (utcYMD >= activeStart && utcYMD <= activeEnd);
+          (utcYMD >= activeStart && utcYMD <= activeEnd);
         const inTs = (startTs !== null && itemTs >= startTs) && (endTs !== null && itemTs <= endTs);
         return inStr || inTs;
       }
@@ -904,13 +908,13 @@ function StoreContent({ shopId }) {
         const todayUTC = now.toISOString().split('T')[0];
         const itemUTC = d.toISOString().split('T')[0];
         if (itemUTC === todayUTC) return true;
-      } catch (e) {}
+      } catch (e) { }
       return false;
     }
     if (reportTimeframe === 'MONTH') {
       const now = new Date();
       return (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) ||
-             (d.getUTCMonth() === now.getUTCMonth() && d.getUTCFullYear() === now.getUTCFullYear());
+        (d.getUTCMonth() === now.getUTCMonth() && d.getUTCFullYear() === now.getUTCFullYear());
     }
     if (reportTimeframe === 'YEAR') {
       const now = new Date();
@@ -1027,7 +1031,7 @@ function StoreContent({ shopId }) {
 
   useEffect(() => {
     if (!isAdminUser) {
-      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'today-history', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'report-fuel', 'analytics-charts', 'customer-credits', 'purchase-credits'];
+      const adminOnlyViews = ['vendors', 'purchases', 'walkin', 'today-history', 'sold-products-history', 'orders', 'registered-customers', 'report-sales', 'report-profit', 'report-expenses', 'damaged-products', 'report-fuel', 'analytics-charts', 'customer-credits', 'purchase-credits'];
       if (adminOnlyViews.includes(activeView)) {
         setActiveView('products');
       }
@@ -1039,7 +1043,7 @@ function StoreContent({ shopId }) {
       setSalesReportPaymentFilter('ALL');
       setExpensePaymentFilter('ALL');
     }
-    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits' || activeView === 'today-history') {
+    if (activeView === 'pos' || activeView === 'sales' || activeView === 'report-sales' || activeView === 'report-profit' || activeView === 'dashboard' || activeView === 'customer-credits' || activeView === 'purchase-credits' || activeView === 'today-history' || activeView === 'sold-products-history') {
       fetchShopSales();
       fetchRegisteredCustomers();
       fetchCatalog();
@@ -1076,7 +1080,7 @@ function StoreContent({ shopId }) {
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return [];
   });
   const [salesPaymentTab, setSalesPaymentTab] = useState('ALL');
@@ -1091,7 +1095,7 @@ function StoreContent({ shopId }) {
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return [];
   });
   const [customerSearch, setCustomerSearch] = useState('');
@@ -1110,7 +1114,7 @@ function StoreContent({ shopId }) {
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return [];
   });
 
@@ -1275,7 +1279,7 @@ function StoreContent({ shopId }) {
       if (res.ok) {
         const savedData = await res.json().catch(() => ({}));
         const updatedRecord = savedData.sale || savedData;
-        
+
         toast.success('✅ Sale record updated successfully!');
         setEditingSale(null);
 
@@ -1844,7 +1848,7 @@ function StoreContent({ shopId }) {
           localStorage.setItem(`nexflow_customers_${shopId}`, JSON.stringify(shopFilteredCust));
           localStorage.setItem(`nexflow_sales_${shopId}`, JSON.stringify(shopFilteredSales));
           localStorage.setItem(`nexflow_orders_${shopId}`, JSON.stringify(shopFilteredOrders));
-        } catch (e) {}
+        } catch (e) { }
       }
     } catch (err) {
       console.error("Fetch registered customers error:", err);
@@ -2755,7 +2759,7 @@ function StoreContent({ shopId }) {
       await addToCart(product, targetQty, targetUnit, unitPrice);
       const msg = `✅ Added ${targetQty} ${targetUnit.toUpperCase()} of ${product.name} (${currency} ${(unitPrice * targetQty).toLocaleString()}) to cart!`;
       setAddedMsg(msg);
-      try { toast.success(msg); } catch (_) {}
+      try { toast.success(msg); } catch (_) { }
       setTimeout(() => setAddedMsg(''), 2500);
     } catch (err) {
       alert(err.message || 'Failed to add item to cart');
@@ -2969,14 +2973,14 @@ function StoreContent({ shopId }) {
       setShopSalesList(shopFilteredSales);
       try {
         localStorage.setItem(`nexflow_sales_${activeShopId}`, JSON.stringify(shopFilteredSales));
-      } catch (e) {}
+      } catch (e) { }
 
       const ordersArr = ordersData?.orders || ordersData?.data || (Array.isArray(ordersData) ? ordersData : []);
       const shopFilteredOrders = ordersArr.filter(o => !o.shopId || String(o.shopId?._id || o.shopId) === String(activeShopId));
       setAllShopOrders(shopFilteredOrders);
       try {
         localStorage.setItem(`nexflow_orders_${activeShopId}`, JSON.stringify(shopFilteredOrders));
-      } catch (e) {}
+      } catch (e) { }
 
       if (typeof fetchRegisteredCustomers === 'function') {
         fetchRegisteredCustomers();
@@ -2990,7 +2994,7 @@ function StoreContent({ shopId }) {
           const parsed = JSON.parse(local);
           if (Array.isArray(parsed)) setShopSalesList(parsed);
         }
-      } catch (e) {}
+      } catch (e) { }
     } finally {
       setLoadingSales(false);
     }
@@ -3221,7 +3225,7 @@ function StoreContent({ shopId }) {
       console.error('Failed to complete sale:', err);
       const errMsg = err?.response?.data?.message || err?.message || 'Failed to complete sale';
       alert(`❌ ${errMsg}`);
-      try { toast.error(errMsg); } catch (_) {}
+      try { toast.error(errMsg); } catch (_) { }
     } finally {
       setIsProcessingWalkIn(false);
     }
@@ -4419,7 +4423,7 @@ function StoreContent({ shopId }) {
       if (Array.isArray(s.items)) {
         sItems = s.items;
       } else if (typeof s.items === 'string' && s.items.trim()) {
-        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch {}
+        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch { }
       } else if (Array.isArray(s.orderItems)) {
         sItems = s.orderItems;
       } else if (Array.isArray(s.saleItems)) {
@@ -4521,7 +4525,7 @@ function StoreContent({ shopId }) {
       if (Array.isArray(s.items)) {
         sItems = s.items;
       } else if (typeof s.items === 'string' && s.items.trim()) {
-        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch {}
+        try { sItems = JSON.parse(s.items); if (typeof sItems === 'string') sItems = JSON.parse(sItems); } catch { }
       } else if (Array.isArray(s.orderItems)) {
         sItems = s.orderItems;
       } else if (Array.isArray(s.saleItems)) {
@@ -4596,7 +4600,7 @@ function StoreContent({ shopId }) {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return [];
   });
   const [expensePaymentFilter, setExpensePaymentFilter] = useState('ALL');
@@ -4625,7 +4629,7 @@ function StoreContent({ shopId }) {
       setExpensesList(list);
       try {
         localStorage.setItem(`nexflow_expenses_${activeShopId}`, JSON.stringify(list));
-      } catch (e) {}
+      } catch (e) { }
       return list;
     } catch (e) {
       console.warn('API fetch expenses fallback to local:', e);
@@ -4640,7 +4644,7 @@ function StoreContent({ shopId }) {
           setExpensesList(list);
           return list;
         }
-      } catch (err) {}
+      } catch (err) { }
     }
     return [];
   };
@@ -6091,7 +6095,7 @@ function StoreContent({ shopId }) {
 
       let itms = Array.isArray(s.items) ? s.items : [];
       if (typeof s.items === 'string' && s.items.trim()) {
-        try { itms = JSON.parse(s.items); } catch(e) { itms = []; }
+        try { itms = JSON.parse(s.items); } catch (e) { itms = []; }
       }
       if (itms && itms.length > 0) {
         itms.forEach(i => {
@@ -6164,10 +6168,15 @@ function StoreContent({ shopId }) {
     const todayCustomersList = (unifiedCustomersList || []).filter(c => isMatchToday(c.createdAt || c.dateAdded));
     const todayCustomersCount = todayCustomersList.length;
 
-    // 7. Net Profit & Loss for Today
-    const calcNetProfit = todaySalesProfit - todayFuelExpense - todayExpenses - todayDamagedLoss;
-    const todayNetProfit = calcNetProfit > 0 ? Math.round(calcNetProfit) : (todaySalesRevenue > 0 ? Math.round(todaySalesRevenue * 0.15) : 0);
-    const todayTotalLoss = calcNetProfit < 0 ? Math.round(Math.abs(calcNetProfit)) : todayDamagedLoss;
+    // 7. Net Profit & Loss for Today as explicitly requested by user:
+    // All expenses (shop expenses, fuel, damaged product loss) are strictly deducted ONLY from Today Sale (todaySalesRevenue).
+    // They are NEVER deducted from Total Sale (totalRevenue remains untouched).
+    // If expenses + damage + fuel exceed today sale, result is negative (in minus, DEFICIT).
+    const todayTotalDeductions = todayExpenses + todayFuelExpense + todayDamagedLoss;
+    const todayNetResult = todaySalesRevenue - todayTotalDeductions;
+    const isTodayProfitable = todayNetResult >= 0;
+    const todayNetProfit = isTodayProfitable ? todayNetResult : 0;
+    const todayTotalLoss = !isTodayProfitable ? Math.abs(todayNetResult) : 0;
 
     return {
       todaySalesRevenue,
@@ -6195,6 +6204,9 @@ function StoreContent({ shopId }) {
       todayPurchasesDue,
       todayPurchasesCount,
       todayCustomersCount,
+      todayTotalDeductions,
+      todayNetResult,
+      isTodayProfitable,
       todayNetProfit,
       todayTotalLoss
     };
@@ -6367,10 +6379,61 @@ function StoreContent({ shopId }) {
     const dateStr = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const periodName = timeframe === 'DAY' ? 'Today (Day)' : timeframe === 'MONTH' ? 'This Month' : timeframe === 'YEAR' ? 'This Year' : 'All-Time';
 
+    if (type === 'damaged') {
+      const now = new Date();
+      const filteredDamaged = (damagedProductsList || []).filter(dmg => {
+        const d = new Date(dmg.damageDate || dmg.createdAt || dmg.date || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const totalLoss = filteredDamaged.reduce((sum, d) => {
+        const l = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+        return sum + l;
+      }, 0);
+      const totalEggs = filteredDamaged.reduce((sum, d) => sum + (Number(d.eggQuantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30) || Number(d.quantity || d.deductedEggs || 0)), 0);
+      const totalPetis = (totalEggs / 360).toFixed(1);
+
+      let message = `📦 *DAMAGED STOCK & LOSS REPORT - ${shopName.toUpperCase()}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📅 *Period:* ${periodName} (${dateStr})\n`;
+      message += `🏢 *Store Branch:* ${shopName}\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `📊 *SUMMARY STATS:*\n`;
+      message += `• Total Breakage Loss: Rs. ${totalLoss.toLocaleString('en-PK')}\n`;
+      message += `• Damaged Eggs: ${totalEggs.toLocaleString('en-PK')} Eggs (${totalPetis} Petis)\n`;
+      message += `• Total Incidents: ${filteredDamaged.length} Records\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (filteredDamaged.length > 0) {
+        message += `🥚 *DAMAGED PRODUCTS LIST:*\n`;
+        filteredDamaged.slice(0, 15).forEach((d, idx) => {
+          const dDate = new Date(d.damageDate || d.createdAt).toLocaleDateString('en-PK');
+          const loss = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+          message += `${idx + 1}. ${d.productName} = Rs. ${loss.toLocaleString('en-PK')} (${d.reason || 'Breakage'} • ${dDate})\n`;
+        });
+        if (filteredDamaged.length > 15) {
+          message += `... and ${filteredDamaged.length - 15} more records.\n`;
+        }
+      } else {
+        message += `_No damaged products logged for this period._\n`;
+      }
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `🙏 *Generated via Yosafze Egg Traders System*`;
+
+      const encodedText = encodeURIComponent(message);
+      window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+      return;
+    }
+
     if (type === 'expenses') {
       const now = new Date();
       const filteredExp = expensesList.filter(exp => {
         const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
         if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
         if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
@@ -6378,22 +6441,16 @@ function StoreContent({ shopId }) {
       });
 
       const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
-        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
-          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
-            (dashStats.totalDamagedLoss || 0);
-      const grandTotalExp = totalManualExp + damagedLossVal;
 
-      let message = `📑 *EXPENSES & LOSS REPORT - ${shopName.toUpperCase()}*\n`;
+      let message = `📑 *OPERATING EXPENSES REPORT - ${shopName.toUpperCase()}*\n`;
       message += `━━━━━━━━━━━━━━━━━━━━\n`;
       message += `📅 *Period:* ${periodName} (${dateStr})\n`;
       message += `🏢 *Store Branch:* ${shopName}\n`;
       message += `━━━━━━━━━━━━━━━━━━━━\n`;
       message += `📊 *SUMMARY STATS:*\n`;
-      message += `• Manual Expenses: Rs. ${totalManualExp.toLocaleString('en-PK')} (${filteredExp.length} Entries)\n`;
-      message += `• Damaged Egg Losses: Rs. ${damagedLossVal.toLocaleString('en-PK')}\n`;
+      message += `• Operating Expenses: Rs. ${totalManualExp.toLocaleString('en-PK')} (${filteredExp.length} Entries)\n`;
       message += `━━━━━━━━━━━━━━━━━━━━\n`;
-      message += `💵 *TOTAL EXPENSES & LOSS: Rs. ${grandTotalExp.toLocaleString('en-PK')}*\n`;
+      message += `💵 *TOTAL OPERATING EXPENSES: Rs. ${totalManualExp.toLocaleString('en-PK')}*\n`;
       message += `━━━━━━━━━━━━━━━━━━━━\n`;
 
       if (filteredExp.length > 0) {
@@ -6490,10 +6547,25 @@ function StoreContent({ shopId }) {
       return;
     }
 
+    if (type === 'damaged') {
+      const now = new Date();
+      const filteredDamaged = (damagedProductsList || []).filter(dmg => {
+        const d = new Date(dmg.damageDate || dmg.createdAt || dmg.date || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+      handlePrintDamagedReport(filteredDamaged);
+      return;
+    }
+
     if (type === 'expenses') {
       const now = new Date();
       const filteredExp = expensesList.filter(exp => {
         const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
         if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
         if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
@@ -6501,11 +6573,8 @@ function StoreContent({ shopId }) {
       });
 
       const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
-        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
-          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
-            (dashStats.totalDamagedLoss || 0);
-      const grandTotalExp = totalManualExp + damagedLossVal;
+      const cashExp = filteredExp.filter(e => !String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const bankExp = filteredExp.filter(e => String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
       let expRows = filteredExp.length > 0 ? filteredExp.map((e, idx) => `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
@@ -6527,7 +6596,7 @@ function StoreContent({ shopId }) {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>${timeTitle} Expenses &amp; Loss Report - ${shopName}</title>
+            <title>${timeTitle} Operating Expenses Report - ${shopName}</title>
             <style>
               @page { size: portrait; margin: 8mm 10mm; }
               body { font-family: 'Segoe UI', Arial, sans-serif; padding: 25px; color: #0f172a; background: #ffffff; font-size: 11px; margin: 0; }
@@ -6550,7 +6619,7 @@ function StoreContent({ shopId }) {
             <div class="header-banner">
               <div>
                 <h1>${shopName.toUpperCase()}</h1>
-                <p>OFFICIAL BUSINESS EXPENSES &amp; LOSS ANALYTICS STATEMENT</p>
+                <p>OFFICIAL BUSINESS OPERATING EXPENSES STATEMENT</p>
               </div>
               <div class="badge">
                 PERIOD: ${timeTitle.toUpperCase()}<br/>
@@ -6559,9 +6628,10 @@ function StoreContent({ shopId }) {
             </div>
 
             <div class="stats-grid">
-              <div class="stat-card"><label>Operational Expenses</label><div class="val">Rs. ${totalManualExp.toLocaleString('en-PK')}</div></div>
-              <div class="stat-card"><label>Damaged Egg Losses</label><div class="val" style="color:#d97706;">Rs. ${damagedLossVal.toLocaleString('en-PK')}</div></div>
-              <div class="stat-card"><label>Grand Total Losses</label><div class="val" style="color:#991b1b;">Rs. ${grandTotalExp.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Total Operating Expenses</label><div class="val">Rs. ${totalManualExp.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Paid from Cash</label><div class="val" style="color:#b45309;">Rs. ${cashExp.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Paid from Bank</label><div class="val" style="color:#15803d;">Rs. ${bankExp.toLocaleString('en-PK')}</div></div>
+              <div class="stat-card"><label>Total Entries</label><div class="val" style="color:#0f172a;">${filteredExp.length} Records</div></div>
             </div>
 
             <h3 style="font-size:12px; text-transform:uppercase; font-weight:900; color:#334155; margin-bottom:6px;">Itemized Logged Expenses (${filteredExp.length} Entries)</h3>
@@ -6583,8 +6653,8 @@ function StoreContent({ shopId }) {
             </table>
 
             <div class="total-bar">
-              <span>TOTAL EXPENSES &amp; LOSSES:</span>
-              <span>Rs. ${grandTotalExp.toLocaleString('en-PK')}</span>
+              <span>TOTAL OPERATING EXPENSES:</span>
+              <span>Rs. ${totalManualExp.toLocaleString('en-PK')}</span>
             </div>
 
             <div class="footer">
@@ -6976,10 +7046,108 @@ function StoreContent({ shopId }) {
       return;
     }
 
+    if (type === 'damaged') {
+      const now = new Date();
+      const filteredDamaged = (damagedProductsList || []).filter(dmg => {
+        const d = new Date(dmg.damageDate || dmg.createdAt || dmg.date || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
+        if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
+        if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const totalLoss = filteredDamaged.reduce((sum, d) => {
+        const l = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+        return sum + l;
+      }, 0);
+      const totalEggs = filteredDamaged.reduce((sum, d) => sum + (Number(d.eggQuantity || 0) + (Number(d.petiQuantity || 0) * 360) + (Number(d.trayQuantity || 0) * 30) || Number(d.quantity || d.deductedEggs || 0)), 0);
+
+      const formattedRowsHtml = filteredDamaged.map((d, idx) => {
+        const loss = Number(d.totalLoss) > 0 ? Number(d.totalLoss) : (Number(d.lossAmount) || (Number(d.quantity || d.deductedEggs || 0) * (Number(d.unitPrice) || 0)) || 0);
+        return `
+          <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="text-align:center; border:1px solid #cbd5e1; font-weight:bold; padding:6px;">${idx + 1}</td>
+            <td style="border:1px solid #cbd5e1; padding:6px;">${new Date(d.damageDate || d.createdAt).toLocaleDateString('en-PK')}</td>
+            <td style="border:1px solid #cbd5e1; font-weight:bold; padding:6px;">${d.productName}</td>
+            <td style="border:1px solid #cbd5e1; text-align:center; font-weight:bold; color:#b45309; padding:6px;">${d.reason || 'Egg Breakage'}</td>
+            <td style="border:1px solid #cbd5e1; text-align:right; font-weight:bold; padding:6px;">Rs. ${(Number(d.unitPrice) || 0).toLocaleString()}</td>
+            <td style="border:1px solid #cbd5e1; padding:6px;">${d.notes || d.reportedBy || 'Shop Admin'}</td>
+            <td style="text-align:right; border:1px solid #cbd5e1; font-weight:bold; color:#b45309; padding:6px;">Rs. ${loss.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <style>
+            body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10.5pt; }
+            .header-banner { background-color: #78350f; color: #ffffff; font-size: 16pt; font-weight: bold; text-align: center; height: 38px; }
+            .sub-banner { background-color: #92400e; color: #fde68a; font-size: 9.5pt; text-align: center; font-weight: bold; height: 22px; }
+            .info-label { font-weight: bold; color: #475569; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 10px; }
+            .info-val { font-weight: bold; color: #0f172a; border: 1px solid #cbd5e1; padding: 6px 10px; }
+            .col-header { background-color: #78350f; color: #ffffff; font-weight: bold; font-size: 9.5pt; border: 1px solid #78350f; padding: 8px 6px; }
+            .total-lbl-cell { background-color: #fffbeb; font-weight: 900; font-size: 11pt; color: #78350f; border: 2px solid #78350f; padding: 10px 14px; text-align: right; }
+            .total-val-cell { background-color: #fef3c7; font-weight: 900; font-size: 12pt; color: #b45309; border: 2px solid #78350f; padding: 10px 14px; text-align: right; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <tr><td colspan="7" class="header-banner">${shopName.toUpperCase()}</td></tr>
+            <tr><td colspan="7" class="sub-banner">OFFICIAL DAMAGED STOCK &amp; LOSS REPORT (${timeLabel.toUpperCase()})</td></tr>
+            <tr><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td class="info-label">Report Period:</td>
+              <td class="info-val" style="color: #b45309; font-weight: 900;">${timeLabel}</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Generated Date:</td>
+              <td colspan="3" class="info-val">${dateStr}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Total Entries:</td>
+              <td class="info-val">${filteredDamaged.length} Records</td>
+              <td style="border:none;"></td>
+              <td class="info-label">Damaged Eggs:</td>
+              <td colspan="3" class="info-val" style="color: #b45309; font-weight: bold;">${totalEggs.toLocaleString()} Eggs (${(totalEggs / 360).toFixed(1)} Petis)</td>
+            </tr>
+            <tr style="height: 14px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr style="height: 30px;">
+              <th class="col-header" style="text-align: center;">#</th>
+              <th class="col-header">Damage Date</th>
+              <th class="col-header" style="text-align: left;">Product Name</th>
+              <th class="col-header" style="text-align: center;">Reason</th>
+              <th class="col-header" style="text-align: right;">Unit Price (RS)</th>
+              <th class="col-header">Logged By / Notes</th>
+              <th class="col-header" style="text-align: right;">Total Loss (RS)</th>
+            </tr>
+            ${formattedRowsHtml || '<tr><td colspan="7" style="text-align:center; padding:15px;">No damaged products logged for this period</td></tr>'}
+            <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
+            <tr>
+              <td colspan="6" class="total-lbl-cell">TOTAL DAMAGED BREAKAGE LOSS:</td>
+              <td class="total-val-cell">Rs. ${totalLoss.toLocaleString()}</td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Damaged_Report_${shopName.replace(/\s+/g, '_')}_${timeLabel.replace(/\s+/g, '_')}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     if (type === 'expenses') {
       const now = new Date();
       const filteredExp = expensesList.filter(exp => {
         const d = new Date(exp.expenseDate || exp.createdAt || Date.now());
+        if (appliedStartDate || appliedEndDate) return isDateInSelectedRange(d);
         if (timeframe === 'DAY') return d.toDateString() === now.toDateString();
         if (timeframe === 'MONTH') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         if (timeframe === 'YEAR') return d.getFullYear() === now.getFullYear();
@@ -6987,10 +7155,8 @@ function StoreContent({ shopId }) {
       });
 
       const totalManualExp = filteredExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-      const damagedLossVal = timeframe === 'DAY' ? (dashStats.todayDamagedLoss || 0) :
-        timeframe === 'MONTH' ? (dashStats.monthlyDamagedLoss || 0) :
-          timeframe === 'YEAR' ? (dashStats.yearlyDamagedLoss || 0) :
-            (dashStats.totalDamagedLoss || 0);
+      const cashExp = filteredExp.filter(e => !String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const bankExp = filteredExp.filter(e => String(e.paymentSource || e.paymentMethod || '').toUpperCase().includes('BANK')).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
       const formattedRowsHtml = filteredExp.map((e, idx) => `
         <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
@@ -7048,7 +7214,7 @@ function StoreContent({ shopId }) {
               <td colspan="7" class="header-banner">${shopName.toUpperCase()}</td>
             </tr>
             <tr>
-              <td colspan="7" class="sub-banner">OFFICIAL BUSINESS EXPENSES &amp; LOSS REPORT (${timeLabel.toUpperCase()})</td>
+              <td colspan="7" class="sub-banner">OFFICIAL BUSINESS OPERATING EXPENSES REPORT (${timeLabel.toUpperCase()})</td>
             </tr>
             <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
             <tr>
@@ -7062,8 +7228,8 @@ function StoreContent({ shopId }) {
               <td class="info-label">Total Entries:</td>
               <td class="info-val">${filteredExp.length} Entries</td>
               <td style="border:none;"></td>
-              <td class="info-label">Damaged Egg Loss:</td>
-              <td colspan="3" class="info-val" style="color: #d97706; font-weight: bold;">Rs. ${damagedLossVal.toLocaleString()}</td>
+              <td class="info-label">Paid Breakdown:</td>
+              <td colspan="3" class="info-val">Cash: Rs. ${cashExp.toLocaleString()} | Bank: Rs. ${bankExp.toLocaleString()}</td>
             </tr>
             <tr style="height: 14px;"><td colspan="7" style="border:none;"></td></tr>
             <tr style="height: 30px;">
@@ -7078,8 +7244,8 @@ function StoreContent({ shopId }) {
             ${formattedRowsHtml || '<tr><td colspan="7" style="text-align:center; padding:15px;">No expenses logged for this period</td></tr>'}
             <tr style="height: 10px;"><td colspan="7" style="border:none;"></td></tr>
             <tr>
-              <td colspan="6" class="total-lbl-cell">COMBINED TOTAL EXPENSES &amp; LOSSES:</td>
-              <td class="total-val-cell">Rs. ${(totalManualExp + damagedLossVal).toLocaleString()}</td>
+              <td colspan="6" class="total-lbl-cell">TOTAL OPERATING EXPENSES:</td>
+              <td class="total-val-cell">Rs. ${totalManualExp.toLocaleString()}</td>
             </tr>
           </table>
         </body>
@@ -8179,6 +8345,7 @@ function StoreContent({ shopId }) {
                             <img
                               src={getImageUrl(item.images[0])}
                               alt={item.name}
+
                               onError={(e) => { e.target.onerror = null; e.target.src = '/egg2.png'; }}
                               className="w-10 h-10 object-cover rounded-lg shrink-0 border border-slate-700"
                             />
@@ -8290,55 +8457,55 @@ function StoreContent({ shopId }) {
 
             {/* Dashboard Link - for Admin and Customer */}
             {(isCustomerAccount || isActionAllowed('dashboard')) && (
-            <div>
-              <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">
-                {isAdminUser ? 'Overview' : 'Customer Overview'}
-              </p>
-              <div className="space-y-1.5">
-                <button
-                  onClick={() => {
-                    setActiveView('dashboard');
-                    setIsMobileOpen(false);
-                    setReportTimeframe('ALL');
-                    setAppliedStartDate('');
-                    setAppliedEndDate('');
-                    setReportStartDate('');
-                    setReportEndDate('');
-                    fetchShopSales();
-                    fetchExpenses();
-                    fetchFuelExpenses();
-                    fetchDamagedProducts();
-                  }}
-                  className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'dashboard'
-                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                    : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                    }`}
-                >
-                  <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'dashboard' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                  <span className={`truncate ${activeView === 'dashboard' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>{isAdminUser ? 'Dashboard' : 'Customer Dashboard'}</span>
-                </button>
+              <div>
+                <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">
+                  {isAdminUser ? 'Overview' : 'Customer Overview'}
+                </p>
+                <div className="space-y-1.5">
+                  <button
+                    onClick={() => {
+                      setActiveView('dashboard');
+                      setIsMobileOpen(false);
+                      setReportTimeframe('ALL');
+                      setAppliedStartDate('');
+                      setAppliedEndDate('');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      fetchShopSales();
+                      fetchExpenses();
+                      fetchFuelExpenses();
+                      fetchDamagedProducts();
+                    }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'dashboard'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      }`}
+                  >
+                    <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'dashboard' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'dashboard' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>{isAdminUser ? 'Dashboard' : 'Customer Dashboard'}</span>
+                  </button>
 
-                {!isAdminUser && (
-                  <>
-                    <button
-                      onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
-                      className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                    >
-                      <Truck className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
-                      <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Orders</span>
-                    </button>
+                  {!isAdminUser && (
+                    <>
+                      <button
+                        onClick={() => { setOrderOpen(true); setIsMobileOpen(false); }}
+                        className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      >
+                        <Truck className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
+                        <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Orders</span>
+                      </button>
 
-                    <button
-                      onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
-                      className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                    >
-                      <ShoppingCart className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
-                      <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Cart ({cartCount})</span>
-                    </button>
-                  </>
-                )}
+                      <button
+                        onClick={() => { setCartOpen(true); setIsMobileOpen(false); }}
+                        className="w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      >
+                        <ShoppingCart className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-emerald-300 group-hover:text-zinc-950" />
+                        <span className="truncate text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]">My Cart ({cartCount})</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
             )}
 
             {/* Shop Admin POS & Sales Section */}
@@ -8347,333 +8514,352 @@ function StoreContent({ shopId }) {
                 <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">POS Billing & Sales</p>
                 <div className="space-y-1.5">
                   {isActionAllowed('walkin') && (
-                  <button
-                    onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'walkin'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Receipt className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'walkin' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'walkin' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>POS Bill Sale</span>
-                  </button>
+                    <button
+                      onClick={() => { setActiveView('walkin'); setIsMobileOpen(false); }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'walkin'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Receipt className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'walkin' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'walkin' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>POS Bill Sale</span>
+                    </button>
                   )}
 
                   {/* Today History Button - Located directly under POS Bill Sale */}
                   {isActionAllowed('today-history') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('today-history');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('DAY');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchShopSales();
-                      fetchRegisteredCustomers();
-                      fetchExpenses();
-                      fetchFuelExpenses();
-                      fetchDamagedProducts();
-                      fetchCatalog();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'today-history'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <History className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'today-history' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'today-history' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Today History</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('today-history');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('DAY');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchShopSales();
+                        fetchRegisteredCustomers();
+                        fetchExpenses();
+                        fetchFuelExpenses();
+                        fetchDamagedProducts();
+                        fetchCatalog();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'today-history'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <History className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'today-history' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'today-history' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Today History</span>
+                    </button>
+                  )}
+
+                  {/* Sale Product History Button - Located directly under Today History */}
+                  {isActionAllowed('sold-products-history') && (
+                    <button
+                      onClick={() => {
+                        setActiveView('sold-products-history');
+                        setIsMobileOpen(false);
+                        fetchShopSales();
+                        fetchCatalog();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'sold-products-history'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <ShoppingBag className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'sold-products-history' ? 'text-zinc-950' : 'text-yellow-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'sold-products-history' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Sale Product History</span>
+                    </button>
                   )}
 
                   {isActionAllowed('purchases') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('purchases');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchases'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchases' ? 'text-zinc-950' : 'text-teal-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'purchases' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchases & Restocks</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('purchases');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchases'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchases' ? 'text-zinc-950' : 'text-teal-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'purchases' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchases & Restocks</span>
+                    </button>
                   )}
 
                   {isActionAllowed('vendors') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('vendors');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendors'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Building2 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendors' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'vendors' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendors</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('vendors');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendors'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Building2 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendors' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'vendors' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendors</span>
+                    </button>
                   )}
 
                   {isActionAllowed('customerPaymentLedger') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('customer-payment-ledger');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-payment-ledger'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-payment-ledger' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'customer-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Payment Ledger</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('customer-payment-ledger');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-payment-ledger'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-payment-ledger' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'customer-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Payment Ledger</span>
+                    </button>
                   )}
 
                   {isActionAllowed('vendorPaymentLedger') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('vendor-payment-ledger');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendor-payment-ledger'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendor Payment Ledger</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('vendor-payment-ledger');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'vendor-payment-ledger'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'vendor-payment-ledger' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Vendor Payment Ledger</span>
+                    </button>
                   )}
 
                   {isActionAllowed('customerPaymentLedger') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('registered-customers');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchRegisteredCustomers();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'registered-customers' ? 'text-zinc-950' : 'text-indigo-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'registered-customers' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Registered Customers</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('registered-customers');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchRegisteredCustomers();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'registered-customers'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Users className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'registered-customers' ? 'text-zinc-950' : 'text-indigo-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'registered-customers' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Registered Customers</span>
+                    </button>
                   )}
 
                   {isActionAllowed('sales') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('report-sales');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setSalesReportPaymentFilter('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchShopSales();
-                      fetchRegisteredCustomers();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-sales'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <TrendingUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-sales' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'report-sales' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Sales Report</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('report-sales');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setSalesReportPaymentFilter('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchShopSales();
+                        fetchRegisteredCustomers();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-sales'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <TrendingUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-sales' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'report-sales' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Sales Report</span>
+                    </button>
                   )}
 
                   {isActionAllowed('customerPaymentLedger') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('customer-credits');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchShopSales();
-                      fetchRegisteredCustomers();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-credits'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <CreditCard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-credits' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'customer-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Credit</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('customer-credits');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchShopSales();
+                        fetchRegisteredCustomers();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'customer-credits'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <CreditCard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'customer-credits' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'customer-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Customer Credit</span>
+                    </button>
                   )}
 
                   {isActionAllowed('purchases') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('purchase-credits');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchShopSales();
-                      fetchExpenses();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchase-credits'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchase-credits' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'purchase-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchase Credits</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('purchase-credits');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchShopSales();
+                        fetchExpenses();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'purchase-credits'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'purchase-credits' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'purchase-credits' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Purchase Credits</span>
+                    </button>
                   )}
 
                   {isActionAllowed('reports') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('report-profit');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchShopSales();
-                      fetchExpenses();
-                      fetchFuelExpenses();
-                      fetchDamagedProducts();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-profit'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <DollarSign className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-profit' ? 'text-zinc-950' : 'text-green-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'report-profit' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Profit Report</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('report-profit');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchShopSales();
+                        fetchExpenses();
+                        fetchFuelExpenses();
+                        fetchDamagedProducts();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-profit'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <DollarSign className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-profit' ? 'text-zinc-950' : 'text-green-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'report-profit' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Profit Report</span>
+                    </button>
                   )}
 
                   {isActionAllowed('expenses') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('report-expenses');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setExpensePaymentFilter('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchExpenses();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-expenses'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <FileText className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-expenses' ? 'text-zinc-950' : 'text-rose-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'report-expenses' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Expenses Report</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('report-expenses');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setExpensePaymentFilter('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchExpenses();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-expenses'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <FileText className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-expenses' ? 'text-zinc-950' : 'text-rose-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'report-expenses' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Expenses Report</span>
+                    </button>
                   )}
 
                   {isActionAllowed('store') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('damaged-products');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchDamagedProducts();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'damaged-products'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <PackageX className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'damaged-products' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'damaged-products' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Damaged Stock</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('damaged-products');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchDamagedProducts();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'damaged-products'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <PackageX className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'damaged-products' ? 'text-zinc-950' : 'text-amber-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'damaged-products' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Damaged Stock</span>
+                    </button>
                   )}
 
                   {isActionAllowed('expenses') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('report-fuel');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                      fetchFuelExpenses();
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-fuel'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-fuel' ? 'text-zinc-950' : 'text-cyan-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'report-fuel' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Fuel & Vehicle</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('report-fuel');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                        fetchFuelExpenses();
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'report-fuel'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <Truck className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'report-fuel' ? 'text-zinc-950' : 'text-cyan-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'report-fuel' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Fuel & Vehicle</span>
+                    </button>
                   )}
 
                   {isActionAllowed('reports') && (
-                  <button
-                    onClick={() => {
-                      setActiveView('analytics-charts');
-                      setIsMobileOpen(false);
-                      setReportTimeframe('ALL');
-                      setAppliedStartDate('');
-                      setAppliedEndDate('');
-                      setReportStartDate('');
-                      setReportEndDate('');
-                    }}
-                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'analytics-charts'
-                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                      }`}
-                  >
-                    <BarChart3 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'analytics-charts' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                    <span className={`truncate ${activeView === 'analytics-charts' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Charts & Graphs</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setActiveView('analytics-charts');
+                        setIsMobileOpen(false);
+                        setReportTimeframe('ALL');
+                        setAppliedStartDate('');
+                        setAppliedEndDate('');
+                        setReportStartDate('');
+                        setReportEndDate('');
+                      }}
+                      className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'analytics-charts'
+                        ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                        : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                        }`}
+                    >
+                      <BarChart3 className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'analytics-charts' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                      <span className={`truncate ${activeView === 'analytics-charts' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>Charts & Graphs</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -8681,21 +8867,21 @@ function StoreContent({ shopId }) {
 
             {/* Products Section */}
             {(isCustomerAccount || isActionAllowed('store')) && (
-            <div>
-              <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Catalog</p>
-              <div className="space-y-1.5">
-                <button
-                  onClick={() => { setActiveView('products'); setActiveCategory('All'); setIsMobileOpen(false); }}
-                  className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'products' && activeCategory === 'All'
-                    ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
-                    : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
-                    }`}
-                >
-                  <Store className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
-                  <span className={`truncate ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>All Products</span>
-                </button>
+              <div>
+                <p className="px-3 py-1 mx-3 mb-2 text-[10.5px] font-black text-white uppercase tracking-widest bg-black/35 rounded-lg border border-white/15 shadow-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] w-fit flex items-center gap-1.5">Catalog</p>
+                <div className="space-y-1.5">
+                  <button
+                    onClick={() => { setActiveView('products'); setActiveCategory('All'); setIsMobileOpen(false); }}
+                    className={`w-full flex items-center gap-3 group px-3.5 py-2.5 mx-3 rounded-xl text-[13.5px] font-black tracking-wide transition-all duration-200 ease-out max-w-[200px] cursor-pointer ${activeView === 'products' && activeCategory === 'All'
+                      ? "bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 text-zinc-950 font-black border-t-2 border-t-amber-200 border-x border-x-amber-600 border-b-4 border-b-amber-900 shadow-[0_6px_20px_rgba(245,158,11,0.6),inset_0_1px_0_rgba(255,255,255,0.5)] translate-x-1.5 scale-[1.02]"
+                      : "bg-gradient-to-b from-[#186337] to-[#0e3f21] text-white font-black border-t-2 border-t-white/35 border-x border-x-emerald-600/40 border-b-4 border-b-[#072513] shadow-[0_4px_10px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-gradient-to-r hover:from-amber-400 hover:via-amber-500 hover:to-yellow-400 hover:text-zinc-950 hover:border-t-2 hover:border-t-amber-200 hover:border-x hover:border-x-amber-600 hover:border-b-4 hover:border-b-amber-900 hover:shadow-[0_8px_22px_rgba(245,158,11,0.65),inset_0_1px_0_rgba(255,255,255,0.5)] hover:translate-x-2 hover:scale-[1.03] active:translate-y-1 active:border-b-2"
+                      }`}
+                  >
+                    <Store className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950' : 'text-emerald-300 group-hover:text-zinc-950'}`} />
+                    <span className={`truncate ${activeView === 'products' && activeCategory === 'All' ? 'text-zinc-950 font-black' : 'text-white font-black group-hover:text-zinc-950 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.95)]'}`}>All Products</span>
+                  </button>
+                </div>
               </div>
-            </div>
             )}
 
             {/* Categories */}
@@ -9192,53 +9378,52 @@ function StoreContent({ shopId }) {
                               </span>
                             </div>
 
-                            {/* 5. Today Profit */}
+                            {/* 5. Today Net Result */}
                             <div
                               onClick={() => {
-                                setAppliedStartDate('');
-                                setAppliedEndDate('');
-                                setReportStartDate('');
-                                setReportEndDate('');
-                                setReportTimeframe('DAY');
-                                setActiveView('report-profit');
+                                setActiveView('today-history');
                               }}
-                              className="bg-white border-2 border-slate-300 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
-                              title="Click to view Today's Realized Net Profit"
+                              className={`bg-white border-2 ${todayMasterMetrics.isTodayProfitable ? 'border-emerald-300 hover:border-emerald-500' : 'border-rose-300 hover:border-rose-500'} rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group`}
+                              title="Click to view Today's Master History & Net Performance"
                             >
-                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-900">
-                                <span>5. Today Profit</span>
-                                <TrendingUp className="w-4 h-4 text-emerald-700 group-hover:scale-110 transition-transform" />
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider">
+                                <span className={todayMasterMetrics.isTodayProfitable ? 'text-emerald-900' : 'text-rose-900'}>5. Today Net Result</span>
+                                <div className="flex items-center gap-1">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black text-white ${todayMasterMetrics.isTodayProfitable ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                                    {todayMasterMetrics.isTodayProfitable ? 'PROFIT' : 'DEFICIT'}
+                                  </span>
+                                  {todayMasterMetrics.isTodayProfitable ? (
+                                    <TrendingUp className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition-transform" />
+                                  ) : (
+                                    <TrendingDown className="w-3.5 h-3.5 text-rose-700 group-hover:scale-110 transition-transform" />
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
-                                Rs. {todayMasterMetrics.todayNetProfit.toLocaleString('en-PK')}
+                              <div className={`text-lg sm:text-xl font-black mt-2 ${todayMasterMetrics.isTodayProfitable ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                {todayMasterMetrics.isTodayProfitable ? '+' : '-'}{currency} {Math.abs(todayMasterMetrics.todayNetResult).toLocaleString('en-PK')}
                               </div>
-                              <span className="text-[10px] font-bold text-emerald-800 truncate mt-1">
-                                Realized Net Today
+                              <span className={`text-[10px] font-bold truncate mt-1 ${todayMasterMetrics.isTodayProfitable ? 'text-emerald-800' : 'text-rose-700'}`}>
+                                Sale - Exp - Fuel - Damage
                               </span>
                             </div>
 
-                            {/* 6. Today Loss */}
+                            {/* 6. Today Deductions */}
                             <div
                               onClick={() => {
-                                setAppliedStartDate('');
-                                setAppliedEndDate('');
-                                setReportStartDate('');
-                                setReportEndDate('');
-                                setReportTimeframe('DAY');
-                                setActiveView('report-profit');
+                                setActiveView('today-history');
                               }}
-                              className="bg-white border-2 border-slate-300 hover:border-rose-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
-                              title="Click to view Today's Total Loss statement"
+                              className="bg-white border-2 border-slate-300 hover:border-amber-500 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-95 group"
+                              title="Click to view Today's Total Deductions (Expenses + Fuel + Damage)"
                             >
-                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-rose-900">
-                                <span>6. Today Loss</span>
-                                <AlertCircle className="w-4 h-4 text-rose-700 group-hover:scale-110 transition-transform" />
+                              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-900">
+                                <span>6. Today Deductions</span>
+                                <AlertCircle className="w-4 h-4 text-amber-700 group-hover:scale-110 transition-transform" />
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">
-                                Rs. {todayMasterMetrics.todayTotalLoss.toLocaleString('en-PK')}
+                                {currency} {todayMasterMetrics.todayTotalDeductions.toLocaleString('en-PK')}
                               </div>
-                              <span className="text-[10px] font-bold text-rose-800 truncate mt-1">
-                                Breakage / Deficit
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">
+                                Exp: {currency} {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')} &bull; Fuel: {currency} {todayMasterMetrics.todayFuelExpense.toLocaleString('en-PK')} &bull; Dmg: {currency} {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}
                               </span>
                             </div>
                           </div>
@@ -9453,19 +9638,17 @@ function StoreContent({ shopId }) {
 
                   {/* ─── DEDICATED LOW STOCK / OUT OF STOCK ALERT DIV (ADMIN ONLY) ─── */}
                   {isAdminUser && (
-                    <div className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 mb-1 ${
-                      showOnlyLowStock
+                    <div className={`p-4 sm:p-5 rounded-3xl border transition-all duration-300 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 mb-1 ${showOnlyLowStock
                         ? 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-red-500 ring-2 ring-red-400/50 shadow-red-500/20'
-                        : (lowStockItems.length > 0 
-                            ? 'bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border-red-300 text-slate-900 shadow-sm' 
-                            : 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs')
-                    }`}>
+                        : (lowStockItems.length > 0
+                          ? 'bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border-red-300 text-slate-900 shadow-sm'
+                          : 'bg-emerald-50/70 border-emerald-200 text-slate-900 shadow-xs')
+                      }`}>
                       <div className="flex items-center gap-3.5 w-full md:w-auto">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
-                          showOnlyLowStock
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${showOnlyLowStock
                             ? 'bg-white/20 text-white border border-white/30'
                             : (lowStockItems.length > 0 ? 'bg-red-600 text-white animate-pulse shadow-red-500/30' : 'bg-emerald-600 text-white')
-                        }`}>
+                          }`}>
                           {lowStockItems.length > 0 ? (
                             <AlertTriangle className="w-6 h-6 text-white" />
                           ) : (
@@ -9475,24 +9658,23 @@ function StoreContent({ shopId }) {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className={`font-black text-sm uppercase tracking-tight ${showOnlyLowStock ? 'text-white' : 'text-slate-900'}`}>
-                              {lowStockItems.length > 0 
-                                ? '⚠️ Low Stock & Out of Stock Products' 
+                              {lowStockItems.length > 0
+                                ? '⚠️ Low Stock & Out of Stock Products'
                                 : '✅ All Products In Stock'}
                             </h3>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              showOnlyLowStock
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${showOnlyLowStock
                                 ? 'bg-white text-red-700 shadow-xs'
                                 : (lowStockItems.length > 0 ? 'bg-red-600 text-white shadow-xs' : 'bg-emerald-600 text-white')
-                            }`}>
+                              }`}>
                               {lowStockItems.length} Products Low / Out
                             </span>
                           </div>
                           <p className={`text-xs font-semibold mt-0.5 ${showOnlyLowStock ? 'text-red-100' : 'text-slate-600'}`}>
                             {showOnlyLowStock
                               ? 'Currently viewing low stock items. When restocked or purchased, products automatically return to the main catalog.'
-                              : (lowStockItems.length > 0 
-                                  ? 'Low or exhausted items are locked from sale until restocked. Click to view them:' 
-                                  : 'All products have healthy inventory levels and are available for sale.')}
+                              : (lowStockItems.length > 0
+                                ? 'Low or exhausted items are locked from sale until restocked. Click to view them:'
+                                : 'All products have healthy inventory levels and are available for sale.')}
                           </p>
                         </div>
                       </div>
@@ -9502,11 +9684,10 @@ function StoreContent({ shopId }) {
                           <button
                             type="button"
                             onClick={() => setShowOnlyLowStock(prev => !prev)}
-                            className={`w-full md:w-auto px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 ${
-                              showOnlyLowStock
+                            className={`w-full md:w-auto px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95 ${showOnlyLowStock
                                 ? 'bg-white text-red-700 hover:bg-red-50 border border-white'
                                 : 'bg-red-600 hover:bg-red-700 text-white border border-red-500 animate-pulse'
-                            }`}
+                              }`}
                           >
                             {showOnlyLowStock ? (
                               <>
@@ -9538,11 +9719,10 @@ function StoreContent({ shopId }) {
                     {isAdminUser && lowStockItems.length > 0 && (
                       <button
                         onClick={() => setShowOnlyLowStock(prev => !prev)}
-                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
-                          showOnlyLowStock
+                        className={`whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${showOnlyLowStock
                             ? 'bg-red-600 text-white border-t border-t-red-300 border-b-2 border-b-red-900 shadow-md scale-105 ring-2 ring-red-400'
                             : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 shadow-xs'
-                        }`}
+                          }`}
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
                         <span>Low Stock ({lowStockItems.length})</span>
@@ -9804,6 +9984,27 @@ function StoreContent({ shopId }) {
                 />
               )}
 
+              {/* ─── SOLD PRODUCTS & STOCK OUTFLOW HISTORY VIEW ─── */}
+              {activeView === 'sold-products-history' && isAdminUser && (
+                <SoldProductsHistoryView
+                  shopId={shopId}
+                  shop={shop}
+                  currency={currency}
+                  unifiedSalesList={unifiedSalesList}
+                  shopSalesList={shopSalesList}
+                  catalogItems={items}
+                  onDeleteSale={handleDeleteSale}
+                  onRefresh={async () => {
+                    await Promise.all([
+                      fetchShopSales(),
+                      fetchCatalog()
+                    ]);
+                  }}
+                  setActiveView={setActiveView}
+                  isAdminUser={isAdminUser}
+                />
+              )}
+
               {/* ─── WALK-IN POS & BILLING VIEW ─── */}
               {activeView === 'walkin' && isAdminUser && isViewAllowed('walkin') && (
                 <div className="space-y-4">
@@ -9914,11 +10115,10 @@ function StoreContent({ shopId }) {
                           return (
                             <div
                               key={product._id}
-                              className={`rounded-2xl p-3 flex flex-col justify-between gap-2.5 transition-all ${
-                                isOutOfStock
+                              className={`rounded-2xl p-3 flex flex-col justify-between gap-2.5 transition-all ${isOutOfStock
                                   ? 'bg-red-50/70 border-2 border-red-500 ring-2 ring-red-400/40 shadow-md shadow-red-500/10'
                                   : 'bg-white border-2 border-gray-200 hover:border-emerald-400 hover:shadow-md'
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 relative">
@@ -9975,11 +10175,10 @@ function StoreContent({ shopId }) {
                                     type="button"
                                     onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'peti')}
                                     disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                      !isActionAllowed('walkin')
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${!isActionAllowed('walkin')
                                         ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
                                         : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                    }`}
+                                      }`}
                                     title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Peti (${currency} ${petiPrice})`}
                                   >
                                     <span>📦 Peti</span>
@@ -9990,11 +10189,10 @@ function StoreContent({ shopId }) {
                                     type="button"
                                     onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'tray')}
                                     disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                      !isActionAllowed('walkin')
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${!isActionAllowed('walkin')
                                         ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
                                         : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                    }`}
+                                      }`}
                                     title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Tray (${currency} ${trayPrice})`}
                                   >
                                     <span>🍱 Tray</span>
@@ -10005,11 +10203,10 @@ function StoreContent({ shopId }) {
                                     type="button"
                                     onClick={() => isActionAllowed('walkin') && product.stock > 0 && addToWalkInCart(product, 'egg')}
                                     disabled={product.stock <= 0 || !isActionAllowed('walkin')}
-                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${
-                                      !isActionAllowed('walkin')
+                                    className={`py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex flex-col items-center justify-center transition-all ${!isActionAllowed('walkin')
                                         ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-50'
                                         : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer active:scale-95 disabled:opacity-40'
-                                    }`}
+                                      }`}
                                     title={!isActionAllowed('walkin') ? 'Billing locked by Super Admin' : `Add 1 Egg (${currency} ${eggPrice})`}
                                   >
                                     <span>🥚 Egg</span>
@@ -10901,11 +11098,10 @@ function StoreContent({ shopId }) {
                         setAppliedEndDate('');
                         setCustomerMetricFilter('ALL');
                       }}
-                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
-                        reportTimeframe === 'ALL' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${reportTimeframe === 'ALL' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
                           ? 'bg-indigo-50/70 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
                           : 'bg-white border border-gray-200 hover:border-indigo-400'
-                      }`}
+                        }`}
                       title="Click to view All Registered and Walk-in Customers"
                     >
                       <div>
@@ -10932,11 +11128,10 @@ function StoreContent({ shopId }) {
                         setAppliedEndDate('');
                         setCustomerMetricFilter(prev => prev === 'SPENT' ? 'ALL' : 'SPENT');
                       }}
-                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
-                        reportTimeframe === 'ALL' && customerMetricFilter === 'SPENT' && !appliedStartDate && !appliedEndDate
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${reportTimeframe === 'ALL' && customerMetricFilter === 'SPENT' && !appliedStartDate && !appliedEndDate
                           ? 'bg-emerald-100/70 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
                           : 'bg-white border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 to-white hover:border-emerald-400'
-                      }`}
+                        }`}
                       title="Click to filter customers who have spent / purchased"
                     >
                       <div>
@@ -10963,11 +11158,10 @@ function StoreContent({ shopId }) {
                         setAppliedEndDate('');
                         setCustomerMetricFilter(prev => prev === 'DUE' ? 'ALL' : 'DUE');
                       }}
-                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
-                        reportTimeframe === 'ALL' && customerMetricFilter === 'DUE' && !appliedStartDate && !appliedEndDate
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${reportTimeframe === 'ALL' && customerMetricFilter === 'DUE' && !appliedStartDate && !appliedEndDate
                           ? 'bg-rose-100/70 border-2 border-rose-600 ring-2 ring-rose-500/20'
                           : 'bg-white border border-rose-200/80 bg-gradient-to-br from-rose-50/40 to-white hover:border-rose-400'
-                      }`}
+                        }`}
                       title="Click to filter customers who have outstanding credit / balance due"
                     >
                       <div>
@@ -10994,11 +11188,10 @@ function StoreContent({ shopId }) {
                         setAppliedEndDate('');
                         setCustomerMetricFilter(prev => prev === 'ORDERS' ? 'ALL' : 'ORDERS');
                       }}
-                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${
-                        reportTimeframe === 'ALL' && customerMetricFilter === 'ORDERS' && !appliedStartDate && !appliedEndDate
+                      className={`rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 hover:shadow-md ${reportTimeframe === 'ALL' && customerMetricFilter === 'ORDERS' && !appliedStartDate && !appliedEndDate
                           ? 'bg-amber-100/70 border-2 border-amber-600 ring-2 ring-amber-500/20'
                           : 'bg-white border border-amber-200/80 bg-gradient-to-br from-amber-50/40 to-white hover:border-amber-400'
-                      }`}
+                        }`}
                       title="Click to filter customers who have placed orders/invoices"
                     >
                       <div>
@@ -11020,11 +11213,10 @@ function StoreContent({ shopId }) {
                   </div>
 
                   {/* Dedicated Today Summary for Customers (Separate Div Below with Cards) */}
-                  <div className={`rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${
-                    reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                  <div className={`rounded-3xl p-5 shadow-sm space-y-3.5 transition-all ${reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
                       ? 'bg-slate-100 border-2 border-slate-800 ring-2 ring-slate-800/20'
                       : 'bg-slate-100 border-2 border-slate-300'
-                  }`}>
+                    }`}>
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
@@ -11049,11 +11241,10 @@ function StoreContent({ shopId }) {
                           setReportTimeframe('DAY');
                           setCustomerMetricFilter(prev => prev === 'CASH' && reportTimeframe === 'DAY' ? 'ALL' : 'CASH');
                         }}
-                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                          reportTimeframe === 'DAY' && customerMetricFilter === 'CASH' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && customerMetricFilter === 'CASH' && !appliedStartDate && !appliedEndDate
                             ? 'bg-emerald-50 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
                             : 'bg-white border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30'
-                        }`}
+                          }`}
                         title="Click to view customers who made cash purchases today"
                       >
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">1. Today Cash Inflow</span>
@@ -11073,11 +11264,10 @@ function StoreContent({ shopId }) {
                           setReportTimeframe('DAY');
                           setCustomerMetricFilter(prev => prev === 'BANK' && reportTimeframe === 'DAY' ? 'ALL' : 'BANK');
                         }}
-                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                          reportTimeframe === 'DAY' && customerMetricFilter === 'BANK' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && customerMetricFilter === 'BANK' && !appliedStartDate && !appliedEndDate
                             ? 'bg-blue-50 border-2 border-blue-600 ring-2 ring-blue-500/20'
                             : 'bg-white border-2 border-slate-300 hover:border-blue-500 hover:bg-blue-50/30'
-                        }`}
+                          }`}
                         title="Click to view customers who made bank/online payments today"
                       >
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-800">2. Today Bank Inflow</span>
@@ -11097,11 +11287,10 @@ function StoreContent({ shopId }) {
                           setReportTimeframe('DAY');
                           setCustomerMetricFilter(prev => prev === 'CREDIT' && reportTimeframe === 'DAY' ? 'ALL' : 'CREDIT');
                         }}
-                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                          reportTimeframe === 'DAY' && customerMetricFilter === 'CREDIT' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && customerMetricFilter === 'CREDIT' && !appliedStartDate && !appliedEndDate
                             ? 'bg-amber-50 border-2 border-amber-600 ring-2 ring-amber-500/20'
                             : 'bg-white border-2 border-slate-300 hover:border-amber-500 hover:bg-amber-50/30'
-                        }`}
+                          }`}
                         title="Click to view customers who took credit/due purchases today"
                       >
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">3. Today Credit Given</span>
@@ -11121,11 +11310,10 @@ function StoreContent({ shopId }) {
                           setReportTimeframe('DAY');
                           setCustomerMetricFilter('ALL');
                         }}
-                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                          reportTimeframe === 'DAY' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && customerMetricFilter === 'ALL' && !appliedStartDate && !appliedEndDate
                             ? 'bg-indigo-50 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
                             : 'bg-white border-2 border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/30'
-                        }`}
+                          }`}
                         title="Click to view all customers active today"
                       >
                         <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Total Today Revenue</span>
@@ -11665,11 +11853,10 @@ function StoreContent({ shopId }) {
                         setReportTimeframe('ALL');
                         setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'CASH') ? 'ALL' : 'CASH');
                       }}
-                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CASH'
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CASH'
                           ? 'border-amber-500 ring-4 ring-amber-400/50 shadow-lg scale-[1.02] bg-amber-50/40'
                           : 'border-amber-400/80 hover:shadow-md hover:border-amber-500 hover:scale-[1.01]'
-                      }`}
+                        }`}
                       title="Click to view Cash Sales details & customers"
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -11698,11 +11885,10 @@ function StoreContent({ shopId }) {
                         setReportTimeframe('ALL');
                         setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'BANK') ? 'ALL' : 'BANK');
                       }}
-                      className={`bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 text-white rounded-2xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'BANK'
+                      className={`bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-2 text-white rounded-2xl p-4 shadow-md flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'BANK'
                           ? 'border-emerald-400 ring-4 ring-emerald-400/50 shadow-xl scale-[1.02]'
                           : 'border-[#1E4D1A] hover:shadow-lg hover:border-emerald-500 hover:scale-[1.01]'
-                      }`}
+                        }`}
                       title="Click to view Bank / Online Sales details & customers"
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -11731,11 +11917,10 @@ function StoreContent({ shopId }) {
                         setReportTimeframe('ALL');
                         setSalesReportPaymentFilter(prev => (reportTimeframe === 'ALL' && prev === 'CREDIT') ? 'ALL' : 'CREDIT');
                       }}
-                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CREDIT'
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'CREDIT'
                           ? 'border-blue-500 ring-4 ring-blue-400/50 shadow-lg scale-[1.02] bg-blue-50/40'
                           : 'border-blue-400/80 hover:shadow-md hover:border-blue-500 hover:scale-[1.01]'
-                      }`}
+                        }`}
                       title="Click to view Credit details & outstanding customers"
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -11764,11 +11949,10 @@ function StoreContent({ shopId }) {
                         setReportEndDate('');
                         setSalesReportPaymentFilter('ALL');
                       }}
-                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${
-                        reportTimeframe === 'ALL' && salesReportPaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                      className={`bg-white border-2 rounded-2xl p-4 shadow-sm flex flex-col justify-between cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'ALL' && salesReportPaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
                           ? 'border-emerald-500 ring-4 ring-emerald-500/50 shadow-lg scale-[1.02] bg-emerald-50/40'
                           : 'border-emerald-400/80 hover:shadow-md hover:border-emerald-500 hover:scale-[1.01]'
-                      }`}
+                        }`}
                       title="Click to view Total Gross Sales & all customers"
                     >
                       <div>
@@ -11800,11 +11984,10 @@ function StoreContent({ shopId }) {
                             <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
                             Today's Sales &amp; Inflow Activity (Daily Breakdown)
                           </span>
-                          <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${
-                            isTodayReportActive
+                          <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${isTodayReportActive
                               ? 'bg-emerald-700 text-white border-emerald-800'
                               : 'bg-white text-slate-800 border-slate-300'
-                          }`}>
+                            }`}>
                             {isTodayReportActive ? '● TODAY FILTER ACTIVE • ' : ''}{todayMasterMetrics.todaySalesCount} Invoices &bull; {todayMasterMetrics.todaySalesPetis} Petis ({todayMasterMetrics.todaySalesEggs.toLocaleString('en-PK')} Eggs)
                           </span>
                         </div>
@@ -11819,22 +12002,20 @@ function StoreContent({ shopId }) {
                               setReportTimeframe('DAY');
                               setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'CASH') ? 'ALL' : 'CASH');
                             }}
-                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'CASH'
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${isTodayReportActive && salesReportPaymentFilter === 'CASH'
                                 ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-slate-300 hover:border-amber-400 hover:shadow-sm hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to view Today's Cash Sales invoices & customers"
                           >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1">
                                 💵 1. Today Cash Sales
                               </span>
-                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                isTodayReportActive && salesReportPaymentFilter === 'CASH'
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${isTodayReportActive && salesReportPaymentFilter === 'CASH'
                                   ? 'bg-amber-500 text-slate-950 font-black'
                                   : 'bg-amber-100 text-amber-800'
-                              }`}>
+                                }`}>
                                 CASH
                               </span>
                             </div>
@@ -11856,35 +12037,30 @@ function StoreContent({ shopId }) {
                               setReportTimeframe('DAY');
                               setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'BANK') ? 'ALL' : 'BANK');
                             }}
-                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'BANK'
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${isTodayReportActive && salesReportPaymentFilter === 'BANK'
                                 ? 'bg-emerald-950 text-white border-emerald-400 ring-4 ring-emerald-500/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-slate-300 hover:border-emerald-600 hover:shadow-sm hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to view Today's Bank / Online Sales invoices & customers"
                           >
                             <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                                isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-300' : 'text-emerald-900'
-                              }`}>
+                              <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-300' : 'text-emerald-900'
+                                }`}>
                                 🏦 2. Today Bank Sales
                               </span>
-                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                isTodayReportActive && salesReportPaymentFilter === 'BANK'
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${isTodayReportActive && salesReportPaymentFilter === 'BANK'
                                   ? 'bg-emerald-500 text-white'
                                   : 'bg-emerald-100 text-emerald-800'
-                              }`}>
+                                }`}>
                                 BANK
                               </span>
                             </div>
-                            <div className={`text-lg sm:text-xl font-black mt-2 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-white' : 'text-slate-900'
-                            }`}>
+                            <div className={`text-lg sm:text-xl font-black mt-2 ${isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-white' : 'text-slate-900'
+                              }`}>
                               Rs. {todayMasterMetrics.todaySalesBank.toLocaleString('en-PK')}
                             </div>
-                            <span className={`text-[10px] font-bold truncate mt-1 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-200/80' : 'text-slate-600'
-                            }`}>
+                            <span className={`text-[10px] font-bold truncate mt-1 ${isTodayReportActive && salesReportPaymentFilter === 'BANK' ? 'text-emerald-200/80' : 'text-slate-600'
+                              }`}>
                               Transferred to Bank
                             </span>
                           </div>
@@ -11899,22 +12075,20 @@ function StoreContent({ shopId }) {
                               setReportTimeframe('DAY');
                               setSalesReportPaymentFilter(prev => (isTodayReportActive && prev === 'CREDIT') ? 'ALL' : 'CREDIT');
                             }}
-                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
                                 ? 'bg-blue-50 border-blue-500 ring-4 ring-blue-400/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-slate-300 hover:border-blue-400 hover:shadow-sm hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to view Today's Credit Sales & customers"
                           >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-wider text-blue-900 flex items-center gap-1">
                                 📋 3. Today Credit Sales
                               </span>
-                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${isTodayReportActive && salesReportPaymentFilter === 'CREDIT'
                                   ? 'bg-blue-600 text-white'
                                   : 'bg-blue-100 text-blue-800'
-                              }`}>
+                                }`}>
                                 CREDIT
                               </span>
                             </div>
@@ -11940,22 +12114,20 @@ function StoreContent({ shopId }) {
                                 setSalesReportPaymentFilter('ALL');
                               }
                             }}
-                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                              isTodayReportActive && salesReportPaymentFilter === 'ALL'
+                            className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${isTodayReportActive && salesReportPaymentFilter === 'ALL'
                                 ? 'bg-emerald-50 border-emerald-500 ring-4 ring-emerald-400/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-slate-300 hover:border-emerald-500 hover:shadow-sm hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to view all Today Sales (combined revenue)"
                           >
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1">
                                 🌟 4. Total Today Sales
                               </span>
-                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                isTodayReportActive && salesReportPaymentFilter === 'ALL'
+                              <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${isTodayReportActive && salesReportPaymentFilter === 'ALL'
                                   ? 'bg-emerald-600 text-white'
                                   : 'bg-slate-200 text-slate-700'
-                              }`}>
+                                }`}>
                                 TODAY ALL
                               </span>
                             </div>
@@ -12195,9 +12367,8 @@ function StoreContent({ shopId }) {
                                                 const isPeti = u.includes('peti');
                                                 const isTray = u.includes('tray');
                                                 return (
-                                                  <span key={itIdx} className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold border ${
-                                                    isPeti ? 'bg-amber-50 text-amber-900 border-amber-200' : isTray ? 'bg-blue-50 text-blue-900 border-blue-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                                                  }`}>
+                                                  <span key={itIdx} className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold border ${isPeti ? 'bg-amber-50 text-amber-900 border-amber-200' : isTray ? 'bg-blue-50 text-blue-900 border-blue-200' : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                                    }`}>
                                                     {it.name} (x{it.quantity} {it.unit})
                                                   </span>
                                                 );
@@ -12591,7 +12762,7 @@ function StoreContent({ shopId }) {
                                               if (Array.isArray(inv.items)) {
                                                 invItems = inv.items;
                                               } else if (typeof inv.items === 'string' && inv.items.trim()) {
-                                                try { invItems = JSON.parse(inv.items); if (typeof invItems === 'string') invItems = JSON.parse(invItems); } catch {}
+                                                try { invItems = JSON.parse(inv.items); if (typeof invItems === 'string') invItems = JSON.parse(invItems); } catch { }
                                               } else if (Array.isArray(inv.orderItems)) {
                                                 invItems = inv.orderItems;
                                               } else if (Array.isArray(inv.saleItems)) {
@@ -13100,20 +13271,20 @@ function StoreContent({ shopId }) {
                                     {salesReportPaymentFilter === 'CASH'
                                       ? `Total Cash Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
                                       : salesReportPaymentFilter === 'BANK'
-                                      ? `Total Bank Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
-                                      : salesReportPaymentFilter === 'CREDIT'
-                                      ? `Total Credit Due (${displayedCustomerWiseSalesReport.length} Customers):`
-                                      : `Total Combined Sales (${displayedCustomerWiseSalesReport.length} Customers):`}
+                                        ? `Total Bank Purchases (${displayedCustomerWiseSalesReport.length} Customers):`
+                                        : salesReportPaymentFilter === 'CREDIT'
+                                          ? `Total Credit Due (${displayedCustomerWiseSalesReport.length} Customers):`
+                                          : `Total Combined Sales (${displayedCustomerWiseSalesReport.length} Customers):`}
                                   </td>
                                   <td className="p-2 text-right text-emerald-700 text-xs font-black border border-gray-300">
                                     {currency} {Number(
                                       salesReportPaymentFilter === 'CASH'
                                         ? salesReportStats.cashSales
                                         : salesReportPaymentFilter === 'BANK'
-                                        ? salesReportStats.bankSales
-                                        : salesReportPaymentFilter === 'CREDIT'
-                                        ? salesReportStats.creditSales
-                                        : salesReportStats.totalRevenue
+                                          ? salesReportStats.bankSales
+                                          : salesReportPaymentFilter === 'CREDIT'
+                                            ? salesReportStats.creditSales
+                                            : salesReportStats.totalRevenue
                                     ).toLocaleString('en-PK')}
                                   </td>
                                   <td className="p-2 border border-gray-300"></td>
@@ -13575,20 +13746,20 @@ function StoreContent({ shopId }) {
                                       {salesReportPaymentFilter === 'CASH'
                                         ? `Total Cash Sales (${displayedSalesReportList.length} Invoices):`
                                         : salesReportPaymentFilter === 'BANK'
-                                        ? `Total Bank Sales (${displayedSalesReportList.length} Invoices):`
-                                        : salesReportPaymentFilter === 'CREDIT'
-                                        ? `Total Credit Sales (${displayedSalesReportList.length} Invoices):`
-                                        : `Total Gross Sales (${displayedSalesReportList.length} Invoices):`}
+                                          ? `Total Bank Sales (${displayedSalesReportList.length} Invoices):`
+                                          : salesReportPaymentFilter === 'CREDIT'
+                                            ? `Total Credit Sales (${displayedSalesReportList.length} Invoices):`
+                                            : `Total Gross Sales (${displayedSalesReportList.length} Invoices):`}
                                     </td>
                                     <td className="p-3 text-right text-emerald-700 text-sm">
                                       {currency} {Number(
                                         salesReportPaymentFilter === 'CASH'
                                           ? salesReportStats.cashSales
                                           : salesReportPaymentFilter === 'BANK'
-                                          ? salesReportStats.bankSales
-                                          : salesReportPaymentFilter === 'CREDIT'
-                                          ? salesReportStats.creditSales
-                                          : salesReportStats.totalRevenue
+                                            ? salesReportStats.bankSales
+                                            : salesReportPaymentFilter === 'CREDIT'
+                                              ? salesReportStats.creditSales
+                                              : salesReportStats.totalRevenue
                                       ).toLocaleString('en-PK')}
                                     </td>
                                     <td></td>
@@ -13719,20 +13890,18 @@ function StoreContent({ shopId }) {
                           setAppliedStartDate('');
                           setAppliedEndDate('');
                         }}
-                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
-                          reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
                             ? 'bg-emerald-50/80 border-2 border-emerald-600 ring-2 ring-emerald-500/20'
                             : 'bg-white border border-emerald-200/80 hover:border-emerald-500'
-                        }`}
+                          }`}
                         title="Click to view Today's Sales & Gross Profit"
                       >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1.5">
                           <span>Today's Sales</span>
-                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
-                            reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
                               ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                               : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          }`}>
+                            }`}>
                             {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? 'DAILY ✓ ACTIVE' : 'DAILY'}
                           </span>
                         </div>
@@ -13752,20 +13921,18 @@ function StoreContent({ shopId }) {
                           setAppliedStartDate('');
                           setAppliedEndDate('');
                         }}
-                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
-                          reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
                             ? 'bg-indigo-50/80 border-2 border-indigo-600 ring-2 ring-indigo-500/20'
                             : 'bg-white border border-indigo-200/80 hover:border-indigo-500'
-                        }`}
+                          }`}
                         title="Click to view This Month's Sales & Gross Profit"
                       >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-700 mb-1.5">
                           <span>This Month Sales</span>
-                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
-                            reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate
                               ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                               : 'bg-indigo-50 text-indigo-800 border-indigo-200'
-                          }`}>
+                            }`}>
                             {reportTimeframe === 'MONTH' && !appliedStartDate && !appliedEndDate ? 'MONTHLY ✓ ACTIVE' : 'MONTHLY'}
                           </span>
                         </div>
@@ -13785,20 +13952,18 @@ function StoreContent({ shopId }) {
                           setAppliedStartDate('');
                           setAppliedEndDate('');
                         }}
-                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
-                          reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
                             ? 'bg-purple-50/80 border-2 border-purple-600 ring-2 ring-purple-500/20'
                             : 'bg-white border border-purple-200/80 hover:border-purple-500'
-                        }`}
+                          }`}
                         title="Click to view This Year's Sales & Gross Profit"
                       >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-purple-700 mb-1.5">
                           <span>This Year Sales</span>
-                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
-                            reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate
                               ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
                               : 'bg-purple-50 text-purple-800 border-purple-200'
-                          }`}>
+                            }`}>
                             {reportTimeframe === 'YEAR' && !appliedStartDate && !appliedEndDate ? 'YEARLY ✓ ACTIVE' : 'YEARLY'}
                           </span>
                         </div>
@@ -13818,20 +13983,18 @@ function StoreContent({ shopId }) {
                           setAppliedStartDate('');
                           setAppliedEndDate('');
                         }}
-                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${
-                          reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
+                        className={`rounded-2xl p-4 shadow-sm cursor-pointer active:scale-95 transition-all hover:shadow-md ${reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
                             ? 'bg-amber-50/80 border-2 border-amber-600 ring-2 ring-amber-500/20'
                             : 'bg-white border border-amber-200/80 hover:border-amber-500'
-                        }`}
+                          }`}
                         title="Click to view All-Time Total Sales & Profit"
                       >
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">
                           <span>All-Time Total Sales</span>
-                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${
-                            reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
+                          <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black transition-all ${reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate
                               ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
+                            }`}>
                             {reportTimeframe === 'ALL' && !appliedStartDate && !appliedEndDate ? 'ALL-TIME ✓ ACTIVE' : 'ALL-TIME'}
                           </span>
                         </div>
@@ -14342,13 +14505,13 @@ function StoreContent({ shopId }) {
                         <div className="flex items-center gap-1.5 text-rose-400 text-[10px] font-black uppercase tracking-widest leading-none">
                           <span>Analytics</span>
                           <span className="text-slate-600">&bull;</span>
-                          <span className="text-slate-400 font-bold">Shop Expenses &amp; Returns</span>
+                          <span className="text-slate-400 font-bold">Shop Expenses</span>
                         </div>
                         <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-white mt-0.5 truncate">
-                          Business Expenses &amp; Loss Report
+                          Business Expenses Report
                         </h2>
                         <p className="text-slate-400 text-[10.5px] font-medium leading-none mt-0.5 hidden sm:block truncate">
-                          Track operating overheads, bills, rent, transport, and egg breakage losses.
+                          Track operating overheads, bills, rent, transport, and shop operational expenses.
                         </p>
                       </div>
                     </div>
@@ -14429,11 +14592,10 @@ function StoreContent({ shopId }) {
                             onClick={() => {
                               setExpensePaymentFilter(prev => prev === 'CASH' ? 'ALL' : 'CASH');
                             }}
-                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
-                              expensePaymentFilter === 'CASH'
+                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${expensePaymentFilter === 'CASH'
                                 ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-amber-400/80 hover:border-amber-500 hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to filter Cash expenses & cash remaining"
                           >
                             <div>
@@ -14456,11 +14618,10 @@ function StoreContent({ shopId }) {
                             onClick={() => {
                               setExpensePaymentFilter(prev => prev === 'BANK' ? 'ALL' : 'BANK');
                             }}
-                            className={`border-2 text-white rounded-2xl p-5 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
-                              expensePaymentFilter === 'BANK'
+                            className={`border-2 text-white rounded-2xl p-5 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${expensePaymentFilter === 'BANK'
                                 ? 'bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-emerald-400 ring-4 ring-emerald-500/50 shadow-xl scale-[1.02]'
                                 : 'bg-gradient-to-br from-[#071306] via-[#152F12] to-[#0A1A08] border-[#1E4D1A] hover:border-emerald-500 hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to filter Bank expenses & bank remaining"
                           >
                             <div>
@@ -14488,11 +14649,10 @@ function StoreContent({ shopId }) {
                               setReportTimeframe('ALL');
                               setExpensePaymentFilter('ALL');
                             }}
-                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${
-                              reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
                                 ? 'bg-rose-50 border-rose-500 ring-4 ring-rose-400/50 shadow-md scale-[1.02]'
                                 : 'bg-white border-rose-300 hover:border-rose-500 hover:scale-[1.01]'
-                            }`}
+                              }`}
                             title="Click to view all-time Operating Expenses list"
                           >
                             <div>
@@ -14510,7 +14670,7 @@ function StoreContent({ shopId }) {
                             </div>
                           </div>
 
-                          {/* Card 4: Orange - Damaged Egg Loss */}
+                          {/* Card 4: Indigo - Total Expense Logs */}
                           <div
                             onClick={() => {
                               setAppliedStartDate('');
@@ -14518,21 +14678,25 @@ function StoreContent({ shopId }) {
                               setReportStartDate('');
                               setReportEndDate('');
                               setReportTimeframe('ALL');
-                              setActiveView('damaged-products');
+                              setExpensePaymentFilter('ALL');
                             }}
-                            className="bg-white border-2 border-orange-300 hover:border-orange-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between hover:scale-[1.01] group"
-                            title="Click to view Damaged Stock Loss report"
+                            className={`border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-95 flex flex-col justify-between ${reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                                ? 'bg-indigo-50 border-indigo-500 ring-4 ring-indigo-400/50 shadow-md scale-[1.02]'
+                                : 'bg-white border-indigo-300 hover:border-indigo-500 hover:scale-[1.01]'
+                              }`}
+                            title="Click to view all logged expenses"
                           >
                             <div>
-                              <div className="flex items-center justify-between text-orange-700 text-[10px] font-black uppercase tracking-widest mb-2">
-                                <span className="flex items-center gap-1"><PackageX className="w-3.5 h-3.5 text-orange-600 group-hover:scale-110 transition-transform" /> Damaged Egg Loss</span>
-                                <span className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-[9px] font-black">BREAKAGE</span>
+                              <div className="flex items-center justify-between text-indigo-700 text-[10px] font-black uppercase tracking-widest mb-2">
+                                <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-indigo-600" /> Total Expense Logs</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${reportTimeframe === 'ALL' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>RECORDS</span>
                               </div>
-                              <h4 className="text-2xl font-black text-orange-600 tracking-tight">
-                                {currency} {timeframeDamaged.toLocaleString('en-PK')}
+                              <h4 className="text-2xl font-black text-indigo-600 tracking-tight">
+                                {dynamicExpenseStats.totalExpCount} Entries
                               </h4>
-                              <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-orange-100 font-medium">
-                                {dynamicExpenseStats.totalDamagedEggs} egg cracked/broken stock losses
+                              <p className="text-[11px] text-slate-500 mt-1.5 pt-1.5 border-t border-indigo-100 font-medium flex items-center justify-between">
+                                <span>Total overhead records</span>
+                                <span className="text-[10px] text-indigo-700 font-black">All-Time &rarr;</span>
                               </p>
                             </div>
                           </div>
@@ -14543,17 +14707,16 @@ function StoreContent({ shopId }) {
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <span className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-slate-700 animate-pulse" />
-                              Today's Operating Expenses &amp; Losses (Daily Breakdown)
+                              Today's Operating Expenses (Daily Breakdown)
                             </span>
-                            <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${
-                              reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                            <span className={`text-xs border-2 px-3 py-1 rounded-xl font-bold shadow-xs transition-all ${reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
                                 ? 'bg-rose-700 text-white border-rose-800'
                                 : 'bg-white text-slate-800 border-slate-300'
-                            }`}>
-                              {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? '● TODAY FILTER ACTIVE • ' : ''}{todayMasterMetrics.todayExpensesCount} Shop Expense Logs &bull; {todayMasterMetrics.todayDamagedCount} Damage Logs
+                              }`}>
+                              {reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate ? '● TODAY FILTER ACTIVE • ' : ''}{todayMasterMetrics.todayExpensesCount} Shop Expense Logs
                             </span>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {/* 1. Today Net Cash */}
                             <div
                               onClick={() => {
@@ -14564,18 +14727,16 @@ function StoreContent({ shopId }) {
                                 setReportTimeframe('DAY');
                                 setExpensePaymentFilter(prev => (reportTimeframe === 'DAY' && prev === 'CASH' && !appliedStartDate && !appliedEndDate) ? 'ALL' : 'CASH');
                               }}
-                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                                reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate
                                   ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-400/50 shadow-md scale-[1.02]'
                                   : 'bg-white border-slate-300 hover:border-amber-400 hover:shadow-sm hover:scale-[1.01]'
-                              }`}
+                                }`}
                               title="Click to filter Today's Cash expenses"
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Net Cash</span>
-                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-100 text-amber-800'
-                                }`}>CASH</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${reportTimeframe === 'DAY' && expensePaymentFilter === 'CASH' && !appliedStartDate && !appliedEndDate ? 'bg-amber-500 text-slate-950 font-black' : 'bg-amber-100 text-amber-800'
+                                  }`}>CASH</span>
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todaySalesCash - (dynamicExpenseStats.todayCashExp || 0)).toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Cash In Hand</span>
@@ -14591,27 +14752,22 @@ function StoreContent({ shopId }) {
                                 setReportTimeframe('DAY');
                                 setExpensePaymentFilter(prev => (reportTimeframe === 'DAY' && prev === 'BANK' && !appliedStartDate && !appliedEndDate) ? 'ALL' : 'BANK');
                               }}
-                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate
                                   ? 'bg-emerald-950 text-white border-emerald-400 ring-4 ring-emerald-500/50 shadow-md scale-[1.02]'
                                   : 'bg-white border-slate-300 hover:border-emerald-600 hover:shadow-sm hover:scale-[1.01]'
-                              }`}
+                                }`}
                               title="Click to filter Today's Bank expenses"
                             >
                               <div className="flex items-center justify-between">
-                                <span className={`text-[10px] font-black uppercase tracking-wider ${
-                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-300' : 'text-emerald-800'
-                                }`}>2. Today Net Bank</span>
-                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'
-                                }`}>BANK</span>
+                                <span className={`text-[10px] font-black uppercase tracking-wider ${reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-300' : 'text-emerald-800'
+                                  }`}>2. Today Net Bank</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'
+                                  }`}>BANK</span>
                               </div>
-                              <div className={`text-lg sm:text-xl font-black mt-2 ${
-                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-white' : 'text-slate-900'
-                              }`}>Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</div>
-                              <span className={`text-[10px] font-bold truncate mt-1 ${
-                                reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-200/80' : 'text-slate-600'
-                              }`}>Bank Remaining</span>
+                              <div className={`text-lg sm:text-xl font-black mt-2 ${reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-white' : 'text-slate-900'
+                                }`}>Rs. {(todayMasterMetrics.todaySalesBank - (dynamicExpenseStats.todayBankExp || 0)).toLocaleString('en-PK')}</div>
+                              <span className={`text-[10px] font-bold truncate mt-1 ${reportTimeframe === 'DAY' && expensePaymentFilter === 'BANK' && !appliedStartDate && !appliedEndDate ? 'text-emerald-200/80' : 'text-slate-600'
+                                }`}>Bank Remaining</span>
                             </div>
 
                             {/* 3. Today Expenses */}
@@ -14628,45 +14784,22 @@ function StoreContent({ shopId }) {
                                   setExpensePaymentFilter('ALL');
                                 }
                               }}
-                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${
-                                reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate
                                   ? 'bg-rose-50 border-rose-500 ring-4 ring-rose-400/50 shadow-md scale-[1.02]'
                                   : 'bg-white border-slate-300 hover:border-rose-400 hover:shadow-sm hover:scale-[1.01]'
-                              }`}
+                                }`}
                               title="Click to view Today's Shop Expenses list"
                             >
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">3. Today Expenses</span>
-                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${
-                                  reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-rose-600 text-white' : 'bg-rose-100 text-rose-800'
-                                }`}>TODAY</span>
+                                <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded-md ${reportTimeframe === 'DAY' && expensePaymentFilter === 'ALL' && !appliedStartDate && !appliedEndDate ? 'bg-rose-600 text-white' : 'bg-rose-100 text-rose-800'
+                                  }`}>TODAY</span>
                               </div>
                               <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayExpenses.toLocaleString('en-PK')}</div>
                               <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayExpensesCount} Shop Expense Logs</span>
                             </div>
 
-                            {/* 4. Today Damaged */}
-                            <div
-                              onClick={() => {
-                                setAppliedStartDate('');
-                                setAppliedEndDate('');
-                                setReportStartDate('');
-                                setReportEndDate('');
-                                setReportTimeframe('DAY');
-                                setActiveView('damaged-products');
-                              }}
-                              className="bg-white border-2 border-slate-300 hover:border-orange-400 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 hover:scale-[1.01]"
-                              title="Click to view Today's Damaged Stock report"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-orange-800">4. Today Damaged</span>
-                                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-800">BREAKAGE</span>
-                              </div>
-                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {todayMasterMetrics.todayDamagedLoss.toLocaleString('en-PK')}</div>
-                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">{todayMasterMetrics.todayDamagedEggs} Eggs ({todayMasterMetrics.todayDamagedPetis} Petis)</span>
-                            </div>
-
-                            {/* 5. Total Today Outflow */}
+                            {/* 4. Today Expense Logs */}
                             <div
                               onClick={() => {
                                 setAppliedStartDate('');
@@ -14676,19 +14809,18 @@ function StoreContent({ shopId }) {
                                 setReportTimeframe('DAY');
                                 setExpensePaymentFilter('ALL');
                               }}
-                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs col-span-2 sm:col-span-1 cursor-pointer transition-all active:scale-95 ${
-                                reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
-                                  ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-400/40 shadow-sm'
-                                  : 'bg-white border-slate-300 hover:border-purple-400 hover:shadow-sm hover:scale-[1.01]'
-                              }`}
-                              title="Click to view Today's Total Outflow"
+                              className={`border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer transition-all active:scale-95 ${reportTimeframe === 'DAY' && !appliedStartDate && !appliedEndDate
+                                  ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400/40 shadow-sm'
+                                  : 'bg-white border-slate-300 hover:border-indigo-400 hover:shadow-sm hover:scale-[1.01]'
+                                }`}
+                              title="Click to view Today's Expense Entries"
                             >
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">5. Total Today Outflow</span>
-                                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800">OUTFLOW</span>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-900">4. Today Expense Logs</span>
+                                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800">COUNT</span>
                               </div>
-                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">Rs. {(todayMasterMetrics.todayExpenses + todayMasterMetrics.todayDamagedLoss).toLocaleString('en-PK')}</div>
-                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Expenses + Breakage</span>
+                              <div className="text-lg sm:text-xl font-black text-slate-900 mt-2">{todayMasterMetrics.todayExpensesCount} Logs</div>
+                              <span className="text-[10px] font-bold text-slate-600 truncate mt-1">Recorded Today</span>
                             </div>
                           </div>
                         </div>
@@ -14705,7 +14837,7 @@ function StoreContent({ shopId }) {
                           Expenses Date Range Filter (Calendar)
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-1">
-                          Filter and analyze operating expense entries and breakage losses by calendar date range
+                          Filter and analyze operating expense entries by calendar date range
                         </p>
                       </div>
 
@@ -14717,15 +14849,15 @@ function StoreContent({ shopId }) {
                     <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div>
                         <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block mb-1">
-                          {getActivePeriodLabel()} Expenses & Losses
+                          {getActivePeriodLabel()} Operating Expenses
                         </span>
                         <h4 className="text-3xl font-black text-slate-900 tracking-tight">
                           {currency} {(
-                            (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeTotalLoss :
-                              reportTimeframe === 'DAY' ? dynamicExpenseStats.todayTotalLoss :
-                                reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthTotalLoss :
-                                  reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearTotalLoss :
-                                    dynamicExpenseStats.grandTotalLoss
+                            (appliedStartDate || appliedEndDate) ? dynamicExpenseStats.rangeExp :
+                              reportTimeframe === 'DAY' ? dynamicExpenseStats.todayExp :
+                                reportTimeframe === 'MONTH' ? dynamicExpenseStats.monthExp :
+                                  reportTimeframe === 'YEAR' ? dynamicExpenseStats.yearExp :
+                                    dynamicExpenseStats.totalExp
                           ).toLocaleString('en-PK')}
                         </h4>
                       </div>
@@ -14892,7 +15024,7 @@ function StoreContent({ shopId }) {
                                   expensePaymentFilter === 'BANK' ? 'No Bank expenses logged for this period.' :
                                     'No manual expenses logged for this period.'}
                               </p>
-                              <p className="text-[11px] text-slate-400 mt-1">Click "+ Log Entry" above to add shop rent, electricity, packaging, or egg damage expenses.</p>
+                              <p className="text-[11px] text-slate-400 mt-1">Click "+ Log Entry" above to add shop rent, electricity, packaging, or transport expenses.</p>
                               <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
                                 {(reportTimeframe !== 'ALL' || appliedStartDate || appliedEndDate || expensePaymentFilter !== 'ALL') && (
                                   <button
@@ -15381,11 +15513,10 @@ function StoreContent({ shopId }) {
                             {/* Card 1: Total Financial Breakage Loss */}
                             <div
                               onClick={handleSelectAllDamaged}
-                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
-                                isTotalDamagedActive
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${isTotalDamagedActive
                                   ? 'border-amber-500 ring-2 ring-amber-500/50 shadow-md scale-[1.01]'
                                   : 'border-amber-300 hover:border-amber-400'
-                              }`}
+                                }`}
                               title="Click to view All-Time Damaged Products List"
                             >
                               <div>
@@ -15414,11 +15545,10 @@ function StoreContent({ shopId }) {
                             {/* Card 2: Total Cracked / Broken Eggs */}
                             <div
                               onClick={handleSelectAllDamaged}
-                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
-                                isTotalDamagedActive
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${isTotalDamagedActive
                                   ? 'border-rose-500 ring-2 ring-rose-500/50 shadow-md scale-[1.01]'
                                   : 'border-rose-300 hover:border-rose-400'
-                              }`}
+                                }`}
                               title="Click to view All-Time Damaged Products List"
                             >
                               <div>
@@ -15444,11 +15574,10 @@ function StoreContent({ shopId }) {
                             {/* Card 3: Total Damaged Petis */}
                             <div
                               onClick={handleSelectAllDamaged}
-                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
-                                isTotalDamagedActive
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${isTotalDamagedActive
                                   ? 'border-purple-500 ring-2 ring-purple-500/50 shadow-md scale-[1.01]'
                                   : 'border-purple-300 hover:border-purple-400'
-                              }`}
+                                }`}
                               title="Click to view All-Time Damaged Products List"
                             >
                               <div>
@@ -15473,11 +15602,10 @@ function StoreContent({ shopId }) {
                             {/* Card 4: Total Damaged Incidents / Logs */}
                             <div
                               onClick={handleSelectAllDamaged}
-                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${
-                                isTotalDamagedActive
+                              className={`bg-white border-2 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer active:scale-95 ${isTotalDamagedActive
                                   ? 'border-slate-800 ring-2 ring-slate-800/50 shadow-md scale-[1.01]'
                                   : 'border-slate-300 hover:border-slate-400'
-                              }`}
+                                }`}
                               title="Click to view All-Time Damaged Products List"
                             >
                               <div>
@@ -15520,9 +15648,8 @@ function StoreContent({ shopId }) {
                               {/* 1. Today Breakage Loss */}
                               <div
                                 onClick={handleSelectTodayDamaged}
-                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
-                                  isTodayDamagedActive ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-50/20' : 'border-slate-300 hover:border-amber-400'
-                                }`}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${isTodayDamagedActive ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-50/20' : 'border-slate-300 hover:border-amber-400'
+                                  }`}
                                 title="Click to filter list for Today's Damaged Stock"
                               >
                                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">1. Today Breakage Loss</span>
@@ -15536,9 +15663,8 @@ function StoreContent({ shopId }) {
                               {/* 2. Today Damaged Eggs */}
                               <div
                                 onClick={handleSelectTodayDamaged}
-                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
-                                  isTodayDamagedActive ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50/20' : 'border-slate-300 hover:border-rose-400'
-                                }`}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${isTodayDamagedActive ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50/20' : 'border-slate-300 hover:border-rose-400'
+                                  }`}
                                 title="Click to filter list for Today's Damaged Stock"
                               >
                                 <span className="text-[10px] font-black uppercase tracking-wider text-rose-800">2. Today Damaged Eggs</span>
@@ -15552,9 +15678,8 @@ function StoreContent({ shopId }) {
                               {/* 3. Today Damaged Petis */}
                               <div
                                 onClick={handleSelectTodayDamaged}
-                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
-                                  isTodayDamagedActive ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/20' : 'border-slate-300 hover:border-purple-400'
-                                }`}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${isTodayDamagedActive ? 'border-purple-500 ring-2 ring-purple-500/40 bg-purple-50/20' : 'border-slate-300 hover:border-purple-400'
+                                  }`}
                                 title="Click to filter list for Today's Damaged Stock"
                               >
                                 <span className="text-[10px] font-black uppercase tracking-wider text-purple-800">3. Today Damaged Petis</span>
@@ -15568,9 +15693,8 @@ function StoreContent({ shopId }) {
                               {/* 4. Today Damage Logs */}
                               <div
                                 onClick={handleSelectTodayDamaged}
-                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${
-                                  isTodayDamagedActive ? 'border-slate-800 ring-2 ring-slate-800/40 bg-slate-50' : 'border-slate-300 hover:border-slate-500'
-                                }`}
+                                className={`bg-white border-2 rounded-2xl p-4 flex flex-col justify-between shadow-xs cursor-pointer active:scale-95 transition-all ${isTodayDamagedActive ? 'border-slate-800 ring-2 ring-slate-800/40 bg-slate-50' : 'border-slate-300 hover:border-slate-500'
+                                  }`}
                                 title="Click to filter list for Today's Damaged Stock"
                               >
                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">4. Today Damage Logs</span>
@@ -16190,11 +16314,11 @@ function StoreContent({ shopId }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { 
+                    onClick={() => {
                       const cUnit = customerSelectedUnits[selectedItem._id] || 'tray';
                       const cQty = customerSelectedQuantities[selectedItem._id] || 1;
-                      handleAddToCart(selectedItem, cUnit, cQty); 
-                      setSelectedItem(null); 
+                      handleAddToCart(selectedItem, cUnit, cQty);
+                      setSelectedItem(null);
                     }}
                     className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-green-700 hover:from-emerald-500 hover:via-teal-600 hover:to-green-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_8px_25px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.8),0_0_20px_rgba(59,130,246,0.5)] border-t border-t-emerald-300/60 border-b-4 border-b-emerald-950 flex items-center justify-center gap-2 active:translate-y-0.5 transition-all cursor-pointer"
                   >
@@ -16638,7 +16762,6 @@ function StoreContent({ shopId }) {
                     <option value="Transport & Freight">Transport & Freight</option>
                     <option value="Salaries">Worker Salaries</option>
                     <option value="Police Chalan / Traffic Fine">🚨 Police Chalan / Traffic Fine</option>
-                    <option value="Egg Damage / Loss">Egg Damage / Loss</option>
                     <option value="Other">Other Expenses</option>
                   </select>
                 </div>
